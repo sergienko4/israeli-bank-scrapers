@@ -26,7 +26,10 @@ import {
 import { createContextStrategy } from './ApiDirectCallActions.strategy.js';
 import type { IApiDirectCallConfig } from './ConfigContracts/index.js';
 import type { IAuthModePolicy } from './Flow/AuthModePolicy.js';
-import type { GenericCreds, IConfigTokenStrategy } from './Flow/TokenStrategyFromConfig.js';
+import type {
+  GenericCreds,
+  IConfigTokenStrategy,
+} from './Flow/Lifecycle/TokenStrategyFromConfig.js';
 import { projectSessionCarry } from './SessionCarryProjection.js';
 
 /** Booted ACTION bundle — bus, strategy, context, creds, fallback and allowlist. */

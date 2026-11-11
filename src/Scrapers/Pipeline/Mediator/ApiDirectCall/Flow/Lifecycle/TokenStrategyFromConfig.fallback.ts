@@ -6,10 +6,10 @@
  * here: `primeInitial` runs the cold login itself.
  */
 
-import type { IProcedureFailure } from '../../../Types/Procedure.js';
-import { isAuthRejectedFailure } from '../../Api/ApiMediator.authReject.js';
-import type { ColdFallback, IApiDirectCallConfig } from '../ConfigContracts/index.js';
-import { carryBundleWarmOf } from './WarmStartKind.js';
+import type { IProcedureFailure } from '../../../../Types/Procedure.js';
+import { isAuthRejectedFailure } from '../../../Api/ApiMediator.authReject.js';
+import type { ColdFallback, IApiDirectCallConfig } from '../../ConfigContracts/index.js';
+import { carryBundleWarmOf } from '../WarmStartKind.js';
 
 /** Decides whether one failed warm resume may fall back to a cold login. */
 type WarmFailureGate = (failure: IProcedureFailure) => boolean;

@@ -195,7 +195,7 @@ optionalExtractsToCarry: {
 `requiredCreds` maps a creds field to a `CredRule`. `checkRequiredCreds` in
 `Flow/RequiredCreds.ts` runs before keys are generated or any request is sent.
 `admitFlow`
-(`src/Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/TokenStrategyFromConfig.budget.ts`)
+(`src/Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/TokenStrategyFromConfig.budget.ts`)
 calls it before `mayStartFlow` charges the cold-flow budget, for
 `runConfiguredFlow` and a durable enrollment alike, and `prepareSmsOtpFlow`
 calls it again for the paths that do not pass the budget:

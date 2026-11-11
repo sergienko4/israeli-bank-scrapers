@@ -24,7 +24,7 @@ import type {
   IApiDirectCallConfig,
   IStepConfig,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
-import type { IConfigTokenStrategy } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/TokenStrategyFromConfig.js';
+import type { IConfigTokenStrategy } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/TokenStrategyFromConfig.js';
 import { failResponseIntegrity } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/ResponseIntegrityCheck.js';
 import type { ICookieSession } from '../../../../../../Scrapers/Pipeline/Types/Domain/CookieSession.js';
 import { RESPONSE_BYTE_LIMIT_REASON } from '../../../../../../Scrapers/Pipeline/Types/Domain/FetchPolicy.js';
@@ -70,7 +70,7 @@ jest.unstable_mockModule('../../../../../../Scrapers/Pipeline/Logging/Debug.js',
 const CODEC =
   await import('../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmCarryBundle.js');
 const STRATEGY =
-  await import('../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/TokenStrategyFromConfig.js');
+  await import('../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/TokenStrategyFromConfig.js');
 const URLS = await import('../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js');
 
 const CTX = { companyId: CompanyTypes.OneZero } as unknown as ITokenContext;

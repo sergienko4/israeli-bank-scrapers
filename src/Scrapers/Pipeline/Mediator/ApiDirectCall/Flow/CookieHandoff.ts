@@ -9,7 +9,10 @@
 
 import type { ITokenBus } from '../../../Types/Domain/TokenBus.js';
 import type { CookieHandoff } from '../ConfigContracts/index.js';
-import type { ILongTermTokenSlot, IRunFlowArgs } from './TokenStrategyFromConfig.types.js';
+import type {
+  ILongTermTokenSlot,
+  IRunFlowArgs,
+} from './Lifecycle/TokenStrategyFromConfig.types.js';
 
 /** What a hand-off reads: the finished flow's config and bus. */
 type IHandoffArgs = Pick<IRunFlowArgs, 'config' | 'bus'>;

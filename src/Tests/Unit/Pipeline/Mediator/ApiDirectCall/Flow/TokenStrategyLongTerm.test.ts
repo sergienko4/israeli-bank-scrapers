@@ -11,7 +11,7 @@ import type {
   IApiQueryOpts,
 } from '../../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import type { IApiDirectCallConfig } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
-import { createTokenStrategyFromConfig } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/TokenStrategyFromConfig.js';
+import { createTokenStrategyFromConfig } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/TokenStrategyFromConfig.js';
 import type {
   WKUrlGroup,
   WKUrlOrLiteral,

@@ -4,21 +4,21 @@
  * and exported from the jar a finished login ends with.
  */
 
-import type { Procedure } from '../../../Types/Procedure.js';
-import { isOk } from '../../../Types/Procedure.js';
-import type { ICookieJarWarmStart } from '../ConfigContracts/index.js';
+import type { Procedure } from '../../../../Types/Procedure.js';
+import { isOk } from '../../../../Types/Procedure.js';
+import type { ICookieJarWarmStart } from '../../ConfigContracts/index.js';
+import {
+  decodeWarmJar,
+  encodeWarmJar,
+  type StoredJar,
+  WARM_JAR_REJECTIONS,
+} from '../WarmCookieJar.js';
 import {
   publishWithin,
   readCredsString,
   skipWarmRestore,
 } from './TokenStrategyFromConfig.shared.js';
 import type { IWarmRunArgs, WarmCarry } from './TokenStrategyFromConfig.types.js';
-import {
-  decodeWarmJar,
-  encodeWarmJar,
-  type StoredJar,
-  WARM_JAR_REJECTIONS,
-} from './WarmCookieJar.js';
 
 /** A stored token about to be restored as a cookie jar. */
 interface IJarRestoreArgs extends IWarmRunArgs {

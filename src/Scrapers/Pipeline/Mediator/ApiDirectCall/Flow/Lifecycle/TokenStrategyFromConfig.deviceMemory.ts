@@ -8,16 +8,16 @@
  * flow keeps the seeded id (the step's `keepExisting` extract).
  */
 
-import { getDebug } from '../../../Logging/Debug.js';
-import type { Procedure } from '../../../Types/Procedure.js';
-import { isOk, succeed } from '../../../Types/Procedure.js';
+import { getDebug } from '../../../../Logging/Debug.js';
+import type { Procedure } from '../../../../Types/Procedure.js';
+import { isOk, succeed } from '../../../../Types/Procedure.js';
 import {
   decodeDeviceMemoryState,
   encodeDeviceMemoryState,
   isDeviceMemoryId,
-} from '../DeviceMemoryStateCodec.js';
-import type { JsonValue } from '../Envelope/JsonPointer.js';
-import type { IPersistentAuthExpectation } from '../PersistentAuthStateRules.js';
+} from '../../DeviceMemoryStateCodec.js';
+import type { JsonValue } from '../../Envelope/JsonPointer.js';
+import type { IPersistentAuthExpectation } from '../../PersistentAuthStateRules.js';
 import { durableFail, invokeOnUpdate } from './TokenStrategyFromConfig.persistent.js';
 import { omitFlowFailureText } from './TokenStrategyFromConfig.scrub.js';
 import type { IDurablePrimeArgs, IRunFlowArgs } from './TokenStrategyFromConfig.types.js';

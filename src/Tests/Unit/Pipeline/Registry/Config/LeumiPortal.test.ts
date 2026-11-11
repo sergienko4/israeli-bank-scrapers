@@ -13,7 +13,7 @@ import type {
   ISeedCarrySource,
   IStepConfig,
 } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
-import { runSmsOtpFlow } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/SmsOtpFlow.js';
+import { runSmsOtpFlow } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/SmsOtpFlow.js';
 import {
   registerWkUrl,
   resetWkRegistryForTest,

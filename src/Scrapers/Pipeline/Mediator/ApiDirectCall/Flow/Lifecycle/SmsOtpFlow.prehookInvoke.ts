@@ -6,12 +6,12 @@
  * `prehook → prehookCache → prehookInvoke`.
  */
 
-import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
-import { errorNameOf } from '../../../Types/ErrorUtils.js';
-import type { Procedure } from '../../../Types/Procedure.js';
-import { fail, succeed } from '../../../Types/Procedure.js';
-import type { IPreStepHook } from '../ConfigContracts/EnvelopeTypes.js';
-import type { JsonValue } from '../Envelope/JsonPointer.js';
+import { ScraperErrorTypes } from '../../../../../Base/ErrorTypes.js';
+import { errorNameOf } from '../../../../Types/ErrorUtils.js';
+import type { Procedure } from '../../../../Types/Procedure.js';
+import { fail, succeed } from '../../../../Types/Procedure.js';
+import type { IPreStepHook } from '../../ConfigContracts/EnvelopeTypes.js';
+import type { JsonValue } from '../../Envelope/JsonPointer.js';
 import type { IInvokePreHookArgs, IPreHookCoerceArgs } from './SmsOtpFlow.types.js';
 
 /**

@@ -3,10 +3,10 @@
  * and wires them into createTokenStrategyFromConfig.
  */
 
-import type { Procedure } from '../../../Types/Procedure.js';
-import { isOk, succeed } from '../../../Types/Procedure.js';
-import type { IApiDirectCallConfig } from '../ConfigContracts/index.js';
-import type { JsonValue } from '../Envelope/JsonPointer.js';
+import type { Procedure } from '../../../../Types/Procedure.js';
+import { isOk, succeed } from '../../../../Types/Procedure.js';
+import type { IApiDirectCallConfig } from '../../ConfigContracts/index.js';
+import type { JsonValue } from '../../Envelope/JsonPointer.js';
 import { mayEscalateWarmFailureImpl } from './TokenStrategyFromConfig.fallback.js';
 import {
   hasWarmStateImpl,

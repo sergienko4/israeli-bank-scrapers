@@ -8,8 +8,8 @@ import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, succeed } from '../../../Types/Procedure.js';
 import type { CredRule, IApiDirectCallConfig } from '../ConfigContracts/index.js';
-import { readCredsString } from './TokenStrategyFromConfig.shared.js';
-import type { GenericCreds } from './TokenStrategyFromConfig.types.js';
+import { readCredsString } from './Lifecycle/TokenStrategyFromConfig.shared.js';
+import type { GenericCreds } from './Lifecycle/TokenStrategyFromConfig.types.js';
 
 /** One required field and the rule its value must meet. */
 type CredEntry = readonly [string, CredRule];

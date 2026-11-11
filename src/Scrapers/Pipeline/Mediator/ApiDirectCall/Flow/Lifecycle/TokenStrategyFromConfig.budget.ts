@@ -27,9 +27,9 @@
  * "one SMS ever".
  */
 
-import type { Procedure } from '../../../Types/Procedure.js';
-import { isOk, succeed } from '../../../Types/Procedure.js';
-import { checkRequiredCreds } from './RequiredCreds.js';
+import type { Procedure } from '../../../../Types/Procedure.js';
+import { isOk, succeed } from '../../../../Types/Procedure.js';
+import { checkRequiredCreds } from '../RequiredCreds.js';
 import type { ILongTermTokenSlot, IRunFlowArgs } from './TokenStrategyFromConfig.types.js';
 
 /**

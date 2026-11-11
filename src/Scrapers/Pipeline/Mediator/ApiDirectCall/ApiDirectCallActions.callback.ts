@@ -9,7 +9,7 @@ import { errorNameOf } from '../../Types/ErrorUtils.js';
 import { isSome, none, type Option, some } from '../../Types/Option.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import { type IAuthFlowCallback, PHASE_LABEL } from './ApiDirectCallActions.shared.js';
-import type { IConfigTokenStrategy } from './Flow/TokenStrategyFromConfig.js';
+import type { IConfigTokenStrategy } from './Flow/Lifecycle/TokenStrategyFromConfig.js';
 
 /** Auth-flow callback payload. */
 interface IAuthFlowPayload {

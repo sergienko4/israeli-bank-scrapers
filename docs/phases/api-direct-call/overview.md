@@ -69,7 +69,7 @@ Some banks ask for an SMS code only on some logins. A step can carry a
 runIf: { carry: 'state', oneOf: ['logonotp'] },
 ```
 
-The step reducer calls `isStepSkipped` (in `Flow/SmsOtpFlow.runIf.ts`) before
+The step reducer calls `isStepSkipped` (in `Flow/Lifecycle/SmsOtpFlow.runIf.ts`) before
 the step's pre-hook. The step runs only when the slot holds text equal to one
 of `oneOf`, compared without case. A false guard, or a slot that is missing or
 not text, skips the step: its pre-hook never asks for a code, no request is
@@ -99,7 +99,7 @@ and the step's `urlTag` selects it.
 A bank that logs in with credentials alone still declares `flow: 'sms-otp'`,
 the only flow kind `gateFlowKind` accepts. The flow asks for a code only
 through a step's `preHook`. For a step with no `preHook`, `resolveStepScope`
-(`Flow/SmsOtpFlow.reduce.ts`) leaves the scope unchanged and the step still
+(`Flow/Lifecycle/SmsOtpFlow.reduce.ts`) leaves the scope unchanged and the step still
 sends its request; otherwise `applyGuardedPreHook` runs its
 [guards](auth.md#otp-pre-hook-guards) around `applyPreHook`, which calls the creds
 function named by `awaitCredsField`. A chain with no `preHook` on any step
