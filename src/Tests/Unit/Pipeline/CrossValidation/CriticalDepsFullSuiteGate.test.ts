@@ -156,14 +156,17 @@ const OR_ONLY_STEP_NAMES = [...new Set(GATED_STEP_NAMES)];
 /**
  * Every file that can change what ESLint enforces.
  *
- * <p>All four must set `syntax_guardrails`, or a PR can rewrite the rules
+ * <p>All five must set `syntax_guardrails`, or a PR can rewrite the rules
  * without ever running them against `src`. `eslint.canary-scope.mjs` is the
  * non-obvious one: `eslint.config.mjs` imports it directly and it decides
  * which files the guard even sees, so editing it alone used to set no flag
- * at all — neither `src`, nor `deps`, nor `syntax_guardrails`.
+ * at all — neither `src`, nor `deps`, nor `syntax_guardrails`. `eslint/` is
+ * the tree of split rule and cluster modules the entry file composes, and a
+ * change there is exactly as rule-changing as one to the entry file.
  */
 const LINT_CONFIG_INPUTS = [
   String.raw`^eslint\.config\.mjs$`,
+  String.raw`^eslint/`,
   String.raw`^eslint\.canary-scope\.mjs$`,
   String.raw`^scripts/check-syntax-guardrails\.mjs$`,
   String.raw`^package\.json$`,

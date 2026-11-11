@@ -67,11 +67,22 @@ function canaryHash(dir, name) {
  * glob resolution, which no text count can do. What stays with this ratchet is
  * the coarse question it answers reliably: did a rule disappear altogether?
  */
+function eslintConfigFiles(root) {
+  const entry = join(root, 'eslint.config.mjs');
+  const dir = join(root, 'eslint');
+  if (!existsSync(dir)) return [entry];
+  const nested = readdirSync(dir, { recursive: true })
+    .filter(path => path.endsWith('.mjs'))
+    .map(path => join(dir, path));
+  return [entry, ...nested];
+}
+
 function countEslintRules(root) {
-  const cfg = join(root, 'eslint.config.mjs');
-  if (!existsSync(cfg)) return 0;
+  const files = eslintConfigFiles(root).filter(file => existsSync(file));
   const names = new Set();
-  for (const match of readFileSync(cfg, 'utf8').matchAll(RULE_RE)) names.add(match[1]);
+  for (const file of files) {
+    for (const match of readFileSync(file, 'utf8').matchAll(RULE_RE)) names.add(match[1]);
+  }
   return names.size;
 }
 

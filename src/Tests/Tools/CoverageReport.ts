@@ -88,8 +88,10 @@ function printSuccess(rows: readonly IClusterStatusRow[], fileCount: number): nu
  * @returns Exit code 1, so callers can return it directly.
  */
 function printFixHint(): number {
-  process.stderr.write('Fix: update eslint.config.mjs so the cluster block includes the rule.\n');
-  process.stderr.write('A cap-regime failure means eslint.config.mjs and the cap table\n');
+  process.stderr.write(
+    'Fix: update the ESLint cluster under eslint/clusters/ so the block includes the rule.\n',
+  );
+  process.stderr.write('A cap-regime failure means the ESLint config tree and the cap table\n');
   process.stderr.write('(CapRegimeTable.ts + CapOverrides.ts) disagree — restore the\n');
   process.stderr.write('deleted block, or update the table if the tree was deliberately\n');
   process.stderr.write('drained (eslint-rules-guidlines.md §1).\n');

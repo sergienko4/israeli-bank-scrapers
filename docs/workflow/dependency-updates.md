@@ -48,8 +48,8 @@ release gets a pull request of its own, and the other dev bumps go green
 without it.
 
 `src/Tests/Unit/Pipeline/CrossValidation/DependabotToolingGrouping.test.ts`
-reads the lint packages from the repository: every dev dependency
-`eslint.config.mjs` imports, plus ESLint, Prettier and Biome. It fails when
+reads the lint packages from the repository: every dev dependency the ESLint
+config tree imports, plus ESLint, Prettier and Biome. It fails when
 one of them is not in `lint-tooling`, or is also taken by another
 version-update group. A new ESLint plugin that matches no pattern fails it
 until the pattern is added to both lists.

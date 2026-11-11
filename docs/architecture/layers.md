@@ -32,7 +32,7 @@ flowchart TB
 | 5   | Pipeline types               | `src/Scrapers/Pipeline/Types/`, `src/Scrapers/Base/{Interface, ErrorTypes, ScraperError, Config/, Interfaces/}`                          | Shared infra        |
 | 6   | Common utilities (residual)  | `src/Common/` (result and transaction formatting)                                                                                        | Test/result helpers |
 | 7   | Tests                        | `src/Tests/Unit/`, `src/Tests/E2eMocked/`, `src/Tests/E2eReal/`, `src/Tests/Helpers/`, `src/Tests/Tools/`                                | Always-on gate      |
-| 8   | Build & CI                   | `.github/workflows/`, `.husky/`, `tsup.config.ts`, `biome.json`, `eslint.config.mjs`, `tsconfig.json`                                    | Always-on gate      |
+| 8   | Build & CI                   | `.github/workflows/`, `.husky/`, `tsup.config.ts`, `biome.json`, `eslint.config.mjs`, `eslint/`, `tsconfig.json`                                    | Always-on gate      |
 
 ## What lives in layer 5
 
