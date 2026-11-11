@@ -133,10 +133,10 @@ opt-in are unchanged.
 
 `runScrapeWithRecovery` runs the scrape. When `shouldRecoverSession` says so,
 it calls `recoverSession` (a re-grant when the strategy has `primeRecover`,
-else a cold login; see [Auth recovery](api-direct-call.md#auth-recovery)) and
+else a cold login; see [Auth recovery](api-direct-call/auth.md#auth-recovery)) and
 re-runs the whole scrape once, bootstrap included. A failed recovery returns
 the first outcome. An edge refusal never recovers (see above). Otherwise the
-bank's [`authRecovery`](api-direct-call.md#auth-recovery) picks one of two
+bank's [`authRecovery`](api-direct-call/auth.md#auth-recovery) picks one of two
 rules, and they never mix:
 
 | Mode                    | Recovers when                                                                                         | Stands                                                          |
@@ -170,7 +170,7 @@ Declaring that contract once per brand means a wire change has to land four time
 
 `makeFibiGroupShape` takes an `IFibiGroupShapeArgs` and returns the assembled `IApiDirectScrapeShape`. The factory owns everything origin-independent: the request envelope, the two-GET identity merge over `IFibiAcct`, and the response extractors. The brand supplies its step name, its four origin-bound URL producers, and its own `windowNarrowing` stance. The URL producers are built from an `IFibiGroupConfig` — one per brand (`MASSAD_CONFIG`, `PAGI_CONFIG`, `OTSAR_HAHAYAL_CONFIG`, `BEINLEUMI_CONFIG`) — which carries nothing but the post-login origin.
 
-Every FIBI financial call — `userData`, `accountType`, `balances/{type}` and the transactions list — carries the factory's `fibiCallHeaders`: a fresh `X-FIBI-Transaction-Id` per call (the driver resolves function-form headers at call time, so two calls never share one) and, once a headless login has kept the portal-shell `authorization` answer through `sessionCarry`, that value verbatim as `Authorization`, with what the portal page sends: `Accept: application/json`, `FIBI_UA` as `User-Agent` and, when the login also kept a parseable `landingUrl`, that URL as `Referer` and its origin as `Origin`. A session without the `authorization` slot (the browser path, whose bus already sends the sniffed headers) gets the transaction id only. The headless bank config therefore uses `authScheme: 'none'`: the bus must not send its own authorization next to the shape's.
+Every FIBI financial call — `userData`, `accountType`, `balances/{type}` and the transactions list — carries the factory's `fibiCallHeaders`: a fresh `X-FIBI-Transaction-Id` per call (the driver resolves function-form headers at call time, so two calls never share one) and, once an api-direct login has kept the portal-shell `authorization` answer through `sessionCarry`, that value verbatim as `Authorization`, with what the portal page sends: `Accept: application/json`, `FIBI_UA` as `User-Agent` and, when the login also kept a parseable `landingUrl`, that URL as `Referer` and its origin as `Origin`. A session without the `authorization` slot gets the transaction id only. The FIBI bank config therefore uses `authScheme: 'none'`: the bus must not send its own authorization next to the shape's.
 
 The transactions envelope asks for the date range with `order: 0`. `order: 1` is a different query — the last 50 rows — which drops older rows from a busy window.
 
@@ -185,7 +185,7 @@ The pattern generalises: any set of brands sharing one portal belongs behind one
 
 ### The Ring family — Isracard and Amex
 
-Isracard and Amex are two issuers on one mobile app API: each runs its own ring host, but the login, card-list, transactions and next-debit calls are identical apart from the host, the app id and the company code. Those three values are the brand's `IRingConstants` (`ISRACARD_RING`, `AMEX_RING`). The family follows the FibiGroup terms above: the neutral factory [`Phases/ApiDirectScrape/Ring/`](https://github.com/sergienko4/israeli-bank-scrapers/tree/{{BRANCH}}/src/Scrapers/Pipeline/Phases/ApiDirectScrape/Ring) owns the wire, and each brand's shape module (`IsracardShape.ts`, `AmexShape.ts`) passes `makeRingShape` an `IRingShapeArgs` of its ring constants, step name and `windowNarrowing` stance. The result is a `RingShape`, run headless — no browser starts.
+Isracard and Amex are two issuers on one mobile app API: each runs its own ring host, but the login, card-list, transactions and next-debit calls are identical apart from the host, the app id and the company code. Those three values are the brand's `IRingConstants` (`ISRACARD_RING`, `AMEX_RING`). The family follows the FibiGroup terms above: the neutral factory [`Phases/ApiDirectScrape/Ring/`](https://github.com/sergienko4/israeli-bank-scrapers/tree/{{BRANCH}}/src/Scrapers/Pipeline/Phases/ApiDirectScrape/Ring) owns the wire, and each brand's shape module (`IsracardShape.ts`, `AmexShape.ts`) passes `makeRingShape` an `IRingShapeArgs` of its ring constants, step name and `windowNarrowing` stance. The result is a `RingShape`, run over HTTP — no browser starts.
 
 | Piece        | Module                | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | ------------ | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -264,7 +264,7 @@ The call fails, named after it (`queryTag`, or the bootstrap step's `name`), whe
 | ---------------------------------------------------------------- | ---------------------------------------- |
 | the patch fails                                                  | `<call> <patch message>`, its error type |
 | the mediator refuses the merged session-context                  | `<call> session patch refused`           |
-| no answer reached the sink (a GraphQL step, a browser transport) | `<call> response unseen`                 |
+| no answer reached the sink (for example a GraphQL step)          | `<call> response unseen`                 |
 
 A failed answer, or a failed body check, never reaches the patch. A shape with no `responseSession` sends its opts untouched. The customer secondary identity GET is not read.
 
