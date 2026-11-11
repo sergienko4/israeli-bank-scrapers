@@ -126,7 +126,7 @@ export const PIPELINE_CLUSTERS: readonly IClusterExpectations[] = [
   },
   {
     clusterName: 'Core (§6/§19)',
-    representativeFile: 'src/Scrapers/Pipeline/Core/Builder/ApiDirectConfigRules.ts',
+    representativeFile: 'src/Scrapers/Pipeline/Core/Builder/Validation/ApiDirectConfigRules.ts',
     expectations: [
       { ruleId: 'max-lines', maxAllowed: 150 },
       { ruleId: 'max-lines-per-function', maxAllowed: 10 },

@@ -4,7 +4,7 @@
 
 import { CompanyTypes } from '../../../../../Definitions.js';
 import PIPELINE_REGISTRY from '../../../../../Scrapers/Pipeline/Banks/PipelineRegistry.js';
-import { validateApiDirectConfig } from '../../../../../Scrapers/Pipeline/Core/Builder/ApiDirectConfigRules.js';
+import { validateApiDirectConfig } from '../../../../../Scrapers/Pipeline/Core/Builder/Validation/ApiDirectConfigRules.js';
 import type { IApiDirectCallConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { buildCollectionResult } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Fingerprint/GenericFingerprintBuilder.js';
 import { assertOk } from '../../../../Helpers/AssertProcedure.js';

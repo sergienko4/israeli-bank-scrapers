@@ -4,7 +4,15 @@ The validators that reject an inconsistent bank config before it reaches the net
 
 ## Build-time config checks
 
-`validateApiDirectConfig` in `Core/Builder/ApiDirectConfigRules.ts` runs when
+Builder rules are grouped by concern without changing their evaluation order:
+`Core/Builder/Transport/` holds request bodies, response policies, cookies and client
+certificates; `Core/Builder/Auth/` holds warm sessions, generators, derivations,
+seals and codecs; `Core/Builder/Captures/` holds response captures and classifiers;
+and `Core/Builder/Validation/` holds the config entrypoint, step guards and URL rules.
+The five companion validators live with their corresponding rule groups.
+`ApiDirectRuleInput.ts` and `FlatPattern.ts` remain shared at the Builder root.
+
+`validateApiDirectConfig` in `Core/Builder/Validation/ApiDirectConfigRules.ts` runs when
 the pipeline is built (`build()` → `buildDescriptor` → `validateBuilderFields`).
 Its input, `IApiDirectRuleInput`, is the call config plus the bank's `transport`
 block from the registry, so a config that cannot work fails before any request
@@ -20,34 +28,34 @@ to 65536, and the answer-classifier walk: `classifiersOf` lists every step's
 `classify`, `anyClassifier` breaks a rule when any of them fails a
 `ClassifierCheck`, and `answerChecksOf` and `answerCapturesOf` list a
 classifier's checks and its `AnswerCaptureEntry` slot and capture pairs.
-The `API_DIRECT_OUTCOME_RULES` in `Core/Builder/ApiDirectStepRules.ts` reject empty
+The `API_DIRECT_OUTCOME_RULES` in `Core/Builder/Validation/ApiDirectStepRules.ts` reject empty
 success lists and case-insensitive failure-map collisions before warm-start
 checks. The
 session-transport rules, `API_DIRECT_TRANSPORT_RULES` in
-`Core/Builder/ApiDirectTransportRules.ts`, run after the core rules, then the form-body rules, `API_DIRECT_FORM_RULES` in
-`Core/Builder/ApiDirectFormRules.ts`, which end with the `$merge` rules,
-`API_DIRECT_MERGE_RULES` in `Core/Builder/ApiDirectMergeRules.ts`, then the seal rules,
-`API_DIRECT_SEAL_RULES` in `Core/Builder/ApiDirectSealRules.ts`, then the
-step rules, `API_DIRECT_STEP_RULES` in `Core/Builder/ApiDirectStepRules.ts`,
+`Core/Builder/Transport/ApiDirectTransportRules.ts`, run after the core rules, then the form-body rules, `API_DIRECT_FORM_RULES` in
+`Core/Builder/Transport/ApiDirectFormRules.ts`, which end with the `$merge` rules,
+`API_DIRECT_MERGE_RULES` in `Core/Builder/Transport/ApiDirectMergeRules.ts`, then the seal rules,
+`API_DIRECT_SEAL_RULES` in `Core/Builder/Auth/ApiDirectSealRules.ts`, then the
+step rules, `API_DIRECT_STEP_RULES` in `Core/Builder/Validation/ApiDirectStepRules.ts`,
 then the text-capture rules, `API_DIRECT_TEXT_RULES` in
-`Core/Builder/ApiDirectTextRules.ts`, which end with the login-form capture
+`Core/Builder/Captures/ApiDirectTextRules.ts`, which end with the login-form capture
 rules, `API_DIRECT_FORM_CAPTURE_RULES` in
-`Core/Builder/ApiDirectFormCaptureRules.ts`,
+`Core/Builder/Captures/ApiDirectFormCaptureRules.ts`,
 then the carry-generator rules, `API_DIRECT_GENERATE_RULES` in
-`Core/Builder/ApiDirectGenerateRules.ts`, which end with the envelope codec
-rules, `API_DIRECT_CODEC_RULES` in `Core/Builder/ApiDirectCodecRules.ts`,
+`Core/Builder/Auth/ApiDirectGenerateRules.ts`, which end with the envelope codec
+rules, `API_DIRECT_CODEC_RULES` in `Core/Builder/Auth/ApiDirectCodecRules.ts`,
 the step URL rules, `API_DIRECT_URL_RULES` in
-`Core/Builder/ApiDirectUrlRules.ts`, and the optional-ref rule,
-`API_DIRECT_OPTIONAL_REF_RULES` in `Core/Builder/ApiDirectOptionalRefRules.ts`,
+`Core/Builder/Validation/ApiDirectUrlRules.ts`, and the optional-ref rule,
+`API_DIRECT_OPTIONAL_REF_RULES` in `Core/Builder/Validation/ApiDirectOptionalRefRules.ts`,
 then the answer-classifier rules, `API_DIRECT_CLASSIFY_RULES` in
-`Core/Builder/ApiDirectClassifyRules.ts` and `API_DIRECT_CLASSIFY_SLOT_RULES` in
-`Core/Builder/ApiDirectClassifySlotRules.ts`,
+`Core/Builder/Captures/ApiDirectClassifyRules.ts` and `API_DIRECT_CLASSIFY_SLOT_RULES` in
+`Core/Builder/Captures/ApiDirectClassifySlotRules.ts`,
 then the dynamic client-certificate
 rules, `API_DIRECT_CLIENT_CERT_RULES` in
-`Core/Builder/ApiDirectClientCertRules.ts`, then the session rules,
-`API_DIRECT_SESSION_RULES` in `Core/Builder/ApiDirectSessionRules.ts`. The
+`Core/Builder/Transport/ApiDirectClientCertRules.ts`, then the session rules,
+`API_DIRECT_SESSION_RULES` in `Core/Builder/Auth/ApiDirectSessionRules.ts`. The
 transport rules, `API_DIRECT_NATIVE_RULES` in
-`Core/Builder/ApiDirectNativeRules.ts`, run last: step reading and domain
+`Core/Builder/Transport/ApiDirectNativeRules.ts`, run last: step reading and domain
 cookies are rejected off either node transport; redirects and native-only
 bank defaults are rejected on node:https too. `NATIVE_TRANSPORT_FIELDS` names
 the native-only defaults checked by both api-direct and node-tls builders.

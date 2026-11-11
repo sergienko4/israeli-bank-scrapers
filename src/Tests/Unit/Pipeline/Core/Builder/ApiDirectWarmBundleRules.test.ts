@@ -11,7 +11,7 @@ import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import {
   type IApiDirectRuleInput,
   validateApiDirectConfig,
-} from '../../../../../Scrapers/Pipeline/Core/Builder/ApiDirectConfigRules.js';
+} from '../../../../../Scrapers/Pipeline/Core/Builder/Validation/ApiDirectConfigRules.js';
 import type {
   IApiDirectCallConfig,
   ICarryBundleWarmStart,

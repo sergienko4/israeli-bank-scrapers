@@ -3,7 +3,7 @@
  */
 
 import { CompanyTypes } from '../../../../../../Definitions.js';
-import { validateApiDirectConfig } from '../../../../../../Scrapers/Pipeline/Core/Builder/ApiDirectConfigRules.js';
+import { validateApiDirectConfig } from '../../../../../../Scrapers/Pipeline/Core/Builder/Validation/ApiDirectConfigRules.js';
 import type {
   IApiDirectCallConfig,
   IGetStep,
