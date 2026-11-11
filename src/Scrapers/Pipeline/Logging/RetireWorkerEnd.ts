@@ -63,7 +63,7 @@ function findImplSymbol(stream: object): symbol | false {
  */
 function isWorkerEndState(impl: IWorkerEndState | false): impl is IWorkerEndState {
   if (!impl) return false;
-  const hasState = impl.state instanceof Int32Array;
+  const hasState = impl.state instanceof Int32Array && impl.state.length > READ_INDEX;
   const hasFlags = typeof impl.flushing === 'boolean' && typeof impl.ending === 'boolean';
   return hasState && hasFlags && typeof impl.buf === 'string';
 }

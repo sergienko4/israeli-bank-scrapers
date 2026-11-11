@@ -300,7 +300,9 @@ describe('requestWorkerEnd — graceful end handshake', () => {
     const implSymbol = Symbol('kImpl');
     const missingImpl = { [implSymbol]: null };
     const shortState = new Int32Array(8);
-    const malformedImpl = { [implSymbol]: { state: shortState } };
+    const malformedImpl = {
+      [implSymbol]: { state: shortState, ending: false, flushing: false, buf: '' },
+    };
     const missingOutcome = requestWorkerEnd(missingImpl);
     expect(missingOutcome).toBe('unsupported');
     const malformedOutcome = requestWorkerEnd(malformedImpl);
