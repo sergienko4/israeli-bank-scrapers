@@ -32,7 +32,7 @@ import { fileURLToPath } from 'node:url';
 
 const THIS_FILE_PATH = fileURLToPath(import.meta.url);
 const THIS_DIR = dirname(THIS_FILE_PATH);
-const REPO_ROOT = join(THIS_DIR, '../../../../../');
+const REPO_ROOT = join(THIS_DIR, '../../../');
 const E2E_DIR = join(REPO_ROOT, 'src/Tests/E2eReal');
 
 /** Marker identifying a suite that can cause an SMS. */

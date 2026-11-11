@@ -12,8 +12,7 @@ import { readFileSync } from 'node:fs';
 
 import { ilsCycleDebit } from '../../../../../Scrapers/Pipeline/Banks/Max/scrape/MaxShapeBalance.js';
 
-const FIXTURE =
-  'src/Tests/Unit/Pipeline/CrossValidation/Fixtures/CrossBank/max/getHomePageData.json';
+const FIXTURE = 'src/Tests/Unit/Pipeline/Banks/Max/Fixtures/getHomePageData.json';
 
 /**
  * Read the captured getHomePageData fixture, stripping its `// URL` header.

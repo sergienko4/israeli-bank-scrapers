@@ -24,12 +24,12 @@ import { fileURLToPath } from 'node:url';
 
 import { parse } from 'yaml';
 
-import { canRunPosixBash } from '../../../Helpers/HostCapabilities.js';
+import { canRunPosixBash } from '../Helpers/HostCapabilities.js';
 
 const THIS_FILE_URL = import.meta.url;
 const THIS_FILE_PATH = fileURLToPath(THIS_FILE_URL);
 const THIS_DIR = dirname(THIS_FILE_PATH);
-const REPO_ROOT = join(THIS_DIR, '../../../../../');
+const REPO_ROOT = join(THIS_DIR, '../../../');
 const PR_YAML = join(REPO_ROOT, '.github/workflows/pr.yml');
 
 /** YAML job-level shape we read — everything else is irrelevant. */

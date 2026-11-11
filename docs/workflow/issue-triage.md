@@ -7,10 +7,10 @@ The repository runs two independent staleness lanes, both in
 [`.github/workflows/stale.yml`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/.github/workflows/stale.yml).
 They exist for different reasons and must not be confused.
 
-| Lane | Scope | Trigger | Timing | Outcome |
-| ---- | ----- | ------- | ------ | ------- |
-| **General inactivity** (`stale` job) | issues **and** PRs | no activity at all | 60 days → `Stale`, 14 more → close | closed `not_planned` |
-| **Awaiting the reporter** (`no-response` job) | issues only | maintainer applies `needs-info` | 7 days of silence → close | closed `not_planned`, labelled `closed-no-response` |
+| Lane                                          | Scope              | Trigger                         | Timing                             | Outcome                                             |
+| --------------------------------------------- | ------------------ | ------------------------------- | ---------------------------------- | --------------------------------------------------- |
+| **General inactivity** (`stale` job)          | issues **and** PRs | no activity at all              | 60 days → `Stale`, 14 more → close | closed `not_planned`                                |
+| **Awaiting the reporter** (`no-response` job) | issues only        | maintainer applies `needs-info` | 7 days of silence → close          | closed `not_planned`, labelled `closed-no-response` |
 
 `needs: stale` orders the two jobs inside a run, and a `stale-issues`
 concurrency group stops two runs overlapping — a manual dispatch landing on top
@@ -20,7 +20,7 @@ and double-spending the API rate limit.
 The lanes stay disjoint by arithmetic rather than by exemption: both measure
 from `updated_at`, and seven days elapses before sixty, so an issue carrying
 `needs-info` is always closed by the fast lane first. The general lane is
-deliberately *not* made to skip `needs-info`, because that would remove the
+deliberately _not_ made to skip `needs-info`, because that would remove the
 only backstop if the fast lane ever stopped firing.
 
 ## The label is the state machine
@@ -40,7 +40,7 @@ stateDiagram-v2
 ```
 
 One consequence follows, and it is enforced by
-`src/Tests/Unit/Pipeline/CrossValidation/NoResponseIssueGate.test.ts`
+`src/Tests/Policy/NoResponseIssueGate.test.ts`
 (the `NRI-*` assertions), because it fails silently:
 
 - **The two lanes must not share a label.** The fast lane marks with
@@ -82,13 +82,13 @@ details.
 
 `actions/stale` is a mark-then-close processor, so "close after seven days with
 no warning period" is expressed as `days-before-issue-stale: 7` plus
-`days-before-issue-close: 0`, which closes in the *same* run.
+`days-before-issue-close: 0`, which closes in the _same_ run.
 
 That is a verified property of the action, not an assumption. In
 `actions/stale` v11.0.0, `_markStale` sets
 `issue.updated_at = new Date().toString()` before the close check runs, and
 `Date.toString()` keeps only whole seconds. The close check asks the inverse of
-what you might expect — whether the issue *was* updated inside the close
+what you might expect — whether the issue _was_ updated inside the close
 window, `millisSinceLastUpdated <= 0` — and closes when the answer is no.
 Because the stamp was truncated to the second, the elapsed value is between 1
 and 999 ms, so the answer is no and the issue closes on the spot. Simulated

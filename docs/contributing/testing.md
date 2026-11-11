@@ -7,15 +7,16 @@ checklist.
 
 ## Decision tree
 
-| What you changed                                   | Tests you must add / update                                   | Validation surface                                                      |
-| -------------------------------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| One helper function under `src/Scrapers/Pipeline/` | Unit test for that helper under `src/Tests/Unit/Pipeline/`    | `test:unit`                                                             |
-| One phase's action / extractor / planner           | Focused helper/phase tests                                    | `test:unit` + `test:pipeline`                                           |
-| New bank's pipeline config                         | Mocked-E2E with fixtures                                      | `test:e2e:mock` + `test:pipeline`                                       |
-| Cross-phase invariant                              | Integration test under `Tests/Unit/Pipeline/CrossValidation/` | `test:pipeline`                                                         |
-| Timing, cleanup, or cancellation code              | Add a case to the memory regression gate                      | `test:memory`                                                           |
-| Public API surface (types in `Base/Interface.ts`)  | Update both unit + e2e expectations                           | `test:unit` + `test:e2e:mock`                                           |
-| Real-bank behavior (live network)                  | E2eReal suite — `Tests/E2eReal/<Bank>.e2e-real.test.ts`       | `npm test -- --testPathPatterns=E2eReal/<Bank>.e2e-real` (needs `.env`) |
+| What you changed                                   | Tests you must add / update                                | Validation surface                                                      |
+| -------------------------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------- |
+| One helper function under `src/Scrapers/Pipeline/` | Unit test for that helper under `src/Tests/Unit/Pipeline/` | `test:unit`                                                             |
+| One phase's action / extractor / planner           | Focused helper/phase tests                                 | `test:unit` + `test:pipeline`                                           |
+| New bank's pipeline config                         | Mocked-E2E with fixtures                                   | `test:e2e:mock` + `test:pipeline`                                       |
+| Cross-phase invariant                              | Domain test under `Tests/Unit/Pipeline/CrossValidation/`   | `test:pipeline`                                                         |
+| CI workflow / release / dependency policy          | Policy gate under `src/Tests/Policy/`                      | `test:policy`                                                           |
+| Timing, cleanup, or cancellation code              | Add a case to the memory regression gate                   | `test:memory`                                                           |
+| Public API surface (types in `Base/Interface.ts`)  | Update both unit + e2e expectations                        | `test:unit` + `test:e2e:mock`                                           |
+| Real-bank behavior (live network)                  | E2eReal suite — `Tests/E2eReal/<Bank>.e2e-real.test.ts`    | `npm test -- --testPathPatterns=E2eReal/<Bank>.e2e-real` (needs `.env`) |
 
 ## Each surface in detail
 
@@ -26,6 +27,16 @@ checklist.
 - Drives helpers / actions / phases with mocked `IPipelineContext`.
 - Uses `MockFactories.ts` + `MockPipelineFactories.ts` for context construction.
 - Use the runner's current suite/test totals rather than a historical count.
+
+### CI policy (`test:policy`)
+
+- Asserts invariants about GitHub workflows, CI scripts, release policy and
+  dependency-update configuration — the repo read as text, never the scrapers.
+- Lives under `src/Tests/Policy/`; each file is a gate whose failure means
+  "the guardrail drifted", so it names the file it guards in its message.
+- Runs as its own Jest project (`jest.policy.config.cjs`) and is excluded from
+  `test:unit`, so a product test run does not carry the CI-policy suite.
+- `test:pipeline` still selects these files, which is how CI covers them.
 
 ### Pipeline + coverage (`test:pipeline`)
 
@@ -85,7 +96,8 @@ redaction enabled and inspect every fixture before committing it.
 
 | Trigger                                         | Suites run                                                                    |
 | ----------------------------------------------- | ----------------------------------------------------------------------------- |
-| `npm run test:unit` (manual)                    | Unit                                                                          |
+| `npm run test:unit` (manual)                    | Unit (excludes the policy project)                                            |
+| `npm run test:policy` (manual)                  | CI-policy gates under `src/Tests/Policy/`                                     |
 | CI                                              | Pipeline + coverage                                                           |
 | `npm run test:memory` (manual)                  | Memory regression gate (also inside Unit / Pipeline)                          |
 | CI                                              | Mocked E2E                                                                    |

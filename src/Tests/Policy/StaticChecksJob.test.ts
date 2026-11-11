@@ -38,12 +38,12 @@ import { fileURLToPath } from 'node:url';
 
 import { parse } from 'yaml';
 
-import type { IGhaContext, IGhaStatus, IStepState } from '../../../Helpers/GhaExpression.js';
-import { evaluateIf } from '../../../Helpers/GhaExpression.js';
+import type { IGhaContext, IGhaStatus, IStepState } from '../Helpers/GhaExpression.js';
+import { evaluateIf } from '../Helpers/GhaExpression.js';
 
 const THIS_FILE_PATH = fileURLToPath(import.meta.url);
 const THIS_DIR = dirname(THIS_FILE_PATH);
-const REPO_ROOT = join(THIS_DIR, '../../../../../');
+const REPO_ROOT = join(THIS_DIR, '../../../');
 const PR_YAML = join(REPO_ROOT, '.github/workflows/pr.yml');
 const COMPOSITE_YAML = join(REPO_ROOT, '.github/actions/decoupling-gate/action.yml');
 

@@ -27,7 +27,7 @@ import { parse } from 'yaml';
 const THIS_FILE_URL = import.meta.url;
 const THIS_FILE_PATH = fileURLToPath(THIS_FILE_URL);
 const THIS_DIR = dirname(THIS_FILE_PATH);
-const REPO_ROOT = join(THIS_DIR, '../../../../../');
+const REPO_ROOT = join(THIS_DIR, '../../../');
 const WORKFLOWS_DIR = join(REPO_ROOT, '.github/workflows');
 
 /** `[workflow file, literal group prefix]` for every workflow a PR push starts. */

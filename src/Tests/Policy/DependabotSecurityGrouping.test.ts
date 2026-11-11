@@ -32,8 +32,8 @@
 
 import { parse } from 'yaml';
 
-import type { IDependabotGroup } from '../../../Helpers/DependabotConfig.js';
-import { npmGroupMap } from '../../../Helpers/DependabotConfig.js';
+import type { IDependabotGroup } from '../Helpers/DependabotConfig.js';
+import { npmGroupMap } from '../Helpers/DependabotConfig.js';
 
 /** Group name cited by `.github/dependabot.yml` and the code-scanning doc. */
 const SECURITY_GROUP_NAME = 'npm-security';

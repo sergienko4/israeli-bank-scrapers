@@ -35,6 +35,11 @@
  * anchored to a path boundary and an end-of-name, so it hides exactly the one
  * file and not some future `OtherTests/E2e.test.ts`; the separator class keeps
  * it working on both POSIX and Windows paths.
+ *
+ * `src/Tests/Policy/` is excluded because those are CI-policy gates, not
+ * product unit tests; `npm run test:policy` runs them as their own Jest
+ * project. The exclusion is a path boundary, so a product test whose name
+ * merely starts with `Policy` is unaffected.
  */
 import base from './jest.config.js';
 
@@ -46,5 +51,6 @@ export default {
     'E2eReal/',
     'E2eMocked/',
     '[\\\\/]Tests[\\\\/]E2e\\.test\\.ts$',
+    '[\\\\/]Tests[\\\\/]Policy[\\\\/]',
   ],
 };

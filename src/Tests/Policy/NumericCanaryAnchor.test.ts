@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 const MODULE_URL = import.meta.url;
 const MODULE_PATH = fileURLToPath(MODULE_URL);
 const HERE = dirname(MODULE_PATH);
-const CANARY_DIR = '../../../../Scrapers/Pipeline/EslintCanaries';
+const CANARY_DIR = '../../Scrapers/Pipeline/EslintCanaries';
 const VERDICT_MODULE = join(HERE, CANARY_DIR, 'numeric-canary-verdict.cjs');
 const HARNESS_MODULE = join(HERE, CANARY_DIR, 'assert-numeric-canaries.cjs');
 

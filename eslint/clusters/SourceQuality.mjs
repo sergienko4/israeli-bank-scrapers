@@ -110,13 +110,14 @@ export const SOURCE_QUALITY_BLOCKS = [
   },
 
   // 12d. JEST ASSERTION RULES (Security Hardening 2026-05) — scoped
-  //      to unit tests under `src/Tests/Unit/**` per Decide §4 Q4
+  //      to unit tests under `src/Tests/Unit/**` and the CI-policy gates
+  //      under `src/Tests/Policy/**` per Decide §4 Q4
   //      (the collateral budget for `jest/expect-expect` on
   //      `src/Tests/E2e*` is 61 hits — out of scope; E2E flow tests
   //      use a throw-based assertion idiom in shared helpers and are
   //      excluded by this override).
   {
-    files: ['src/Tests/Unit/**/*.test.ts'],
+    files: ['src/Tests/Unit/**/*.test.ts', 'src/Tests/Policy/**/*.test.ts'],
     plugins: { jest },
     rules: {
       // `assertFunctionNames` teaches `jest/expect-expect` about the

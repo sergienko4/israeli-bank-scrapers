@@ -39,8 +39,14 @@ export const TEST_BLOCKS = [
   },
 
   // 5. PIPELINE TESTS: STRUCTURE ENFORCEMENT
+  //
+  // `src/Tests/Policy/` holds the CI-policy gates that used to live under
+  // `src/Tests/Unit/Pipeline/CrossValidation/` (Phase 14). They are listed
+  // explicitly so the move does not drop the structural rules that path
+  // inherited — a rule scoped to a directory silently stops applying to a
+  // file that moves out of it.
   {
-    files: ['src/Tests/**/Pipeline/**/*.ts'],
+    files: ['src/Tests/**/Pipeline/**/*.ts', 'src/Tests/Policy/**/*.ts'],
     rules: {
       'class-methods-use-this': 'off', // Test doubles extend SimplePhase with no-op overrides
       'max-classes-per-file': 'off', // Test doubles need multiple classes per file
@@ -78,7 +84,7 @@ export const TEST_BLOCKS = [
       ],
       'check-file/folder-match-with-fex': [
         'error',
-        { '*.test.ts': '**/(Unit|E2E|Scrapers)/Pipeline/**' },
+        { '*.test.ts': '**/((Unit|E2E|Scrapers)/Pipeline|Policy)/**' },
       ],
       'no-restricted-syntax': [
         'error',

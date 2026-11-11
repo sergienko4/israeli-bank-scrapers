@@ -16,14 +16,14 @@
 
 import * as ts from 'typescript';
 
-import { readRepoFile, trackedFiles } from '../../../Helpers/RepoFiles.js';
-import { type IMemoryFile, isSameBinding, programOf } from '../../../Helpers/TsProgram.js';
+import { readRepoFile, trackedFiles } from '../Helpers/RepoFiles.js';
+import { type IMemoryFile, isSameBinding, programOf } from '../Helpers/TsProgram.js';
 
 /** A TypeScript or JavaScript source file. */
 const CODE_FILE_RE = /\.[cm]?[jt]s$/u;
 /** Files known to run `spawnSync`, from the tests and from the scripts. */
 const KNOWN_SPAWNERS = [
-  'src/Tests/Unit/Pipeline/CrossValidation/CriticalDepsFullSuiteGate.test.ts',
+  'src/Tests/Policy/CriticalDepsFullSuiteGate.test.ts',
   'scripts/check-jest-scopes.mjs',
 ] as const;
 /** Fewer sites than this means the scan stopped seeing them. */
