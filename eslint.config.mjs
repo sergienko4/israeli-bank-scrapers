@@ -1090,11 +1090,14 @@ export const PIPELINE_SELECTOR_EXEMPTIONS = {
     "CallExpression > .arguments[type='CallExpression']",
   ],
 
-  // §24 BANK CALENDAR — this file names a LOCAL forensic artefact, not
+  // §24 BANK CALENDAR — these files name a LOCAL forensic artefact, not
   // bank-calendar data. Its host-local timestamp is the intended output: a run
-  // folder should match the machine clock an operator reads. Exempt only the
-  // component-read selector; host-zone Date construction stays banned even here.
+  // folder should match the machine clock an operator reads. `TraceStamp.ts`
+  // formats the run stamp; `TraceConfig.ts` resolves the folder that uses it.
+  // Exempt only the component-read selector; host-zone Date construction stays
+  // banned even here.
   'src/Scrapers/Pipeline/Types/TraceConfig.ts': [BANK_CALENDAR_HOST_READ_RULE.selector],
+  'src/Scrapers/Pipeline/Types/TraceStamp.ts': [BANK_CALENDAR_HOST_READ_RULE.selector],
   // BankCalendar is the one sanctioned Moment boundary. It pins every parse
   // explicitly; allowing Moment anywhere else would recreate the shared
   // default-zone leak this provider exists to remove.

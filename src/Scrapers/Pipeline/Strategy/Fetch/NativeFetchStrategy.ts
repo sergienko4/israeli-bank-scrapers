@@ -14,70 +14,48 @@ import type {
   IResponseReading,
   MediaTypePolicy,
   RedirectPolicy,
+  ResponseKind,
   StatusPolicy,
 } from '../../Types/Domain/FetchPolicy.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk } from '../../Types/Procedure.js';
 import makeInvokeCapped from './CappedInvoke.js';
-import type {
-  FetchInvoke,
-  HttpVerb,
-  IFetchOpts,
-  IFetchStrategy,
-  PostData,
-} from './FetchStrategy.js';
+import type { FetchInvoke, IFetchOpts, IFetchStrategy, PostData } from './FetchStrategy.js';
 import { overlayHeaders } from './HeaderOverlay.js';
 import type { IDispatch } from './NativeFetchDispatch.js';
 import { dispatchFetch } from './NativeFetchDispatch.js';
 import type { FullyQualifiedUrl } from './NativeFetchNetwork.js';
 import { INVOKE_NATIVE_FETCH, refuseBody, resolveFetchUrl } from './NativeFetchNetwork.js';
+import type { DefaultHeadersByVerb, INativeFetchOptions, TRequest } from './NativeFetchOptions.js';
+import { JSON_DEFAULT_HEADERS, seedTransport } from './NativeFetchOptions.js';
 import { withBodyContentType, writePostBody } from './PostBody.js';
-import type { IRedirectRun } from './RedirectFollow.js';
 import { checkResponseIntegrity } from './ResponsePolicyCheck.js';
 
-/** The request half of a run — what a verb method builds before policy. */
-type TRequest = Pick<IRedirectRun, 'url' | 'init' | 'verb'>;
+/** The body text and content-type decision a POST writer produced. */
+type TWrittenBody = Extract<ReturnType<typeof writePostBody>, { success: true }>['value'];
 
-/** Default request headers per verb, merged under the caller's headers. */
-type DefaultHeadersByVerb = Readonly<Record<HttpVerb, Readonly<Record<string, string>>>>;
-
-/** Bank-wide policies shared by native REST and GraphQL transports. */
-interface INativeFetchOptions {
-  readonly redirectPolicy?: RedirectPolicy;
-  readonly statusPolicy?: StatusPolicy;
-  readonly omitBankText?: boolean;
-  /** Media type each response kind must name when a call names none. */
-  readonly mediaTypes?: MediaTypePolicy;
-  /** Decode every answer as strict UTF-8 unless its call says otherwise. */
-  readonly strictUtf8?: boolean;
-  readonly responseIntegrity?: IResponseIntegrity;
-  readonly isConnectRetryDisabled?: boolean;
-  /**
-   * Ceiling (ms) for one request, connect through the full body. Setting it
-   * installs the capped invoke and lets the transport enforce response
-   * integrity; leaving it out keeps the uncapped base transport.
-   */
-  readonly timeoutMs?: number;
-  /** Headers each verb sends under the caller's; absent keeps JSON on every verb. */
-  readonly defaultHeaders?: DefaultHeadersByVerb;
-  /**
-   * Install the cap only when the call names a response-integrity policy.
-   * GraphQL uses this so an unbounded query keeps the base transport.
-   */
-  readonly capOnlyWithIntegrity?: boolean;
+/**
+ * Bytes to send for a written body: a body that removed its content-type is
+ * sent as raw bytes, so the transport framing stays byte-exact.
+ * @param written - The body its writer produced.
+ * @returns The text, or its UTF-8 bytes when the writer removed the type.
+ */
+function encodedBody(written: TWrittenBody): BodyInit {
+  if (written.contentType === false) return new TextEncoder().encode(written.body);
+  return written.body;
 }
 
-/** JSON content-type on every verb — the base strategy's defaults. */
-const JSON_DEFAULT_HEADERS: DefaultHeadersByVerb = {
-  GET: { 'content-type': 'application/json' },
-  POST: { 'content-type': 'application/json' },
-};
+/** The value a call's reading takes from this transport's defaults. */
+interface IReadingDefaults {
+  readonly mediaType?: string;
+  readonly strictUtf8: boolean;
+}
 
-/** Capped transport defaults: a GET has no body, so only POST names JSON. */
-const CAPPED_DEFAULT_HEADERS: DefaultHeadersByVerb = {
-  GET: {},
-  POST: { 'content-type': 'application/json' },
-};
+/** The transport-wide policy a reading applies to every answer. */
+interface IReadingPolicy {
+  readonly statusPolicy: StatusPolicy;
+  readonly responseIntegrity?: IResponseIntegrity;
+}
 
 /** Native fetch — uses globalThis.fetch with merged default headers. */
 class NativeFetchStrategy implements IFetchStrategy {
@@ -149,17 +127,13 @@ class NativeFetchStrategy implements IFetchStrategy {
    */
   constructor(baseUrl: string, options: INativeFetchOptions = {}) {
     this._baseUrl = baseUrl;
-    this._timeoutMs = options.timeoutMs;
-    this._capOnlyWithIntegrity = options.capOnlyWithIntegrity === true;
-    this._verbDefaults = options.defaultHeaders ?? this._verbDefaults;
-    this._redirectDefault = options.redirectPolicy ?? this._redirectDefault;
-    this._statusPolicy = options.statusPolicy ?? this._statusPolicy;
-    this._omitBankText = options.omitBankText === true;
-    this._mediaTypes = options.mediaTypes ?? this._mediaTypes;
-    this._strictUtf8 = options.strictUtf8 ?? this._strictUtf8;
-    this._responseIntegrity = options.responseIntegrity;
-    this._isConnectRetryDisabled = options.isConnectRetryDisabled === true;
-    this._supportsResponseIntegrity = this._timeoutMs !== undefined;
+    const seed = seedTransport(options);
+    this._timeoutMs = seed.timeoutMs;
+    this._capOnlyWithIntegrity = seed.capOnlyWithIntegrity;
+    this._omitBankText = seed.omitBankText;
+    this._responseIntegrity = seed.responseIntegrity;
+    this._isConnectRetryDisabled = seed.isConnectRetryDisabled;
+    this.applySeams(options);
   }
 
   /**
@@ -177,13 +151,7 @@ class NativeFetchStrategy implements IFetchStrategy {
     const written = writePostBody(data, opts.bodyEncoding);
     const target = this.resolveUrl(url);
     if (!isOk(written)) return refuseBody<T>(target, written, opts.redactUrlValues);
-    const merged = overlayHeaders(this._verbDefaults.POST, opts.extraHeaders);
-    const headers = withBodyContentType(merged, written.value);
-    const body =
-      written.value.contentType === false
-        ? new TextEncoder().encode(written.value.body)
-        : written.value.body;
-    const init: RequestInit = { method: 'POST', headers, body };
+    const init = this.postInit(opts, written.value);
     const run = this.toRun({ url, init, verb: 'POST' }, opts);
     return dispatchFetch<T>(run);
   }
@@ -233,16 +201,12 @@ class NativeFetchStrategy implements IFetchStrategy {
   protected readingOf(opts: IFetchOpts): IResponseReading {
     const responseKind = opts.responseKind ?? 'json';
     const { documentMarker, maxTextChars, headerSink, onEmptyResponse } = opts;
-    const media = { mediaType: opts.mediaType ?? this._mediaTypes[responseKind] };
-    const decoding = { strictUtf8: opts.strictUtf8 ?? this._strictUtf8 };
+    const reading = this.readingDefaults(opts, responseKind);
     const hooks = { responseKind, documentMarker, maxTextChars, headerSink, onEmptyResponse };
     const redaction = { redactUrlValues: opts.redactUrlValues };
     const privacy = { omitBankText: this._omitBankText };
-    const policy = {
-      statusPolicy: this._statusPolicy,
-      responseIntegrity: opts.responseIntegrity ?? this._responseIntegrity,
-    };
-    return { ...policy, ...hooks, ...media, ...decoding, ...privacy, ...redaction };
+    const policy = this.readingPolicy(opts);
+    return { ...policy, ...hooks, ...reading, ...privacy, ...redaction };
   }
 
   /**
@@ -252,6 +216,57 @@ class NativeFetchStrategy implements IFetchStrategy {
    */
   protected resolveUrl(url: string): FullyQualifiedUrl {
     return resolveFetchUrl(this._baseUrl, url);
+  }
+
+  /**
+   * The media type and strict-decoding choice a call's reading applies.
+   * @param opts - The call's fetch options.
+   * @param responseKind - The call's response kind.
+   * @returns This transport's defaults, overridden by the call's choices.
+   */
+  private readingDefaults(opts: IFetchOpts, responseKind: ResponseKind): IReadingDefaults {
+    const mediaType = opts.mediaType ?? this._mediaTypes[responseKind];
+    const isStrictUtf8 = opts.strictUtf8 ?? this._strictUtf8;
+    return { mediaType, strictUtf8: isStrictUtf8 };
+  }
+
+  /**
+   * The transport-wide policy and integrity override a call's reading applies.
+   * @param opts - The call's fetch options.
+   * @returns The status policy and effective integrity policy.
+   */
+  private readingPolicy(opts: IFetchOpts): IReadingPolicy {
+    const responseIntegrity = opts.responseIntegrity ?? this._responseIntegrity;
+    return { statusPolicy: this._statusPolicy, responseIntegrity };
+  }
+
+  /**
+   * Install the mutable verb, redirect, status, media and decoding seams, plus
+   * whether the installed cap lets the transport enforce response integrity.
+   * @param options - Bank defaults; absent policies keep this transport's.
+   * @returns True once every seam is installed.
+   */
+  private applySeams(options: INativeFetchOptions): boolean {
+    this._verbDefaults = options.defaultHeaders ?? this._verbDefaults;
+    this._redirectDefault = options.redirectPolicy ?? this._redirectDefault;
+    this._statusPolicy = options.statusPolicy ?? this._statusPolicy;
+    this._mediaTypes = options.mediaTypes ?? this._mediaTypes;
+    this._strictUtf8 = options.strictUtf8 ?? this._strictUtf8;
+    this._supportsResponseIntegrity = options.timeoutMs !== undefined;
+    return true;
+  }
+
+  /**
+   * Build a POST init from a written body and the call's headers.
+   * @param opts - The call's fetch options.
+   * @param written - The body its writer produced.
+   * @returns Method, headers and the bytes to send.
+   */
+  private postInit(opts: IFetchOpts, written: TWrittenBody): RequestInit {
+    const merged = overlayHeaders(this._verbDefaults.POST, opts.extraHeaders);
+    const headers = withBodyContentType(merged, written);
+    const body = encodedBody(written);
+    return { method: 'POST', headers, body };
   }
 
   /**
@@ -280,10 +295,11 @@ class NativeFetchStrategy implements IFetchStrategy {
 }
 
 export default NativeFetchStrategy;
-export { CAPPED_DEFAULT_HEADERS, NativeFetchStrategy };
-export { isApiSuccess } from './NativeFetchDispatch.js';
-export { invokeFetch, resolveFetchUrl, toNetworkFailure } from './NativeFetchNetwork.js';
-export type { DefaultHeadersByVerb, INativeFetchOptions, TRequest };
+export { NativeFetchStrategy };
 export type { FetchInvoke, HttpVerb } from './FetchStrategy.js';
 export type { IDispatch } from './NativeFetchDispatch.js';
+export { isApiSuccess } from './NativeFetchDispatch.js';
 export type { FullyQualifiedUrl } from './NativeFetchNetwork.js';
+export { invokeFetch, resolveFetchUrl, toNetworkFailure } from './NativeFetchNetwork.js';
+export type { DefaultHeadersByVerb, INativeFetchOptions, TRequest } from './NativeFetchOptions.js';
+export { CAPPED_DEFAULT_HEADERS } from './NativeFetchOptions.js';

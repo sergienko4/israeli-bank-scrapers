@@ -212,6 +212,42 @@ function terminalOf<TItem, TCursor>(
 }
 
 /**
+ * Check the caller's stop predicate before the next page is fetched.
+ *
+ * <p>A stop predicate firing is its own termination, never `exhausted`: the
+ * caller's own rule ended the walk, and the provider may well have had more.
+ *
+ * @param args - Caller-supplied stop predicate.
+ * @param state - Current recursion state (accumulator + cursor).
+ * @returns The walk when the predicate stops, else true to fetch the next page.
+ */
+function stopBeforeFetch<TItem, TCursor>(
+  args: IFetchPaginatedArgs<TItem, TCursor>,
+  state: IPaginationState<TItem, TCursor>,
+): Procedure<IPaginatedWalk<TItem>> | true {
+  const stop = args.stop(state.acc);
+  if (!isOk(stop)) return stop;
+  if (!stop.value) return true;
+  return walked(state.acc, 'predicateStop');
+}
+
+/**
+ * Recurse onto a fetched page unless it terminated the walk.
+ * @param args - Caller-supplied fetchPage + stop predicate.
+ * @param state - State the page was fetched under.
+ * @param next - State the fetched page produced.
+ * @returns The walk when the page terminated it, else the next page's walk.
+ */
+async function continueWalk<TItem, TCursor>(
+  args: IFetchPaginatedArgs<TItem, TCursor>,
+  state: IPaginationState<TItem, TCursor>,
+  next: IPaginationState<TItem, TCursor>,
+): Promise<Procedure<IPaginatedWalk<TItem>>> {
+  const terminal = terminalOf(next, state);
+  return terminal === false ? paginateStep(args, next) : terminal;
+}
+
+/**
  * Recursive pagination step — fetches one page, merges, recurses or stops.
  *
  * <p>A stop predicate firing is its own termination, never `exhausted`: the
@@ -225,13 +261,11 @@ async function paginateStep<TItem, TCursor>(
   args: IFetchPaginatedArgs<TItem, TCursor>,
   state: IPaginationState<TItem, TCursor>,
 ): Promise<Procedure<IPaginatedWalk<TItem>>> {
-  const stop = args.stop(state.acc);
-  if (!isOk(stop)) return stop;
-  if (stop.value) return walked(state.acc, 'predicateStop');
+  const stopped = stopBeforeFetch(args, state);
+  if (stopped !== true) return stopped;
   const stepped = await advanceOnce(args, state);
   if (!isOk(stepped)) return stepped;
-  const terminal = terminalOf(stepped.value, state);
-  return terminal === false ? paginateStep(args, stepped.value) : terminal;
+  return continueWalk(args, state, stepped.value);
 }
 
 /**

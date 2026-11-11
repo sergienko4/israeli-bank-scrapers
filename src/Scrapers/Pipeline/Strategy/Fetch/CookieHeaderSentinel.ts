@@ -206,6 +206,23 @@ function resolveHeaderValue(value: string, reader: ICookieReader): Procedure<Opt
 }
 
 /**
+ * Merge one resolved value into a copy of the header map.
+ * @param acc - The headers resolved so far.
+ * @param entry - The header name and raw value.
+ * @param value - The resolved value, or none to drop the header.
+ * @returns The extended map, or a success carrying the map unchanged.
+ */
+function mergedHeader(
+  acc: Record<string, string>,
+  entry: readonly [string, string],
+  value: Option<string>,
+): Procedure<Record<string, string>> {
+  if (!isSome(value)) return succeed(acc);
+  const [key] = entry;
+  return succeed({ ...acc, [key]: value.value });
+}
+
+/**
  * Add one resolved header to the map built so far.
  * @param acc - The headers resolved so far, or the first failure.
  * @param entry - The header name and raw value.
@@ -218,11 +235,9 @@ function addResolved(
   reader: ICookieReader,
 ): Procedure<Record<string, string>> {
   if (!isOk(acc)) return acc;
-  const [key, value] = entry;
-  const resolved = resolveHeaderValue(value, reader);
+  const resolved = resolveHeaderValue(entry[1], reader);
   if (!isOk(resolved)) return resolved;
-  if (!isSome(resolved.value)) return acc;
-  return succeed({ ...acc.value, [key]: resolved.value.value });
+  return mergedHeader(acc.value, entry, resolved.value);
 }
 
 /**

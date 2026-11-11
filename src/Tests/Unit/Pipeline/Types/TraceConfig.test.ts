@@ -143,6 +143,40 @@ describe('TraceConfig — FORENSIC_TRACE=true gates artefact emission', () => {
     fs.rmSync(folder, { recursive: true, force: true });
   });
 
+  it('on-trace to off-trace: every warm artefact cache stops returning disk paths', async () => {
+    const tmpRoot = makeTmpRoot('traceconfig-flip');
+    process.env.FORENSIC_TRACE = 'true';
+    process.env.RUNS_ROOT = tmpRoot;
+    jest.resetModules();
+    const mod = await loadTraceConfig();
+    mod.setActiveBank('beinleumi');
+    const warmed = [
+      mod.getRunFolder(),
+      mod.getLogFile(),
+      mod.getNetworkDumpDir(),
+      mod.getSubStepNetworkDumpDir('home', 'PRE'),
+    ];
+    const hasEmptyWarmed = warmed.some((value): boolean => value === '');
+    expect(hasEmptyWarmed).toBe(false);
+    process.env.FORENSIC_TRACE = 'false';
+    const afterFalse = [
+      mod.getRunFolder(),
+      mod.getLogFile(),
+      mod.getNetworkDumpDir(),
+      mod.getSubStepNetworkDumpDir('home', 'PRE'),
+    ];
+    delete process.env.FORENSIC_TRACE;
+    const afterUnset = [
+      mod.getRunFolder(),
+      mod.getLogFile(),
+      mod.getNetworkDumpDir(),
+      mod.getSubStepNetworkDumpDir('home', 'PRE'),
+    ];
+    expect(afterFalse).toEqual(['', '', '', '']);
+    expect(afterUnset).toEqual(['', '', '', '']);
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  });
+
   it('on-trace: log file and network directory share the same root', async () => {
     const tmpRoot = makeTmpRoot('traceconfig-shared');
     process.env.FORENSIC_TRACE = 'true';

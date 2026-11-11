@@ -33,6 +33,51 @@ function refuseOversize(message: IncomingMessage, reject: BodyReject): boolean {
   return true;
 }
 
+/** Request-local body buffer plus the callbacks that settle the collection. */
+interface IBodyState {
+  readonly message: IncomingMessage;
+  readonly chunks: Buffer[];
+  readonly reject: BodyReject;
+  size: number;
+}
+
+/**
+ * Append one body chunk, refusing a body past the cap.
+ * @param state - Request-local collection state.
+ * @param chunk - The next body chunk.
+ * @returns True once the chunk is buffered or the body refused.
+ */
+function appendChunk(state: IBodyState, chunk: Buffer): boolean {
+  state.size += chunk.byteLength;
+  if (state.size > MTLS_MAX_RESPONSE_BYTES) return refuseOversize(state.message, state.reject);
+  state.chunks.push(chunk);
+  return true;
+}
+
+/**
+ * Resolve the collection with the fully buffered body.
+ * @param state - Request-local collection state.
+ * @param resolve - The collection's resolve.
+ * @returns True once resolved.
+ */
+function finishBody(state: IBodyState, resolve: (body: Buffer) => unknown): boolean {
+  const buffer = Buffer.concat(state.chunks);
+  resolve(buffer);
+  return true;
+}
+
+/**
+ * Refuse a body whose socket closed before the stream ended.
+ * @param message - The response IncomingMessage.
+ * @param reject - The collection's reject.
+ * @returns False when the stream had already ended, true when the body was refused.
+ */
+function rejectPrematureClose(message: IncomingMessage, reject: BodyReject): boolean {
+  if (message.readableEnded) return false;
+  reject(new Error('mtls response closed before end'));
+  return true;
+}
+
 /**
  * Buffer the full response body without decoding it. Rejects on a stream error or
  * a premature close (socket dropped mid-body) so a truncated Cloudflare response
@@ -43,22 +88,11 @@ function refuseOversize(message: IncomingMessage, reject: BodyReject): boolean {
  */
 function collectBody(message: IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    let size = 0;
-    message.on('data', (chunk: Buffer) => {
-      size += chunk.byteLength;
-      if (size > MTLS_MAX_RESPONSE_BYTES) return refuseOversize(message, reject);
-      chunks.push(chunk);
-      return true;
-    });
-    message.on('end', () => {
-      const buffer = Buffer.concat(chunks);
-      resolve(buffer);
-    });
+    const state: IBodyState = { message, chunks: [], reject, size: 0 };
+    message.on('data', (chunk: Buffer) => appendChunk(state, chunk));
+    message.on('end', () => finishBody(state, resolve));
     message.on('error', reject);
-    message.on('close', () => {
-      if (!message.readableEnded) reject(new Error('mtls response closed before end'));
-    });
+    message.on('close', () => rejectPrematureClose(message, reject));
   });
 }
 
