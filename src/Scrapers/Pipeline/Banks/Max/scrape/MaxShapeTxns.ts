@@ -68,6 +68,18 @@ function txnsBase(filter: string): string {
 }
 
 /**
+ * Build the encoded filterData query value for the cursor's target month.
+ * @param cursor - Month offset cursor (false on first call).
+ * @param ctx - Action context carrying startDate.
+ * @returns URL-encoded filterData query value.
+ */
+function monthFilterParam(cursor: number | false, ctx: IActionContext): string {
+  const offset = offsetOf(cursor);
+  const month = monthAt(ctx, offset);
+  return filterDataParam(month);
+}
+
+/**
  * Transactions URL — getTransactionsAndGraphs for one month, all cards
  * (firstCallCardIndex=-1). `acct` is unused here (the monthly call is
  * card-agnostic); per-card filtering happens in extractPage.
@@ -81,9 +93,7 @@ export function txnsUrl(
   cursor: number | false,
   ctx: IActionContext,
 ): WKUrlOrLiteral {
-  const offset = offsetOf(cursor);
-  const month = monthAt(ctx, offset);
-  const filter = filterDataParam(month);
+  const filter = monthFilterParam(cursor, ctx);
   const url = txnsBase(filter);
   return literalUrl(url);
 }

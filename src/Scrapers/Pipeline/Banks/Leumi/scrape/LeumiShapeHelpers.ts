@@ -63,20 +63,26 @@ const BALANCE_VARIANT: IUcSo27Variant = {
   periodType: '0',
 };
 
+/** Fixed trailing fields for `UC_SO_GetAccounts` after `SessionHeader`. */
+const GET_ACCOUNTS_TAIL = {
+  ComboMethod: 'false',
+  RequestedAccountTypes: LEUMI_ACCOUNT_TYPES,
+  ExtAccountPermissions: 'General',
+  AccountSegments: '',
+} as const;
+
 /**
  * Build the `UC_SO_GetAccounts` inner request.
  * @param ctx - Action context (SessionHeader source).
  * @returns GetAccounts inner request object.
  */
 function getAccountsInner(ctx: IActionContext): Record<string, unknown> {
+  const header = sessionHeader(ctx);
   return {
     StateName: 'HPSummary',
     ModuleName: GET_ACCOUNTS_MODULE,
-    SessionHeader: sessionHeader(ctx),
-    ComboMethod: 'false',
-    RequestedAccountTypes: LEUMI_ACCOUNT_TYPES,
-    ExtAccountPermissions: 'General',
-    AccountSegments: '',
+    SessionHeader: header,
+    ...GET_ACCOUNTS_TAIL,
   };
 }
 

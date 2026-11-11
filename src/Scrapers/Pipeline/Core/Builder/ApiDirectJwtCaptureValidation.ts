@@ -15,6 +15,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
+ * Whether a claim slot names a valid body pointer and positive character cap.
+ * @param pointer - Candidate JSON pointer.
+ * @param maxChars - Candidate character ceiling.
+ * @returns True when both pointer and character cap are valid.
+ */
+function isBoundedClaimPointer(pointer: unknown, maxChars: unknown): boolean {
+  if (typeof pointer !== 'string' || !isBodyPointer(pointer)) return false;
+  return typeof maxChars === 'number' && !isBadCharCap(maxChars);
+}
+
+/**
  * Whether a value names a bounded output field.
  * @param value - Candidate claim slot.
  * @returns True for a valid pointer and limit.
@@ -22,13 +33,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function isClaimSlot(value: unknown): boolean {
   if (!isRecord(value)) return false;
   const { pointer, maxChars, rejectBlank } = value;
-  return (
-    typeof pointer === 'string' &&
-    isBodyPointer(pointer) &&
-    typeof maxChars === 'number' &&
-    !isBadCharCap(maxChars) &&
-    (rejectBlank === undefined || rejectBlank === true)
-  );
+  if (!isBoundedClaimPointer(pointer, maxChars)) return false;
+  return rejectBlank === undefined || rejectBlank === true;
 }
 
 /**

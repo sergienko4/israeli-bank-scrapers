@@ -252,6 +252,18 @@ function moneyOf(raw: IWalletTxnRaw): IMoney {
   };
 }
 
+type TWalletRowHeader = Pick<ITransaction, 'identifier' | 'date' | 'processedDate'>;
+
+/**
+ * Resolve a wallet row's transaction identifier and timestamps.
+ * @param raw - Raw wallet row.
+ * @returns Identifier plus booking and processing dates.
+ */
+function rowHeaderOf(raw: IWalletTxnRaw): TWalletRowHeader {
+  const date = dateOf(raw);
+  return { identifier: walletRowId(raw), date, processedDate: date };
+}
+
 /**
  * Map one raw wallet row to the canonical ITransaction shape so
  * `autoMapTransaction` accepts it. PayBox's `ts` is an ISO-8601 string,
@@ -261,11 +273,8 @@ function moneyOf(raw: IWalletTxnRaw): IMoney {
  * @returns Canonical transaction.
  */
 export function mapWalletTxn(raw: IWalletTxnRaw): ITransaction {
-  const date = dateOf(raw);
   return {
-    identifier: walletRowId(raw),
-    date,
-    processedDate: date,
+    ...rowHeaderOf(raw),
     ...displayOf(raw),
     ...moneyOf(raw),
     status: statusOf(raw),

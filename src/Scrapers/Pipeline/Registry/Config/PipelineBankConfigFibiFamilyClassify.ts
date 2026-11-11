@@ -102,6 +102,27 @@ function unformattedOtp(state: OtpState): IAnswerCase {
 }
 
 /**
+ * Checks that a format object declares a numeric code of an allowed length.
+ * @param prefix - JSON pointer to the format object.
+ * @returns Type and length checks for that format object.
+ */
+function numericFormatChecks(prefix: string): readonly IAnswerCheck[] {
+  return [
+    { pointer: `${prefix}/type`, equals: 'numeric' },
+    { pointer: `${prefix}/length`, oneOf: OTP_LENGTHS },
+  ];
+}
+
+/**
+ * Bounded integer capture for `otpLength` under a format object.
+ * @param prefix - JSON pointer to the format object.
+ * @returns Capture rule for `otpLength`.
+ */
+function otpLengthCapture(prefix: string): IAnswerCapture {
+  return { pointer: `${prefix}/length`, maxChars: 2, integer: LENGTH_RANGE };
+}
+
+/**
  * The OTP offer in one state, its code numeric of a length stated under
  * one format object — type and length both read from that object.
  * @param state - The method's state.
@@ -109,15 +130,10 @@ function unformattedOtp(state: OtpState): IAnswerCase {
  * @returns The case.
  */
 function numericOtp(state: OtpState, root: FormatRoot): IAnswerCase {
-  const length = `${METHOD}/${root}/length`;
-  const when = [
-    ...OTP_OFFER,
-    { pointer: `${METHOD}/state`, equals: state },
-    ...ROOT_GUARD[root],
-    { pointer: `${METHOD}/${root}/type`, equals: 'numeric' },
-    { pointer: length, oneOf: OTP_LENGTHS },
-  ];
-  const otpLength = { pointer: length, maxChars: 2, integer: LENGTH_RANGE };
+  const prefix = `${METHOD}/${root}`;
+  const stateCheck: IAnswerCheck = { pointer: `${METHOD}/state`, equals: state };
+  const when = [...OTP_OFFER, stateCheck, ...ROOT_GUARD[root], ...numericFormatChecks(prefix)];
+  const otpLength = otpLengthCapture(prefix);
   return { name: `otp-${state}`, when, captures: { ...OTP_TARGET, otpLength } };
 }
 
@@ -170,14 +186,8 @@ const FIBI_OTP_TRIGGER_CLASSIFIER: IAnswerClassifier = {
     { name: 'pending', when: [PENDING, { pointer: TRIGGER_FORMAT, absent: true }] },
     {
       name: 'pending',
-      when: [
-        PENDING,
-        { pointer: `${TRIGGER_FORMAT}/type`, equals: 'numeric' },
-        { pointer: `${TRIGGER_FORMAT}/length`, oneOf: OTP_LENGTHS },
-      ],
-      captures: {
-        otpLength: { pointer: `${TRIGGER_FORMAT}/length`, maxChars: 2, integer: LENGTH_RANGE },
-      },
+      when: [PENDING, ...numericFormatChecks(TRIGGER_FORMAT)],
+      captures: { otpLength: otpLengthCapture(TRIGGER_FORMAT) },
     },
   ],
 };

@@ -66,15 +66,38 @@ function buildStep(tracker: IContextTracker, index: number): IPhaseStep {
 }
 
 /**
- * Trace the phase outcome.
+ * Trace the phase outcome and forward the phase result unchanged.
  * @param ctx - Context carrying the logger.
  * @param step - Phase step metadata.
- * @param isSuccess - Whether the phase succeeded.
- * @returns True after tracing.
+ * @param result - Result returned by the phase.
+ * @returns The same phase result Procedure.
  */
-function traceOutcome(ctx: IPipelineContext, step: IPhaseStep, isSuccess: boolean): true {
+function traceOutcome(
+  ctx: IPipelineContext,
+  step: IPhaseStep,
+  result: Procedure<IPipelineContext>,
+): Procedure<IPipelineContext> {
+  const isSuccess = isOk(result);
   traceResult({ logger: ctx.logger, name: step.name, indexTag: step.tag, isSuccess });
-  return true;
+  return result;
+}
+
+/**
+ * Prime state, run one phase and emit its outcome trace.
+ * @param tracker - Context tracker.
+ * @param ctx - Current context.
+ * @param index - Current phase index.
+ * @returns Phase result Procedure.
+ */
+async function executeTracedPhase(
+  tracker: IContextTracker,
+  ctx: IPipelineContext,
+  index: number,
+): Promise<Procedure<IPipelineContext>> {
+  const step = buildStep(tracker, index);
+  primePhaseState(step, ctx.logger);
+  const result = await runPhase(tracker, ctx, index);
+  return traceOutcome(ctx, step, result);
 }
 
 /**
@@ -92,11 +115,7 @@ async function reducePhases(
   index: number,
 ): Promise<Procedure<IPipelineContext>> {
   if (index >= tracker.phases.length) return succeed(ctx);
-  const step = buildStep(tracker, index);
-  primePhaseState(step, ctx.logger);
-  const result = await runPhase(tracker, ctx, index);
-  const isSuccess = isOk(result);
-  traceOutcome(ctx, step, isSuccess);
+  const result = await executeTracedPhase(tracker, ctx, index);
   if (!isOk(result)) return result;
   return reducePhases(tracker, result.value, index + 1);
 }

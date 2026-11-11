@@ -77,20 +77,25 @@ function hasSlotlessExchange(input: IApiDirectRuleInput): boolean {
 }
 
 /**
+ * Whether an exchange codec's optional echoRef fails to name a carry slot.
+ * @param codec - Candidate step codec.
+ * @returns True when echoRef is present on an exchange codec and malformed.
+ */
+function isBadEchoRef(codec: ReturnType<typeof codecsOf>[number]): boolean {
+  if (codec.mode !== 'exchange' || codec.echoRef === undefined) return false;
+  const ref: unknown = codec.echoRef;
+  if (typeof ref !== 'string' || !ref.startsWith(CARRY_PREFIX)) return true;
+  const slot = ref.slice(CARRY_PREFIX.length);
+  return slot.trim() === '';
+}
+
+/**
  * Whether an exchange's optional echo reference lacks a nonblank carry slot.
  * @param input - Rule input.
  * @returns True when an echo reference cannot name a carry value.
  */
 function hasBadEchoRef(input: IApiDirectRuleInput): boolean {
-  return codecsOf(input).some(codec => {
-    if (codec.mode !== 'exchange' || codec.echoRef === undefined) return false;
-    const ref = codec.echoRef;
-    return (
-      typeof ref !== 'string' ||
-      !ref.startsWith(CARRY_PREFIX) ||
-      ref.slice(CARRY_PREFIX.length).trim() === ''
-    );
-  });
+  return codecsOf(input).some(isBadEchoRef);
 }
 
 /**

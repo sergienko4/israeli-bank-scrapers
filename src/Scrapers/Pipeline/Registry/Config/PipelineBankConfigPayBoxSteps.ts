@@ -59,6 +59,14 @@ interface IOtpCryptoFieldConfig<TIvSlot extends 'pinIv1' | 'pinIv2'> {
   readonly scrubFromCarry: string;
 }
 
+/** Fixed cryptoField parameters shared by both PayBox OTP encryption steps. */
+const OTP_CRYPTO_FIELD_BASE = {
+  keyRef: 'carry.otpKey',
+  outputPostfix: '\n',
+  writeTo: '/pin',
+  scrubFromCarry: 'otpDigitsPlain',
+} as const;
+
 /**
  * Build a cryptoField bound to the supplied IV carry slot. Generic
  * over `TIvSlot` so the literal-typed `ivRef` survives in the result
@@ -70,13 +78,7 @@ interface IOtpCryptoFieldConfig<TIvSlot extends 'pinIv1' | 'pinIv2'> {
 function buildOtpCryptoField<TIvSlot extends 'pinIv1' | 'pinIv2'>(
   ivSlot: TIvSlot,
 ): IOtpCryptoFieldConfig<TIvSlot> {
-  return {
-    keyRef: 'carry.otpKey',
-    ivRef: `carry.${ivSlot}`,
-    outputPostfix: '\n',
-    writeTo: '/pin',
-    scrubFromCarry: 'otpDigitsPlain',
-  };
+  return { ...OTP_CRYPTO_FIELD_BASE, ivRef: `carry.${ivSlot}` };
 }
 
 /** Shared `$ref` token strings — symmetric across all 3 login steps. */

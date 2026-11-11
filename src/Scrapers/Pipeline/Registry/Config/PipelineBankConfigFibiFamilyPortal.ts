@@ -115,6 +115,17 @@ const SESSION_TOKEN: IGetStep = {
   strictUtf8: false,
 };
 
+const CLIENT_IP_RULE = { pattern: '^[0-9A-Fa-f.:]{2,45}$', maxChars: 45 } as const;
+
+const LOGIN_FORM_BASE = {
+  form: 'loginServlet',
+  into: 'loginForm',
+  required: ['user', 'passwordEnc', 'bankId'],
+  forbidden: ['password'],
+  minFields: 3,
+  maxFields: 32,
+} as const;
+
 /**
  * Row 1: the entry page, checked to be the brand's own, and its login form.
  * @param brand - FIBI-family brand.
@@ -122,17 +133,9 @@ const SESSION_TOKEN: IGetStep = {
  */
 function fibiPrimeStep(brand: IFibiBrand): IGetStep {
   const action = fibiServletUrl(brand);
-  const required = ['user', 'passwordEnc', 'bankId'];
-  const form = {
-    form: 'loginServlet',
-    into: 'loginForm',
-    action,
-    required,
-    forbidden: ['password'],
-  };
-  const clientIp = { pattern: '^[0-9A-Fa-f.:]{2,45}$', maxChars: 45 };
-  const extractRules = { bankNum: { oneOf: [brand.bankNum] }, client_ip: clientIp };
-  return { ...PRIME, extractRules, formCapture: { ...form, minFields: 3, maxFields: 32 } };
+  const extractRules = { bankNum: { oneOf: [brand.bankNum] }, client_ip: CLIENT_IP_RULE };
+  const formCapture = { ...LOGIN_FORM_BASE, action };
+  return { ...PRIME, extractRules, formCapture };
 }
 
 /**
