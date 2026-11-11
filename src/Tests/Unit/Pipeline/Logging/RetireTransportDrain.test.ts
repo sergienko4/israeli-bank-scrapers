@@ -14,8 +14,10 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 import { jest } from '@jest/globals';
-import pino from 'pino';
+import pino, { type Logger } from 'pino';
 
+import { type IFileLease } from '../../../../Scrapers/Pipeline/Logging/FileLease.js';
+import { closeFileLeaseAsync } from '../../../../Scrapers/Pipeline/Logging/FileLeaseClose.js';
 import type { IPinoStreamCandidate } from '../../../../Scrapers/Pipeline/Logging/RetireTransport.js';
 import {
   requestWorkerEnd,
@@ -55,6 +57,7 @@ interface IStreamProbe {
   readonly state: Int32Array;
   readonly terminateCalls: () => number;
   readonly emitClose: () => boolean;
+  readonly setFlushing: (value: boolean) => boolean;
 }
 
 /**
@@ -172,43 +175,74 @@ function candidateOf(transport: object): IPinoStreamCandidate {
   return copyImplState(transport, candidate);
 }
 
+/** Mutable termination counter for a fake worker. */
+interface ITerminationCounter {
+  readonly count: () => number;
+  readonly terminate: () => Promise<number>;
+}
+
+/** Close-listener registry for a fake retired stream. */
+interface ICloseAwaiter {
+  readonly register: (listener: () => boolean) => object;
+  readonly emitClose: () => boolean;
+}
+
 /**
- * Build a fake retired stream with an idle `ThreadStream` state record.
- * @returns Probe exposing the candidate, state words, and termination count.
+ * Build the termination counter used by a fake worker.
+ * @returns Counter plus the `worker.terminate()` implementation.
  */
-function makeStreamProbe(): IStreamProbe {
-  const state = new Int32Array(32);
-  const implSymbol = Symbol('kImpl');
-  let terminateCalls = 0;
-  let closeListener: (() => boolean) | false = false;
-
-  /**
-   * Record one `worker.terminate()` call.
-   * @returns Resolved worker exit code.
-   */
-  function terminate(): Promise<number> {
-    terminateCalls += 1;
-    return Promise.resolve(0);
-  }
-
+function makeTerminationCounter(): ITerminationCounter {
+  let calls = 0;
   /**
    * Report how many times `worker.terminate()` ran.
    * @returns Termination call count.
    */
-  function countTerminations(): number {
-    return terminateCalls;
-  }
-
+  const count = (): number => calls;
   /**
-   * Fire the `'close'` listener registered by retirement.
+   * Record one `worker.terminate()` call.
+   * @returns Resolved worker exit code.
+   */
+  const terminate = (): Promise<number> => {
+    calls += 1;
+    return Promise.resolve(0);
+  };
+  return { count, terminate };
+}
+
+/**
+ * Build the close-listener registry used by a fake retired stream.
+ * @returns Listener registrar plus the close trigger.
+ */
+function makeCloseAwaiter(): ICloseAwaiter {
+  let listener: (() => boolean) | false = false;
+  /**
+   * Capture the retirement close listener.
+   * @param next - Close listener registered by retirement.
+   * @returns Dummy emitter object.
+   */
+  const register = (next: () => boolean): object => {
+    listener = next;
+    return {};
+  };
+  /**
+   * Fire the captured `'close'` listener.
    * @returns True when a listener was registered.
    */
-  function emitClose(): boolean {
-    if (closeListener === false) return false;
-    return closeListener();
-  }
+  const emitClose = (): boolean => (listener === false ? false : listener());
+  return { register, emitClose };
+}
 
-  const stream: IPinoStreamCandidate = {
+/**
+ * Build the stream object for a fake retired worker.
+ * @param counter - Termination counter backing `worker.terminate()`.
+ * @param closer - Registry capturing the retirement close listener.
+ * @returns Minimal `ThreadStream`-shaped candidate.
+ */
+function makeProbeStream(
+  counter: ITerminationCounter,
+  closer: ICloseAwaiter,
+): IPinoStreamCandidate {
+  return {
     closed: false,
     destroyed: false,
     /**
@@ -227,22 +261,50 @@ function makeStreamProbe(): IStreamProbe {
      * @param listener - Close listener.
      * @returns Dummy emitter object.
      */
-    once: (_event, listener): object => {
-      closeListener = listener;
-      return {};
-    },
-    worker: { terminate },
+    once: (_event, listener): object => closer.register(listener),
+    worker: { terminate: counter.terminate },
   };
-  Object.defineProperty(stream, implSymbol, {
-    value: { state, ending: false, flushing: false, buf: '' },
-  });
-  return { stream, state, terminateCalls: countTerminations, emitClose };
+}
+
+/**
+ * Build a fake retired stream with an idle `ThreadStream` state record.
+ * @returns Probe exposing the candidate, state words, and termination count.
+ */
+function makeStreamProbe(): IStreamProbe {
+  const state = new Int32Array(32);
+  const impl = { state, ending: false, flushing: false, buf: '' };
+  const counter = makeTerminationCounter();
+  const closer = makeCloseAwaiter();
+  const stream = makeProbeStream(counter, closer);
+  const implSymbol = Symbol('kImpl');
+  /**
+   * Flip the simulated `ThreadStream.nextFlush` claim.
+   * @param value - New `flushing` flag.
+   * @returns Always true.
+   */
+  const setFlushing = (value: boolean): boolean => {
+    impl.flushing = value;
+    return true;
+  };
+  Object.defineProperty(stream, implSymbol, { value: impl });
+  return { stream, state, terminateCalls: counter.count, emitClose: closer.emitClose, setFlushing };
 }
 
 describe('requestWorkerEnd — graceful end handshake', () => {
   it('reports unsupported when the stream carries no ThreadStream state', () => {
     const outcome: WorkerEndOutcome = requestWorkerEnd({});
     expect(outcome).toBe('unsupported');
+  });
+
+  it('reports unsupported when the private state record is missing or malformed', () => {
+    const implSymbol = Symbol('kImpl');
+    const missingImpl = { [implSymbol]: null };
+    const shortState = new Int32Array(8);
+    const malformedImpl = { [implSymbol]: { state: shortState } };
+    const missingOutcome = requestWorkerEnd(missingImpl);
+    expect(missingOutcome).toBe('unsupported');
+    const malformedOutcome = requestWorkerEnd(malformedImpl);
+    expect(malformedOutcome).toBe('unsupported');
   });
 
   it('reports busy while a queued nextFlush still owns the buffer', () => {
@@ -286,6 +348,17 @@ describe('scheduleStreamClose — destination drain before termination', () => {
     const fileLog = path.join(dir, 'file.log');
     fs.writeFileSync(prettyLog, '');
     fs.writeFileSync(fileLog, '');
+    const fd = fs.openSync(fileLog, 'a');
+    const stats = fs.fstatSync(fd);
+    const lease = {
+      fd,
+      dev: stats.dev,
+      ino: stats.ino,
+      targetBytes: stats.size,
+      isFrozen: false,
+      isClosing: false,
+      isClosed: false,
+    };
     const warnings: string[] = [];
     /**
      * Record emitted process warnings without writing to stderr.
@@ -305,7 +378,7 @@ describe('scheduleStreamClose — destination drain before termination', () => {
           options: { colorize: false, destination: prettyLog },
           level: 'trace',
         },
-        { target: 'pino/file', options: { destination: fileLog }, level: 'trace' },
+        { target: 'pino/file', options: { destination: fd }, level: 'trace' },
       ],
     });
     try {
@@ -313,15 +386,19 @@ describe('scheduleStreamClose — destination drain before termination', () => {
       for (let idx = 0; idx < RECORD_COUNT; idx += 1) logger.info({ msg: `drain-${String(idx)}` });
       const retire = await import('../../../../Scrapers/Pipeline/Logging/RetireTransport.js');
       const stream = candidateOf(transport);
-      retire.scheduleStreamClose(stream, CLOSE_WAIT_MS);
-      const isClosed = await waitUntil((): boolean => isTransportClosed(transport));
+      retire.scheduleStreamClose(stream, CLOSE_WAIT_MS, lease);
+      const isClosed = await waitUntil(
+        (): boolean => isTransportClosed(transport) && lease.isClosed,
+      );
       expect(isClosed).toBe(true);
       const prettyCount = countRecords(prettyLog);
       expect(prettyCount).toBe(RECORD_COUNT);
       const fileCount = countRecords(fileLog);
       expect(fileCount).toBe(RECORD_COUNT);
-      const hasTimeout = warnings.some(msg => msg.includes('worker drain timed out'));
-      expect(hasTimeout).toBe(false);
+      expect(warnings).toEqual([]);
+      // The worker's SonicBoom end closed the shared descriptor; main must not
+      // close it again (EBADF / unrelated-fd reuse hazard).
+      expect((): fs.Stats => fs.fstatSync(fd)).toThrow(/EBADF/u);
     } finally {
       warnSpy.mockRestore();
       fs.rmSync(dir, { recursive: true, force: true });
@@ -339,6 +416,130 @@ describe('scheduleStreamClose — destination drain before termination', () => {
     expect(didRegisterListener).toBe(true);
     const afterClose = probe.terminateCalls();
     expect(afterClose).toBe(1);
+  });
+
+  it('retries the end handshake while a queued flush still owns the buffer', async () => {
+    const probe = makeStreamProbe();
+    probe.setFlushing(true);
+    const busyOutcome = requestWorkerEnd(probe.stream);
+    expect(busyOutcome).toBe('busy');
+    const retire = await import('../../../../Scrapers/Pipeline/Logging/RetireTransport.js');
+    retire.scheduleStreamClose(probe.stream, CLOSE_WAIT_MS);
+    await yieldFor(POLL_MS * 5);
+    const busyMarker = Atomics.load(probe.state, WRITE_INDEX);
+    expect(busyMarker).not.toBe(END_MARKER);
+    probe.setFlushing(false);
+    const didEnd = await waitUntil(
+      (): boolean => Atomics.load(probe.state, WRITE_INDEX) === END_MARKER,
+    );
+    expect(didEnd).toBe(true);
+    const callsBeforeClose = probe.terminateCalls();
+    expect(callsBeforeClose).toBe(0);
+    const didEmit = probe.emitClose();
+    expect(didEmit).toBe(true);
+    const callsAfterClose = probe.terminateCalls();
+    expect(callsAfterClose).toBe(1);
+  });
+
+  it('falls back to the async flush when the stream has no end handshake', async () => {
+    let didFlush = false;
+    let terminateCalls = 0;
+    const stream: IPinoStreamCandidate = {
+      closed: false,
+      destroyed: false,
+      /**
+       * Acknowledge the buffered records without the private end signal.
+       * @param cb - Flush completion callback.
+       * @returns Dummy stream object.
+       */
+      flush: (cb): object => {
+        didFlush = true;
+        cb();
+        return {};
+      },
+      /**
+       * Simulate `ThreadStream.unref()`.
+       * @returns Always true.
+       */
+      unref: (): boolean => true,
+      /**
+       * Simulate `EventEmitter.on()`.
+       * @returns Dummy emitter object.
+       */
+      on: (): object => ({}),
+      worker: {
+        /**
+         * Record one `worker.terminate()` call.
+         * @returns Resolved worker exit code.
+         */
+        terminate: (): Promise<number> => {
+          terminateCalls += 1;
+          return Promise.resolve(0);
+        },
+      },
+    };
+    const retire = await import('../../../../Scrapers/Pipeline/Logging/RetireTransport.js');
+    retire.scheduleStreamClose(stream, CLOSE_WAIT_MS);
+    const didTerminate = await waitUntil((): boolean => terminateCalls > 0);
+    expect(didTerminate).toBe(true);
+    expect(didFlush).toBe(true);
+    expect(terminateCalls).toBe(1);
+  });
+
+  it('settles an already-closed stream without terminating it', async () => {
+    let terminateCalls = 0;
+    const stream: IPinoStreamCandidate = {
+      closed: true,
+      destroyed: false,
+      worker: {
+        /**
+         * Record an unexpected `worker.terminate()` call.
+         * @returns Resolved worker exit code.
+         */
+        terminate: (): Promise<number> => {
+          terminateCalls += 1;
+          return Promise.resolve(0);
+        },
+      },
+    };
+    const retire = await import('../../../../Scrapers/Pipeline/Logging/RetireTransport.js');
+    retire.scheduleStreamClose(stream);
+    await yieldFor(POLL_MS * 2);
+    expect(terminateCalls).toBe(0);
+  });
+
+  it('ignores a superseded logger whose stream is not retirable', async () => {
+    /**
+     * Build a superseded logger whose Pino stream is `stream`.
+     * @param stream - Value stored under `pino.symbols.streamSym`.
+     * @returns Logger whose stream is the supplied stand-in.
+     */
+    const previousWith = (stream: object): Logger => {
+      const sink = {
+        /**
+         * Discard serialized records from the silent probe logger.
+         * @returns Always true.
+         */
+        write: (): boolean => true,
+      };
+      const previous = pino({ level: 'silent' }, sink);
+      Object.defineProperty(previous, pino.symbols.streamSym, { value: stream });
+      return previous;
+    };
+    const retire = await import('../../../../Scrapers/Pipeline/Logging/RetireTransport.js');
+    const stdoutLike = previousWith({ fd: 1 });
+    const flushSpy = jest.spyOn(stdoutLike, 'flush');
+    const stdoutResult = retire.retireSupersededLogger(stdoutLike, false);
+    expect(stdoutResult).toBe(false);
+    expect(flushSpy).toHaveBeenCalledTimes(1);
+    const emptyStreamLogger = previousWith({});
+    const emptyResult = retire.retireSupersededLogger(emptyStreamLogger, false);
+    expect(emptyResult).toBe(false);
+    const workerOnlyLogger = previousWith({ worker: {} });
+    const workerResult = retire.retireSupersededLogger(workerOnlyLogger, false);
+    expect(workerResult).toBe(false);
+    const absentResult = retire.retireSupersededLogger(false, false);
+    expect(absentResult).toBe(false);
   });
 
   it('terminates a worker whose destinations never close after the end request', async () => {
@@ -366,6 +567,95 @@ describe('scheduleStreamClose — destination drain before termination', () => {
       expect(hasTimeout).toBe(true);
     } finally {
       warnSpy.mockRestore();
+    }
+  });
+});
+
+/**
+ * Open `file` in append mode and build the owned lease retirement receives.
+ * @param file - Destination log file.
+ * @returns Lease carrying the descriptor identity captured at open time.
+ */
+function openLease(file: string): IFileLease {
+  const fd = fs.openSync(file, 'a');
+  const stats = fs.fstatSync(fd);
+  return {
+    fd,
+    dev: stats.dev,
+    ino: stats.ino,
+    targetBytes: stats.size,
+    isFrozen: false,
+    isClosing: false,
+    isClosed: false,
+  };
+}
+
+/** Temporary directory plus the lease on its `pipeline.log`. */
+interface IOwnedLease {
+  readonly dir: string;
+  readonly lease: IFileLease;
+}
+
+/**
+ * Create a temporary directory and open a lease on its `pipeline.log`.
+ * @returns Temporary directory and the lease on its log file.
+ */
+function makeOwnedLease(): IOwnedLease {
+  const tmpRoot = os.tmpdir();
+  const prefixPath = path.join(tmpRoot, 'lease-own-');
+  const dir = fs.mkdtempSync(prefixPath);
+  const logFile = path.join(dir, 'pipeline.log');
+  return { dir, lease: openLease(logFile) };
+}
+
+describe('closeFileLeaseAsync — shared descriptor ownership', () => {
+  it('closes the descriptor once when the worker never did', async () => {
+    const { dir, lease } = makeOwnedLease();
+    const onCloseError = jest.fn<boolean, [string]>((): boolean => true);
+    try {
+      const didSchedule = closeFileLeaseAsync(lease, onCloseError);
+      expect(didSchedule).toBe(true);
+      const isClosed = await waitUntil((): boolean => lease.isClosed);
+      expect(isClosed).toBe(true);
+      expect((): fs.Stats => fs.fstatSync(lease.fd)).toThrow(/EBADF/u);
+      expect(onCloseError).not.toHaveBeenCalled();
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('treats a descriptor the worker already closed as closed', () => {
+    const { dir, lease } = makeOwnedLease();
+    const onCloseError = jest.fn<boolean, [string]>((): boolean => true);
+    try {
+      fs.closeSync(lease.fd);
+      const didSchedule = closeFileLeaseAsync(lease, onCloseError);
+      expect(didSchedule).toBe(false);
+      expect(lease.isClosed).toBe(true);
+      expect(onCloseError).not.toHaveBeenCalled();
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('never closes a descriptor number reused by another file', () => {
+    const { dir, lease } = makeOwnedLease();
+    const onCloseError = jest.fn<boolean, [string]>((): boolean => true);
+    try {
+      fs.closeSync(lease.fd);
+      // The kernel hands the lowest free number to the next open, so this
+      // reuses `lease.fd` for a different inode.
+      const otherPath = path.join(dir, 'other.log');
+      const reused = fs.openSync(otherPath, 'w');
+      expect(reused).toBe(lease.fd);
+      const didSchedule = closeFileLeaseAsync(lease, onCloseError);
+      expect(didSchedule).toBe(false);
+      expect(lease.isClosed).toBe(true);
+      expect(fs.fstatSync(reused).size).toBe(0);
+      expect(onCloseError).not.toHaveBeenCalled();
+      fs.closeSync(reused);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
     }
   });
 });

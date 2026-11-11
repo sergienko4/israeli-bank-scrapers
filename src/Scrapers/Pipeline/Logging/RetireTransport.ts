@@ -13,12 +13,8 @@ import pino, { type Logger } from 'pino';
 
 import type { Brand } from '../Types/Brand.js';
 import { toError } from '../Types/ErrorUtils.js';
-import {
-  awaitLeaseFlush,
-  closeFileLeaseAsync,
-  type IFileLease,
-  type ILeaseFlushWait,
-} from './FileLease.js';
+import { awaitLeaseFlush, type IFileLease, type ILeaseFlushWait } from './FileLease.js';
+import { closeFileLeaseAsync } from './FileLeaseClose.js';
 import {
   emitRetiredDrainWarning,
   handleTerminateRejection,
@@ -61,7 +57,9 @@ interface IRetirementCtx {
 
 /**
  * Terminate an open retired worker thread and close any owned file descriptor
- * only after the worker thread has exited.
+ * only after the worker thread has exited. A graceful end closes the shared
+ * descriptor inside the worker, so {@link closeFileLeaseAsync} treats an
+ * already-closed descriptor as settled instead of closing it twice.
  * @param ctx - Retirement stream, optional file lease, and lifecycle state.
  * @returns True when termination was initiated, false when already closed.
  */

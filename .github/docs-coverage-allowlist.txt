@@ -594,3 +594,10 @@ RunStampStr
 JSON_DEFAULT_HEADERS
 ITransportSeed
 seedTransport
+
+# --- Logging retirement close (PR #758) ---
+# Reason: makeLeaseCloseCallback -- the fs.close completion handler for an
+# owned pipeline.log lease. Exported only so the error-reporting branch can be
+# unit-tested without racing a real descriptor close; callers use
+# closeFileLeaseAsync.
+makeLeaseCloseCallback

@@ -8,6 +8,13 @@
  * the append descriptor on the main thread lets retirement verify all serialized
  * bytes reached disk (`fs.fstat`) and close the descriptor deterministically
  * after the worker exits.
+ *
+ * <p>The descriptor is shared with the transport worker, so closure is not the
+ * main thread's alone: a graceful end runs `SonicBoom.end()` inside the worker,
+ * which closes the same descriptor. `closeFileLeaseAsync` therefore checks that
+ * `lease.fd` still names the leased file before closing it, and treats an
+ * already-closed or reused number as settled without issuing a second
+ * `fs.close`.
  */
 
 import * as fs from 'node:fs';
@@ -18,12 +25,13 @@ import pino, { type Logger } from 'pino';
 import type { Brand } from '../Types/Brand.js';
 import { toError } from '../Types/ErrorUtils.js';
 
-/** Branded boolean returned when `closeFileLeaseAsync` schedules `fs.close`. */
-export type DidCloseLease = Brand<boolean, 'DidCloseLease'>;
-
 /** Owned file-descriptor lease tracking expected byte flush and async `fs.close`. */
 export interface IFileLease {
   readonly fd: number;
+  /** Device id captured when `fd` was opened, used to recognise a reused descriptor. */
+  readonly dev: number;
+  /** Inode number captured when `fd` was opened, used to recognise a reused descriptor. */
+  readonly ino: number;
   targetBytes: number;
   isFrozen: boolean;
   isClosing: boolean;
@@ -40,14 +48,31 @@ export interface ILeasedLoggerHooks {
 }
 
 /**
+ * Build the non-descriptor half of a fresh lease from its `fstat` snapshot.
+ * @param stats - Statistics captured for the descriptor.
+ * @returns Lease flags with the initial byte target and lifecycle state.
+ */
+function leaseFlags(stats: fs.Stats): Omit<IFileLease, 'fd'> {
+  return {
+    dev: stats.dev,
+    ino: stats.ino,
+    targetBytes: stats.size,
+    isFrozen: false,
+    isClosing: false,
+    isClosed: false,
+  };
+}
+
+/**
  * Build a fresh lease around an open `fd`, closing `fd` if `fstatSync` throws.
  * @param fd - Newly opened append file descriptor.
  * @returns Initialized file-descriptor lease.
  */
 function statOpenFd(fd: number): IFileLease {
   try {
-    const size = fs.fstatSync(fd).size;
-    return { fd, targetBytes: size, isFrozen: false, isClosing: false, isClosed: false };
+    const stats = fs.fstatSync(fd);
+    const flags = leaseFlags(stats);
+    return { fd, ...flags };
   } catch (error_) {
     fs.closeSync(fd);
     throw error_;
@@ -245,37 +270,4 @@ function retryLeaseFlush(wait: ILeaseFlushWait): true {
   const unref = typeof timer === 'object' ? (timer as { unref?: () => object }).unref : undefined;
   if (typeof unref === 'function') unref.call(timer);
   return true;
-}
-
-/**
- * Build the `fs.close` completion callback marking `lease.isClosed`.
- * @param lease - Owned file lease being closed.
- * @param onCloseError - Error reporter for unexpected `fs.close` errors.
- * @returns `fs.NoParamCallback`-compatible handler.
- */
-function makeFdCloseCallback(
-  lease: IFileLease,
-  onCloseError: (reason: string) => boolean,
-): fs.NoParamCallback {
-  return (err): boolean => {
-    lease.isClosed = true;
-    return err ? onCloseError(err.message) : true;
-  };
-}
-
-/**
- * Asynchronously close an owned `pipeline.log` file descriptor at most once.
- * @param lease - Owned file lease (or `false` when terminal-only).
- * @param onCloseError - Callback reporting unexpected `fs.close` errors.
- * @returns Branded boolean true when `fs.close` was scheduled, else false.
- */
-export function closeFileLeaseAsync(
-  lease: IFileLease | false,
-  onCloseError: (reason: string) => boolean,
-): DidCloseLease {
-  if (!lease || lease.isClosing || lease.isClosed) return false as DidCloseLease;
-  lease.isClosing = true;
-  const onClosed = makeFdCloseCallback(lease, onCloseError);
-  fs.close(lease.fd, onClosed);
-  return true as DidCloseLease;
 }
