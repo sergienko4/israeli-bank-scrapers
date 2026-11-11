@@ -12,7 +12,7 @@ import type {
   IPostStep,
   IStepConfig,
 } from '../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
-import { structuredSlotsOf } from '../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.structuredCapture.js';
+import { structuredSlotsOf } from '../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Captures/RunStep.structuredCapture.js';
 
 /** One slot a config writes, and whether the write keeps a held value. */
 interface ISlotWrite {

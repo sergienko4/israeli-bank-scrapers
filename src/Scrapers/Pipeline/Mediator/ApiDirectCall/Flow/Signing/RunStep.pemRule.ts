@@ -7,8 +7,8 @@
 
 import { createPrivateKey, X509Certificate } from 'node:crypto';
 
-import type { IExtractRule } from '../ConfigContracts/index.js';
-import { type ITemplateScope, resolveRefText } from '../Template/RefResolver.js';
+import type { IExtractRule } from '../../ConfigContracts/index.js';
+import { type ITemplateScope, resolveRefText } from '../../Template/RefResolver.js';
 
 const PEM_BEGIN = '-----BEGIN ';
 const CERT_BEGIN = '-----BEGIN CERTIFICATE-----';

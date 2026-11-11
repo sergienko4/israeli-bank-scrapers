@@ -6,8 +6,8 @@
  * test, nested at most four deep. The other branch is skipped unread.
  */
 
-import { tokenizeScript } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.locationScriptLexer.js';
-import { selectedTargets } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.locationScriptWalk.js';
+import { tokenizeScript } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Captures/RunStep.locationScriptLexer.js';
+import { selectedTargets } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Captures/RunStep.locationScriptWalk.js';
 
 const APP_AGENT = 'Mozilla/5.0 MatafMobile/2.1';
 const WEB_AGENT = 'Mozilla/5.0 (research)';

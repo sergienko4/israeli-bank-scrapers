@@ -10,8 +10,8 @@
  */
 
 import type { IStepConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
+import { structuredSlotsOf } from '../../Mediator/ApiDirectCall/Flow/Captures/RunStep.structuredCapture.js';
 import { allowedRulesOf } from '../../Mediator/ApiDirectCall/Flow/RunStep.carriedUrlRules.js';
-import { structuredSlotsOf } from '../../Mediator/ApiDirectCall/Flow/RunStep.structuredCapture.js';
 import {
   answerCapturesOf,
   anyStep,

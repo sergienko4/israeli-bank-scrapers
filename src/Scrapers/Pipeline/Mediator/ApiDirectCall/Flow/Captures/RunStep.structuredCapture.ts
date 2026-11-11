@@ -2,14 +2,14 @@
  * Reads an explicitly configured structured capture from a text answer.
  */
 
-import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
-import type { Procedure } from '../../../Types/Procedure.js';
-import { fail, isOk, succeed } from '../../../Types/Procedure.js';
-import type { IStepConfig, StructuredCapture } from '../ConfigContracts/index.js';
-import { captureScriptJson } from '../Parsing/ScriptJsonCapture.js';
-import { captureSdkReference } from '../Parsing/SdkReference.js';
+import { ScraperErrorTypes } from '../../../../../Base/ErrorTypes.js';
+import type { Procedure } from '../../../../Types/Procedure.js';
+import { fail, isOk, succeed } from '../../../../Types/Procedure.js';
+import type { IStepConfig, StructuredCapture } from '../../ConfigContracts/index.js';
+import { captureScriptJson } from '../../Parsing/ScriptJsonCapture.js';
+import { captureSdkReference } from '../../Parsing/SdkReference.js';
+import type { CarryMap, IRunStepArgs, JsonValue } from '../RunStep.types.js';
 import { answerText } from './RunStep.textCapture.js';
-import type { CarryMap, IRunStepArgs, JsonValue } from './RunStep.types.js';
 
 /** Captures read from an HTML answer. */
 type PageCapture = Exclude<StructuredCapture, { kind: 'jwt-claims' }>;

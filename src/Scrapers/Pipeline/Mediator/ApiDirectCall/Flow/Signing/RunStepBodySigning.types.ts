@@ -2,9 +2,9 @@
  * Public arg interfaces consumed by the RunStepBodySigning surface.
  */
 
-import type { IStepConfig } from '../ConfigContracts/index.js';
-import type { JsonValue } from '../Envelope/JsonPointer.js';
-import type { ITemplateScope } from '../Template/RefResolver.js';
+import type { IStepConfig } from '../../ConfigContracts/index.js';
+import type { JsonValue } from '../../Envelope/JsonPointer.js';
+import type { ITemplateScope } from '../../Template/RefResolver.js';
 
 /** Args bundle for `applyCryptoField` — keeps params ≤3. */
 interface IApplyCryptoFieldArgs {

@@ -9,15 +9,15 @@
  * never logged.
  */
 
-import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
-import { matchesAnyUrlRule } from '../../../Strategy/Fetch/UrlRule.js';
-import type { IProcedureFailure, Procedure } from '../../../Types/Procedure.js';
-import { fail, succeed } from '../../../Types/Procedure.js';
-import type { ILocationCapture, IStepConfig } from '../ConfigContracts/index.js';
+import { ScraperErrorTypes } from '../../../../../Base/ErrorTypes.js';
+import { matchesAnyUrlRule } from '../../../../Strategy/Fetch/UrlRule.js';
+import type { IProcedureFailure, Procedure } from '../../../../Types/Procedure.js';
+import { fail, succeed } from '../../../../Types/Procedure.js';
+import type { ILocationCapture, IStepConfig } from '../../ConfigContracts/index.js';
+import type { CarryMap, IRunStepArgs, JsonValue } from '../RunStep.types.js';
 import { tokenizeScript } from './RunStep.locationScriptLexer.js';
 import { selectedTargets } from './RunStep.locationScriptWalk.js';
 import { answerText } from './RunStep.textCapture.js';
-import type { CarryMap, IRunStepArgs, JsonValue } from './RunStep.types.js';
 
 const OPEN_HEAD = /<script\b/gi;
 const CLOSE_TAG = /<\/script>/gi;

@@ -8,16 +8,16 @@
  * envelope. Failures name the step, never a key, IV or plaintext.
  */
 
-import type { JsonValue } from '../../../Types/JsonValue.js';
-import type { Procedure } from '../../../Types/Procedure.js';
-import { isOk, succeed } from '../../../Types/Procedure.js';
-import type { EnvelopeCodec } from '../ConfigContracts/index.js';
+import type { JsonValue } from '../../../../Types/JsonValue.js';
+import type { Procedure } from '../../../../Types/Procedure.js';
+import { isOk, succeed } from '../../../../Types/Procedure.js';
+import type { EnvelopeCodec } from '../../ConfigContracts/index.js';
+import { bankErrorOf, guardBankError } from '../RunStep.failIfPresent.js';
+import { guardFormBody } from '../RunStep.form.js';
+import type { IDispatchBundle, IPreparedBody, IStepConfig } from '../RunStep.types.js';
 import { checkExchangeKey, openExchangeAnswer } from './RunStep.codec.exchange.js';
 import { hasBankErrorCode, type IOpenedAnswer, stepFail } from './RunStep.codec.open.js';
 import { openSealedAnswer, sealSealedBody } from './RunStep.codec.sealed.js';
-import { bankErrorOf, guardBankError } from './RunStep.failIfPresent.js';
-import { guardFormBody } from './RunStep.form.js';
-import type { IDispatchBundle, IPreparedBody, IStepConfig } from './RunStep.types.js';
 
 /** A codec mode name. */
 type EnvelopeMode = EnvelopeCodec['mode'];

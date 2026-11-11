@@ -2,9 +2,9 @@
  * JSON-pointer write helper used by the body-signing pipeline.
  */
 
-import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
-import type { Procedure } from '../../../Types/Procedure.js';
-import { fail, succeed } from '../../../Types/Procedure.js';
+import { ScraperErrorTypes } from '../../../../../Base/ErrorTypes.js';
+import type { Procedure } from '../../../../Types/Procedure.js';
+import { fail, succeed } from '../../../../Types/Procedure.js';
 import type { DocObj, DocValue } from './RunStepBodySigning.types.js';
 
 /** A mutable object or array along a JSON pointer. */

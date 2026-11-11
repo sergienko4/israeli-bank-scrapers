@@ -158,7 +158,7 @@ clientCert: { key: 'carry.certKeyPem', cert: 'carry.certPem' },
 
 `prepareStepSession` (in `Flow/RunStep.session.ts`) runs before the step's
 URL, body or headers resolve: it binds the step's client cookies, then
-`installStepCert` (in `Flow/RunStep.clientCert.ts`) resolves both refs to text
+`installStepCert` (in `Flow/Signing/RunStep.clientCert.ts`) resolves both refs to text
 with `resolveRefText` and installs the pair through the bus's `clientCert` port. The step's own request
 already presents the certificate, and so does every later request to the
 bank origin, scrape phase included. The step fails before any request:

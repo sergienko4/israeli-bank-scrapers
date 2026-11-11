@@ -2,13 +2,13 @@
  * `attachBodySignature` — AES-CBC-PKCS7 canonical → sign → write at pointer.
  */
 
-import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
-import type { Procedure } from '../../../Types/Procedure.js';
-import { fail, isOk, succeed } from '../../../Types/Procedure.js';
-import type { IAesSignerConfig } from '../ConfigContracts/index.js';
-import { signAesCbcPkcs7 } from '../Crypto/AesSymmetricSigner.js';
-import { buildCanonical } from '../Crypto/GenericCanonicalStringBuilder.js';
-import type { ITemplateScope } from '../Template/RefResolver.js';
+import { ScraperErrorTypes } from '../../../../../Base/ErrorTypes.js';
+import type { Procedure } from '../../../../Types/Procedure.js';
+import { fail, isOk, succeed } from '../../../../Types/Procedure.js';
+import type { IAesSignerConfig } from '../../ConfigContracts/index.js';
+import { signAesCbcPkcs7 } from '../../Crypto/AesSymmetricSigner.js';
+import { buildCanonical } from '../../Crypto/GenericCanonicalStringBuilder.js';
+import type { ITemplateScope } from '../../Template/RefResolver.js';
 import { writeAtPointer } from './RunStepBodySigning.pointer.js';
 import { resolveKeyBytes } from './RunStepBodySigning.refs.js';
 import type { DocObj, IAttachBodySignatureArgs } from './RunStepBodySigning.types.js';

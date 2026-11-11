@@ -13,11 +13,11 @@
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import { validateApiDirectConfig } from '../../../../../Scrapers/Pipeline/Core/Builder/ApiDirectConfigRules.js';
 import type { JsonValue } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Envelope/JsonPointer.js';
+import { captureText } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Captures/RunStep.textCapture.js';
 import { applyDerivedCarry } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/FlowInitCarry.derived.js';
 import { checkRequiredCreds } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RequiredCreds.js';
 import { classifyAnswer } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.classify.js';
 import { guardBankError } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.failIfPresent.js';
-import { captureText } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.textCapture.js';
 import { stepNamed } from './BeinleumiConfigTestHelpers.js';
 import {
   CARRY,

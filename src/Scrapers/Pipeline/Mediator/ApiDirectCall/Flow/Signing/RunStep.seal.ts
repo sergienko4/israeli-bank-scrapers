@@ -5,17 +5,17 @@
  * only into the body, never into carry. Failures name the step, never a value.
  */
 
-import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
-import type { JsonUnknown, JsonUnknownRecord } from '../../../Types/JsonValue.js';
-import type { Procedure } from '../../../Types/Procedure.js';
-import { fail, isOk, succeed } from '../../../Types/Procedure.js';
-import { planSeal } from '../Crypto/SealKinds.js';
-import type { ISealedWrite, SealRef, SealRefText } from '../Crypto/SealPlan.js';
-import { type JsonValue, walkPointer } from '../Envelope/JsonPointer.js';
-import { type ITemplateScope, resolveRefText } from '../Template/RefResolver.js';
-import type { IPreparedBody, IStepConfig } from './RunStep.types.js';
+import { ScraperErrorTypes } from '../../../../../Base/ErrorTypes.js';
+import type { JsonUnknown, JsonUnknownRecord } from '../../../../Types/JsonValue.js';
+import type { Procedure } from '../../../../Types/Procedure.js';
+import { fail, isOk, succeed } from '../../../../Types/Procedure.js';
+import { planSeal } from '../../Crypto/SealKinds.js';
+import type { ISealedWrite, SealRef, SealRefText } from '../../Crypto/SealPlan.js';
+import { type JsonValue, walkPointer } from '../../Envelope/JsonPointer.js';
+import { type ITemplateScope, resolveRefText } from '../../Template/RefResolver.js';
+import type { IPreparedBody, IStepConfig } from '../RunStep.types.js';
+import { isRecordValue } from '../WarmTokenParts.js';
 import { writeAtPointer } from './RunStepBodySigning.pointer.js';
-import { isRecordValue } from './WarmTokenParts.js';
 
 /** The prepared body as the pointer writer takes it. */
 type Body = IPreparedBody['body'];
