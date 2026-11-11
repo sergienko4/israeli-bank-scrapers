@@ -18,7 +18,7 @@ import { validateApiDirectConfig } from '../../../../../Scrapers/Pipeline/Core/B
 import type { IApiDirectCallConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 
 /** The bank's headless block, as the build-time validator reads it. */
-type HeadlessBlock = Exclude<IApiDirectRuleInput['headless'], false>;
+type HeadlessBlock = Exclude<IApiDirectRuleInput['transport'], false>;
 
 /** A group bank's login config and its headless block. */
 interface ILoadedConfig {
@@ -103,7 +103,7 @@ describe('Mercantile api-direct login config (Telebank group)', () => {
       'PipelineBankConfigMercantile.js',
       'MERCANTILE_HEADLESS',
     );
-    const result = validateApiDirectConfig({ call, headless });
+    const result = validateApiDirectConfig({ call, transport: headless });
     expect(result).toEqual({ success: true, value: true });
   });
 
@@ -114,7 +114,7 @@ describe('Mercantile api-direct login config (Telebank group)', () => {
       unknown
     >;
     const entries = registry.PIPELINE_BANK_CONFIG as Record<string, unknown>;
-    const expected = { urls: { base: 'https://www.mercantile.co.il' }, headless };
+    const expected = { urls: { base: 'https://www.mercantile.co.il' }, transport: headless };
     expect(entries[CompanyTypes.Mercantile]).toEqual(expected);
   });
 });

@@ -22,7 +22,7 @@ Every api-direct bank reuses the **same building blocks** below the phase, so ad
 | Asymmetric | Pepper  | ECDSA-P256 / RSA-2048 | Header-attached         |
 | Symmetric  | PayBox  | AES-CBC-PKCS7         | Body — RFC-6901 pointer |
 
-Banks declare the algorithm + canonical-string parts + key-ref in their `PipelineBankConfig.headless.signer` literal; the mediator dispatches without bank knowledge.
+Banks declare the algorithm + canonical-string parts + key-ref in their `PipelineBankConfig.transport.signer` literal; the mediator dispatches without bank knowledge.
 
 A cold flow generates fresh keypairs. A flow can instead be handed keypairs and
 a per-run step list, so it signs with a key the server already bound rather
@@ -167,7 +167,7 @@ Per-step optional encryption hook: takes a value from carry (e.g. the SMS OTP), 
 
 ### Phone normaliser
 
-Every api-direct bank declares its wire format in `PipelineBankConfig.headless.phoneNumberFormat`:
+Every api-direct bank declares its wire format in `PipelineBankConfig.transport.phoneNumberFormat`:
 
 | Bank    | Format               | Example         |
 | ------- | -------------------- | --------------- |
@@ -358,8 +358,8 @@ carry slot, in a header template or as its `urlFromCarry`.
 
 The build refuses a `finalUrlInto` on a step without a manual `redirect`, whose
 rules would check it, and one that is blank or names a slot the step also
-extracts. A manual `redirect` itself needs `headless.nativeFetch` and
-`headless.redirectPolicy: 'reject'`.
+extracts. A manual `redirect` itself needs `transport.nativeFetch` and
+`transport.redirectPolicy: 'reject'`.
 
 ### Optional extracts
 
@@ -1224,7 +1224,7 @@ login leaves in the session jar:
 `handOffCookies` (`Flow/CookieHandoff.ts`) runs in `finishFlow` after every
 successful cold or warm login, right after the warm export, so a kept jar is
 published in the next warm token before it is emptied. `isolate` needs a
-domain jar (`headless.cookieDomains`, a
+domain jar (`transport.cookieDomains`, a
 [build-time check](#build-time-config-checks)). Durable device auth
 (`persistentAuth`) runs its own flows and never hands off. An in-run recovery
 puts the stash back before it resumes; see [Auth recovery](#auth-recovery).
@@ -1295,7 +1295,7 @@ login calls with redirects, HTML pages or response headers instead of JSON
 alone. Reading, encoding, headers and domain cookies work on either node
 transport (`nativeFetch` or node:https with a certificate or TLS profile).
 Step redirects and bank-wide redirect, status, failure-text and media-type
-and strict UTF-8 defaults need `headless.nativeFetch`; response integrity at
+and strict UTF-8 defaults need `transport.nativeFetch`; response integrity at
 either bank or step level also requires native fetch. Step media types and
 strict UTF-8 work on either node transport. The transport side of each field
 is described in
@@ -1303,10 +1303,10 @@ is described in
 the [build-time config checks](#build-time-config-checks) refuse combinations
 that cannot work.
 
-Bank-wide, on `headless`:
+Bank-wide, on `transport`:
 
 ```ts
-headless: {
+transport: {
   nativeFetch: true,
   sessionCookies: true,
   cookieDomains: ['bank.example'], // a Domain cookie reaches every *.bank.example host
@@ -1396,7 +1396,7 @@ from what it extracted:
   the request fails `"cookie <name> undecodable"` before it is sent. Either
   form takes a `?<fallback>` (`@cookie:language?HEBREW`, `@cookie:tuuid?`),
   sent verbatim when the cookie is missing or empty.
-- `redirect` overrides `headless.redirectPolicy` for one step
+- `redirect` overrides `transport.redirectPolicy` for one step
   ([Redirect policies](../architecture/pipeline.md#redirect-policies)); with
   a manual one, `finalUrlInto` carries the URL that gave the final answer
   ([Final URL carry](#final-url-carry)). A POST step names a manual one only
@@ -1414,17 +1414,17 @@ from what it extracted:
   ([Document responses and status policies](../architecture/pipeline.md#document-responses-and-status-policies)).
 - `mediaType` names the one lower-case `type/subtype` the answer's
   `content-type` must carry, parameters aside, over the bank's
-  `headless.mediaTypes` default for the step's response kind; a missing or
+  `transport.mediaTypes` default for the step's response kind; a missing or
   different type fails the step `<step> unexpected media type`, after the
   status policy and before the body is read
   ([Document responses and status policies](../architecture/pipeline.md#document-responses-and-status-policies)).
 - `strictUtf8` decodes the answer's bytes as strict UTF-8, over the
-  bank's `headless.strictUtf8`; a malformed byte fails the step
+  bank's `transport.strictUtf8`; a malformed byte fails the step
   `<step> body not utf-8` instead of becoming U+FFFD. `strictUtf8: false`
   lifts the bank's `true` for that step's body reading, and fails the
   build on a bank that is not strict
   ([Document responses and status policies](../architecture/pipeline.md#document-responses-and-status-policies)).
-- `responseIntegrity` overrides `headless.responseIntegrity` for one step.
+- `responseIntegrity` overrides `transport.responseIntegrity` for one step.
   Configure `maxTextChars` separately for text answers: it is a character cap,
   not the byte cap. `API_DIRECT_INTEGRITY_RULES` refuses malformed policies at
   build time; transports that cannot enforce a policy refuse it before I/O.
@@ -1470,7 +1470,7 @@ from what it extracted:
   and out of a failed scrape call, and records a length-only hint for
   `error_code` in login diagnostics
   ([Bank text in failures](#bank-text-in-failures)).
-- `headless.omitBankText: true` also omits bank text from native HTTP failures,
+- `transport.omitBankText: true` also omits bank text from native HTTP failures,
   including post-login data calls. WAF classification still runs first
   ([Headless transports](../architecture/pipeline.md#headless-transports)).
 
@@ -1478,7 +1478,7 @@ from what it extracted:
 
 `validateApiDirectConfig` in `Core/Builder/ApiDirectConfigRules.ts` runs when
 the pipeline is built (`build()` → `buildDescriptor` → `validateBuilderFields`).
-Its input, `IApiDirectRuleInput`, is the call config plus the bank's `headless`
+Its input, `IApiDirectRuleInput`, is the call config plus the bank's `transport`
 block from the registry, so a config that cannot work fails before any request
 is sent. `Core/Builder/ApiDirectRuleInput.ts` holds that input, the rule shape
 `IApiDirectRule` (a message and an `isBroken` check), `allSteps`, which
@@ -1529,8 +1529,8 @@ fails the build with `Generic` and `<field>: <rule>`:
 | Broken when                                                                                                                                 | Message                                                                            |
 | ------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | `authScheme: 'prefixed'` with a missing or blank `authPrefix`                                                                               | `authPrefix: required when authScheme is prefixed`                                 |
-| `authScheme: 'none'` without `headless.sessionCookies: true`                                                                                | `headless.sessionCookies: required when authScheme is none`                        |
-| `headless.sessionCookies` and any login or resume step with `cookieJar`                                                                     | `steps.cookieJar: not allowed with headless.sessionCookies`                        |
+| `authScheme: 'none'` without `transport.sessionCookies: true`                                                                               | `transport.sessionCookies: required when authScheme is none`                       |
+| `transport.sessionCookies` and any login or resume step with `cookieJar`                                                                    | `steps.cookieJar: not allowed with transport.sessionCookies`                       |
 | any login or resume step whose `outcome.successCodes` is empty                                                                              | `outcome.successCodes: must not be empty`                                          |
 | `warmStart` validated as `'jwt'` (the default) with no `jwtClaims`                                                                          | `jwtClaims: required when warmStart.validation is jwt`                             |
 | `warmStart` validated as `'bank-call'` with a `fromStepIndex` that names no step                                                            | `warmStart.fromStepIndex: must name a step when validation is bank-call`           |
@@ -1540,19 +1540,19 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a `kind: 'cookie-jar'` or `'carry-bundle'` `warmStart` with a blank `provider`                                                              | `warmStart.provider: must not be blank`                                            |
 | a `kind: 'cookie-jar'` `warmStart` with a blank `accountField`                                                                              | `warmStart.accountField: must not be blank`                                        |
 | a `kind: 'cookie-jar'` or `'carry-bundle'` `warmStart` whose `maxTokenChars` is not an integer from 1 to 16384                              | `warmStart.maxTokenChars: must be an integer from 1 to 16384`                      |
-| a `kind: 'cookie-jar'` `warmStart` without `headless.cookieDomains`                                                                         | `warmStart.kind: cookie-jar not allowed without headless.cookieDomains`            |
+| a `kind: 'cookie-jar'` `warmStart` without `transport.cookieDomains`                                                                        | `warmStart.kind: cookie-jar not allowed without transport.cookieDomains`           |
 | a `kind: 'carry-bundle'` `warmStart` with no `accountFields`, or a blank one (`API_DIRECT_WARM_BUNDLE_RULES`)                               | `warmStart.accountFields: must name a creds field, none blank`                     |
 | a `kind: 'carry-bundle'` `warmStart` with an empty `slots`                                                                                  | `warmStart.slots: must not be empty`                                               |
 | a `kind: 'carry-bundle'` `warmStart` keeping a slot no login step extracts or generates                                                     | `warmStart.slots: each slot must be filled by a login step`                        |
-| a `kind: 'carry-bundle'` `warmStart` with `cookies: true`, without `headless.cookieDomains`                                                 | `warmStart.cookies: not allowed without headless.cookieDomains`                    |
+| a `kind: 'carry-bundle'` `warmStart` with `cookies: true`, without `transport.cookieDomains`                                                | `warmStart.cookies: not allowed without transport.cookieDomains`                   |
 | a `response: 'document'` step with any `extractsToCarry`, `optionalExtractsToCarry`, `outcome` or nonempty `failIfPresent`                  | `steps.response: a document step reads no body extracts, outcome or failIfPresent` |
 | a `documentMarker` on any step whose `response` is not `'document'`                                                                         | `steps.documentMarker: only on a document step`                                    |
 | a manual `redirect` on a POST step without `postAsGet: true`                                                                                | `steps.redirect: manual on a POST step needs postAsGet`                            |
 | a manual `redirect` with `postAsGet` on a GET step                                                                                          | `steps.redirect: postAsGet only on POST steps`                                     |
-| a manual `headless.redirectPolicy` (the default every POST shares)                                                                          | `headless.redirectPolicy: manual only on GET steps`                                |
+| a manual `transport.redirectPolicy` (the default every POST shares)                                                                         | `transport.redirectPolicy: manual only on GET steps`                               |
 | a manual `redirect` whose `allow` list is empty                                                                                             | `redirect.allow: must not be empty`                                                |
 | a manual `redirect` whose `maxHops` is not an integer from 1 to 10                                                                          | `redirect.maxHops: must be an integer from 1 to 10`                                |
-| a manual `redirect` on any step while `headless.redirectPolicy` is not `'reject'`                                                           | `headless.redirectPolicy: must be reject when a step redirects manually`           |
+| a manual `redirect` on any step while `transport.redirectPolicy` is not `'reject'`                                                          | `transport.redirectPolicy: must be reject when a step redirects manually`          |
 | a form step (`form`, `form-utf8` or `form-latin1`) whose body shape is not a flat record of `$ref`, `$join` and scalar `$literal` values    | `steps.body: a form body must be a flat record`                                    |
 | a `text` step whose body shape is not exactly `{ text }`                                                                                    | `steps.body: a text body must be exactly { text }`                                 |
 | a form step whose whole-shape `$merge` (`isMergeRoot`) has a `base` off `carry.<slot>` or a `set` that is not flat                          | `steps.body: a form body must be a flat record`                                    |
@@ -1592,19 +1592,19 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a login or resume step whose `preHook.valuePattern` has a group, an alternation or a variable repeat before its last atom                   | `steps.preHook.valuePattern: must be a flat regex`                                 |
 | a login or resume step whose `httpFailureMap` is empty (`API_DIRECT_HTTP_FAILURE_RULES`)                                                    | `steps.httpFailureMap: must not be empty`                                          |
 | an `httpFailureMap` key that is not a `4xx` status, or a value outside the [login failure types](#http-failure-map)                         | `steps.httpFailureMap: must map 4xx statuses to login failure types`               |
-| a login or resume step with `clientCert`, without a `headless.clientCert` block (`API_DIRECT_CLIENT_CERT_RULES`)                            | `steps.clientCert: not allowed without headless.clientCert`                        |
-| a `headless.clientCert` whose `origin` is not exactly `https://host[:port]` (no path, user, trailing slash or default port)                 | `headless.clientCert.origin: must be an exact https origin`                        |
-| `headless.clientCert` together with `headless.requiresClientCert: true`                                                                     | `headless.clientCert: not allowed with headless.requiresClientCert`                |
+| a login or resume step with `clientCert`, without a `transport.clientCert` block (`API_DIRECT_CLIENT_CERT_RULES`)                           | `steps.clientCert: not allowed without transport.clientCert`                       |
+| a `transport.clientCert` whose `origin` is not exactly `https://host[:port]` (no path, user, trailing slash or default port)                | `transport.clientCert.origin: must be an exact https origin`                       |
+| `transport.clientCert` together with `transport.requiresClientCert: true`                                                                   | `transport.clientCert: not allowed with transport.requiresClientCert`              |
 | a `sessionCarry` slot no login or resume step extracts, captures via `script-json`, or names as `finalUrlInto` (`API_DIRECT_SESSION_RULES`) | `sessionCarry: each slot must name a step extract`                                 |
-| `cookieHandoff: 'isolate'` without `headless.cookieDomains`                                                                                 | `cookieHandoff: isolate not allowed without headless.cookieDomains`                |
+| `cookieHandoff: 'isolate'` without `transport.cookieDomains`                                                                                | `cookieHandoff: isolate not allowed without transport.cookieDomains`               |
 | a `persistentAuth` block whose `kind` has no supported primer (`API_DIRECT_PERSISTENT_AUTH_RULES`)                                          | `persistentAuth.kind: must be bound-device or device-memory`                       |
 | a login or resume step with `response`, `documentMarker`, `headerExtractsToCarry` or `encoding` off native fetch and node:https             | `steps.<field>: not allowed without nativeFetch or node:https`                     |
-| a login or resume step with `redirect`, without `headless.nativeFetch: true`                                                                | `steps.redirect: not allowed without headless.nativeFetch`                         |
-| `headless.cookieDomains` off native fetch and node:https                                                                                    | `headless.cookieDomains: not allowed without nativeFetch or node:https`            |
-| `headless.redirectPolicy`, `statusPolicy` or `omitBankText` without `headless.nativeFetch: true`, including node-tls banks                  | `headless.<field>: not allowed without headless.nativeFetch`                       |
-| `headless.cookieDomains` without `headless.sessionCookies: true`                                                                            | `headless.cookieDomains: not allowed without headless.sessionCookies`              |
+| a login or resume step with `redirect`, without `transport.nativeFetch: true`                                                               | `steps.redirect: not allowed without transport.nativeFetch`                        |
+| `transport.cookieDomains` off native fetch and node:https                                                                                   | `transport.cookieDomains: not allowed without nativeFetch or node:https`           |
+| `transport.redirectPolicy`, `statusPolicy` or `omitBankText` without `transport.nativeFetch: true`, including node-tls banks                | `transport.<field>: not allowed without transport.nativeFetch`                     |
+| `transport.cookieDomains` without `transport.sessionCookies: true`                                                                          | `transport.cookieDomains: not allowed without transport.sessionCookies`            |
 | a `headerExtractsToCarry` header name that is not an HTTP token (RFC 9110)                                                                  | `headerExtractsToCarry.header: must be an HTTP header name`                        |
-| a login or resume step with `setCookies`, without `headless.cookieDomains`                                                                  | `steps.setCookies: not allowed without headless.cookieDomains`                     |
+| a login or resume step with `setCookies`, without `transport.cookieDomains`                                                                 | `steps.setCookies: not allowed without transport.cookieDomains`                    |
 | a `setCookies` cookie name that is not an HTTP token (RFC 9110)                                                                             | `steps.setCookies: each name must be an HTTP token`                                |
 | a malformed required or optional `setCookies` source                                                                                        | `steps.setCookies: each source must be a valid ref or optional ref`                |
 | a `seedCarryFromCreds` entry whose `random-hex` bootstrap draws a `bytes` count that is not an integer from 1 to 64                         | `seedCarryFromCreds: random-hex needs integer bytes from 1 to 64`                  |
@@ -1641,11 +1641,11 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a `runIf` whose `carry` some `classify` writes, with a `oneOf` text that no case written to that slot is named                              | `steps.runIf: on a classifier slot, oneOf lists only case names`                   |
 | a login or resume step with `mediaType`, off native fetch and node:https                                                                    | `steps.mediaType: not allowed without nativeFetch or node:https`                   |
 | a login or resume step with `strictUtf8`, off native fetch and node:https                                                                   | `steps.strictUtf8: not allowed without nativeFetch or node:https`                  |
-| `headless.mediaTypes` without `headless.nativeFetch: true`                                                                                  | `headless.mediaTypes: not allowed without headless.nativeFetch`                    |
-| `headless.strictUtf8` without `headless.nativeFetch: true`                                                                                  | `headless.strictUtf8: not allowed without headless.nativeFetch`                    |
-| a `headless.mediaTypes` key that is not a response kind (`API_DIRECT_MEDIA_RULES`)                                                          | `headless.mediaTypes: keys must be response kinds`                                 |
-| a step `mediaType` or `headless.mediaTypes` value that is not one lower-case `type/subtype`, no parameters                                  | `mediaType: must be a lower-case type/subtype`                                     |
-| a step `strictUtf8: false` on a bank without `headless.strictUtf8: true` (`API_DIRECT_UTF8_RULES`)                                          | `steps.strictUtf8: false only overrides headless.strictUtf8`                       |
+| `transport.mediaTypes` without `transport.nativeFetch: true`                                                                                | `transport.mediaTypes: not allowed without transport.nativeFetch`                  |
+| `transport.strictUtf8` without `transport.nativeFetch: true`                                                                                | `transport.strictUtf8: not allowed without transport.nativeFetch`                  |
+| a `transport.mediaTypes` key that is not a response kind (`API_DIRECT_MEDIA_RULES`)                                                         | `transport.mediaTypes: keys must be response kinds`                                |
+| a step `mediaType` or `transport.mediaTypes` value that is not one lower-case `type/subtype`, no parameters                                 | `mediaType: must be a lower-case type/subtype`                                     |
+| a step `strictUtf8: false` on a bank without `transport.strictUtf8: true` (`API_DIRECT_UTF8_RULES`)                                         | `steps.strictUtf8: false only overrides transport.strictUtf8`                      |
 
 `warmStart.validation` says how a stored token is judged before reuse. `'jwt'`
 reads its expiry through `jwtClaims`. `'bank-call'` is for a token with no
@@ -1847,7 +1847,7 @@ closed unions, so a misspelt value fails type-check. The flow never branches
 on a name: it labels the step in failure messages (`<step> HTTP <status>`,
 `<step> outcome <code>`, `<step> outcome unmapped`, `<step> bank error`) and
 in the per-step log
-context. The URL comes from the bank's `headless.paths`, keyed by
+context. The URL comes from the bank's `transport.paths`, keyed by
 `AuthPathKey`; the registry seeder registers each entry under the same key,
 and the step's `urlTag` selects it.
 

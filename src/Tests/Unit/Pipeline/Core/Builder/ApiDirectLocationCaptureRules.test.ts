@@ -59,7 +59,7 @@ function runOf(change: IStepChange): IApiDirectRuleInput {
     ...change.step,
     locationCapture: { ...CAPTURE, ...change.capture },
   };
-  return { call: { flow: 'sms-otp', envelope: {}, steps: [step] }, headless: NATIVE };
+  return { call: { flow: 'sms-otp', envelope: {}, steps: [step] }, transport: NATIVE };
 }
 
 const REFUSALS: readonly IRefusalCase[] = [

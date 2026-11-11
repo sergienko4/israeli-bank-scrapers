@@ -35,11 +35,11 @@ const DYNAMIC_CERT = { mode: 'dynamic', origin: 'https://native.example' } as co
  */
 function resolveMocked(companyId: CompanyTypes): object | false {
   if (companyId === TLS_BANK) {
-    return { headless: { requiresClientCert: true, redirectPolicy: 'reject' } };
+    return { transport: { requiresClientCert: true, redirectPolicy: 'reject' } };
   }
   if (companyId === TLS_CLEAN_BANK) {
     return {
-      headless: {
+      transport: {
         requiresClientCert: true,
         sessionCookies: true,
         cookieDomains: ['native.example'],
@@ -47,11 +47,11 @@ function resolveMocked(companyId: CompanyTypes): object | false {
     };
   }
   if (companyId === DYNAMIC_TLS_REDIRECT_BANK) {
-    return { headless: { clientCert: DYNAMIC_CERT, redirectPolicy: 'reject' } };
+    return { transport: { clientCert: DYNAMIC_CERT, redirectPolicy: 'reject' } };
   }
   if (companyId === DYNAMIC_TLS_BANK) {
     return {
-      headless: {
+      transport: {
         clientCert: DYNAMIC_CERT,
         sessionCookies: true,
         cookieDomains: ['native.example'],
@@ -59,7 +59,7 @@ function resolveMocked(companyId: CompanyTypes): object | false {
     };
   }
   if (companyId !== JAR_BANK) return false;
-  return { headless: { sessionCookies: true } };
+  return { transport: { sessionCookies: true } };
 }
 
 jest.unstable_mockModule(
@@ -142,7 +142,7 @@ describe('PipelineBuilder — api-direct config rules', () => {
     expect(result).toMatchObject({
       success: false,
       errorType: ScraperErrorTypes.Generic,
-      errorMessage: 'headless.sessionCookies: required when authScheme is none',
+      errorMessage: 'transport.sessionCookies: required when authScheme is none',
     });
   });
 
@@ -151,7 +151,7 @@ describe('PipelineBuilder — api-direct config rules', () => {
     const result = buildWith(opts, JAR_STEP_CALL);
     expect(result).toMatchObject({
       success: false,
-      errorMessage: 'steps.cookieJar: not allowed with headless.sessionCookies',
+      errorMessage: 'steps.cookieJar: not allowed with transport.sessionCookies',
     });
   });
 
@@ -169,7 +169,7 @@ describe('PipelineBuilder — node-tls headless rules', () => {
     expect(result).toMatchObject({
       success: false,
       errorType: ScraperErrorTypes.Generic,
-      errorMessage: 'headless.redirectPolicy: not allowed without headless.nativeFetch',
+      errorMessage: 'transport.redirectPolicy: not allowed without transport.nativeFetch',
     });
   });
 
@@ -190,7 +190,7 @@ describe('PipelineBuilder — node-tls headless rules', () => {
     const result = buildPlain(opts);
     expect(result).toMatchObject({
       success: false,
-      errorMessage: 'headless.redirectPolicy: not allowed without headless.nativeFetch',
+      errorMessage: 'transport.redirectPolicy: not allowed without transport.nativeFetch',
     });
   });
 });

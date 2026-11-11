@@ -52,7 +52,7 @@ function postWith(seal: ISealFieldConfig): IPostStep {
  * @returns Rule input.
  */
 function runOf(step: IStepConfig): IApiDirectRuleInput {
-  return { call: { flow: 'sms-otp', envelope: {}, steps: [step] }, headless: false };
+  return { call: { flow: 'sms-otp', envelope: {}, steps: [step] }, transport: false };
 }
 
 /**
@@ -198,7 +198,7 @@ describe('validateApiDirectConfig — sealed fields', () => {
       IApiDirectRuleInput['call']['persistentAuth']
     >;
     const call = { flow: 'sms-otp' as const, envelope: {}, steps: [], persistentAuth };
-    const result = validateApiDirectConfig({ call, headless: false });
+    const result = validateApiDirectConfig({ call, transport: false });
     expect(result).toMatchObject({ success: false, errorMessage: KIND_MSG });
   });
 });

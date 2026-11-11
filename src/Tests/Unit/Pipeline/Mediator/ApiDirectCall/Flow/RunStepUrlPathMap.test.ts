@@ -109,7 +109,7 @@ describe('checked URL path mapping', () => {
     expect(result.success).toBe(true);
     expect(isNextSuccessful).toBe(true);
     expect(calls).toEqual([`${ORIGIN}/start`, `${ORIGIN}/gate/${path}/?${query}`]);
-    expect(validateApiDirectConfig({ call: CONFIG, headless: HEADLESS }).success).toBe(true);
+    expect(validateApiDirectConfig({ call: CONFIG, transport: HEADLESS }).success).toBe(true);
   });
 
   it.each([
@@ -157,7 +157,7 @@ describe('checked URL path mapping', () => {
     ['source truncation', { ...DERIVATION, truncateBytes: 32 }],
   ] as const)('rejects %s at build time', (_label, derived) => {
     const call: IApiDirectCallConfig = { ...CONFIG, steps: [{ ...FIRST, deriveCarry: [derived] }] };
-    const result = validateApiDirectConfig({ call, headless: HEADLESS });
+    const result = validateApiDirectConfig({ call, transport: HEADLESS });
     expect(result).toMatchObject({
       success: false,
       errorMessage: 'derive.op.url-path-map: invalid mapping',
@@ -168,7 +168,7 @@ describe('checked URL path mapping', () => {
     const unchecked = { into: 'target', parts: ['creds.url'] } as const;
     const first: IGetStep = { ...FIRST, deriveCarry: [DERIVATION, unchecked] };
     const call = { ...CONFIG, steps: [first, NEXT] };
-    const result = validateApiDirectConfig({ call, headless: HEADLESS });
+    const result = validateApiDirectConfig({ call, transport: HEADLESS });
     expect(result).toMatchObject({
       success: false,
       errorMessage: 'steps.urlFromCarry: slot needs an earlier url rule',

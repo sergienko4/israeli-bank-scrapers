@@ -54,7 +54,7 @@ function deriving(op: DerivedOp, parts: readonly RefToken[] = ['creds.num']): ID
  */
 function initRun(op: DerivedOp, parts?: readonly RefToken[]): IApiDirectRuleInput {
   const derivedCarry = [deriving(op, parts)];
-  return { call: { flow: 'sms-otp', envelope: {}, steps: [], derivedCarry }, headless: NATIVE };
+  return { call: { flow: 'sms-otp', envelope: {}, steps: [], derivedCarry }, transport: NATIVE };
 }
 
 /**
@@ -71,7 +71,7 @@ function stepRun(op: DerivedOp, parts?: readonly RefToken[]): IApiDirectRuleInpu
     extractsToCarry: {},
     deriveCarry: [deriving(op, parts)],
   };
-  return { call: { flow: 'sms-otp', envelope: {}, steps: [step] }, headless: NATIVE };
+  return { call: { flow: 'sms-otp', envelope: {}, steps: [step] }, transport: NATIVE };
 }
 
 const UNKNOWN_KIND = { kind: 'sha1' } as unknown as DerivedOp;

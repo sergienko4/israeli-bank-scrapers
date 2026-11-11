@@ -1,6 +1,6 @@
 /**
  * Media type rules for an api-direct call config. A step's `mediaType`
- * and each of the bank's `headless.mediaTypes` defaults is one lower-case
+ * and each of the bank's `transport.mediaTypes` defaults is one lower-case
  * `type/subtype` with no parameter — the form the transport compares the
  * answer's content-type against — and the defaults are keyed by response kind.
  */
@@ -24,8 +24,8 @@ const RESPONSE_KINDS: Readonly<Record<ResponseKind, true>> = {
  * @returns The defaults by response kind, empty when the bank names none.
  */
 function bankDefaultsOf(input: IApiDirectRuleInput): Readonly<Record<string, string>> {
-  if (input.headless === false) return {};
-  return input.headless.mediaTypes ?? {};
+  if (input.transport === false) return {};
+  return input.transport.mediaTypes ?? {};
 }
 
 /**
@@ -56,7 +56,7 @@ function hasBadMediaType(input: IApiDirectRuleInput): boolean {
 /**
  * A bank default no call could read: its key names no response kind.
  * @param input - Rule input.
- * @returns True when a `headless.mediaTypes` key is not a response kind.
+ * @returns True when a `transport.mediaTypes` key is not a response kind.
  */
 function hasUnknownKind(input: IApiDirectRuleInput): boolean {
   const defaults = bankDefaultsOf(input);
@@ -66,7 +66,7 @@ function hasUnknownKind(input: IApiDirectRuleInput): boolean {
 
 /** Media type rules, checked after the transport gates (they close the native rules). */
 const API_DIRECT_MEDIA_RULES: readonly IApiDirectRule[] = [
-  { message: 'headless.mediaTypes: keys must be response kinds', isBroken: hasUnknownKind },
+  { message: 'transport.mediaTypes: keys must be response kinds', isBroken: hasUnknownKind },
   { message: 'mediaType: must be a lower-case type/subtype', isBroken: hasBadMediaType },
 ];
 

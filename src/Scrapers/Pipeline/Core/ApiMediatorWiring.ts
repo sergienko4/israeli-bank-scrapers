@@ -38,40 +38,40 @@ type TTransportArgs = IApiWiring['transport'] &
 
 /**
  * Decode the optional transport flags into explicit booleans.
- * @param headless - Headless URL block from PIPELINE_BANK_CONFIG.
+ * @param cfg - Transport block from PIPELINE_BANK_CONFIG.
  * @returns The transport flags, each defaulted to false when absent.
  */
-function toWiringFlags(headless: ITransportConfig): IWiringFlags {
+function toWiringFlags(cfg: ITransportConfig): IWiringFlags {
   return {
-    requiresClientCert: headless.requiresClientCert === true,
-    nativeFetch: headless.nativeFetch === true,
-    sessionCookies: headless.sessionCookies === true,
-    isBankTextOmitted: headless.omitBankText === true,
+    requiresClientCert: cfg.requiresClientCert === true,
+    nativeFetch: cfg.nativeFetch === true,
+    sessionCookies: cfg.sessionCookies === true,
+    isBankTextOmitted: cfg.omitBankText === true,
   };
 }
 
 /**
- * Extract the non-boolean transport options and policies from a headless block.
- * @param headless - Headless URL block from PIPELINE_BANK_CONFIG.
+ * Extract the non-boolean transport options and policies from a transport block.
+ * @param cfg - Transport block from PIPELINE_BANK_CONFIG.
  * @returns Transport options and response policies for the mediator factories.
  */
-function toWiringTransport(headless: ITransportConfig): IApiWiring['transport'] {
-  const { redirectPolicy, statusPolicy, mediaTypes, responseIntegrity } = headless;
-  const policies = { redirectPolicy, statusPolicy, mediaTypes, strictUtf8: headless.strictUtf8 };
-  const { tlsProfile, clientCert, cookieDomains, isConnectRetryDisabled } = headless;
+function toWiringTransport(cfg: ITransportConfig): IApiWiring['transport'] {
+  const { redirectPolicy, statusPolicy, mediaTypes, responseIntegrity } = cfg;
+  const policies = { redirectPolicy, statusPolicy, mediaTypes, strictUtf8: cfg.strictUtf8 };
+  const { tlsProfile, clientCert, cookieDomains, isConnectRetryDisabled } = cfg;
   const options = { tlsProfile, clientCert, cookieDomains, isConnectRetryDisabled };
   return { ...options, ...policies, responseIntegrity };
 }
 
 /**
- * Map a headless config block onto the wiring shape the factories consume.
- * @param headless - Headless URL block from PIPELINE_BANK_CONFIG.
+ * Map a transport config block onto the wiring shape the factories consume.
+ * @param cfg - Transport block from PIPELINE_BANK_CONFIG.
  * @returns Resolved wiring (URLs + decoded flags).
  */
-function toApiWiring(headless: ITransportConfig): IApiWiring {
-  const flags = toWiringFlags(headless);
-  const transport = toWiringTransport(headless);
-  const { identityBase, graphql, graphqlHeaders, staticAuth } = headless;
+function toApiWiring(cfg: ITransportConfig): IApiWiring {
+  const flags = toWiringFlags(cfg);
+  const transport = toWiringTransport(cfg);
+  const { identityBase, graphql, graphqlHeaders, staticAuth } = cfg;
   const urls = { identity: identityBase, graphql, graphqlHeaders, staticAuth };
   return { ...urls, transport, ...flags };
 }
@@ -84,8 +84,8 @@ function toApiWiring(headless: ITransportConfig): IApiWiring {
  */
 function resolveApiWiring(companyId: CompanyTypes): IApiWiring | false {
   const config = resolvePipelineBankConfig(companyId);
-  if (config === false || !config.headless) return false;
-  return toApiWiring(config.headless);
+  if (config === false || !config.transport) return false;
+  return toApiWiring(config.transport);
 }
 
 /**

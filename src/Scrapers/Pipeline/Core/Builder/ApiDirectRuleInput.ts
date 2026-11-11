@@ -27,7 +27,7 @@ type AnswerCaptureEntry = readonly [string, IAnswerCapture];
 /** What the rules read: the call config and the bank's headless block. */
 interface IApiDirectRuleInput {
   readonly call: IApiDirectCallConfig;
-  readonly headless: ITransportConfig | false;
+  readonly transport: ITransportConfig | false;
 }
 
 /** One rule: the failure text and the check that finds it broken. */
@@ -142,10 +142,10 @@ function answerCapturesOf(classifier: IAnswerClassifier): readonly AnswerCapture
  * Whether the bank's session jar is scoped to cookie domains, as a warm start
  * that restores or exports the jar needs.
  * @param input - Rule input.
- * @returns True when `headless.cookieDomains` is set.
+ * @returns True when `transport.cookieDomains` is set.
  */
 function hasCookieDomains(input: IApiDirectRuleInput): boolean {
-  return input.headless !== false && input.headless.cookieDomains !== undefined;
+  return input.transport !== false && input.transport.cookieDomains !== undefined;
 }
 
 export type { AnswerCaptureEntry, ClassifierCheck, IApiDirectRule, IApiDirectRuleInput };

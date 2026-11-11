@@ -23,7 +23,7 @@ const CONFIG_MODULE =
   '../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigDiscount.js';
 
 /** The bank's headless block, as the build-time validator reads it. */
-type HeadlessBlock = Exclude<IApiDirectRuleInput['headless'], false>;
+type HeadlessBlock = Exclude<IApiDirectRuleInput['transport'], false>;
 
 /** The Discount login config and its headless block. */
 interface IDiscountModule {

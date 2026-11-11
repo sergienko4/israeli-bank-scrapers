@@ -84,7 +84,7 @@ function runOf(generator: ICarryGenerator): IApiDirectRuleInput {
     body: { shape: {} },
     extractsToCarry: { ecdhPublic: '/key', session: '/session' },
   };
-  return { call: { flow: 'sms-otp', envelope: {}, steps: [step] }, headless: false };
+  return { call: { flow: 'sms-otp', envelope: {}, steps: [step] }, transport: false };
 }
 
 /**

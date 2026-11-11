@@ -34,7 +34,7 @@ interface ISeederModule {
 
 interface ICandidateModule {
   readonly LEUMI_API_DIRECT_CALL: IApiDirectCallConfig;
-  readonly LEUMI_HEADLESS: NonNullable<BankConfig['headless']>;
+  readonly LEUMI_HEADLESS: NonNullable<BankConfig['transport']>;
 }
 
 interface IModules {
@@ -137,7 +137,7 @@ function install(modules: IModules, saved: ISnapshot, factory: PipelineFactory):
   PIPELINE_REGISTRY[HINT] = factory;
   modules.registry.PIPELINE_BANK_CONFIG[HINT] = {
     ...saved.bank,
-    headless: modules.candidate.LEUMI_HEADLESS,
+    transport: modules.candidate.LEUMI_HEADLESS,
   };
   modules.seeder.seedWkFromPipelineConfig(modules.registry.PIPELINE_BANK_CONFIG);
   return true;

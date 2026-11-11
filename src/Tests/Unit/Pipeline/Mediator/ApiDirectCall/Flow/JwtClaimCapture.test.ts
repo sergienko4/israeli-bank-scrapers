@@ -131,7 +131,7 @@ describe('issued JWT claim capture', () => {
   it('binds the newly extracted token and makes its site available to derivation', async () => {
     const step: IGetStep = { ...BASE, structuredCapture: CAPTURE };
     const config = configFor(step);
-    const valid = validateApiDirectConfig({ headless: HEADLESS, call: config });
+    const valid = validateApiDirectConfig({ transport: HEADLESS, call: config });
     expect(valid.success).toBe(true);
     const payload = claims();
     const token = tokenOf(payload);
@@ -264,7 +264,7 @@ describe('issued JWT claim capture', () => {
   ])('rejects %s at build time', (_label, change) => {
     const step = stepWith({ ...CAPTURE, ...change });
     const call = configFor(step);
-    const result = validateApiDirectConfig({ headless: HEADLESS, call });
+    const result = validateApiDirectConfig({ transport: HEADLESS, call });
     expect(result).toMatchObject({
       success: false,
       errorMessage: 'steps.structuredCapture: invalid capture',
@@ -281,7 +281,7 @@ describe('issued JWT claim capture', () => {
       extractsToCarry: {},
     };
     const call = { ...configFor(first), steps: [first, next] };
-    const result = validateApiDirectConfig({ headless: HEADLESS, call });
+    const result = validateApiDirectConfig({ transport: HEADLESS, call });
     expect(result).toMatchObject({
       success: false,
       errorMessage: 'steps.urlFromCarry: slot needs an earlier url rule',
@@ -292,7 +292,7 @@ describe('issued JWT claim capture', () => {
     const capture = { ...CAPTURE, captures: { siteCopy: { pointer: '/jti', maxChars: 128 } } };
     const step = stepWith(capture);
     const call = configFor(step);
-    const result = validateApiDirectConfig({ headless: HEADLESS, call });
+    const result = validateApiDirectConfig({ transport: HEADLESS, call });
     expect(result).toMatchObject({
       success: false,
       errorMessage: 'steps.structuredCapture: must be a fresh slot',

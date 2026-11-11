@@ -72,10 +72,10 @@ describe('SDK reference routing', () => {
       paths: {},
       nativeFetch: true,
     };
-    const valid = validateApiDirectConfig({ headless, call: CONFIG });
+    const valid = validateApiDirectConfig({ transport: headless, call: CONFIG });
     const conflicting = { ...STEP, extractsToCarry: { sdkUrl: '/text' } };
     const invalid = validateApiDirectConfig({
-      headless,
+      transport: headless,
       call: { ...CONFIG, steps: [conflicting, NEXT] },
     });
     expect(valid).toMatchObject({ success: true });
@@ -105,7 +105,7 @@ describe('SDK reference routing', () => {
       Reflect.set(capture, field, value);
       const step = { ...STEP, structuredCapture: capture };
       const result = validateApiDirectConfig({
-        headless,
+        transport: headless,
         call: { ...CONFIG, steps: [step, NEXT] },
       });
       expect(result).toMatchObject({
@@ -115,7 +115,10 @@ describe('SDK reference routing', () => {
     }
     const step = { ...STEP };
     Reflect.set(step, 'structuredCapture', null);
-    const result = validateApiDirectConfig({ headless, call: { ...CONFIG, steps: [step] } });
+    const result = validateApiDirectConfig({
+      transport: headless,
+      call: { ...CONFIG, steps: [step] },
+    });
     expect(result).toMatchObject({
       success: false,
       errorMessage: 'steps.structuredCapture: invalid capture',
@@ -130,7 +133,10 @@ describe('SDK reference routing', () => {
       nativeFetch: true,
     };
     const step: IGetStep = { ...STEP, response: 'json' };
-    const result = validateApiDirectConfig({ headless, call: { ...CONFIG, steps: [step] } });
+    const result = validateApiDirectConfig({
+      transport: headless,
+      call: { ...CONFIG, steps: [step] },
+    });
     expect(result).toMatchObject({
       success: false,
       errorMessage: 'steps.structuredCapture: needs a text response',
@@ -158,7 +164,7 @@ describe('SDK reference routing', () => {
     for (const change of changes) {
       const step = { ...STEP, ...change };
       const result = validateApiDirectConfig({
-        headless,
+        transport: headless,
         call: { ...CONFIG, steps: [step, NEXT] },
       });
       expect(result).toMatchObject({

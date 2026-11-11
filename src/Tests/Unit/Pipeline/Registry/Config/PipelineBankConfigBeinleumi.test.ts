@@ -59,7 +59,7 @@ const COLD_CARRY = withoutSlot(CARRY, 'did');
 describe('Beinleumi api-direct login config — wiring', () => {
   it('passes the build-time validator with its headless block', async () => {
     const { call, headless } = await loadModule();
-    const result = validateApiDirectConfig({ call, headless });
+    const result = validateApiDirectConfig({ call, transport: headless });
     expect(result).toEqual({ success: true, value: true });
   });
 

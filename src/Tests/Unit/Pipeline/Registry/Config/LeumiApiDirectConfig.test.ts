@@ -11,7 +11,7 @@ import { assertOk } from '../../../../Helpers/AssertProcedure.js';
 
 const MODULE = '../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigLeumi.js';
 const REGISTRY = '../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js';
-type IHeadless = Exclude<Parameters<typeof validateApiDirectConfig>[0]['headless'], false>;
+type IHeadless = Exclude<Parameters<typeof validateApiDirectConfig>[0]['transport'], false>;
 
 interface ILeumiModule {
   readonly LEUMI_API_DIRECT_CALL: IApiDirectCallConfig;
@@ -21,7 +21,7 @@ interface ILeumiModule {
 interface IRegistryModule {
   readonly resolvePipelineBankConfig: (
     company: CompanyTypes,
-  ) => { readonly headless?: IHeadless } | false;
+  ) => { readonly transport?: IHeadless } | false;
 }
 
 describe('Leumi native candidate configuration', () => {
@@ -29,7 +29,7 @@ describe('Leumi native candidate configuration', () => {
     const { LEUMI_API_DIRECT_CALL: call, LEUMI_HEADLESS: headless } = (await import(
       MODULE
     )) as ILeumiModule;
-    const validation = validateApiDirectConfig({ call, headless });
+    const validation = validateApiDirectConfig({ call, transport: headless });
     expect(validation).toEqual({ success: true, value: true });
     expect(call.sessionCarry).toEqual(['sessionToken']);
     expect(call.omitBankText).toBe(true);
@@ -43,7 +43,7 @@ describe('Leumi native candidate configuration', () => {
     });
     const registry = (await import(REGISTRY)) as IRegistryModule;
     const active = registry.resolvePipelineBankConfig(CompanyTypes.Leumi);
-    expect(active).toMatchObject({ headless });
+    expect(active).toMatchObject({ transport: headless });
   });
 
   it('selects the native descriptor from the production pipeline registry', () => {

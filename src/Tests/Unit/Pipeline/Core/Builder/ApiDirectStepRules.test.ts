@@ -38,7 +38,7 @@ function guarded(pointers: readonly string[]): IStepConfig {
  * @returns Rule input.
  */
 function runOf(step: IStepConfig): IApiDirectRuleInput {
-  return { call: { flow: 'sms-otp', envelope: {}, steps: [step] }, headless: false };
+  return { call: { flow: 'sms-otp', envelope: {}, steps: [step] }, transport: false };
 }
 
 /**
@@ -59,7 +59,7 @@ function resumeOf(step: IStepConfig): IApiDirectRuleInput {
   const login = guarded(['/error']);
   return {
     call: { flow: 'sms-otp', envelope: {}, steps: [login], persistentAuth },
-    headless: false,
+    transport: false,
   };
 }
 
@@ -219,7 +219,7 @@ describe('validateApiDirectConfig — extractRules', () => {
       headerExtractsToCarry: { status: { header: 'device-status' } },
     };
     const call = { flow: 'sms-otp', envelope: {}, steps: [step] } as const;
-    const result = validateApiDirectConfig({ call, headless: NATIVE });
+    const result = validateApiDirectConfig({ call, transport: NATIVE });
     expect(result).toEqual({ success: true, value: true });
   });
 
@@ -303,7 +303,7 @@ describe('validateApiDirectConfig — keepExisting extract ownership', () => {
     ['resume', resumeOf],
   ] as const)('%s answer-slot sources', (_label, inputOf) => {
     it.each(sources)('refuses a kept slot also written by %s', (_source, step) => {
-      const input = { ...inputOf(step), headless: NATIVE };
+      const input = { ...inputOf(step), transport: NATIVE };
       const result = validateApiDirectConfig(input);
       expect(result).toMatchObject({
         success: false,
@@ -317,7 +317,7 @@ describe('validateApiDirectConfig — keepExisting extract ownership', () => {
         ...step,
         optionalExtractsToCarry: { held: { pointer: '/held', keepExisting: true } },
       };
-      const input = { ...inputOf(distinct), headless: NATIVE };
+      const input = { ...inputOf(distinct), transport: NATIVE };
       const result = validateApiDirectConfig(input);
       expect(result).toEqual({ success: true, value: true });
     });
@@ -329,7 +329,7 @@ describe('validateApiDirectConfig — keepExisting extract ownership', () => {
       response: 'text',
       textCaptures: { target: { pattern: '^error$', group: 0, absent: true } },
     };
-    const input = { ...runOf(step), headless: NATIVE };
+    const input = { ...runOf(step), transport: NATIVE };
     const result = validateApiDirectConfig(input);
     expect(result).toEqual({ success: true, value: true });
   });

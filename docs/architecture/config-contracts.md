@@ -6,7 +6,7 @@
 The API-DIRECT-CALL config contract is the typed login-flow shape every
 API-direct bank (Pepper, PayBox, OneZero, VisaCal, Isracard, Amex, Max,
 Mizrahi, Hapoalim, Yahav) pairs with its HTTP transport configuration
-(`ITransportConfig` on `IPipelineBankConfig.headless`). That login shape lives
+(`ITransportConfig` on `IPipelineBankConfig.transport`). That login shape lives
 in **eleven focused concern-slice files** (six as of **v8.5**, before
 `GeneratorTypes`, `WireTypes`, `ClassifyTypes`, `ExtractRuleTypes` and
 `FailureTypes`) under
@@ -118,8 +118,8 @@ current max: `FlowTypes.ts` at 133) and is held there by an ESLint guard
 ## Which field does what
 
 Where each login capability lives, and where its behaviour is documented.
-Fields marked `headless.` sit in the bank's HTTP transport config
-(`ITransportConfig` on `IPipelineBankConfig.headless`), not in
+Fields marked `transport.` sit in the bank's HTTP transport config
+(`ITransportConfig` on `IPipelineBankConfig.transport`), not in
 `IApiDirectCallConfig`; the build-time checks read both.
 
 | Capability                                                                                                                     | Field (type)                                                      | Bucket                             | Behaviour                                                                                    |
@@ -144,13 +144,13 @@ Fields marked `headless.` sit in the bank's HTTP transport config
 | How a rejected session recovers                                                                                                | `authRecovery` (`AuthRecovery`)                                   | FlowTypes, ApiDirectCallConfig     | [Auth recovery](../phases/api-direct-call.md#auth-recovery)                                  |
 | How a stored token is judged                                                                                                   | `warmStart.validation`                                            | CarryTypes                         | [Build-time config checks](../phases/api-direct-call.md#build-time-config-checks)            |
 | Which failed warm resumes fall back to a cold login                                                                            | `warmStart.coldFallback` (`ColdFallback`)                         | CarryTypes                         | [Carry-bundle warm start](../phases/api-direct-call.md#carry-bundle-warm-start)              |
-| Session held in cookies                                                                                                        | `headless.sessionCookies`                                         | —                                  | [Headless transports](pipeline.md#headless-transports)                                       |
-| Cookies shared across sibling hosts                                                                                            | `headless.cookieDomains`                                          | —                                  | [Headless transports](pipeline.md#headless-transports)                                       |
-| Node's own `fetch`, no browser                                                                                                 | `headless.nativeFetch`                                            | —                                  | [Headless transports](pipeline.md#headless-transports)                                       |
-| Bank-wide redirect handling                                                                                                    | `headless.redirectPolicy` (`RedirectPolicy`)                      | —                                  | [Redirect policies](pipeline.md#redirect-policies)                                           |
+| Session held in cookies                                                                                                        | `transport.sessionCookies`                                        | —                                  | [Headless transports](pipeline.md#headless-transports)                                       |
+| Cookies shared across sibling hosts                                                                                            | `transport.cookieDomains`                                         | —                                  | [Headless transports](pipeline.md#headless-transports)                                       |
+| Node's own `fetch`, no browser                                                                                                 | `transport.nativeFetch`                                           | —                                  | [Headless transports](pipeline.md#headless-transports)                                       |
+| Bank-wide redirect handling                                                                                                    | `transport.redirectPolicy` (`RedirectPolicy`)                     | —                                  | [Redirect policies](pipeline.md#redirect-policies)                                           |
 | Redirect handling of one step                                                                                                  | `redirect` (`RedirectPolicy`)                                     | FlowTypes                          | [Redirect policies](pipeline.md#redirect-policies)                                           |
-| Bank-wide status decisions before reading the body                                                                             | `headless.statusPolicy` (`StatusPolicy`)                          | —                                  | [Document responses and status policies](pipeline.md#document-responses-and-status-policies) |
-| Keep bank text out of native HTTP failures, including data calls                                                               | `headless.omitBankText`                                           | —                                  | [Headless transports](pipeline.md#headless-transports)                                       |
+| Bank-wide status decisions before reading the body                                                                             | `transport.statusPolicy` (`StatusPolicy`)                         | —                                  | [Document responses and status policies](pipeline.md#document-responses-and-status-policies) |
+| Keep bank text out of native HTTP failures, including data calls                                                               | `transport.omitBankText`                                          | —                                  | [Headless transports](pipeline.md#headless-transports)                                       |
 | Read one step's answer as a page, not JSON                                                                                     | `response` (`ResponseKind`), `documentMarker`                     | FlowTypes                          | [Document responses and status policies](pipeline.md#document-responses-and-status-policies) |
 | Carry values the bank returns in response headers                                                                              | `headerExtractsToCarry` (`IHeaderExtract`)                        | FlowTypes                          | [Response-header carry](pipeline.md#response-header-carry)                                   |
 | Carry values found by pattern in a text answer, and its size cap                                                               | `textCaptures` (`ITextCapture`), `maxTextChars`                   | WireTypes, FlowTypes               | [Text captures](../phases/api-direct-call.md#text-captures)                                  |
@@ -166,10 +166,10 @@ Fields marked `headless.` sit in the bank's HTTP transport config
 | A fresh key or certificate request made by one step                                                                            | `generate` (`ICarryGenerator`)                                    | GeneratorTypes, FlowTypes          | [Carry generators](../phases/api-direct-call.md#carry-generators)                            |
 | A returned certificate checked against its key                                                                                 | `extractRules` `pemCertificate` (`IPemCertificateRule`)           | ExtractRuleTypes                   | [Extract rules](../phases/api-direct-call.md#extract-rules)                                  |
 | A returned value that must equal one the run already holds                                                                     | `extractRules` `equalsRef` (`RefToken`)                           | ExtractRuleTypes                   | [Extract rules](../phases/api-direct-call.md#extract-rules)                                  |
-| Present a device certificate the run obtained                                                                                  | `clientCert` (`IStepClientCert`), `headless.clientCert`           | FlowTypes                          | [Device certificate](../phases/api-direct-call.md#device-certificate)                        |
+| Present a device certificate the run obtained                                                                                  | `clientCert` (`IStepClientCert`), `transport.clientCert`          | FlowTypes                          | [Device certificate](../phases/api-direct-call.md#device-certificate)                        |
 
 Cross-field rules (for example `authScheme: 'none'` needs
-`headless.sessionCookies`) fail the build; see
+`transport.sessionCookies`) fail the build; see
 [Build-time config checks](../phases/api-direct-call.md#build-time-config-checks).
 A browserless bank warns about browser options it ignores; see
 [Browser options on browserless banks](../configuration.md#browser-options-on-browserless-banks).

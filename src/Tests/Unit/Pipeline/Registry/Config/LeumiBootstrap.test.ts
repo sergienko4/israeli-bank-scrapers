@@ -105,7 +105,7 @@ describe('Leumi fresh bootstrap', () => {
       cookieDomains: ['bankleumi.co.il'],
       redirectPolicy: 'reject' as const,
     };
-    const result = validateApiDirectConfig({ call: config, headless });
+    const result = validateApiDirectConfig({ call: config, transport: headless });
     expect(result).toEqual({ success: true, value: true });
   });
 

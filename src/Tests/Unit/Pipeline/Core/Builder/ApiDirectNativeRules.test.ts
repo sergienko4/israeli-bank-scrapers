@@ -14,7 +14,7 @@ import {
 import type { IStepConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 
 /** The bank's headless block when it has one. */
-type HeadlessBlock = Exclude<IApiDirectRuleInput['headless'], false>;
+type HeadlessBlock = Exclude<IApiDirectRuleInput['transport'], false>;
 
 const HOST = 'https://native.example';
 const PLAIN: HeadlessBlock = { identityBase: HOST, graphql: `${HOST}/graphql`, paths: {} };
@@ -85,9 +85,9 @@ function carrying(header: string): IStepConfig {
  */
 function runOf(
   steps: readonly IStepConfig[],
-  headless: IApiDirectRuleInput['headless'],
+  headless: IApiDirectRuleInput['transport'],
 ): IApiDirectRuleInput {
-  return { call: { flow: 'sms-otp', envelope: {}, steps }, headless };
+  return { call: { flow: 'sms-otp', envelope: {}, steps }, transport: headless };
 }
 
 /**
@@ -107,20 +107,20 @@ function resumeOf(step: IStepConfig): IApiDirectRuleInput {
   };
   return {
     call: { flow: 'sms-otp', envelope: {}, steps: [CALL], persistentAuth },
-    headless: PLAIN,
+    transport: PLAIN,
   };
 }
 
-const OFF = 'not allowed without headless.nativeFetch';
+const OFF = 'not allowed without transport.nativeFetch';
 const NODE_OFF = 'not allowed without nativeFetch or node:https';
 const HEADER_MSG = 'headerExtractsToCarry.header: must be an HTTP header name';
-const NO_DOMAIN_JAR = 'steps.setCookies: not allowed without headless.cookieDomains';
+const NO_DOMAIN_JAR = 'steps.setCookies: not allowed without transport.cookieDomains';
 const COOKIE_NAME_MSG = 'steps.setCookies: each name must be an HTTP token';
 const DOMAIN_JAR: HeadlessBlock = { ...JAR, cookieDomains: ['native.example'] };
 const SETTING_G3 = setting('G3CmE');
 const MEDIA_MSG = 'mediaType: must be a lower-case type/subtype';
-const MEDIA_KIND_MSG = 'headless.mediaTypes: keys must be response kinds';
-const LAX_MSG = 'steps.strictUtf8: false only overrides headless.strictUtf8';
+const MEDIA_KIND_MSG = 'transport.mediaTypes: keys must be response kinds';
+const LAX_MSG = 'steps.strictUtf8: false only overrides transport.strictUtf8';
 
 /**
  * Rule input whose one native step names the given media type.
@@ -197,42 +197,42 @@ const BROKEN: readonly IBrokenCase[] = [
   {
     label: 'cookie domains, plain jar',
     input: runOf([CALL], { ...PLAIN, sessionCookies: true, cookieDomains: ['native.example'] }),
-    message: `headless.cookieDomains: ${NODE_OFF}`,
+    message: `transport.cookieDomains: ${NODE_OFF}`,
   },
   {
     label: 'bank redirect policy, plain',
     input: runOf([CALL], { ...PLAIN, redirectPolicy: 'reject' }),
-    message: `headless.redirectPolicy: ${OFF}`,
+    message: `transport.redirectPolicy: ${OFF}`,
   },
   {
     label: 'bank redirect policy, client cert',
     input: runOf([CALL], { ...DYNAMIC_TLS, redirectPolicy: 'reject' }),
-    message: `headless.redirectPolicy: ${OFF}`,
+    message: `transport.redirectPolicy: ${OFF}`,
   },
   {
     label: 'connect retry opt-out, plain',
     input: runOf([CALL], { ...PLAIN, isConnectRetryDisabled: true }),
-    message: `headless.isConnectRetryDisabled: ${OFF}`,
+    message: `transport.isConnectRetryDisabled: ${OFF}`,
   },
   {
     label: 'bank status policy, plain',
     input: runOf([CALL], { ...PLAIN, statusPolicy: { 204: 'empty' } }),
-    message: `headless.statusPolicy: ${OFF}`,
+    message: `transport.statusPolicy: ${OFF}`,
   },
   {
     label: 'bank text omission, plain',
     input: runOf([CALL], { ...PLAIN, omitBankText: true }),
-    message: `headless.omitBankText: ${OFF}`,
+    message: `transport.omitBankText: ${OFF}`,
   },
   {
     label: 'bank text omission, dynamic mTLS',
     input: runOf([CALL], { ...DYNAMIC_TLS, omitBankText: true }),
-    message: `headless.omitBankText: ${OFF}`,
+    message: `transport.omitBankText: ${OFF}`,
   },
   {
     label: 'bank status policy, TLS profile',
     input: runOf([CALL], { ...PROFILE, statusPolicy: { 204: 'empty' } }),
-    message: `headless.statusPolicy: ${OFF}`,
+    message: `transport.statusPolicy: ${OFF}`,
   },
   {
     label: 'media type step, plain',
@@ -242,7 +242,7 @@ const BROKEN: readonly IBrokenCase[] = [
   {
     label: 'bank media types, TLS profile',
     input: runOf([CALL], { ...PROFILE, mediaTypes: { json: 'application/json' } }),
-    message: `headless.mediaTypes: ${OFF}`,
+    message: `transport.mediaTypes: ${OFF}`,
   },
   { label: 'media type, upper case', input: typedAs('Text/HTML'), message: MEDIA_MSG },
   { label: 'media type, parameter', input: typedAs('text/html;charset=utf-8'), message: MEDIA_MSG },
@@ -262,13 +262,13 @@ const BROKEN: readonly IBrokenCase[] = [
   {
     label: 'bank strict UTF-8, TLS profile',
     input: runOf([CALL], { ...PROFILE, strictUtf8: true }),
-    message: `headless.strictUtf8: ${OFF}`,
+    message: `transport.strictUtf8: ${OFF}`,
   },
   { label: 'lax step, bank not strict', input: runOf([LAX], NATIVE), message: LAX_MSG },
   {
     label: 'cookie domains, no jar',
     input: runOf([CALL], { ...NATIVE, cookieDomains: ['native.example'] }),
-    message: 'headless.cookieDomains: not allowed without headless.sessionCookies',
+    message: 'transport.cookieDomains: not allowed without transport.sessionCookies',
   },
   { label: 'empty header name', input: runOf([carrying('')], NATIVE), message: HEADER_MSG },
   { label: 'header name, space', input: runOf([carrying('x id')], NATIVE), message: HEADER_MSG },

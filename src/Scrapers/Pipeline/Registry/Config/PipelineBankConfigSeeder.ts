@@ -28,33 +28,33 @@ function seedOnePath(bankHint: CompanyTypes, key: string, url?: string): DidSeed
 }
 
 /**
- * Register every URL in a headless block into WK for the given bank.
+ * Register every URL in a transport block into WK for the given bank.
  * Iterates `paths` generically so any bank can plug its own key subset.
  * @param bankHint - Bank identifier.
- * @param headless - Headless URLs block.
+ * @param transport - Transport URLs block.
  * @returns True once all entries are written.
  */
-function seedWkFromHeadless(bankHint: CompanyTypes, headless: ITransportConfig): DidSeed {
-  registerWkUrl('identityBase', bankHint, headless.identityBase);
-  registerWkUrl('graphql', bankHint, headless.graphql);
-  for (const [key, url] of Object.entries(headless.paths)) seedOnePath(bankHint, key, url);
+function seedWkFromHeadless(bankHint: CompanyTypes, transport: ITransportConfig): DidSeed {
+  registerWkUrl('identityBase', bankHint, transport.identityBase);
+  registerWkUrl('graphql', bankHint, transport.graphql);
+  for (const [key, url] of Object.entries(transport.paths)) seedOnePath(bankHint, key, url);
   return true as DidSeed;
 }
 
 /**
  * Seed one bank's PIPELINE_BANK_CONFIG entry.
- * Skips banks with no config or no headless block (HTML banks).
+ * Skips banks with no config or no transport block.
  * @param registry - The pipeline bank registry map.
  * @param bankId - Bank to seed.
- * @returns True when a headless block was seeded; false when skipped.
+ * @returns True when a transport block was seeded; false when skipped.
  */
 function seedOneBank(
   registry: Partial<Record<CompanyTypes, IPipelineBankConfig>>,
   bankId: CompanyTypes,
 ): DidSeed {
-  const headless = registry[bankId]?.headless;
-  if (!headless) return false as DidSeed;
-  return seedWkFromHeadless(bankId, headless);
+  const transport = registry[bankId]?.transport;
+  if (!transport) return false as DidSeed;
+  return seedWkFromHeadless(bankId, transport);
 }
 
 /**

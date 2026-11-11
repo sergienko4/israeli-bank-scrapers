@@ -89,7 +89,7 @@ interface IPortalModule {
 interface ILeumiModule {
   readonly LEUMI_API_DIRECT_CALL: IApiDirectCallConfig;
   readonly LEUMI_HEADLESS: Exclude<
-    Parameters<typeof validateApiDirectConfig>[0]['headless'],
+    Parameters<typeof validateApiDirectConfig>[0]['transport'],
     false
   >;
 }
@@ -341,7 +341,7 @@ async function portalSetup(): Promise<{
     registerWkUrl(tag as keyof typeof paths, HINT, url);
   }
   const { LEUMI_API_DIRECT_CALL: config, LEUMI_HEADLESS: headless } = assembled;
-  const valid = validateApiDirectConfig({ call: config, headless });
+  const valid = validateApiDirectConfig({ call: config, transport: headless });
   if (!valid.success) throw new TypeError(valid.errorMessage);
   return { config, headless };
 }

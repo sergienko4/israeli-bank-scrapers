@@ -177,7 +177,7 @@ function preparePortal(module: IPortalModule, config: IApiDirectCallConfig): IAp
     redirectPolicy: 'reject' as const,
     statusPolicy: module.LEUMI_STATUS_POLICY,
   };
-  const validation = validateApiDirectConfig({ call: config, headless });
+  const validation = validateApiDirectConfig({ call: config, transport: headless });
   if (!validation.success) throw new TypeError(validation.errorMessage);
   registerWkUrl('auth.verify', CompanyTypes.Leumi, `${ORIGIN}/synthetic-token`);
   registerWkUrl('auth.identify', CompanyTypes.Leumi, module.LEUMI_PORTAL_PATHS['auth.identify']);

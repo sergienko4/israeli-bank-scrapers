@@ -81,7 +81,7 @@ function runOf(run: IRunCase): IApiDirectRuleInput {
   const extractsToCarry = Object.fromEntries(pointers) as IPostStep['extractsToCarry'];
   const sealed = stepOf(SEALED, { name: 'login', urlTag: 'auth.login', extractsToCarry });
   const steps = [exchange, sealed];
-  return { call: { flow: 'sms-otp', envelope: {}, steps, sessionCarry }, headless: NATIVE };
+  return { call: { flow: 'sms-otp', envelope: {}, steps, sessionCarry }, transport: NATIVE };
 }
 
 /**

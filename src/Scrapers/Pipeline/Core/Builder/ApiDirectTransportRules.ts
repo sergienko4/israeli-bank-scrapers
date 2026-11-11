@@ -121,8 +121,8 @@ function isAsGetOnGet(input: IApiDirectRuleInput): boolean {
  * @returns True when the bank default redirects manually.
  */
 function isBankDefaultManual(input: IApiDirectRuleInput): boolean {
-  if (input.headless === false) return false;
-  return typeof input.headless.redirectPolicy === 'object';
+  if (input.transport === false) return false;
+  return typeof input.transport.redirectPolicy === 'object';
 }
 
 /**
@@ -163,7 +163,7 @@ function hasHopBudgetOutOfRange(input: IApiDirectRuleInput): boolean {
 function isManualWithoutRejectDefault(input: IApiDirectRuleInput): boolean {
   const policies = manualPolicies(input);
   if (policies.length === 0) return false;
-  return input.headless === false || input.headless.redirectPolicy !== 'reject';
+  return input.transport === false || input.transport.redirectPolicy !== 'reject';
 }
 
 /** Session-transport rules, checked in order after the core rules. */
@@ -178,14 +178,14 @@ const API_DIRECT_TRANSPORT_RULES: readonly IApiDirectRule[] = [
     isBroken: isManualPostWithoutAsGet,
   },
   { message: 'steps.redirect: postAsGet only on POST steps', isBroken: isAsGetOnGet },
-  { message: 'headless.redirectPolicy: manual only on GET steps', isBroken: isBankDefaultManual },
+  { message: 'transport.redirectPolicy: manual only on GET steps', isBroken: isBankDefaultManual },
   { message: 'redirect.allow: must not be empty', isBroken: hasEmptyAllow },
   {
     message: `redirect.maxHops: must be an integer from 1 to ${String(MAX_REDIRECT_HOPS)}`,
     isBroken: hasHopBudgetOutOfRange,
   },
   {
-    message: 'headless.redirectPolicy: must be reject when a step redirects manually',
+    message: 'transport.redirectPolicy: must be reject when a step redirects manually',
     isBroken: isManualWithoutRejectDefault,
   },
 ];

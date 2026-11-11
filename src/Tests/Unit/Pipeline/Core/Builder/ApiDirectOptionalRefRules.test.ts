@@ -69,9 +69,9 @@ interface IBuildCase {
  */
 function inputOf(build: IBuildCase): IApiDirectRuleInput {
   const call: IApiDirectCallConfig = { flow: 'sms-otp', envelope: {}, steps: build.steps };
-  if (build.resume === undefined) return { call, headless: NATIVE };
+  if (build.resume === undefined) return { call, transport: NATIVE };
   const persistentAuth = { ...PERSISTENT_AUTH, resumeSteps: build.resume };
-  return { call: { ...call, persistentAuth }, headless: NATIVE };
+  return { call: { ...call, persistentAuth }, transport: NATIVE };
 }
 
 const BODY_ENTRY = postWith({ user: { $literal: 'u' }, did: OPTIONAL_DID });
