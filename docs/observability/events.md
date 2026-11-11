@@ -114,15 +114,29 @@ one concern so the moving parts are independently testable:
   deferred proxies drop memoised children on their next access.
 - `Logging/FileLease.ts` — main-thread file-descriptor lease primitives
   (`IFileLease`, `ILeasedLoggerHooks`, `ILeasedLoggerResult`,
-  `DidCloseLease`) plus `instantiateLeasedFileLogger` and
-  `closeFileLeaseAsync`, ensuring all serialized bytes reach
-  `pipeline.log` on disk before worker termination and that raw
+  `DidCloseLease`, `ILeaseFlushWait`, `DidAwaitLeaseFlush`) plus
+  `instantiateLeasedFileLogger`, `awaitLeaseFlush`, and
+  `closeFileLeaseAsync`, ensuring all serialized bytes
+  reach `pipeline.log` on disk before worker termination and that raw
   descriptors are closed deterministically afterward.
+- `Logging/RetireWorkerEnd.ts` — the non-blocking end handshake
+  (`requestWorkerEnd`, `WorkerEndOutcome`). Once the main-thread buffer is
+  empty and the worker has consumed the ring buffer, it stores `-1` in
+  `ThreadStream`'s `WRITE_INDEX`, which makes the worker call
+  `destination.end()` and flush/close every target — including buffered
+  `pino-pretty` output that `flush()` alone does not acknowledge.
+- `Logging/RetireWarnings.ts` — out-of-band retirement reporting
+  (`IRetirementState`, `emitRetiredDrainWarning`, `handleTerminateRejection`,
+  `makeRetiredErrorListener`): genuine drain failures surface through
+  `process.emitWarning`, while stale post-close writes and the terminating
+  worker's expected exit stay silent.
 - `Logging/RetireTransport.ts` — non-blocking worker retirement
   (`IPinoStreamCandidate`, `DidRetireLogger`, `scheduleStreamClose`, and
-  `retireSupersededLogger`) that drains queued `ThreadStream` records via
-  `Atomics.waitAsync` flush and terminates superseded workers asynchronously
-  without calling synchronous `ThreadStream.end()` on the main event loop.
+  `retireSupersededLogger`) that waits for queued records to reach the worker,
+  asks it to end every destination via `RetireWorkerEnd`, and settles on the
+  stream `'close'` event. `worker.terminate()` remains the bounded watchdog
+  fallback when the handshake is unavailable or a destination never closes;
+  synchronous `ThreadStream.end()` is never called on the main event loop.
 - `Logging/ChildLoggerProxy.ts` — `buildDeferredLogger(name)` returns
   the lazy-resolve `Proxy` that backs both `getDebug` and
   `getDebugByName` (and intercepts `.child(...)` and `.setBindings(...)`

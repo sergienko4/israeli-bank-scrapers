@@ -1,103 +1,62 @@
 /**
  * Non-blocking worker-transport retirement for superseded root Pino loggers.
  *
- * Drains queued ring-buffer records via `ThreadStream`'s `Atomics.waitAsync`-backed
- * `flush()` (waiting for `'drain'` first when backpressured) and terminates the
- * worker thread asynchronously — never invoking `ThreadStream.prototype.end()`,
- * whose `Atomics.wait` loop can block the main event loop for up to 10 seconds
- * when a worker stalls.
+ * Waits for queued ring-buffer records to reach the worker, then asks the worker
+ * to end every destination gracefully — `pino/file`, `pino-pretty`, and multi-target
+ * multistreams all flush and close before the worker exits. Terminating the worker
+ * is only the bounded fallback when the graceful handshake is unavailable or a
+ * destination never closes. Never invokes `ThreadStream.prototype.end()`, whose
+ * `Atomics.wait` loop can block the main event loop for up to 10 seconds.
  */
-
-import * as fs from 'node:fs';
 
 import pino, { type Logger } from 'pino';
 
 import type { Brand } from '../Types/Brand.js';
 import { toError } from '../Types/ErrorUtils.js';
-import { closeFileLeaseAsync, type IFileLease } from './FileLease.js';
+import {
+  awaitLeaseFlush,
+  closeFileLeaseAsync,
+  type IFileLease,
+  type ILeaseFlushWait,
+} from './FileLease.js';
+import {
+  emitRetiredDrainWarning,
+  handleTerminateRejection,
+  type IRetirementState,
+  makeRetiredErrorListener,
+} from './RetireWarnings.js';
+import { requestWorkerEnd } from './RetireWorkerEnd.js';
 
 /** Branded boolean returned when a superseded worker transport was scheduled for retirement. */
 export type DidRetireLogger = Brand<boolean, 'DidRetireLogger'>;
 
-/** Poll interval (ms) while waiting for `SonicBoom` to finish an in-flight `fs.write`. */
-const LEASE_FLUSH_POLL_MS = 5;
-
-/** Prefix emitted out-of-band when draining a retired worker transport fails. */
-const RETIRED_DRAIN_FAILED = 'superseded log transport failed while draining:';
+/** Poll interval (ms) while waiting for a retired stream to become idle. */
+const RETIRE_POLL_MS = 5;
 
 /** Default timeout (ms) before forcibly terminating a stalled retired worker. */
 const RETIRED_FLUSH_TIMEOUT_MS = 5_000;
 
-/** Expected `ThreadStream` errors emitted only when a stale unproxied caller writes post-close. */
-const STALE_WORKER_MESSAGES = new Set(['the worker is ending', 'the worker has exited']);
-
-/** Error message emitted by `ThreadStream` when `worker.terminate()` stops the worker. */
-const WORKER_TERMINATED_MESSAGE = 'the worker thread exited';
-
 /**
  * Candidate stream shape read off `pino.symbols.streamSym` when retiring a
  * superseded root logger. Worker transports (`ThreadStream`) omit `fd` and
- * expose `.flush()` + `.worker.terminate()`, whereas Pino's default stdout
- * `SonicBoom` carries `fd: 1` and must never be closed.
+ * expose `.flush()` (fallback drain) + `.worker.terminate()`, whereas Pino's
+ * default stdout `SonicBoom` carries `fd: 1` and must never be closed.
  */
 export interface IPinoStreamCandidate {
   readonly fd?: number;
   readonly closed?: boolean;
   readonly destroyed?: boolean;
-  readonly writableNeedDrain?: boolean;
   readonly flush?: (cb: (err?: Error) => boolean) => boolean | object;
   readonly unref?: () => boolean | object;
   readonly on?: (event: 'error', listener: (err: Error) => boolean) => object;
-  readonly once?: (event: 'drain', listener: () => boolean) => object;
+  readonly once?: (event: 'close', listener: () => boolean) => object;
   readonly worker?: { readonly terminate: () => Promise<number> };
-}
-
-type TimerHandle = ReturnType<typeof globalThis.setTimeout>;
-
-interface IRetirementState {
-  isSettled: boolean;
-  isTerminating: boolean;
-  timer?: TimerHandle;
 }
 
 interface IRetirementCtx {
   readonly stream: IPinoStreamCandidate;
   readonly lease: IFileLease | false;
   readonly state: IRetirementState;
-}
-
-/**
- * Emit an out-of-band warning when retiring a superseded transport fails.
- * @param reason - Failure description surfaced via `process.emitWarning`.
- * @returns Always true.
- */
-function emitRetiredDrainWarning(reason: string): true {
-  process.emitWarning(`${RETIRED_DRAIN_FAILED} ${reason}`);
-  return true;
-}
-
-/**
- * Report an asynchronous `worker.terminate()` rejection out-of-band.
- * @param rawError - Rejection value from `worker.terminate()`.
- * @returns Always true.
- */
-function handleTerminateRejection(rawError: Error): true {
-  const error = toError(rawError);
-  return emitRetiredDrainWarning(error.message);
-}
-
-/**
- * Build the `'error'` listener guarding a retiring `ThreadStream`.
- * @param state - Mutable per-retirement lifecycle state.
- * @returns Listener suppressing stale-write/expected-exit noise while warning on real errors.
- */
-function makeRetiredErrorListener(state: IRetirementState): (rawError: Error) => boolean {
-  return (rawError: Error): boolean => {
-    const error = toError(rawError);
-    if (STALE_WORKER_MESSAGES.has(error.message)) return false;
-    if (state.isTerminating && error.message === WORKER_TERMINATED_MESSAGE) return false;
-    return emitRetiredDrainWarning(error.message);
-  };
 }
 
 /**
@@ -130,67 +89,86 @@ function terminateStreamWorker(ctx: IRetirementCtx): boolean {
 function finalizeStreamRetirement(ctx: IRetirementCtx, failureReason?: string): boolean {
   if (ctx.state.isSettled) return false;
   ctx.state.isSettled = true;
-  if (ctx.lease) ctx.lease.isFrozen = true;
   if (ctx.state.timer !== undefined) globalThis.clearTimeout(ctx.state.timer);
   if (failureReason) emitRetiredDrainWarning(failureReason);
   return terminateStreamWorker(ctx);
 }
 
 /**
- * Poll `ctx.lease` until all written bytes reach disk, then finalize retirement.
+ * Wait for `ctx.lease` bytes to reach disk, then finalize retirement. Legacy
+ * fallback used when this `ThreadStream` version has no private end signal.
  * @param ctx - Retirement stream, file lease, and lifecycle state.
- * @returns True once polling or finalization is scheduled.
+ * @returns True once the lease poll or finalization is scheduled.
  */
+function awaitLeaseDrain(ctx: IRetirementCtx): boolean {
+  const wait: ILeaseFlushWait = {
+    lease: ctx.lease,
+    pollMs: RETIRE_POLL_MS,
+    onSettled: makeRetireSettled(ctx),
+  };
+  return awaitLeaseFlush(wait);
+}
+
 /**
- * Schedule an unref'd retry of `pollCtxLease(ctx)` after {@link LEASE_FLUSH_POLL_MS}.
+ * Build the lease-flush completion callback for `ctx`.
+ * @param ctx - Retirement stream and lifecycle state.
+ * @returns Callback finalizing retirement with an optional failure reason.
+ */
+function makeRetireSettled(ctx: IRetirementCtx): (reason?: string) => boolean {
+  return (reason?: string): boolean => finalizeStreamRetirement(ctx, reason);
+}
+
+/**
+ * Build the fallback flush callback for `ctx`: settle on a flush error, else
+ * continue draining the owned file lease before terminating.
+ * @param ctx - Retirement stream, file lease, and lifecycle state.
+ * @returns Callback for `ThreadStream.flush`.
+ */
+function makeFallbackFlushCallback(ctx: IRetirementCtx): (flushError?: Error) => boolean {
+  return (flushError?: Error): boolean =>
+    flushError ? finalizeStreamRetirement(ctx, toError(flushError).message) : awaitLeaseDrain(ctx);
+}
+
+/**
+ * Fallback drain for a `ThreadStream` version without the private end signal:
+ * wait for the async flush acknowledgement, then the owned lease, then settle.
+ * `worker.terminate()` still bounds a flush that never resolves.
+ * @param ctx - Retirement stream, file lease, and lifecycle state.
+ * @returns True once the flush wait or finalization is scheduled.
+ */
+function awaitFlushFallback(ctx: IRetirementCtx): boolean {
+  if (typeof ctx.stream.flush !== 'function') return awaitLeaseDrain(ctx);
+  const onFlushed = makeFallbackFlushCallback(ctx);
+  ctx.stream.flush(onFlushed);
+  return true;
+}
+
+/**
+ * Retry {@link beginGracefulEnd} on an unref'd timer while the worker still
+ * consumes queued records.
  * @param ctx - Retirement stream, file lease, and lifecycle state.
  * @returns Always true.
  */
-function retryCtxLeasePoll(ctx: IRetirementCtx): true {
-  const timer = globalThis.setTimeout((): boolean => pollCtxLease(ctx), LEASE_FLUSH_POLL_MS);
+function retryGracefulEnd(ctx: IRetirementCtx): true {
+  const timer = globalThis.setTimeout((): boolean => beginGracefulEnd(ctx), RETIRE_POLL_MS);
   const unref = typeof timer === 'object' ? (timer as { unref?: () => object }).unref : undefined;
   if (typeof unref === 'function') unref.call(timer);
   return true;
 }
 
 /**
- * Poll `ctx.lease` until all written bytes reach disk, then finalize retirement.
+ * Ask the worker to end its destinations once every queued record has reached
+ * it, retrying while the main-thread buffer or ring buffer still holds bytes,
+ * and settle once the worker has flushed and closed every destination.
  * @param ctx - Retirement stream, file lease, and lifecycle state.
- * @returns True once polling or finalization is scheduled.
+ * @returns True once the end request or a retry/fallback was scheduled.
  */
-function pollCtxLease(ctx: IRetirementCtx): boolean {
-  const { lease, state } = ctx;
-  if (state.isSettled || !lease || lease.isClosed) return finalizeStreamRetirement(ctx);
-  lease.isFrozen = true;
-  fs.fstat(lease.fd, (statErr, stats): boolean => {
-    if (statErr) return finalizeStreamRetirement(ctx, statErr.message);
-    return stats.size >= lease.targetBytes ? finalizeStreamRetirement(ctx) : retryCtxLeasePoll(ctx);
-  });
-  return true;
-}
-
-/**
- * Build the `ThreadStream.flush` completion callback for `ctx`.
- * @param ctx - Retirement stream and mutable lifecycle state.
- * @returns Callback polling destination bytes (or finalizing on error) once flush resolves.
- */
-function makeFlushCallback(ctx: IRetirementCtx): (flushError?: Error) => boolean {
-  return (flushError?: Error): boolean =>
-    flushError ? finalizeStreamRetirement(ctx, toError(flushError).message) : pollCtxLease(ctx);
-}
-
-/**
- * Invoke `stream.flush` (`Atomics.waitAsync`) and finalize retirement on completion.
- * @param ctx - Retirement stream and mutable lifecycle state.
- * @returns Always true.
- */
-function flushStreamAsync(ctx: IRetirementCtx): true {
-  if (typeof ctx.stream.flush !== 'function') {
-    finalizeStreamRetirement(ctx);
-    return true;
-  }
-  const onFlushed = makeFlushCallback(ctx);
-  ctx.stream.flush(onFlushed);
+function beginGracefulEnd(ctx: IRetirementCtx): boolean {
+  if (ctx.state.isSettled) return false;
+  const outcome = requestWorkerEnd(ctx.stream);
+  if (outcome === 'busy') return retryGracefulEnd(ctx);
+  if (outcome === 'unsupported') return awaitFlushFallback(ctx);
+  ctx.stream.once?.('close', (): boolean => finalizeStreamRetirement(ctx));
   return true;
 }
 
@@ -203,11 +181,7 @@ function beginAsyncStreamDrain(ctx: IRetirementCtx): boolean {
   if (ctx.state.isSettled || ctx.stream.closed || ctx.stream.destroyed) {
     return finalizeStreamRetirement(ctx);
   }
-  if (ctx.stream.writableNeedDrain && typeof ctx.stream.once === 'function') {
-    ctx.stream.once('drain', (): boolean => flushStreamAsync(ctx));
-    return true;
-  }
-  return flushStreamAsync(ctx);
+  return beginGracefulEnd(ctx);
 }
 
 /**
@@ -216,7 +190,10 @@ function beginAsyncStreamDrain(ctx: IRetirementCtx): boolean {
  * @param timeoutMs - Maximum drain window in milliseconds.
  * @returns Armed timeout handle.
  */
-function armRetirementWatchdog(ctx: IRetirementCtx, timeoutMs: number): TimerHandle {
+function armRetirementWatchdog(
+  ctx: IRetirementCtx,
+  timeoutMs: number,
+): NonNullable<IRetirementState['timer']> {
   /**
    * Force non-blocking worker termination when async drain exceeds `timeoutMs`.
    * @returns True when termination started, else false.
@@ -238,6 +215,7 @@ function createRetirementCtx(
   stream: IPinoStreamCandidate,
   lease: IFileLease | false,
 ): IRetirementCtx {
+  if (lease) lease.isFrozen = true;
   const ctx: IRetirementCtx = { stream, lease, state: { isSettled: false, isTerminating: false } };
   const errorListener = makeRetiredErrorListener(ctx.state);
   stream.on?.('error', errorListener);
@@ -245,11 +223,12 @@ function createRetirementCtx(
 }
 
 /**
- * Drain and terminate a retired `ThreadStream` asynchronously without calling
- * its synchronous `Atomics.wait`-backed `end()` on the main event loop.
+ * Drain a retired `ThreadStream`, end every destination, and terminate the
+ * worker only when the graceful end exceeds `timeoutMs` — never calling the
+ * synchronous `Atomics.wait`-backed `end()` on the main event loop.
  * @internal
  * @param stream - Owned `ThreadStream` from the superseded root logger.
- * @param timeoutMs - Bounded async drain window before forcing worker termination.
+ * @param timeoutMs - Bounded drain window before forcing worker termination.
  * @param lease - Optional owned file-descriptor lease closed after worker exit.
  * @returns True after scheduling non-blocking retirement.
  */
@@ -265,11 +244,6 @@ export function scheduleStreamClose(
 }
 
 /**
- * Check whether `stream` is an owned `ThreadStream` worker transport.
- * @param stream - Candidate Pino destination read off `pino.symbols.streamSym`.
- * @returns True when `stream` owns a terminable worker and is not a raw fd `SonicBoom`.
- */
-/**
  * Read an owned `ThreadStream` off `previous`, flushing it when present.
  * @param previous - Superseded root logger (or `false`).
  * @returns Owned worker stream when retirable, else `false`.
@@ -284,7 +258,8 @@ function extractRetirableStream(previous: Logger | false): IPinoStreamCandidate 
 
 /**
  * Flush a superseded root logger and schedule its owned worker transport (if
- * any) and file lease for non-blocking drain, worker termination, and `fs.close`.
+ * any) and file lease for non-blocking destination drain, worker end (or the
+ * bounded termination fallback), and `fs.close`.
  * @param previous - Superseded root logger (or `false` on first build).
  * @param lease - Owned file-descriptor lease paired with `previous` (or `false`).
  * @returns Branded boolean true when a worker transport was scheduled for retirement.

@@ -209,6 +209,44 @@ export function instantiateLeasedFileLogger(cfg: ILeasedLoggerHooks): ILeasedLog
   }
 }
 
+/** Branded boolean returned when `awaitLeaseFlush` schedules a poll or settles. */
+export type DidAwaitLeaseFlush = Brand<boolean, 'DidAwaitLeaseFlush'>;
+
+/** Lease (or `false` when terminal-only), poll interval, and completion callback. */
+export interface ILeaseFlushWait {
+  readonly lease: IFileLease | false;
+  readonly pollMs: number;
+  readonly onSettled: (reason?: string) => boolean;
+}
+
+/**
+ * Wait asynchronously until every byte written through `wait.lease` reaches disk,
+ * retrying on an unref'd timer so a stalled writer never holds the event loop.
+ * @param wait - Lease, poll interval, and completion callback.
+ * @returns Branded true once the completion callback or a retry is scheduled.
+ */
+export function awaitLeaseFlush(wait: ILeaseFlushWait): DidAwaitLeaseFlush {
+  const { lease } = wait;
+  if (!lease || lease.isClosed) return wait.onSettled() as DidAwaitLeaseFlush;
+  fs.fstat(lease.fd, (statErr, stats): boolean => {
+    if (statErr) return wait.onSettled(statErr.message);
+    return stats.size >= lease.targetBytes ? wait.onSettled() : retryLeaseFlush(wait);
+  });
+  return true as DidAwaitLeaseFlush;
+}
+
+/**
+ * Schedule an unref'd retry of {@link awaitLeaseFlush} after `wait.pollMs`.
+ * @param wait - Lease, poll interval, and completion callback.
+ * @returns Always true.
+ */
+function retryLeaseFlush(wait: ILeaseFlushWait): true {
+  const timer = globalThis.setTimeout((): DidAwaitLeaseFlush => awaitLeaseFlush(wait), wait.pollMs);
+  const unref = typeof timer === 'object' ? (timer as { unref?: () => object }).unref : undefined;
+  if (typeof unref === 'function') unref.call(timer);
+  return true;
+}
+
 /**
  * Build the `fs.close` completion callback marking `lease.isClosed`.
  * @param lease - Owned file lease being closed.
