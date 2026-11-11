@@ -121,6 +121,24 @@ function mergeRows(osh?: IOshBlock): readonly PepperTxn[] {
 }
 
 /**
+ * Resolve the next Pepper pagination cursor for a fetched OSH block.
+ * @param rowCount - Number of rows returned on this page.
+ * @param cursor - Incoming cursor (false on first call).
+ * @param osh - Unwrapped `oshTransactionsNew` block, if present.
+ * @returns Next 1-based page number, or false when done.
+ */
+function advanceOshCursor(
+  rowCount: number,
+  cursor: number | false,
+  osh?: IOshBlock,
+): number | false {
+  const page = pageNumberOf(cursor);
+  const total = osh?.totalCount ?? 0;
+  const isDone = isLastPage(rowCount, page, total);
+  return nextCursorOf(isDone, page);
+}
+
+/**
  * Extract one page from the unwrapped Transactions response.
  *
  * Signature matches the unified scrape-shape contract: takes a full
@@ -136,8 +154,6 @@ export function txnsExtractPage(
   const resp = args.body as unknown as ITxnsResp;
   const osh = resp.accounts?.oshTransactionsNew;
   const rows = mergeRows(osh);
-  const page = pageNumberOf(args.cursor);
-  const total = osh?.totalCount ?? 0;
-  const isDone = isLastPage(rows.length, page, total);
-  return { items: rows, nextCursor: nextCursorOf(isDone, page) };
+  const nextCursor = advanceOshCursor(rows.length, args.cursor, osh);
+  return { items: rows, nextCursor };
 }

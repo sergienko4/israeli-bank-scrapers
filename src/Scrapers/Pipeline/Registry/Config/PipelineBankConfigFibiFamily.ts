@@ -50,6 +50,31 @@ const FIBI_WIRE = {
 } as const;
 
 /**
+ * Build the per-user device-memory persistence block for a FIBI brand.
+ * @param brand - FIBI-family brand.
+ * @returns Device-memory persistentAuth config.
+ */
+function fibiDeviceMemory(brand: IFibiBrand): NonNullable<IApiDirectCallConfig['persistentAuth']> {
+  return {
+    kind: 'device-memory',
+    provider: brand.provider,
+    deviceIdField: 'did',
+    accountField: 'username',
+  };
+}
+
+/**
+ * Assemble the ordered login, OTP assertion, portal handoff and SSO steps.
+ * @param brand - FIBI-family brand.
+ * @returns Full login step sequence for the brand.
+ */
+function fibiLoginSteps(brand: IFibiBrand): IApiDirectCallConfig['steps'] {
+  const opening = [fibiPrimeStep(brand), ...fibiOpeningSteps(brand)];
+  const portal = [...fibiHandoffSteps(brand), ...fibiSsoSteps(brand)];
+  return [...opening, ...fibiAssertSteps(brand), ...portal];
+}
+
+/**
  * The family login: a fresh upper-case flow id and the lower-case user id
  * open each flow; only the SSO authorization reaches the scrape; the device
  * the bank names is remembered per user.
@@ -57,18 +82,25 @@ const FIBI_WIRE = {
  * @returns The login config.
  */
 function buildFibiApiDirectCall(brand: IFibiBrand): IApiDirectCallConfig {
-  const { provider } = brand;
-  const persistentAuth = {
-    kind: 'device-memory',
-    provider,
-    deviceIdField: 'did',
-    accountField: 'username',
-  } as const;
-  const opening = [fibiPrimeStep(brand), ...fibiOpeningSteps(brand)];
-  const portal = [...fibiHandoffSteps(brand), ...fibiSsoSteps(brand)];
-  const steps = [...opening, ...fibiAssertSteps(brand), ...portal];
+  const persistentAuth = fibiDeviceMemory(brand);
+  const steps = fibiLoginSteps(brand);
   const fingerprint = deviceFingerprint(brand.origin);
   return { ...FIBI_LOGIN, persistentAuth, fingerprint, steps };
+}
+
+/**
+ * Build the Transmit and SSO endpoint URLs rooted on the brand origin.
+ * @param origin - Brand online origin.
+ * @returns Transmit and SSO URL map.
+ */
+function fibiOriginPaths(origin: string): Readonly<Record<string, string>> {
+  return {
+    'auth.encryptionKey': `${origin}${FIBI_PATHS.keyExchange}`,
+    'auth.login': `${origin}${FIBI_PATHS.login}`,
+    'auth.assert': `${origin}${FIBI_PATHS.assert}`,
+    'auth.bootstrap': `${origin}${FIBI_PATHS.bootstrap}`,
+    'identity.sessionToken': `${origin}${FIBI_PATHS.authorize}`,
+  };
 }
 
 /**
@@ -78,18 +110,9 @@ function buildFibiApiDirectCall(brand: IFibiBrand): IApiDirectCallConfig {
  * @returns URL tag → absolute URL.
  */
 function fibiPaths(brand: IFibiBrand): IHeadlessUrlsConfig['paths'] {
-  const { origin } = brand;
-  const transmit = {
-    'auth.encryptionKey': `${origin}${FIBI_PATHS.keyExchange}`,
-    'auth.login': `${origin}${FIBI_PATHS.login}`,
-    'auth.assert': `${origin}${FIBI_PATHS.assert}`,
-  };
-  const sso = {
-    'auth.bootstrap': `${origin}${FIBI_PATHS.bootstrap}`,
-    'identity.sessionToken': `${origin}${FIBI_PATHS.authorize}`,
-  };
   const portal = { 'auth.prime': fibiEntryUrl(brand), 'auth.logon': fibiServletUrl(brand) };
-  return { ...portal, ...transmit, ...sso };
+  const api = fibiOriginPaths(brand.origin);
+  return { ...portal, ...api };
 }
 
 /**

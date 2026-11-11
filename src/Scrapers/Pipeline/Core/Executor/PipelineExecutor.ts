@@ -38,6 +38,23 @@ async function disposeApiMediatorSafe(ctx: IPipelineContext): LifecyclePromise {
 }
 
 /**
+ * Run phase reduction and convert any unexpected throw into a Procedure failure.
+ * @param tracker - Context tracker.
+ * @param initialCtx - Initial pipeline context.
+ * @returns Phase reduction Procedure.
+ */
+async function runGuardedPhases(
+  tracker: IContextTracker,
+  initialCtx: IPipelineContext,
+): Promise<Procedure<IPipelineContext>> {
+  try {
+    return await reducePhases(tracker, initialCtx, 0);
+  } catch (error) {
+    return wrapError(error as Error);
+  }
+}
+
+/**
  * Run phase reduction with cleanup guarantee.
  * @param tracker - Context tracker.
  * @param initialCtx - Initial pipeline context.
@@ -48,9 +65,7 @@ async function runWithCleanup(
   initialCtx: IPipelineContext,
 ): Promise<Procedure<IPipelineContext>> {
   try {
-    return await reducePhases(tracker, initialCtx, 0);
-  } catch (error) {
-    return wrapError(error as Error);
+    return await runGuardedPhases(tracker, initialCtx);
   } finally {
     await disposeApiMediatorSafe(tracker.lastCtx);
   }

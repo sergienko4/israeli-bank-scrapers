@@ -161,6 +161,16 @@ function assertPageBody(body: Record<string, unknown>): Record<string, unknown> 
 }
 
 /**
+ * Validate the page envelope and read all wallet rows served in it.
+ * @param body - Unwrapped response body.
+ * @returns Validated served rows from `content.nc`.
+ */
+function readServedRows(body: Record<string, unknown>): readonly IWalletTxnRaw[] {
+  const pageBody = assertPageBody(body);
+  return servedRows(pageBody);
+}
+
+/**
  * Extract one transactions page from a /getUserHistory response. Raw
  * rows are mapped to canonical ITransaction so `autoMapTransaction`
  * downstream recognises them.
@@ -173,9 +183,8 @@ function assertPageBody(body: Record<string, unknown>): Record<string, unknown> 
 export function txnsExtractPage(
   args: IExtractPageArgs<IPayBoxAcct, IPayBoxCursor>,
 ): IPage<object, IPayBoxCursor> {
-  const pageBody = assertPageBody(args.body);
+  const served = readServedRows(args.body);
   const cursor = walletCursorOf(args.cursor);
-  const served = servedRows(pageBody);
   const raws = dropCoveredRows(cursor, served);
   const mapped = raws.map(mapWalletTxn);
   const advance = walletPagination.walletAdvance({ prev: cursor, fresh: raws, served });

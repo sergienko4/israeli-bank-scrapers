@@ -24,6 +24,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
+ * Checks whether a raw account index is a non-negative safe integer.
+ * @param value - Untrusted AccountIndex field.
+ * @returns True for a non-negative safe integer.
+ */
+function isAccountIndex(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+}
+
+/**
  * Requires both identifiers used to retrieve and label an account.
  * @param value - Untrusted account entry.
  * @returns Whether its identifiers are usable.
@@ -32,13 +41,7 @@ function validAccount(value: unknown): value is Record<string, unknown> {
   if (!isRecord(value)) return false;
   const index: unknown = Reflect.get(value, 'AccountIndex');
   const display: unknown = Reflect.get(value, 'MaskedNumber');
-  return (
-    typeof index === 'number' &&
-    Number.isSafeInteger(index) &&
-    index >= 0 &&
-    typeof display === 'string' &&
-    display.trim().length > 0
-  );
+  return isAccountIndex(index) && typeof display === 'string' && display.trim().length > 0;
 }
 
 /**

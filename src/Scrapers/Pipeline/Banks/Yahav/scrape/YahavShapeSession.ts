@@ -92,6 +92,18 @@ function rotatedCsrf(body: ApiBody, previous: SessionContext): Procedure<unknown
 }
 
 /**
+ * Extract a validated session-id patch from a non-empty response header.
+ * @param rule - Header name, cookie prefix and session key.
+ * @param raw - Non-empty header value.
+ * @returns Single-entry session patch, or invalid-state failure.
+ */
+function headerIdPatch(rule: IHeaderRule, raw: string): Procedure<SessionContextPatch> {
+  if (!PRINTABLE.test(raw)) return refuse('session state invalid');
+  const bare = raw.replace(rule.prefix, '');
+  return succeed({ [rule.key]: bare.split(';')[0] });
+}
+
+/**
  * One session id: the header's cookie value, else the previous id. An empty
  * header is the app's "no update", like an absent one.
  * @param rule - The id's rule.
@@ -106,9 +118,7 @@ function rotatedId(
 ): Procedure<SessionContextPatch> {
   const raw = headers[rule.header] as string | undefined;
   if (raw === undefined || raw === '') return succeed({ [rule.key]: previous[rule.key] });
-  if (!PRINTABLE.test(raw)) return refuse('session state invalid');
-  const bare = raw.replace(rule.prefix, '');
-  return succeed({ [rule.key]: bare.split(';')[0] });
+  return headerIdPatch(rule, raw);
 }
 
 /**

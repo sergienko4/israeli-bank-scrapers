@@ -63,19 +63,24 @@ function dayFilter(day: IYahavNativeDay, operator: string): VarsMap {
 }
 
 /**
+ * Demand-deposit account entity requesting the current balance list.
+ * @param account - Target Yahav account.
+ * @returns DemandDepositAccount_1.0.0 inquiry entity.
+ */
+function ddaBalanceEntity(account: IYahavAccountRefs['account']): VarsMap {
+  const kind = { Ver: 'DemandDepositAccount_1.0.0', Type: { CDE: 'DDA' }, Currency: ILS_CURRENCY };
+  const terms = { Use: { CDE: 'BUSINESS' }, OpenDt: yahavArchetype('Date_1.0.0') };
+  const id = accountId(account);
+  return { ...kind, ...terms, BalanceList: BALANCE_LIST, AccountId: id };
+}
+
+/**
  * The balance read for one current account.
  * @param refs - The account and its portfolio.
  * @returns Balance payload.
  */
 function yahavBalancePayload(refs: IYahavAccountRefs): VarsMap {
-  const kind = { Ver: 'DemandDepositAccount_1.0.0', Type: { CDE: 'DDA' }, Currency: ILS_CURRENCY };
-  const terms = { Use: { CDE: 'BUSINESS' }, OpenDt: yahavArchetype('Date_1.0.0') };
-  const entity = {
-    ...kind,
-    ...terms,
-    BalanceList: BALANCE_LIST,
-    AccountId: accountId(refs.account),
-  };
+  const entity = ddaBalanceEntity(refs.account);
   const portfolioRefs = yahavPortfolioRefs(refs.portfolio);
   return yahavInquiry(entity, { RefDataList: portfolioRefs });
 }

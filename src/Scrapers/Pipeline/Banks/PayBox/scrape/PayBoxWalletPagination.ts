@@ -144,22 +144,30 @@ function walletStop(termination: PaginationTermination): IWalletAdvance {
   return { nextCursor: false, termination };
 }
 
-/**
- * Compute the next wallet cursor together with local-stop evidence.
- * @param args - Previous cursor, fresh rows, and all served rows.
- * @param args.prev - Cursor used for this request.
- * @param args.fresh - Rows not already covered by the cursor.
- * @param args.served - Every row PayBox returned.
- * @returns Cursor advance or an explicit terminal reason.
- */
-function walletAdvance(args: {
+/** Inputs for advancing one PayBox wallet history page. */
+interface IWalletAdvanceArgs {
   readonly prev: IWalletCursor;
   readonly fresh: readonly IWalletTxnRaw[];
   readonly served: readonly IWalletTxnRaw[];
-}): IWalletAdvance {
-  if (args.fresh.length === 0) {
-    return walletStop(args.served.length === 0 ? 'exhausted' : 'cursorRepeat');
-  }
+}
+
+/**
+ * Stop reason when a page carries zero uncovered rows.
+ * @param servedCount - Total rows PayBox returned on the page.
+ * @returns Exhausted when the server sent none, else cursorRepeat.
+ */
+function emptyFreshStop(servedCount: number): IWalletAdvance {
+  if (servedCount === 0) return walletStop('exhausted');
+  return walletStop('cursorRepeat');
+}
+
+/**
+ * Compute the next wallet cursor together with local-stop evidence.
+ * @param args - Previous cursor, fresh rows, and all served rows.
+ * @returns Cursor advance or an explicit terminal reason.
+ */
+function walletAdvance(args: IWalletAdvanceArgs): IWalletAdvance {
+  if (args.fresh.length === 0) return emptyFreshStop(args.served.length);
   if (args.prev.page + 1 >= WALLET_PAGE_CAP) return walletStop('pageCeiling');
   const oldest = lastParsableTs(args.fresh);
   if (oldest === '' || oldest === args.prev.ts) return walletStop('cursorRepeat');

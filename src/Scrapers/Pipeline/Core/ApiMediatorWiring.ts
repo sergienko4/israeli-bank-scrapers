@@ -51,20 +51,28 @@ function toWiringFlags(headless: IHeadlessUrlsConfig): IWiringFlags {
 }
 
 /**
+ * Extract the non-boolean transport options and policies from a headless block.
+ * @param headless - Headless URL block from PIPELINE_BANK_CONFIG.
+ * @returns Transport options and response policies for the mediator factories.
+ */
+function toWiringTransport(headless: IHeadlessUrlsConfig): IApiWiring['transport'] {
+  const { redirectPolicy, statusPolicy, mediaTypes, responseIntegrity } = headless;
+  const policies = { redirectPolicy, statusPolicy, mediaTypes, strictUtf8: headless.strictUtf8 };
+  const { tlsProfile, clientCert, cookieDomains, isConnectRetryDisabled } = headless;
+  const options = { tlsProfile, clientCert, cookieDomains, isConnectRetryDisabled };
+  return { ...options, ...policies, responseIntegrity };
+}
+
+/**
  * Map a headless config block onto the wiring shape the factories consume.
  * @param headless - Headless URL block from PIPELINE_BANK_CONFIG.
  * @returns Resolved wiring (URLs + decoded flags).
  */
 function toApiWiring(headless: IHeadlessUrlsConfig): IApiWiring {
   const flags = toWiringFlags(headless);
+  const transport = toWiringTransport(headless);
   const { identityBase, graphql, graphqlHeaders, staticAuth } = headless;
-  const { redirectPolicy, statusPolicy, mediaTypes } = headless;
   const urls = { identity: identityBase, graphql, graphqlHeaders, staticAuth };
-  const { responseIntegrity } = headless;
-  const policies = { redirectPolicy, statusPolicy, mediaTypes, strictUtf8: headless.strictUtf8 };
-  const { tlsProfile, clientCert, cookieDomains, isConnectRetryDisabled } = headless;
-  const options = { tlsProfile, clientCert, cookieDomains, isConnectRetryDisabled };
-  const transport = { ...options, ...policies, responseIntegrity };
   return { ...urls, transport, ...flags };
 }
 

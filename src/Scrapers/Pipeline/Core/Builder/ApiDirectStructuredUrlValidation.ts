@@ -57,21 +57,25 @@ function hasValidQuery(rule: object): boolean {
 }
 
 /**
+ * Whether a rule using `anyPathExcept` omits `paths` and query constraints.
+ * @param rule - Untrusted URL rule.
+ * @param denied - Candidate `anyPathExcept` list.
+ * @returns True when only a non-empty string deny-list is configured.
+ */
+function hasValidDeniedPaths(rule: object, denied: unknown): boolean {
+  if (Reflect.get(rule, 'paths') !== undefined || !isTextList(denied)) return false;
+  return Reflect.get(rule, 'query') === undefined && Reflect.get(rule, 'exactQuery') === undefined;
+}
+
+/**
  * Whether a rule has one usable path policy.
  * @param rule - Untrusted URL rule.
  * @returns True for an exact-path or denied-path policy.
  */
 function hasValidPaths(rule: object): boolean {
-  const paths: unknown = Reflect.get(rule, 'paths');
   const denied: unknown = Reflect.get(rule, 'anyPathExcept');
-  if (denied !== undefined) {
-    return (
-      paths === undefined &&
-      isTextList(denied) &&
-      Reflect.get(rule, 'query') === undefined &&
-      Reflect.get(rule, 'exactQuery') === undefined
-    );
-  }
+  if (denied !== undefined) return hasValidDeniedPaths(rule, denied);
+  const paths: unknown = Reflect.get(rule, 'paths');
   return isPathList(paths) && hasValidQuery(rule);
 }
 

@@ -139,6 +139,25 @@ function requestRange(ctx: IActionContext, windowEnd: Date): IRequestRange {
   return { rangeStart, rangeEnd };
 }
 
+/** Formatted inclusive date bounds for a Mizrahi transactions call. */
+interface IFormattedWindow {
+  readonly inFromDate: string;
+  readonly inToDate: string;
+}
+
+/**
+ * Format the Mizrahi scrape window bounds in bank-calendar `DD/MM/YYYY`.
+ * @param ctx - Action context carrying startDate and window end.
+ * @returns Formatted `inFromDate` and `inToDate` strings.
+ */
+function formattedWindow(ctx: IActionContext): IFormattedWindow {
+  const windowEnd = scrapeWindowEnd(ctx);
+  const { rangeStart, rangeEnd } = requestRange(ctx, windowEnd);
+  const inFromDate = bankMomentOfInstant(rangeStart).format(MIZRAHI_DATE_FMT);
+  const inToDate = bankMomentOfInstant(rangeEnd).format(MIZRAHI_DATE_FMT);
+  return { inFromDate, inToDate };
+}
+
 /**
  * Transactions-step vars — the SPA's between-dates body for one page.
  * @param _acct - Unused (the balance step switched the session to it).
@@ -151,10 +170,7 @@ export function txnsVars(
   cursor: IMizrahiCursor | false,
   ctx: IActionContext,
 ): VarsMap {
-  const windowEnd = scrapeWindowEnd(ctx);
-  const { rangeStart, rangeEnd } = requestRange(ctx, windowEnd);
-  const inFromDate = bankMomentOfInstant(rangeStart).format(MIZRAHI_DATE_FMT);
-  const inToDate = bankMomentOfInstant(rangeEnd).format(MIZRAHI_DATE_FMT);
+  const { inFromDate, inToDate } = formattedWindow(ctx);
   const { startRowIndex, actionGuid } = positionOf(cursor);
   const table = { startRowIndex, maxRow: PAGE_SIZE, actionGuid, sortExpression: '' };
   return { inToDate, inFromDate, inSugTnua: '', table, isFromSearch: false };

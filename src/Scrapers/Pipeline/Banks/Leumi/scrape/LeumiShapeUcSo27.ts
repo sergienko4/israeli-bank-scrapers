@@ -44,6 +44,20 @@ const UC_SO_27_BASE = {
 } as const;
 
 /**
+ * Map the per-call variant onto its WCF wire field names.
+ * @param variant - Request-type, date-range and period fields.
+ * @returns Wire-named variant fields.
+ */
+function variantFields(variant: IUcSo27Variant): Record<string, string> {
+  return {
+    RequestType: variant.requestType,
+    FromDateUTC: variant.fromDateUtc,
+    ToDateUTC: variant.toDateUtc,
+    PeriodType: variant.periodType,
+  };
+}
+
+/**
  * Merge the fixed base with the per-call variant + runtime session +
  * account index into the UC_SO_27 inner request.
  * @param accountIndex - Target account index.
@@ -56,15 +70,9 @@ function ucSo27Inner(
   ctx: IActionContext,
   variant: IUcSo27Variant,
 ): Record<string, unknown> {
-  return {
-    ...UC_SO_27_BASE,
-    SessionHeader: sessionHeader(ctx),
-    RequestType: variant.requestType,
-    FromDateUTC: variant.fromDateUtc,
-    ToDateUTC: variant.toDateUtc,
-    PeriodType: variant.periodType,
-    AccountIndex: accountIndex,
-  };
+  const header = sessionHeader(ctx);
+  const fields = variantFields(variant);
+  return { ...UC_SO_27_BASE, SessionHeader: header, ...fields, AccountIndex: accountIndex };
 }
 
 /**
