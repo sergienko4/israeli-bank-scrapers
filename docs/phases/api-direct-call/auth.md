@@ -6,7 +6,7 @@ How the login proves identity: OTP guards, the one-SMS budget, header policy, re
 
 A step's `preHook` (`IPreStepHook`) asks the caller for a code. Four optional
 fields shape that request, and `applyGuardedPreHook` (in
-`Flow/SmsOtpFlow.prehookGuard.ts`) runs them around it. The step reducer hands
+`Flow/Lifecycle/SmsOtpFlow.prehookGuard.ts`) runs them around it. The step reducer hands
 it one `IPreHookGuardArgs` bundle: the reduce args, the scope, the step and
 its hook.
 
@@ -188,7 +188,7 @@ resolver without one runs `refresh()` (`primeFresh`), as before. Both share the
 call still runs `refresh()` through `retryOn401Op`.
 
 The config strategy's `primeRecover` is `primeRecoverImpl`
-(`Flow/TokenStrategyFromConfig.recover.ts`). It picks its route from
+(`Flow/Lifecycle/TokenStrategyFromConfig.recover.ts`). It picks its route from
 `RECOVER_ROUTES` by warm kind, so a new kind names its own. A `carry-bundle`
 login resumes: the [cookie hand-off](session.md#cookie-hand-off) stash goes back into an
 emptied jar (a `shared` hand-off stashed nothing and keeps its jar), the

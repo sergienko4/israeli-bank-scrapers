@@ -253,7 +253,7 @@ The provider tag and account hash only stop one account's jar from being
 replayed for another. They are not authentication: like every stored warm
 token, the jar is a secret its caller keeps.
 
-`Flow/TokenStrategyFromConfig.warm.ts` runs the kind at three moments, through
+`Flow/Lifecycle/TokenStrategyFromConfig.warm.ts` runs the kind at three moments, through
 the kind's restore, `resetCold` and publish ops (`TokenStrategyFromConfig.jar.ts`
 for this kind):
 

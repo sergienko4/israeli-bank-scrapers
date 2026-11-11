@@ -8,22 +8,22 @@
  * the legacy long-term-token slot — so the legacy token outputs stay empty.
  */
 
-import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
-import { getDebug } from '../../../Logging/Debug.js';
-import type { Procedure } from '../../../Types/Procedure.js';
-import { fail, isOk, succeed } from '../../../Types/Procedure.js';
-import type { IBoundDeviceAuthConfig } from '../ConfigContracts/index.js';
-import { exportEcP256Pkcs8 } from '../Crypto/CryptoKeyFactory.js';
-import type { JsonValue } from '../Envelope/JsonPointer.js';
-import { isJwtFresh } from '../Jwt/GenericJwtClaims.js';
+import { ScraperErrorTypes } from '../../../../../Base/ErrorTypes.js';
+import { getDebug } from '../../../../Logging/Debug.js';
+import type { Procedure } from '../../../../Types/Procedure.js';
+import { fail, isOk, succeed } from '../../../../Types/Procedure.js';
+import type { IBoundDeviceAuthConfig } from '../../ConfigContracts/index.js';
+import { exportEcP256Pkcs8 } from '../../Crypto/CryptoKeyFactory.js';
+import type { JsonValue } from '../../Envelope/JsonPointer.js';
+import { isJwtFresh } from '../../Jwt/GenericJwtClaims.js';
 import {
   decodePersistentAuthState,
   encodePersistentAuthState,
   type IPersistentAuthExpectation,
   type IPersistentAuthStateV1,
   type IRehydratedPersistentAuth,
-} from '../PersistentAuthStateCodec.js';
-import { formatAuthValue } from './AuthModePolicy.js';
+} from '../../PersistentAuthStateCodec.js';
+import { formatAuthValue } from '../AuthModePolicy.js';
 import { type IFlowResult, type IRunSmsOtpArgs, runSmsOtpFlow } from './SmsOtpFlow.js';
 import { admitFlow } from './TokenStrategyFromConfig.budget.js';
 import { scrubPersistedValues } from './TokenStrategyFromConfig.scrub.js';

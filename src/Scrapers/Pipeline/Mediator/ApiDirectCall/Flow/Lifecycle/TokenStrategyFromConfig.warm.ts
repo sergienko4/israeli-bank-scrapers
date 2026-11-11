@@ -8,7 +8,8 @@
  * which token a finished flow publishes.
  */
 
-import type { ICarryBundleWarmStart, ICookieJarWarmStart } from '../ConfigContracts/index.js';
+import type { ICarryBundleWarmStart, ICookieJarWarmStart } from '../../ConfigContracts/index.js';
+import { carryBundleWarmOf, cookieJarWarmOf, warmCarryField } from '../WarmStartKind.js';
 import { isColdStart } from './TokenStrategyFromConfig.budget.js';
 import { exportBundle, restoreBundle } from './TokenStrategyFromConfig.bundle.js';
 import { exportJar, restoreJar } from './TokenStrategyFromConfig.jar.js';
@@ -19,7 +20,6 @@ import type {
   IWarmRunArgs,
   WarmCarry,
 } from './TokenStrategyFromConfig.types.js';
-import { carryBundleWarmOf, cookieJarWarmOf, warmCarryField } from './WarmStartKind.js';
 
 /** How one warm-start kind restores a stored token, resets, and publishes the next. */
 interface IWarmKindOps {

@@ -15,8 +15,8 @@
  */
 
 import type { IPreStepHook } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/EnvelopeTypes.js';
-import { applyPreHook } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/SmsOtpFlow.prehook.js';
-import { createPreHookCache } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/SmsOtpFlow.prehookCache.js';
+import { applyPreHook } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/SmsOtpFlow.prehook.js';
+import { createPreHookCache } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/SmsOtpFlow.prehookCache.js';
 import type { ITemplateScope } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/RefResolver.js';
 import { isOk } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 

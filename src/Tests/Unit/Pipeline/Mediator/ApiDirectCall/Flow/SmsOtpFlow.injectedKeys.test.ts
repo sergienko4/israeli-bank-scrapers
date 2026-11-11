@@ -12,7 +12,7 @@ import type { IApiDirectCallConfig } from '../../../../../../Scrapers/Pipeline/M
 import type { AsymmetricSignerAlgorithm } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/SignerTypes.js';
 import type { JsonValueTemplate } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/TemplateTypes.js';
 import type { IGenericKeypair } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/CryptoKeyFactory.js';
-import { runSmsOtpFlow } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/SmsOtpFlow.js';
+import { runSmsOtpFlow } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/SmsOtpFlow.js';
 import type { WKUrlGroup } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import { registerWkUrl } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import { succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';

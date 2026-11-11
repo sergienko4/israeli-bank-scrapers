@@ -6,9 +6,9 @@
  * text skips the step. The debug log names the step, never the slot's value.
  */
 
-import { getDebug } from '../../../Logging/Debug.js';
-import type { IApiDirectCallConfig, IRunIf } from '../ConfigContracts/index.js';
-import type { ITemplateScope } from '../Template/RefResolver.js';
+import { getDebug } from '../../../../Logging/Debug.js';
+import type { IApiDirectCallConfig, IRunIf } from '../../ConfigContracts/index.js';
+import type { ITemplateScope } from '../../Template/RefResolver.js';
 
 const LOG = getDebug(import.meta.url);
 

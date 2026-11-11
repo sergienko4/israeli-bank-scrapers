@@ -14,7 +14,7 @@ import type { IApiDirectCallConfig } from './ConfigContracts/index.js';
 import {
   createTokenStrategyFromConfig,
   type IConfigTokenStrategy,
-} from './Flow/TokenStrategyFromConfig.js';
+} from './Flow/Lifecycle/TokenStrategyFromConfig.js';
 
 /**
  * Build the bank's token strategy for this run's durable mode.

@@ -2,8 +2,8 @@
  * runSmsOtpFlow — the top-level entry point.
  */
 
-import type { Procedure } from '../../../Types/Procedure.js';
-import { isOk } from '../../../Types/Procedure.js';
+import type { Procedure } from '../../../../Types/Procedure.js';
+import { isOk } from '../../../../Types/Procedure.js';
 import { prepareSmsOtpFlow } from './SmsOtpFlow.prep.js';
 import { buildFlowResult, reduceAllSteps } from './SmsOtpFlow.result.js';
 import type { IFlowResult, IRunSmsOtpArgs } from './SmsOtpFlow.types.js';

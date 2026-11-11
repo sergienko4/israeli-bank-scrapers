@@ -35,7 +35,7 @@ jest.unstable_mockModule('../../../../../../Scrapers/Pipeline/Logging/Debug.js',
 }));
 
 const SHARED =
-  await import('../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/TokenStrategyFromConfig.shared.js');
+  await import('../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/TokenStrategyFromConfig.shared.js');
 const RULES =
   await import('../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/PersistentAuthStateRules.js');
 

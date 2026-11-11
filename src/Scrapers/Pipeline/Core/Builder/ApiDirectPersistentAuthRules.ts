@@ -4,7 +4,7 @@
  * and a nonblank device-id carry field, before any durable run.
  */
 
-import { isPersistentAuthKind } from '../../Mediator/ApiDirectCall/Flow/TokenStrategyFromConfig.durable.js';
+import { isPersistentAuthKind } from '../../Mediator/ApiDirectCall/Flow/Lifecycle/TokenStrategyFromConfig.durable.js';
 import type { IApiDirectRule, IApiDirectRuleInput } from './ApiDirectRuleInput.js';
 
 /**

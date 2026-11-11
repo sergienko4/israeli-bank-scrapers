@@ -14,7 +14,7 @@ import { CompanyTypes } from '../../../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js';
 import type { ScraperCredentials } from '../../../../../../Scrapers/Base/Interface.js';
 import type { IApiDirectCallConfig } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
-import type { IConfigTokenStrategy } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/TokenStrategyFromConfig.js';
+import type { IConfigTokenStrategy } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/TokenStrategyFromConfig.js';
 import type { IStoredCookie } from '../../../../../../Scrapers/Pipeline/Types/Domain/CookieSession.js';
 import type { ITokenBus } from '../../../../../../Scrapers/Pipeline/Types/Domain/TokenBus.js';
 import type { ITokenContext } from '../../../../../../Scrapers/Pipeline/Types/Domain/TokenContext.js';
@@ -57,7 +57,7 @@ jest.unstable_mockModule('../../../../../../Scrapers/Pipeline/Logging/Debug.js',
 const CODEC =
   await import('../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmCookieJar.js');
 const STRATEGY =
-  await import('../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/TokenStrategyFromConfig.js');
+  await import('../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/TokenStrategyFromConfig.js');
 const RESOLVER =
   await import('../../../../../../Scrapers/Pipeline/Mediator/Api/TokenResolverBuilder.js');
 const MEDIATOR = await import('../../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js');

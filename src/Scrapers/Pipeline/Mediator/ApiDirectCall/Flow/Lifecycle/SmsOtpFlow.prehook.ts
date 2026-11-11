@@ -10,13 +10,13 @@
  * `hintFrom` carry text as its one argument.
  */
 
-import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
-import type { Procedure } from '../../../Types/Procedure.js';
-import { fail, isOk, succeed } from '../../../Types/Procedure.js';
-import { DEFAULT_OTP_TIMEOUT_MS } from '../../Timing/OtpTimingConfig.js';
-import { RACE_TIMED_OUT, raceTimeout } from '../../Timing/TimingActions.js';
-import type { IPreStepHook } from '../ConfigContracts/EnvelopeTypes.js';
-import type { ITemplateScope } from '../Template/RefResolver.js';
+import { ScraperErrorTypes } from '../../../../../Base/ErrorTypes.js';
+import type { Procedure } from '../../../../Types/Procedure.js';
+import { fail, isOk, succeed } from '../../../../Types/Procedure.js';
+import { DEFAULT_OTP_TIMEOUT_MS } from '../../../Timing/OtpTimingConfig.js';
+import { RACE_TIMED_OUT, raceTimeout } from '../../../Timing/TimingActions.js';
+import type { IPreStepHook } from '../../ConfigContracts/EnvelopeTypes.js';
+import type { ITemplateScope } from '../../Template/RefResolver.js';
 import { acquirePreHookValue } from './SmsOtpFlow.prehookCache.js';
 import type { IApplyPreHookArgs } from './SmsOtpFlow.types.js';
 

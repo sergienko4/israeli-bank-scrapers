@@ -20,8 +20,8 @@
 
 import { CompanyTypes } from '../../../../../Definitions.js';
 import type { IApiDirectCallConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
-import type { IConfigTokenStrategy } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/TokenStrategyFromConfig.js';
-import { createTokenStrategyFromConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/TokenStrategyFromConfig.js';
+import type { IConfigTokenStrategy } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/TokenStrategyFromConfig.js';
+import { createTokenStrategyFromConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/TokenStrategyFromConfig.js';
 import { warmCarryField } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmStartKind.js';
 import type { ITokenContext } from '../../../../../Scrapers/Pipeline/Types/Domain/TokenContext.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';

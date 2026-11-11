@@ -3,8 +3,8 @@
  * kind adds a primer here; no caller branches on the kind.
  */
 
-import type { Procedure } from '../../../Types/Procedure.js';
-import type { PersistentAuthKind } from '../ConfigContracts/index.js';
+import type { Procedure } from '../../../../Types/Procedure.js';
+import type { PersistentAuthKind } from '../../ConfigContracts/index.js';
 import { primeDeviceMemory } from './TokenStrategyFromConfig.deviceMemory.js';
 import { primeBoundDevice } from './TokenStrategyFromConfig.persistent.js';
 import type {

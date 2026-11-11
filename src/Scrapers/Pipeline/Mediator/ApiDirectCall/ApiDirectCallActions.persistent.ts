@@ -16,7 +16,7 @@ import type {
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { IApiDirectCallConfig, IPersistentAuthConfig } from './ConfigContracts/index.js';
-import type { GenericCreds, PersistentAuthMode } from './Flow/TokenStrategyFromConfig.js';
+import type { GenericCreds, PersistentAuthMode } from './Flow/Lifecycle/TokenStrategyFromConfig.js';
 
 /** Presence facts the option rules read — never the option values. */
 interface IOptionFacts {

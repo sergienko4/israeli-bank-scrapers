@@ -13,7 +13,7 @@ import type { IApiDirectCallConfig } from '../../../../../../Scrapers/Pipeline/M
 import type {
   IConfigTokenStrategy,
   PersistentAuthMode,
-} from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/TokenStrategyFromConfig.js';
+} from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/TokenStrategyFromConfig.js';
 import type { Procedure } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import {
   bodyData,

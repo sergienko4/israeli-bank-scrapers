@@ -14,7 +14,7 @@ import {
   decodeDeviceMemoryState,
   encodeDeviceMemoryState,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/DeviceMemoryStateCodec.js';
-import type { PersistentAuthMode } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/TokenStrategyFromConfig.js';
+import type { PersistentAuthMode } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/TokenStrategyFromConfig.js';
 import { none } from '../../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { Procedure } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { failWithDetails, succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';

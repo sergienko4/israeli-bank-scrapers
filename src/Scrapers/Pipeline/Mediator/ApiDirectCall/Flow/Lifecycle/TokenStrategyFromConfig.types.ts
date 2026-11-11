@@ -2,18 +2,18 @@
  * Type aliases + interfaces for the TokenStrategyFromConfig cluster.
  */
 
-import type { IStoredCookie } from '../../../Types/Domain/CookieSession.js';
-import type { PersistentAuthStateCallback } from '../../../Types/Domain/PersistentAuthInput.js';
-import type { ITokenBus } from '../../../Types/Domain/TokenBus.js';
-import type { ITokenContext } from '../../../Types/Domain/TokenContext.js';
-import type { Procedure } from '../../../Types/Procedure.js';
-import type { ITokenStrategy } from '../../Api/ITokenStrategy.js';
+import type { IStoredCookie } from '../../../../Types/Domain/CookieSession.js';
+import type { PersistentAuthStateCallback } from '../../../../Types/Domain/PersistentAuthInput.js';
+import type { ITokenBus } from '../../../../Types/Domain/TokenBus.js';
+import type { ITokenContext } from '../../../../Types/Domain/TokenContext.js';
+import type { Procedure } from '../../../../Types/Procedure.js';
+import type { ITokenStrategy } from '../../../Api/ITokenStrategy.js';
 import type {
   IApiDirectCallConfig,
   IPersistentAuthConfig,
   PersistentAuthKind,
-} from '../ConfigContracts/index.js';
-import type { JsonValue } from '../Envelope/JsonPointer.js';
+} from '../../ConfigContracts/index.js';
+import type { JsonValue } from '../../Envelope/JsonPointer.js';
 
 /** Generic creds shape — strategies read named fields via config. */
 type GenericCreds = Readonly<Record<string, unknown>>;

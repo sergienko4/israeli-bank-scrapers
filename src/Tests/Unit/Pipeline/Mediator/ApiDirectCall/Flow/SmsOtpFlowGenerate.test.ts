@@ -17,7 +17,7 @@ import type {
   IStepConfig,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { spkiSha256Hex } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/RsaKeyGenerator.js';
-import { runSmsOtpFlow } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/SmsOtpFlow.js';
+import { runSmsOtpFlow } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/SmsOtpFlow.js';
 import { registerWkUrl } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import type { JsonValue } from '../../../../../../Scrapers/Pipeline/Types/JsonValue.js';
 import { succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';

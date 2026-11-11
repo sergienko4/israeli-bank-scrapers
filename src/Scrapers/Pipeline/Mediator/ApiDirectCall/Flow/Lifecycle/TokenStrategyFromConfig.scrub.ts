@@ -9,10 +9,10 @@
  * query string; this scrub covers whatever else the failure text quotes.
  */
 
-import { none } from '../../../Types/Option.js';
-import { REDACTED_HINT } from '../../../Types/PiiRedactor.js';
-import type { IProcedureFailure } from '../../../Types/Procedure.js';
-import type { IPersistentAuthStateV1 } from '../PersistentAuthStateCodec.js';
+import { none } from '../../../../Types/Option.js';
+import { REDACTED_HINT } from '../../../../Types/PiiRedactor.js';
+import type { IProcedureFailure } from '../../../../Types/Procedure.js';
+import type { IPersistentAuthStateV1 } from '../../PersistentAuthStateCodec.js';
 
 /** Persisted fields a failure must never quote. The decoder guarantees each is non-empty. */
 const PERSISTED_SECRET_FIELDS = [

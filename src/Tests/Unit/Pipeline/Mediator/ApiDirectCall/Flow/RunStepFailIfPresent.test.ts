@@ -12,8 +12,8 @@ import type {
   IApiDirectCallConfig,
   IStepConfig,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
+import { runSmsOtpFlow } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/SmsOtpFlow.js';
 import { guardBankError } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.failIfPresent.js';
-import { runSmsOtpFlow } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/SmsOtpFlow.js';
 import { registerWkUrl } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import type { JsonValue } from '../../../../../../Scrapers/Pipeline/Types/JsonValue.js';
 import { succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';

@@ -29,7 +29,7 @@ import type {
 import {
   createTokenStrategyFromConfig,
   type PersistentAuthMode,
-} from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/TokenStrategyFromConfig.js';
+} from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/TokenStrategyFromConfig.js';
 import type { ITokenContext } from '../../../../../Scrapers/Pipeline/Types/Domain/TokenContext.js';
 import { LOGIN_KIND_VALUES } from '../../../../../Scrapers/Pipeline/Types/LoginKind.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';

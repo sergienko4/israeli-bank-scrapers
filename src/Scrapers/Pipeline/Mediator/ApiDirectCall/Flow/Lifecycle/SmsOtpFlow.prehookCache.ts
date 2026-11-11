@@ -29,9 +29,9 @@
  * </ul>
  */
 
-import type { Procedure } from '../../../Types/Procedure.js';
-import { isOk } from '../../../Types/Procedure.js';
-import type { IPreStepHook, PreHookReuse } from '../ConfigContracts/EnvelopeTypes.js';
+import type { Procedure } from '../../../../Types/Procedure.js';
+import { isOk } from '../../../../Types/Procedure.js';
+import type { IPreStepHook, PreHookReuse } from '../../ConfigContracts/EnvelopeTypes.js';
 import invokePreHookFn from './SmsOtpFlow.prehookInvoke.js';
 import type { IPreHookAcquireArgs, IPreHookCache } from './SmsOtpFlow.types.js';
 
