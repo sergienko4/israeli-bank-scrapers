@@ -6,11 +6,13 @@
  */
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { stripComments } from './strip-comments.mjs';
 
 const ANY_RE = /:\s*any\b|<any>|as\s+any\b/g;
 const RULE_RE = /^\s*'([\w@/-]+(?:\/[\w-]+)*)':\s*\[?\s*'(?:error|warn)'/gm;
+const FROM_IMPORT_RE = /\bfrom\s*['"]([^'"]+)['"]/g;
+const SIDE_EFFECT_IMPORT_RE = /^\s*import\s*['"]([^'"]+)['"]/gm;
 
 function countIn(root, files, re) {
   let total = 0;
@@ -66,15 +68,50 @@ function canaryHash(dir, name) {
  * "consolidated, so scope widened" apart from "deleted, so scope shrank" needs
  * glob resolution, which no text count can do. What stays with this ratchet is
  * the coarse question it answers reliably: did a rule disappear altogether?
+ *
+ * "Reachable" is therefore part of the measurement. Only modules imported
+ * (transitively) from `eslint.config.mjs` are counted: once a cluster is
+ * disconnected, its rule declarations no longer govern anything, so scanning
+ * the directory would keep crediting rules the config never applies.
+ */
+
+/**
+ * List the relative module specifiers imported or re-exported by `code`.
+ * @param {string} code - Module source with comments stripped.
+ * @returns {string[]} Relative specifiers in source order.
+ */
+function localImports(code) {
+  const specifiers = [];
+  for (const re of [FROM_IMPORT_RE, SIDE_EFFECT_IMPORT_RE]) {
+    for (const match of code.matchAll(re)) {
+      if (match[1].startsWith('.')) specifiers.push(match[1]);
+    }
+  }
+  return specifiers;
+}
+
+/**
+ * Resolve module files reachable from the flat-config entry through relative
+ * imports. A cluster left on disk but no longer spread by the entry is not
+ * reachable, so its rules stop counting toward the ratchet.
+ * @param {string} root - Repository root.
+ * @returns {string[]} Entry file plus every reachable local module.
  */
 function eslintConfigFiles(root) {
   const entry = join(root, 'eslint.config.mjs');
-  const dir = join(root, 'eslint');
-  if (!existsSync(dir)) return [entry];
-  const nested = readdirSync(dir, { recursive: true })
-    .filter(path => path.endsWith('.mjs'))
-    .map(path => join(dir, path));
-  return [entry, ...nested];
+  const seen = new Set();
+  const pending = [entry];
+  while (pending.length > 0) {
+    const file = pending.pop();
+    if (seen.has(file) || !existsSync(file)) continue;
+    seen.add(file);
+    const code = stripComments(readFileSync(file, 'utf8'));
+    for (const specifier of localImports(code)) {
+      const target = resolve(dirname(file), specifier);
+      if (!seen.has(target)) pending.push(target);
+    }
+  }
+  return [...seen];
 }
 
 function countEslintRules(root) {
