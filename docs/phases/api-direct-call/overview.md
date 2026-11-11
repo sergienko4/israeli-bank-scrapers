@@ -6,6 +6,10 @@ How the phase is assembled: the shared primitives, the step model and the sub-st
 
 Every api-direct bank reuses the **same building blocks** below the phase, so adding a new device-bound or symmetric-signing bank is config-only — no mediator code.
 
+`runStep`, exposed by `Flow/Lifecycle/RunStep.ts`, orchestrates each step through
+`Flow/Lifecycle/RunStep.dispatch.ts`. The request, response and carry helpers live
+under `Flow/Steps/`; lifecycle callers use the shared entrypoint.
+
 ## GET steps
 
 A step is a POST unless it says otherwise. `IStepConfig` is the union

@@ -11,7 +11,7 @@ import type { IGenericKeypair } from '../../Crypto/CryptoKeyFactory.js';
 import type { JsonValue } from '../../Envelope/JsonPointer.js';
 import type { ICollectionResult } from '../../Fingerprint/GenericFingerprintBuilder.js';
 import type { ITemplateScope } from '../../Template/RefResolver.js';
-import type { IStepCookieJar } from '../RunStep.js';
+import type { IStepCookieJar } from './RunStep.js';
 
 /**
  * Flow-scoped preHook acquisition state.

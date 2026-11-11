@@ -72,7 +72,7 @@ jest.unstable_mockModule('../../../../../../Scrapers/Pipeline/Logging/Debug.js',
 });
 
 const RUN_STEP =
-  await import('../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.js');
+  await import('../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/RunStep.js');
 const MEDIATOR = await import('../../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js');
 const NATIVE =
   await import('../../../../../../Scrapers/Pipeline/Strategy/Fetch/NativeFetchStrategy.js');
