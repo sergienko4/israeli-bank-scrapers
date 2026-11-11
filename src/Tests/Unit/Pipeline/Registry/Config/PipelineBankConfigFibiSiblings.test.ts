@@ -17,7 +17,7 @@ import { validateApiDirectConfig } from '../../../../../Scrapers/Pipeline/Core/B
 import type { IApiDirectCallConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 
 /** The bank's headless block, as the build-time validator reads it. */
-type HeadlessBlock = Exclude<IApiDirectRuleInput['headless'], false>;
+type HeadlessBlock = Exclude<IApiDirectRuleInput['transport'], false>;
 
 /** The values a group bank's login config names. */
 interface IBrandLiterals {
@@ -157,7 +157,7 @@ describe.each(SIBLINGS)('$companyId api-direct login config (Beinleumi group)', 
 
   it('passes the build-time validator with its headless block', async () => {
     const { call, headless } = await loadConfig(sibling);
-    const result = validateApiDirectConfig({ call, headless });
+    const result = validateApiDirectConfig({ call, transport: headless });
     expect(result).toEqual({ success: true, value: true });
   });
 
@@ -168,7 +168,7 @@ describe.each(SIBLINGS)('$companyId api-direct login config (Beinleumi group)', 
       unknown
     >;
     const entries = registry.PIPELINE_BANK_CONFIG as Record<string, unknown>;
-    const expected = { urls: { base: sibling.site }, headless };
+    const expected = { urls: { base: sibling.site }, transport: headless };
     expect(entries[sibling.companyId]).toEqual(expected);
   });
 });

@@ -12,11 +12,11 @@ import {
 import type { IStepConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 
 /** The bank's headless block when it has one. */
-type HeadlessBlock = Exclude<IApiDirectRuleInput['headless'], false>;
+type HeadlessBlock = Exclude<IApiDirectRuleInput['transport'], false>;
 
-const STEP_MSG = 'steps.clientCert: not allowed without headless.clientCert';
-const ORIGIN_MSG = 'headless.clientCert.origin: must be an exact https origin';
-const REGISTERED_MSG = 'headless.clientCert: not allowed with headless.requiresClientCert';
+const STEP_MSG = 'steps.clientCert: not allowed without transport.clientCert';
+const ORIGIN_MSG = 'transport.clientCert.origin: must be an exact https origin';
+const REGISTERED_MSG = 'transport.clientCert: not allowed with transport.requiresClientCert';
 
 const HOST = 'https://bank.example';
 const PLAIN: HeadlessBlock = { identityBase: HOST, graphql: `${HOST}/graphql`, paths: {} };
@@ -41,7 +41,7 @@ const INSTALLING: IStepConfig = {
  * @returns Rule input.
  */
 function runOf(step: IStepConfig, headless: HeadlessBlock | false): IApiDirectRuleInput {
-  return { call: { flow: 'sms-otp', envelope: {}, steps: [step] }, headless };
+  return { call: { flow: 'sms-otp', envelope: {}, steps: [step] }, transport: headless };
 }
 
 /**
@@ -70,7 +70,7 @@ function resumeOf(step: IStepConfig): IApiDirectRuleInput {
   };
   return {
     call: { flow: 'sms-otp', envelope: {}, steps: [CALL], persistentAuth },
-    headless: PLAIN,
+    transport: PLAIN,
   };
 }
 

@@ -22,7 +22,7 @@ import type {
 } from '../../../../../Scrapers/Pipeline/Types/Domain/FetchPolicy.js';
 
 /** The bank's headless block when it has one. */
-type HeadlessBlock = Exclude<IApiDirectRuleInput['headless'], false>;
+type HeadlessBlock = Exclude<IApiDirectRuleInput['transport'], false>;
 
 const ORIGIN = 'https://session.example';
 const BANK: HeadlessBlock = {
@@ -81,9 +81,9 @@ const BANK_MANUAL = bankWith(MANUAL);
  */
 function runOf(
   steps: readonly IStepConfig[],
-  headless: IApiDirectRuleInput['headless'],
+  headless: IApiDirectRuleInput['transport'],
 ): IApiDirectRuleInput {
-  return { call: { flow: 'sms-otp', envelope: {}, steps }, headless };
+  return { call: { flow: 'sms-otp', envelope: {}, steps }, transport: headless };
 }
 
 /**
@@ -129,7 +129,7 @@ function resumeOf(step: IStepConfig): IApiDirectRuleInput {
     steps,
     persistentAuth,
   };
-  return { call, headless: REJECT };
+  return { call, transport: REJECT };
 }
 
 const DOC_EXTRACTS: IStepConfig = { ...BOOTSTRAP, extractsToCarry: { token: '/token' } };
@@ -162,10 +162,10 @@ const DOC_MSG = 'steps.response: a document step reads no body extracts, outcome
 const MARKER_MSG = 'steps.documentMarker: only on a document step';
 const POST_MSG = 'steps.redirect: manual on a POST step needs postAsGet';
 const AS_GET_MSG = 'steps.redirect: postAsGet only on POST steps';
-const BANK_MANUAL_MSG = 'headless.redirectPolicy: manual only on GET steps';
+const BANK_MANUAL_MSG = 'transport.redirectPolicy: manual only on GET steps';
 const ALLOW_MSG = 'redirect.allow: must not be empty';
 const HOPS_MSG = 'redirect.maxHops: must be an integer from 1 to 10';
-const DEFAULT_MSG = 'headless.redirectPolicy: must be reject when a step redirects manually';
+const DEFAULT_MSG = 'transport.redirectPolicy: must be reject when a step redirects manually';
 
 const BROKEN: readonly IBrokenCase[] = [
   { label: 'document step with extracts', input: runOf([DOC_EXTRACTS], REJECT), message: DOC_MSG },

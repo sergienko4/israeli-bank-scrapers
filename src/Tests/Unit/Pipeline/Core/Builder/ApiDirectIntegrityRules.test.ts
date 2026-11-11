@@ -30,7 +30,7 @@ const BANK = {
  */
 function input(bank?: IResponseIntegrity, step?: IResponseIntegrity): IApiDirectRuleInput {
   return {
-    headless: { ...BANK, responseIntegrity: bank },
+    transport: { ...BANK, responseIntegrity: bank },
     call: {
       flow: 'sms-otp',
       envelope: {},
@@ -61,7 +61,7 @@ describe('API-direct response integrity rules', () => {
     const result = validateApiDirectConfig(configured);
     expect(result).toMatchObject({
       success: false,
-      errorMessage: 'headless.responseIntegrity: invalid policy',
+      errorMessage: 'transport.responseIntegrity: invalid policy',
     });
   });
 
@@ -77,7 +77,7 @@ describe('API-direct response integrity rules', () => {
   it('refuses a policy for a non-native bank', () => {
     const configured = input({ maxBytes: 32 }, { maxBytes: 16 });
     const headless = { ...BANK, nativeFetch: false, responseIntegrity: { maxBytes: 32 } };
-    const result = validateApiDirectConfig({ ...configured, headless });
+    const result = validateApiDirectConfig({ ...configured, transport: headless });
     expect(result).toMatchObject({ success: false });
   });
 });

@@ -97,11 +97,11 @@ async function coldHeadlessHosts(
   const { resolvePipelineBankConfig } =
     await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
   const config = resolvePipelineBankConfig(companyId);
-  if (config === false || !config.headless) return [];
+  if (config === false || !config.transport) return [];
   const urls = [
-    config.headless.identityBase,
-    config.headless.graphql,
-    ...Object.values(config.headless.paths),
+    config.transport.identityBase,
+    config.transport.graphql,
+    ...Object.values(config.transport.paths),
   ];
   const hosts = new Set(urls.map(url => new URL(url).hostname));
   const warmed = [new URL(config.urls.base).hostname, ...(manifest[companyId] ?? [])];

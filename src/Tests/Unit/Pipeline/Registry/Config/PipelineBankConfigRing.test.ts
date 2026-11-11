@@ -31,7 +31,7 @@ import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 const CONFIG_DIR = '../../../../../Scrapers/Pipeline/Registry/Config/';
 
 /** The bank's headless block, as the build-time validator reads it. */
-type ITransportConfig = Exclude<IApiDirectRuleInput['headless'], false>;
+type ITransportConfig = Exclude<IApiDirectRuleInput['transport'], false>;
 
 /** One ring issuer: where its config lives and the values a live login proved. */
 interface IRingIssuer {
@@ -199,7 +199,7 @@ function hydrateFixed(template: JsonValueTemplate, config: IApiDirectCallConfig)
 describe.each(ISSUERS)('ring login config — $bank', issuer => {
   it('passes the build-time validator with its headless block', async () => {
     const { call, headless } = await loadModule(issuer);
-    const result = validateApiDirectConfig({ call, headless });
+    const result = validateApiDirectConfig({ call, transport: headless });
     expect(result).toEqual({ success: true, value: true });
   });
 

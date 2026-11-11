@@ -42,8 +42,8 @@ interface INormaliseBundle {
  */
 function collectNormaliseBundle(ctx: IPipelineContext): INormaliseBundle | false {
   const config = ctx.config;
-  if (!('headless' in config) || !config.headless) return false;
-  const format = config.headless.phoneNumberFormat;
+  if (!('transport' in config) || !config.transport) return false;
+  const format = config.transport.phoneNumberFormat;
   if (format === undefined) return false;
   const creds = ctx.credentials as unknown as Record<string, unknown>;
   const raw = creds.phoneNumber;

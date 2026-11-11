@@ -130,7 +130,7 @@ interface IRefusal extends IBuildCase {
 function inputOf(build: IBuildCase): IApiDirectRuleInput {
   const { steps, sessionCarry } = build;
   const call: IApiDirectCallConfig = { flow: 'sms-otp', envelope: {}, steps, sessionCarry };
-  if (build.resume === undefined) return { call, headless: NATIVE };
+  if (build.resume === undefined) return { call, transport: NATIVE };
   const persistentAuth = {
     kind: 'bound-device' as const,
     provider: 'syn-provider',
@@ -140,7 +140,7 @@ function inputOf(build: IBuildCase): IApiDirectRuleInput {
     freshnessMarginSeconds: 60,
     resumeSteps: build.resume,
   };
-  return { call: { ...call, persistentAuth }, headless: NATIVE };
+  return { call: { ...call, persistentAuth }, transport: NATIVE };
 }
 
 const LOGIN = loginWith(CLASSIFIER);

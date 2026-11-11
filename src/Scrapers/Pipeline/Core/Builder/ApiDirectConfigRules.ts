@@ -43,10 +43,10 @@ import { API_DIRECT_WARM_BUNDLE_RULES } from './ApiDirectWarmBundleRules.js';
 /**
  * Whether the bank's headless block keeps a session cookie jar.
  * @param input - Rule input.
- * @returns True when `headless.sessionCookies` is set.
+ * @returns True when `transport.sessionCookies` is set.
  */
 function hasSessionCookies(input: IApiDirectRuleInput): boolean {
-  return input.headless !== false && input.headless.sessionCookies === true;
+  return input.transport !== false && input.transport.sessionCookies === true;
 }
 
 /**
@@ -198,7 +198,7 @@ function isBoundCeilingOutOfRange(input: IApiDirectRuleInput): boolean {
 /**
  * A cookie-jar warm start restores into, and exports from, the domain jar.
  * @param input - Rule input.
- * @returns True when a cookie-jar warm start has no `headless.cookieDomains`.
+ * @returns True when a cookie-jar warm start has no `transport.cookieDomains`.
  */
 function isJarWarmWithoutDomains(input: IApiDirectRuleInput): boolean {
   if (cookieJarWarmOf(input.call) === false) return false;
@@ -209,11 +209,11 @@ function isJarWarmWithoutDomains(input: IApiDirectRuleInput): boolean {
 const API_DIRECT_RULES: readonly IApiDirectRule[] = [
   { message: 'authPrefix: required when authScheme is prefixed', isBroken: isPrefixMissing },
   {
-    message: 'headless.sessionCookies: required when authScheme is none',
+    message: 'transport.sessionCookies: required when authScheme is none',
     isBroken: isNoneWithoutCookies,
   },
   {
-    message: 'steps.cookieJar: not allowed with headless.sessionCookies',
+    message: 'steps.cookieJar: not allowed with transport.sessionCookies',
     isBroken: isJarDoubled,
   },
   ...API_DIRECT_OUTCOME_RULES,
@@ -244,7 +244,7 @@ const API_DIRECT_RULES: readonly IApiDirectRule[] = [
     isBroken: isBoundCeilingOutOfRange,
   },
   {
-    message: 'warmStart.kind: cookie-jar not allowed without headless.cookieDomains',
+    message: 'warmStart.kind: cookie-jar not allowed without transport.cookieDomains',
     isBroken: isJarWarmWithoutDomains,
   },
   ...API_DIRECT_WARM_BUNDLE_RULES,

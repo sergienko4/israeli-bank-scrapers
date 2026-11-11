@@ -66,7 +66,7 @@ describe('serialized JSON step capture', () => {
   it('validates, captures and derives the root value on the real step path', async () => {
     const step = stepWith(CAPTURE);
     const config = configFor(step);
-    const valid = validateApiDirectConfig({ headless: HEADLESS, call: config });
+    const valid = validateApiDirectConfig({ transport: HEADLESS, call: config });
     expect(valid).toMatchObject({ success: true });
     registerWkUrl('auth.bind', CompanyTypes.OneZero, `${ORIGIN}/landing`);
     const json = JSON.stringify({ SessionID: SESSION });
@@ -89,7 +89,7 @@ describe('serialized JSON step capture', () => {
     ['non-flat pattern', { pattern: '^(a+)+$' }],
   ])('refuses %s at build time', (_name, change) => {
     const step = stepWith({ ...CAPTURE, ...change });
-    const result = validateApiDirectConfig({ headless: HEADLESS, call: configFor(step) });
+    const result = validateApiDirectConfig({ transport: HEADLESS, call: configFor(step) });
     expect(result).toMatchObject({
       success: false,
       errorMessage: 'steps.structuredCapture: invalid capture',
@@ -106,7 +106,7 @@ describe('serialized JSON step capture', () => {
       extractsToCarry: {},
     };
     const call = { ...configFor(first), steps: [first, next] };
-    const result = validateApiDirectConfig({ headless: HEADLESS, call });
+    const result = validateApiDirectConfig({ transport: HEADLESS, call });
     expect(result).toMatchObject({
       success: false,
       errorMessage: 'steps.urlFromCarry: slot needs an earlier url rule',

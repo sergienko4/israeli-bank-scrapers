@@ -48,7 +48,7 @@ function textStep(extra: Partial<IGetStep>): IGetStep {
  * @returns Rule input.
  */
 function runOf(step: IGetStep): IApiDirectRuleInput {
-  return { call: { flow: 'sms-otp', envelope: {}, steps: [step] }, headless: NATIVE };
+  return { call: { flow: 'sms-otp', envelope: {}, steps: [step] }, transport: NATIVE };
 }
 
 /**

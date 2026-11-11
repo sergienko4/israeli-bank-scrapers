@@ -39,7 +39,7 @@ function mapped(map: StatusMap): IStepConfig {
  * @returns Rule input.
  */
 function runOf(step: IStepConfig): IApiDirectRuleInput {
-  return { call: { flow: 'sms-otp', envelope: {}, steps: [step] }, headless: false };
+  return { call: { flow: 'sms-otp', envelope: {}, steps: [step] }, transport: false };
 }
 
 /**
@@ -60,7 +60,7 @@ function resumeOf(step: IStepConfig): IApiDirectRuleInput {
   const login = mapped({ '401': ScraperErrorTypes.InvalidPassword });
   return {
     call: { flow: 'sms-otp', envelope: {}, steps: [login], persistentAuth },
-    headless: false,
+    transport: false,
   };
 }
 

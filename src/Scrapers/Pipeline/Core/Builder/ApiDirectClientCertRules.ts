@@ -15,8 +15,8 @@ import { allSteps, type IApiDirectRule, type IApiDirectRuleInput } from './ApiDi
  * @returns The block, or false when the bank declares none.
  */
 function dynamicCertOf(input: IApiDirectRuleInput): IDynamicClientCert | false {
-  if (input.headless === false) return false;
-  return input.headless.clientCert ?? false;
+  if (input.transport === false) return false;
+  return input.transport.clientCert ?? false;
 }
 
 /**
@@ -57,22 +57,22 @@ function hasInexactOrigin(input: IApiDirectRuleInput): boolean {
  * @returns True when `clientCert` and `requiresClientCert` are both set.
  */
 function isDynamicWithRegistered(input: IApiDirectRuleInput): boolean {
-  if (input.headless === false) return false;
-  return input.headless.clientCert !== undefined && input.headless.requiresClientCert === true;
+  if (input.transport === false) return false;
+  return input.transport.clientCert !== undefined && input.transport.requiresClientCert === true;
 }
 
 /** Dynamic client-certificate rules, checked after the carry-generator rules. */
 const API_DIRECT_CLIENT_CERT_RULES: readonly IApiDirectRule[] = [
   {
-    message: 'steps.clientCert: not allowed without headless.clientCert',
+    message: 'steps.clientCert: not allowed without transport.clientCert',
     isBroken: isStepCertWithoutBlock,
   },
   {
-    message: 'headless.clientCert.origin: must be an exact https origin',
+    message: 'transport.clientCert.origin: must be an exact https origin',
     isBroken: hasInexactOrigin,
   },
   {
-    message: 'headless.clientCert: not allowed with headless.requiresClientCert',
+    message: 'transport.clientCert: not allowed with transport.requiresClientCert',
     isBroken: isDynamicWithRegistered,
   },
 ];

@@ -28,7 +28,7 @@ import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 const CONFIG_MODULE = '../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigYahav.js';
 
 /** The bank's headless block, as the build-time validator reads it. */
-type HeadlessBlock = Exclude<IApiDirectRuleInput['headless'], false>;
+type HeadlessBlock = Exclude<IApiDirectRuleInput['transport'], false>;
 
 /** The Yahav login config and its headless block. */
 interface IYahavModule {
@@ -149,7 +149,7 @@ function isAccepted(
 describe('Yahav native login config — wiring', () => {
   it('passes the build-time validator with its headless block', async () => {
     const { call, headless } = await loadModule();
-    const result = validateApiDirectConfig({ call, headless });
+    const result = validateApiDirectConfig({ call, transport: headless });
     expect(result).toEqual({ success: true, value: true });
   });
 

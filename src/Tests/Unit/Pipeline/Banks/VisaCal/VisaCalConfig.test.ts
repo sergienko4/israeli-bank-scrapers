@@ -23,7 +23,7 @@ import { warmCarryField } from '../../../../../Scrapers/Pipeline/Mediator/ApiDir
 const CONFIG_DIR = '../../../../../Scrapers/Pipeline/Registry/Config/';
 
 /** The bank's headless block, as the build-time validator reads it. */
-type ITransportConfig = Exclude<IApiDirectRuleInput['headless'], false>;
+type ITransportConfig = Exclude<IApiDirectRuleInput['transport'], false>;
 
 /** Module shape shared by the call-config and headless-block modules. */
 interface IDefaultModule<T> {
@@ -54,7 +54,7 @@ describe('VisaCal API-direct call config', () => {
   it('passes the build-time validator with its headless block', async () => {
     const call = await loadCall();
     const headless = await loadHeadless();
-    const result = validateApiDirectConfig({ call, headless });
+    const result = validateApiDirectConfig({ call, transport: headless });
     expect(result).toEqual({ success: true, value: true });
   });
 
@@ -111,7 +111,7 @@ describe('VisaCal API-direct call config', () => {
     const { resolvePipelineBankConfig } =
       await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
     const entry = resolvePipelineBankConfig(CompanyTypes.VisaCal);
-    const isWired = entry !== false && entry.headless === headless;
+    const isWired = entry !== false && entry.transport === headless;
     expect(isWired).toBe(true);
   });
 });

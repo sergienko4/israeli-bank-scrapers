@@ -185,5 +185,5 @@ export interface IPipelineBankConfig {
     readonly base: string;
   };
   /** Pure-HTTP transport configuration — populated for API-direct banks. */
-  readonly headless?: ITransportConfig;
+  readonly transport?: ITransportConfig;
 }

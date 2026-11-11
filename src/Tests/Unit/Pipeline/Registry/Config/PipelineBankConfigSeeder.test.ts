@@ -27,7 +27,7 @@ const SEEDER =
 type BankConfig = (typeof PIPELINE_BANK_CONFIG)[CompanyTypes];
 
 /** One bank's headless `paths` map. */
-type HeadlessPaths = NonNullable<NonNullable<BankConfig>['headless']>['paths'];
+type HeadlessPaths = NonNullable<NonNullable<BankConfig>['transport']>['paths'];
 
 /** One URL the seeder must register: [group, bank, url]. */
 type SeededUrl = readonly [WKUrlGroup, CompanyTypes, string];
@@ -51,7 +51,7 @@ function expectedPathUrls(bankId: CompanyTypes, paths: HeadlessPaths): SeededUrl
  * @returns The URLs the seeder must register for the bank.
  */
 function expectedUrlsFor(bankId: CompanyTypes, config: BankConfig): SeededUrl[] {
-  const headless = config?.headless;
+  const headless = config?.transport;
   if (!headless) return [];
   const pathUrls = expectedPathUrls(bankId, headless.paths);
   const identity: SeededUrl = ['identityBase', bankId, headless.identityBase];
@@ -80,7 +80,7 @@ describe('PipelineBankConfigSeeder', () => {
 
   it('declares a headless block for every registered pipeline bank', () => {
     const missing = Object.entries(PIPELINE_BANK_CONFIG)
-      .filter(([, config]) => config.headless === undefined)
+      .filter(([, config]) => config.transport === undefined)
       .map(([companyId]) => companyId);
     expect(missing).toEqual([]);
   });
@@ -97,7 +97,7 @@ describe('PipelineBankConfigSeeder', () => {
     const identities = WK_URLS.get('identityBase');
     if (config === undefined || identities === undefined) throw new TypeError('missing registry');
     const original = identities.get(bank);
-    const { headless, ...withoutHeadless } = config;
+    const { transport: headless, ...withoutHeadless } = config;
     expect(headless).toBeDefined();
     identities.delete(bank);
     try {

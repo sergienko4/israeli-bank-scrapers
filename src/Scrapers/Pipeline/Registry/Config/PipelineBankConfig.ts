@@ -34,14 +34,13 @@ export type {
 } from './PipelineBankConfigTypes.js';
 
 /**
- * Build an API-native bank config: its login runs over the headless block's
- * transport.
+ * Build an API-native bank config: its login runs over the transport block.
  * @param base - Official website URL (CI DNS apex).
- * @param headless - The bank's headless URL and transport block.
+ * @param transport - The bank's pure-HTTP transport configuration.
  * @returns A pipeline bank config.
  */
-function defineApiDirectBank(base: string, headless: ITransportConfig): IPipelineBankConfig {
-  return { urls: { base }, headless };
+function defineApiDirectBank(base: string, transport: ITransportConfig): IPipelineBankConfig {
+  return { urls: { base }, transport };
 }
 
 /** Pipeline bank registry — migrated banks only. */
@@ -72,7 +71,7 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
   [CompanyTypes.OneZero]: defineApiDirectBank('https://www.onezerobank.com', ONEZERO_HEADLESS),
   [CompanyTypes.PayBox]: {
     urls: { base: 'https://www.payboxapp.com/' },
-    headless: {
+    transport: {
       identityBase: 'https://apipin.payboxapp.com/api/2.0/',
       // PayBox has no GraphQL — set graphql to identityBase to satisfy the
       // type contract (scrape goes through REST via urlTag, not apiQuery).

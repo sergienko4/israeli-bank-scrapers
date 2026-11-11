@@ -34,7 +34,7 @@ describe('Pepper headless config — GraphQL WAF header', () => {
       await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
     const config = resolvePipelineBankConfig(CompanyTypes.Pepper);
     expect(config).not.toBe(false);
-    const headers = config === false ? {} : (config.headless?.graphqlHeaders ?? {});
+    const headers = config === false ? {} : (config.transport?.graphqlHeaders ?? {});
     expect(headers['user-agent']).toContain(OKHTTP_MARKER);
   });
 
@@ -43,7 +43,7 @@ describe('Pepper headless config — GraphQL WAF header', () => {
       await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
     const config = resolvePipelineBankConfig(CompanyTypes.Pepper);
     expect(config).not.toBe(false);
-    const graphql = config === false ? '' : config.headless?.graphql;
+    const graphql = config === false ? '' : config.transport?.graphql;
     expect(graphql).toContain('fe-sec.pepper.co.il');
   });
 });

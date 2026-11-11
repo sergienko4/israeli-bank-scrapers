@@ -56,7 +56,7 @@ function stepWith(shape: JsonValueTemplate, encoding: IPostStep['encoding'] = 'f
 function verdictOf(step: IPostStep): ReturnType<typeof validateApiDirectConfig> {
   const input: IApiDirectRuleInput = {
     call: { flow: 'sms-otp', envelope: {}, steps: [step] },
-    headless: NATIVE,
+    transport: NATIVE,
   };
   return validateApiDirectConfig(input);
 }

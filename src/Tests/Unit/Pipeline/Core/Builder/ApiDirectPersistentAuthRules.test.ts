@@ -46,8 +46,8 @@ const DEVICE_MEMORY: IPersistentAuthConfig = {
  * @returns Rule input.
  */
 function inputOf(persistentAuth: IPersistentAuthConfig | false): IApiDirectRuleInput {
-  if (persistentAuth === false) return { call: BASE_CALL, headless: NATIVE };
-  return { call: { ...BASE_CALL, persistentAuth }, headless: NATIVE };
+  if (persistentAuth === false) return { call: BASE_CALL, transport: NATIVE };
+  return { call: { ...BASE_CALL, persistentAuth }, transport: NATIVE };
 }
 
 describe('validateApiDirectConfig — persistent-auth kind rule', () => {

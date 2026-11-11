@@ -45,7 +45,7 @@ function stepWith(shape: JsonValueTemplate, encoding: IPostStep['encoding'] = 'f
  * @returns Rule input.
  */
 function runOf(step: IPostStep): IApiDirectRuleInput {
-  return { call: { flow: 'sms-otp', envelope: {}, steps: [step] }, headless: NATIVE };
+  return { call: { flow: 'sms-otp', envelope: {}, steps: [step] }, transport: NATIVE };
 }
 
 const BROKEN: readonly (readonly [string, JsonValueTemplate])[] = [

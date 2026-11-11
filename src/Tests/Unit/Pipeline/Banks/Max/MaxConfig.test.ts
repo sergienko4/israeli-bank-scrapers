@@ -23,7 +23,7 @@ import { hydrate } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall
 const CONFIG_DIR = '../../../../../Scrapers/Pipeline/Registry/Config/';
 
 /** The bank's headless block, as the build-time validator reads it. */
-type ITransportConfig = Exclude<IApiDirectRuleInput['headless'], false>;
+type ITransportConfig = Exclude<IApiDirectRuleInput['transport'], false>;
 
 /** Max's login config and headless block. */
 interface IMaxModule {
@@ -49,7 +49,7 @@ async function loadMax(): Promise<IMaxModule> {
 describe('Max API-direct call config', () => {
   it('passes the build-time validator with its headless block', async () => {
     const { call, headless } = await loadMax();
-    const result = validateApiDirectConfig({ call, headless });
+    const result = validateApiDirectConfig({ call, transport: headless });
     expect(result).toEqual({ success: true, value: true });
   });
 
@@ -120,7 +120,7 @@ describe('Max API-direct call config', () => {
     const { resolvePipelineBankConfig } =
       await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
     const entry = resolvePipelineBankConfig(CompanyTypes.Max);
-    const isWired = entry !== false && entry.headless === headless;
+    const isWired = entry !== false && entry.transport === headless;
     expect(isWired).toBe(true);
   });
 });

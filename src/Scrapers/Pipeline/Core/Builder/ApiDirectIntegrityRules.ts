@@ -11,8 +11,8 @@ import { allSteps, type IApiDirectRule, type IApiDirectRuleInput } from './ApiDi
  * @returns True when the default cannot be enforced.
  */
 function hasBadBankIntegrity(input: IApiDirectRuleInput): boolean {
-  if (input.headless === false || input.headless.responseIntegrity === undefined) return false;
-  return !isResponseIntegrity(input.headless.responseIntegrity);
+  if (input.transport === false || input.transport.responseIntegrity === undefined) return false;
+  return !isResponseIntegrity(input.transport.responseIntegrity);
 }
 
 /**
@@ -28,7 +28,7 @@ function hasBadStepIntegrity(input: IApiDirectRuleInput): boolean {
 }
 
 const API_DIRECT_INTEGRITY_RULES: readonly IApiDirectRule[] = [
-  { message: 'headless.responseIntegrity: invalid policy', isBroken: hasBadBankIntegrity },
+  { message: 'transport.responseIntegrity: invalid policy', isBroken: hasBadBankIntegrity },
   { message: 'steps.responseIntegrity: invalid policy', isBroken: hasBadStepIntegrity },
 ];
 

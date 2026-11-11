@@ -28,7 +28,7 @@ async function oneZeroHeadless(): Promise<object | false> {
     await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
   const config = registry.resolvePipelineBankConfig(CompanyTypes.OneZero);
   if (config === false) return false;
-  return config.headless ?? false;
+  return config.transport ?? false;
 }
 
 /**

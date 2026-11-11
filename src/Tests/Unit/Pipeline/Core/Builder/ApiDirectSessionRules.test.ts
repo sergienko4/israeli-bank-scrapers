@@ -18,10 +18,10 @@ import type {
 } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 
 const SLOT_MSG = 'sessionCarry: each slot must name a step extract';
-const HANDOFF_MSG = 'cookieHandoff: isolate not allowed without headless.cookieDomains';
+const HANDOFF_MSG = 'cookieHandoff: isolate not allowed without transport.cookieDomains';
 
 /** The bank's headless block, as the rules read it. */
-type Headless = IApiDirectRuleInput['headless'];
+type Headless = IApiDirectRuleInput['transport'];
 
 const NATIVE = {
   identityBase: 'https://bank.example',
@@ -67,7 +67,7 @@ const LANDING: IGetStep = {
 function validateWith(sessionCarry: readonly string[]): ReturnType<typeof validateApiDirectConfig> {
   const steps = [REGISTER, LANDING];
   const call = { flow: 'sms-otp', envelope: {}, steps, sessionCarry } as const;
-  return validateApiDirectConfig({ call, headless: REJECTING });
+  return validateApiDirectConfig({ call, transport: REJECTING });
 }
 
 describe('validateApiDirectConfig — sessionCarry', () => {
@@ -92,7 +92,7 @@ describe('validateApiDirectConfig — sessionCarry', () => {
       steps: [spa],
       sessionCarry: ['sessionToken'],
     } as const;
-    const result = validateApiDirectConfig({ call, headless: NATIVE });
+    const result = validateApiDirectConfig({ call, transport: NATIVE });
     expect(result).toEqual({
       success: true,
       value: true,
@@ -133,7 +133,7 @@ function validateHandoff(
   cookieHandoff?: CookieHandoff,
 ): ReturnType<typeof validateApiDirectConfig> {
   const call = { flow: 'sms-otp', envelope: {}, steps: [REGISTER], cookieHandoff } as const;
-  return validateApiDirectConfig({ call, headless });
+  return validateApiDirectConfig({ call, transport: headless });
 }
 
 describe('validateApiDirectConfig — cookieHandoff', () => {

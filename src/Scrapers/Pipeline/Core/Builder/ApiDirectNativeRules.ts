@@ -60,16 +60,16 @@ const HEADER_NAME = /^[\w!#$%&'*+.^`|~-]+$/;
  * @returns True when native fetch is not selected.
  */
 function isNativeOff(input: IApiDirectRuleInput): boolean {
-  return input.headless === false || input.headless.nativeFetch !== true;
+  return input.transport === false || input.transport.nativeFetch !== true;
 }
 
 /**
- * Whether a headless block selects node:https.
- * @param headless - The bank's headless block.
+ * Whether a transport block selects node:https.
+ * @param transport - The bank's transport block.
  * @returns True when a client certificate or a TLS profile is set.
  */
-function isNodeTls(headless: ITransportConfig): boolean {
-  const values = NODE_TLS_KEYS.map((key): unknown => headless[key]);
+function isNodeTls(transport: ITransportConfig): boolean {
+  const values = NODE_TLS_KEYS.map((key): unknown => transport[key]);
   return values.some((value): boolean => value !== undefined && value !== false);
 }
 
@@ -79,13 +79,13 @@ function isNodeTls(headless: ITransportConfig): boolean {
  * @returns True when they run without native fetch or node:https.
  */
 function isNodeOff(input: IApiDirectRuleInput): boolean {
-  if (input.headless === false) return true;
-  return input.headless.nativeFetch !== true && !isNodeTls(input.headless);
+  if (input.transport === false) return true;
+  return input.transport.nativeFetch !== true && !isNodeTls(input.transport);
 }
 
 const NATIVE_GATE: IFieldGate = {
   isOff: isNativeOff,
-  offText: 'not allowed without headless.nativeFetch',
+  offText: 'not allowed without transport.nativeFetch',
 };
 
 const NODE_GATE: IFieldGate = {
@@ -143,8 +143,8 @@ function hasHeadlessFieldOff(
   gate: IFieldGate,
   input: IApiDirectRuleInput,
 ): boolean {
-  if (input.headless === false || !gate.isOff(input)) return false;
-  return input.headless[field] !== undefined;
+  if (input.transport === false || !gate.isOff(input)) return false;
+  return input.transport[field] !== undefined;
 }
 
 /**
@@ -166,7 +166,7 @@ function stepFieldRule(entry: readonly [GatedStepField, IFieldGate]): IApiDirect
 function headlessFieldRule(entry: readonly [GatedHeadlessField, IFieldGate]): IApiDirectRule {
   const [field, gate] = entry;
   const isBroken = hasHeadlessFieldOff.bind(null, field, gate);
-  return { message: `headless.${field}: ${gate.offText}`, isBroken };
+  return { message: `transport.${field}: ${gate.offText}`, isBroken };
 }
 
 /**
@@ -176,8 +176,8 @@ function headlessFieldRule(entry: readonly [GatedHeadlessField, IFieldGate]): IA
  * @returns True when `cookieDomains` is set without `sessionCookies`.
  */
 function isDomainJarWithoutSession(input: IApiDirectRuleInput): boolean {
-  if (input.headless === false) return false;
-  return input.headless.cookieDomains !== undefined && input.headless.sessionCookies !== true;
+  if (input.transport === false) return false;
+  return input.transport.cookieDomains !== undefined && input.transport.sessionCookies !== true;
 }
 
 /**
@@ -206,7 +206,7 @@ function hasBadHeaderName(input: IApiDirectRuleInput): boolean {
  * @returns True when `setCookies` has no `cookieDomains` to write into.
  */
 function isSetCookieWithoutDomainJar(input: IApiDirectRuleInput): boolean {
-  const isDomainJar = input.headless !== false && input.headless.cookieDomains !== undefined;
+  const isDomainJar = input.transport !== false && input.transport.cookieDomains !== undefined;
   if (isDomainJar) return false;
   return allSteps(input.call).some((step): boolean => step.setCookies !== undefined);
 }
@@ -232,7 +232,7 @@ const API_DIRECT_NATIVE_RULES: readonly IApiDirectRule[] = [
   ...STEP_FIELD_RULES,
   ...HEADLESS_FIELD_RULES,
   {
-    message: 'headless.cookieDomains: not allowed without headless.sessionCookies',
+    message: 'transport.cookieDomains: not allowed without transport.sessionCookies',
     isBroken: isDomainJarWithoutSession,
   },
   {
@@ -240,7 +240,7 @@ const API_DIRECT_NATIVE_RULES: readonly IApiDirectRule[] = [
     isBroken: hasBadHeaderName,
   },
   {
-    message: 'steps.setCookies: not allowed without headless.cookieDomains',
+    message: 'steps.setCookies: not allowed without transport.cookieDomains',
     isBroken: isSetCookieWithoutDomainJar,
   },
   { message: 'steps.setCookies: each name must be an HTTP token', isBroken: hasBadCookieName },

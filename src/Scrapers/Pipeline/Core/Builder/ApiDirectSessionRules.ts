@@ -55,7 +55,7 @@ function hasUnknownSessionSlot(input: IApiDirectRuleInput): boolean {
 /**
  * Whether an `isolate` hand-off has no domain jar to empty.
  * @param input - Rule input.
- * @returns True for `isolate` without `headless.cookieDomains`.
+ * @returns True for `isolate` without `transport.cookieDomains`.
  */
 function isIsolateWithoutJar(input: IApiDirectRuleInput): boolean {
   return input.call.cookieHandoff === 'isolate' && !hasCookieDomains(input);
@@ -65,7 +65,7 @@ function isIsolateWithoutJar(input: IApiDirectRuleInput): boolean {
 const API_DIRECT_SESSION_RULES: readonly IApiDirectRule[] = [
   { message: 'sessionCarry: each slot must name a step extract', isBroken: hasUnknownSessionSlot },
   {
-    message: 'cookieHandoff: isolate not allowed without headless.cookieDomains',
+    message: 'cookieHandoff: isolate not allowed without transport.cookieDomains',
     isBroken: isIsolateWithoutJar,
   },
   ...API_DIRECT_PERSISTENT_AUTH_RULES,

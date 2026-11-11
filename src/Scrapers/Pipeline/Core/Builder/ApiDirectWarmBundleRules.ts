@@ -201,7 +201,7 @@ const API_DIRECT_WARM_BUNDLE_RULES: readonly IApiDirectRule[] = [
     isBroken: isBundleSlotUnfilled,
   },
   {
-    message: 'warmStart.cookies: not allowed without headless.cookieDomains',
+    message: 'warmStart.cookies: not allowed without transport.cookieDomains',
     isBroken: isBundleJarWithoutDomains,
   },
 ];

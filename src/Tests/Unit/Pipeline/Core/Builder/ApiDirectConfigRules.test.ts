@@ -25,7 +25,7 @@ import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure
 import { makeMockOptions } from '../../Infrastructure/MockFactories.js';
 
 /** The bank's headless block as the rules read it. */
-type HeadlessBlock = IApiDirectRuleInput['headless'];
+type HeadlessBlock = IApiDirectRuleInput['transport'];
 
 const JAR_ON = { sessionCookies: true } as unknown as HeadlessBlock;
 const JAR_OFF = { sessionCookies: false } as unknown as HeadlessBlock;
@@ -70,7 +70,7 @@ const GUARDED_STEP: IStepConfig = { ...STEP, runIf: { carry: 'route', oneOf: ['o
  */
 function bankCallFrom(fromStepIndex: number, steps = [STEP, STEP]): IApiDirectRuleInput {
   const warmStart = { ...WARM, fromStepIndex, validation: 'bank-call' } as const;
-  return { call: makeCall({ warmStart, steps }), headless: false };
+  return { call: makeCall({ warmStart, steps }), transport: false };
 }
 
 /**
@@ -80,7 +80,10 @@ function bankCallFrom(fromStepIndex: number, steps = [STEP, STEP]): IApiDirectRu
  */
 function jwtFrom(fromStepIndex: number): IApiDirectRuleInput {
   const warmStart = { ...WARM, fromStepIndex };
-  return { call: makeCall({ warmStart, steps: [STEP, STEP], jwtClaims: CLAIMS }), headless: false };
+  return {
+    call: makeCall({ warmStart, steps: [STEP, STEP], jwtClaims: CLAIMS }),
+    transport: false,
+  };
 }
 
 /**
@@ -91,7 +94,7 @@ function jwtFrom(fromStepIndex: number): IApiDirectRuleInput {
  */
 function emptyFlowFrom(fromStepIndex: number): IApiDirectRuleInput {
   const warmStart = { ...WARM, fromStepIndex };
-  return { call: makeCall({ warmStart, steps: [], jwtClaims: CLAIMS }), headless: false };
+  return { call: makeCall({ warmStart, steps: [], jwtClaims: CLAIMS }), transport: false };
 }
 
 /** A headless block with a cookie session, as a cookie-jar warm start needs. */
@@ -126,7 +129,7 @@ function cookieJarWarm(
     maxTokenChars,
     ...binding,
   } as const;
-  return { call: makeCall({ warmStart, steps: [STEP, STEP] }), headless };
+  return { call: makeCall({ warmStart, steps: [STEP, STEP] }), transport: headless };
 }
 
 /**
@@ -169,8 +172,8 @@ function resumeWith(step: IStepConfig): IApiDirectCallConfig['persistentAuth'] {
 type BrokenCase = readonly [string, IApiDirectRuleInput, string];
 
 const PREFIX_MSG = 'authPrefix: required when authScheme is prefixed';
-const NONE_MSG = 'headless.sessionCookies: required when authScheme is none';
-const JAR_MSG = 'steps.cookieJar: not allowed with headless.sessionCookies';
+const NONE_MSG = 'transport.sessionCookies: required when authScheme is none';
+const JAR_MSG = 'steps.cookieJar: not allowed with transport.sessionCookies';
 const CODES_MSG = 'outcome.successCodes: must not be empty';
 const COLLISION_MSG = 'outcome.failureMap: duplicate keys ignoring case';
 const CLAIMS_MSG = 'jwtClaims: required when warmStart.validation is jwt';
@@ -178,7 +181,7 @@ const BANK_CALL_MSG = 'warmStart.fromStepIndex: must name a step when validation
 const FIRST_STEP_MSG = 'warmStart.fromStepIndex: must start after the first step';
 const RANGE_MSG = 'warmStart.fromStepIndex: must be a whole number up to the step count';
 const MAX_TOKEN_MSG = 'warmStart.maxTokenChars: must be an integer from 1 to 16384';
-const JAR_WARM_MSG = 'warmStart.kind: cookie-jar not allowed without headless.cookieDomains';
+const JAR_WARM_MSG = 'warmStart.kind: cookie-jar not allowed without transport.cookieDomains';
 const GUARDED_ENTRY_MSG = 'warmStart.fromStepIndex: a bank-call check step must not have runIf';
 const PROVIDER_MSG = 'warmStart.provider: must not be blank';
 const ACCOUNT_FIELD_MSG = 'warmStart.accountField: must not be blank';
@@ -186,58 +189,58 @@ const ACCOUNT_FIELD_MSG = 'warmStart.accountField: must not be blank';
 const BROKEN: readonly BrokenCase[] = [
   [
     'prefixed, no prefix',
-    { call: makeCall({ authScheme: 'prefixed' }), headless: false },
+    { call: makeCall({ authScheme: 'prefixed' }), transport: false },
     PREFIX_MSG,
   ],
   [
     'prefixed, blank prefix',
-    { call: makeCall({ authScheme: 'prefixed', authPrefix: '   ' }), headless: false },
+    { call: makeCall({ authScheme: 'prefixed', authPrefix: '   ' }), transport: false },
     PREFIX_MSG,
   ],
   [
     'none, no headless block',
-    { call: makeCall({ authScheme: 'none' }), headless: false },
+    { call: makeCall({ authScheme: 'none' }), transport: false },
     NONE_MSG,
   ],
-  ['none, jar off', { call: makeCall({ authScheme: 'none' }), headless: JAR_OFF }, NONE_MSG],
+  ['none, jar off', { call: makeCall({ authScheme: 'none' }), transport: JAR_OFF }, NONE_MSG],
   [
     'step jar beside session jar',
-    { call: makeCall({ steps: [JAR_STEP] }), headless: JAR_ON },
+    { call: makeCall({ steps: [JAR_STEP] }), transport: JAR_ON },
     JAR_MSG,
   ],
   [
     'resume-step jar beside session jar',
-    { call: makeCall({ persistentAuth: resumeWith(JAR_STEP) }), headless: JAR_ON },
+    { call: makeCall({ persistentAuth: resumeWith(JAR_STEP) }), transport: JAR_ON },
     JAR_MSG,
   ],
   [
     'empty success codes',
-    { call: makeCall({ steps: [NO_CODES_STEP] }), headless: false },
+    { call: makeCall({ steps: [NO_CODES_STEP] }), transport: false },
     CODES_MSG,
   ],
   [
     'empty success codes on a resume step',
-    { call: makeCall({ persistentAuth: resumeWith(NO_CODES_STEP) }), headless: false },
+    { call: makeCall({ persistentAuth: resumeWith(NO_CODES_STEP) }), transport: false },
     CODES_MSG,
   ],
   [
     'case-insensitive failure keys collide on a login step',
-    { call: makeCall({ steps: [COLLIDING_STEP] }), headless: false },
+    { call: makeCall({ steps: [COLLIDING_STEP] }), transport: false },
     COLLISION_MSG,
   ],
   [
     'case-insensitive failure keys collide on a resume step',
-    { call: makeCall({ persistentAuth: resumeWith(COLLIDING_STEP) }), headless: false },
+    { call: makeCall({ persistentAuth: resumeWith(COLLIDING_STEP) }), transport: false },
     COLLISION_MSG,
   ],
   [
     'default jwt warm, no claims',
-    { call: makeCall({ warmStart: WARM }), headless: false },
+    { call: makeCall({ warmStart: WARM }), transport: false },
     CLAIMS_MSG,
   ],
   [
     'explicit jwt warm, no claims',
-    { call: makeCall({ warmStart: { ...WARM, validation: 'jwt' } }), headless: false },
+    { call: makeCall({ warmStart: { ...WARM, validation: 'jwt' } }), transport: false },
     CLAIMS_MSG,
   ],
   ['bank-call warm past the last step', bankCallFrom(2), BANK_CALL_MSG],
@@ -248,7 +251,7 @@ const BROKEN: readonly BrokenCase[] = [
     'jwt warm from the first step',
     {
       call: makeCall({ warmStart: { ...WARM, fromStepIndex: 0 }, jwtClaims: CLAIMS }),
-      headless: false,
+      transport: false,
     },
     FIRST_STEP_MSG,
   ],
@@ -276,7 +279,7 @@ const BROKEN: readonly BrokenCase[] = [
   ],
   [
     'two broken rules report the first',
-    { call: makeCall({ authScheme: 'prefixed', steps: [NO_CODES_STEP] }), headless: false },
+    { call: makeCall({ authScheme: 'prefixed', steps: [NO_CODES_STEP] }), transport: false },
     PREFIX_MSG,
   ],
 ];
@@ -285,16 +288,16 @@ const BROKEN: readonly BrokenCase[] = [
 type SoundCase = readonly [string, IApiDirectRuleInput];
 
 const SOUND: readonly SoundCase[] = [
-  ['minimal config', { call: makeCall(), headless: false }],
+  ['minimal config', { call: makeCall(), transport: false }],
   [
     'prefixed with a prefix',
-    { call: makeCall({ authScheme: 'prefixed', authPrefix: 'Scheme ' }), headless: false },
+    { call: makeCall({ authScheme: 'prefixed', authPrefix: 'Scheme ' }), transport: false },
   ],
-  ['none with the session jar', { call: makeCall({ authScheme: 'none' }), headless: JAR_ON }],
-  ['step jar alone', { call: makeCall({ steps: [JAR_STEP] }), headless: JAR_OFF }],
+  ['none with the session jar', { call: makeCall({ authScheme: 'none' }), transport: JAR_ON }],
+  ['step jar alone', { call: makeCall({ steps: [JAR_STEP] }), transport: JAR_OFF }],
   [
     'outcome with success codes',
-    { call: makeCall({ steps: [{ ...STEP, outcome: OUTCOME }] }), headless: false },
+    { call: makeCall({ steps: [{ ...STEP, outcome: OUTCOME }] }), transport: false },
   ],
   [
     'case-sensitive failure keys retain distinct mappings',
@@ -302,12 +305,12 @@ const SOUND: readonly SoundCase[] = [
       call: makeCall({
         steps: [{ ...COLLIDING_STEP, outcome: { ...COLLIDING_OUTCOME, caseInsensitive: false } }],
       }),
-      headless: false,
+      transport: false,
     },
   ],
   [
     'jwt warm past the last step, with claims',
-    { call: makeCall({ warmStart: WARM, jwtClaims: CLAIMS }), headless: false },
+    { call: makeCall({ warmStart: WARM, jwtClaims: CLAIMS }), transport: false },
   ],
   ['bank-call warm from the second step, no claims', bankCallFrom(1)],
   ['jwt warm from the second step', jwtFrom(1)],
@@ -319,7 +322,7 @@ const SOUND: readonly SoundCase[] = [
     'jwt warm from a guarded step',
     {
       call: makeCall({ warmStart: WARM, jwtClaims: CLAIMS, steps: [STEP, GUARDED_STEP] }),
-      headless: false,
+      transport: false,
     },
   ],
 ];

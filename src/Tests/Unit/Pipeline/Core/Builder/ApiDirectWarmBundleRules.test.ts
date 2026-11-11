@@ -19,7 +19,7 @@ import type {
 } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 
 /** The bank's headless block as the rules read it. */
-type HeadlessBlock = IApiDirectRuleInput['headless'];
+type HeadlessBlock = IApiDirectRuleInput['transport'];
 
 /** A headless block with a cookie-domain session, as a jar-keeping bundle needs. */
 const DOMAINS = {
@@ -102,7 +102,7 @@ function bundleWarm(bundleCase: IBundleCase = {}): IApiDirectRuleInput {
   } as const;
   const steps = bundleCase.steps ?? [REGISTER, LOGON];
   const call: IApiDirectCallConfig = { flow: 'sms-otp', envelope: {}, steps, warmStart };
-  return { call, headless: bundleCase.headless ?? DOMAINS };
+  return { call, transport: bundleCase.headless ?? DOMAINS };
 }
 
 /** A rule input and the failure text it must produce. */
@@ -111,7 +111,7 @@ type BrokenCase = readonly [string, IApiDirectRuleInput, string];
 const ACCOUNTS_MSG = 'warmStart.accountFields: must name a creds field, none blank';
 const SLOTS_EMPTY_MSG = 'warmStart.slots: must not be empty';
 const SLOTS_FILLED_MSG = 'warmStart.slots: each slot must be filled by a login step';
-const COOKIES_MSG = 'warmStart.cookies: not allowed without headless.cookieDomains';
+const COOKIES_MSG = 'warmStart.cookies: not allowed without transport.cookieDomains';
 const PROVIDER_MSG = 'warmStart.provider: must not be blank';
 const MAX_TOKEN_MSG = 'warmStart.maxTokenChars: must be an integer from 1 to 16384';
 

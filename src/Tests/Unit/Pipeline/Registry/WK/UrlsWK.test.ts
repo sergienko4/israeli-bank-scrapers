@@ -217,7 +217,7 @@ function thisDir(): string {
 }
 
 /** A bank's headless block as the seeder reads it. */
-type HeadlessBlock = Exclude<IApiDirectRuleInput['headless'], false>;
+type HeadlessBlock = Exclude<IApiDirectRuleInput['transport'], false>;
 
 const SESSION_ORIGIN = 'https://session.example';
 const BOOTSTRAP_URL = `${SESSION_ORIGIN}/bootstrap`;
@@ -263,7 +263,7 @@ async function seedSessionBank(): Promise<void> {
     await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigSeeder.js');
   const graphql = `${SESSION_ORIGIN}/graphql`;
   const headless: HeadlessBlock = { identityBase: SESSION_ORIGIN, graphql, paths: SESSION_PATHS };
-  const config = { urls: { base: SESSION_ORIGIN }, headless } as const;
+  const config = { urls: { base: SESSION_ORIGIN }, transport: headless } as const;
   seeder.seedWkFromPipelineConfig({ [HINT]: config });
 }
 

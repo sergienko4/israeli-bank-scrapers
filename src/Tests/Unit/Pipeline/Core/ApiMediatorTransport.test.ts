@@ -89,7 +89,7 @@ const MISSING_FLAGS: readonly (readonly [string, ITransportFlags])[] = [
  * @returns True once the config mock is set.
  */
 function mockHeadless(flags: ITransportFlags): boolean {
-  RESOLVE_CONFIG.mockReturnValue({ headless: { ...BASE_HEADLESS, ...flags } });
+  RESOLVE_CONFIG.mockReturnValue({ transport: { ...BASE_HEADLESS, ...flags } });
   return true;
 }
 
