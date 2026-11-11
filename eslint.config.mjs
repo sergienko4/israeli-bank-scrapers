@@ -512,9 +512,7 @@ const phase9LocalPlugin = {
 // have caught at lint time — but the directory was not in this allowlist.
 // Extending the glob enforces the cap going forward on every new file
 // under that subtree.
-const PHASE_9_TEST_FILES = [
-  'src/Tests/E2eReal/Helpers.ts',
-];
+const PHASE_9_TEST_FILES = ['src/Tests/E2eReal/Helpers.ts'];
 
 // Phase 10 wave 1 — Integration tree. Glob form so
 // future Integration files inherit the cap automatically.
@@ -1101,9 +1099,7 @@ export const PIPELINE_SELECTOR_EXEMPTIONS = {
   // BankCalendar is the one sanctioned Moment boundary. It pins every parse
   // explicitly; allowing Moment anywhere else would recreate the shared
   // default-zone leak this provider exists to remove.
-  'src/Scrapers/Pipeline/Mediator/Scrape/BankCalendar.ts': [
-    BANK_CALENDAR_MOMENT_RULE.selector,
-  ],
+  'src/Scrapers/Pipeline/Mediator/Scrape/BankCalendar.ts': [BANK_CALENDAR_MOMENT_RULE.selector],
 };
 
 /**
@@ -1126,9 +1122,7 @@ export const PIPELINE_SELECTOR_EXEMPTIONS = {
 export const PIPELINE_SCOPED_SYNTAX_EXTRAS = [
   {
     id: '§12C canonical-10 lookup-array naming',
-    files: [
-      'src/Scrapers/Pipeline/Mediator/Scrape/ScrapeReplay/**/*.ts',
-    ],
+    files: ['src/Scrapers/Pipeline/Mediator/Scrape/ScrapeReplay/**/*.ts'],
     rules: [LOWER_KEYS_ARRAY_RULE],
   },
 ];
@@ -1277,8 +1271,7 @@ const SUPPRESSION_COMMENT_OPTIONS = {
 
 const CANARY_EXTRA_RULES = {
   // §8i: `balance ?? 0` / `?? null` collapses unknown into a real value.
-  'src/Scrapers/Pipeline/EslintCanaries/balance-default-zero.canary.ts':
-    BALANCE_DEFAULT_DENY_RULES,
+  'src/Scrapers/Pipeline/EslintCanaries/balance-default-zero.canary.ts': BALANCE_DEFAULT_DENY_RULES,
   // §12C: `lower*Keys` implies membership testing — use a Set.
   'src/Scrapers/Pipeline/EslintCanaries/scrape-canonical10-lookup-array-shouldbe-set.canary.ts': [
     LOWER_KEYS_ARRAY_RULE,
@@ -1558,11 +1551,14 @@ export default tseslint.config(
       'jsdoc/check-tag-names': 'error',
 
       // Limits
-      'max-lines-per-function': ['error', { max: 20, skipBlankLines: true, skipComments: true }],
+      'max-lines-per-function': [
+        'error',
+        { max: 10, skipBlankLines: true, skipComments: true, IIFEs: true },
+      ],
       '@typescript-eslint/max-params': ['error', { max: 3 }],
       complexity: ['error', { max: 10 }],
       'max-classes-per-file': ['error', 1],
-      'max-lines': ['error', { max: 300, skipBlankLines: true, skipComments: true }],
+      'max-lines': ['error', { max: 150, skipBlankLines: true, skipComments: true }],
       'max-len': [
         'error',
         { code: 100, ignoreUrls: true, ignoreStrings: true, ignoreComments: true },
@@ -1686,7 +1682,10 @@ export default tseslint.config(
 
       // --- C. DEFAULT COMPLEXITY (STRICT) ---
       'max-lines': ['error', { max: 150, skipBlankLines: true, skipComments: true }],
-      'max-lines-per-function': ['error', { max: 15 }],
+      'max-lines-per-function': [
+        'error',
+        { max: 10, skipBlankLines: true, skipComments: true, IIFEs: true },
+      ],
       'max-depth': ['error', 1],
 
       // --- D. PR #261 REVIEW VALIDATORS ---
@@ -1710,16 +1709,6 @@ export default tseslint.config(
       // a Promise.
       'no-return-await': 'error',
       '@typescript-eslint/await-thenable': 'error',
-    },
-  },
-  // 7. INFRASTRUCTURE EXCEPTIONS (COMPLEXITY ONLY)
-  {
-    // These files can be longer, but they MUST still follow Section 6's architecture
-    files: ['src/Scrapers/Pipeline/{Mediator,Strategy,Types}/**/*.ts'],
-    rules: {
-      'max-lines': 'off',
-      'max-lines-per-function': 'off',
-      // DO NOT redefine no-restricted-syntax here; let Section 6 handle it.
     },
   },
 
@@ -2592,110 +2581,19 @@ export default tseslint.config(
     },
   },
 
-  // 19. ZERO-DRIFT GLOBAL BASELINE — PR #304 CR follow-up.
+  // 19. ZERO-DRIFT GLOBAL BASELINE — universal canonical 10/10 across all
+  // first-party production trees (`src/Scrapers/**` + `src/Common/**`).
   //
-  // Phase H §8a + Mediator §14b.* locked `max-lines-per-function:10`,
-  // `max-statements:10` for Pipeline/{Mediator,Phases,Network,Init,…}.
-  // PR #304 CR finding #1 caught a 12-LoC method in a shared base-class
-  // file — outside that scope,
-  // so ESLint stayed silent and the bad code shipped. This section
-  // extends the strict cap to ALL `src/Scrapers/**` + `src/Common/**`
-  // (the only remaining first-party production trees), then
-  // grandfathers known existing debt via per-directory caps locked at
-  // current state (commit 838de339).
-  //
-  // CONTRACT — NEW code MUST be ≤10/10. Modifying an existing function
-  // beyond its directory's grandfather cap fails the pre-commit hook.
-  // Refactoring should LOWER the caps in §19.grandfather; never raise.
-  // Phase 9 target: drive every grandfather cap down to 10/10.
-  //
-  // Test files (`src/Tests/**`) keep their `max-lines-per-function:'off'`
-  // exception (section 7) — tests are naturally long.
-
-  // 19.0 BASELINE — strict 10/10 across all first-party production trees.
+  // All former directory and file grandfathers (`Strategy`, `Types`, `Core`,
+  // `Phases`, `Banks`, `Registry`, `BasePhase.ts`, `Base`, `Common`) have been
+  // drained and retired. Test files (`src/Tests/**`) keep their
+  // `max-lines-per-function: 'off'` override from §4.
   {
     files: ['src/Scrapers/**/*.ts', 'src/Common/**/*.ts'],
     ignores: [
       'src/scrapers/**',
       'src/Scrapers/Pipeline/EslintCanaries/**',
-      // …except the one canary that exists to certify THIS block. The
-      // directory-wide ignore above means no canary can normally resolve
-      // through §19.0, so the strict 10/10 baseline — the last-wins
-      // declaration for the 65 `Mediator/Scrape` production files, and
-      // the default that the §19.1-§19.3 grandfathers override elsewhere
-      // — would have no canary coverage at all. Un-ignoring this single
-      // file lets it resolve exactly as those 65 do, so relaxing §19.0
-      // silences it.
       '!src/Scrapers/Pipeline/EslintCanaries/scrape-cluster-fn-over-cap.canary.ts',
-      'src/Scrapers/Registry/**',
-    ],
-    rules: {
-      'max-lines-per-function': ['error', { max: 10, skipBlankLines: true, skipComments: true }],
-      'max-statements': ['error', 10],
-    },
-  },
-
-  // 19.1 GRANDFATHER — Pipeline/Strategy (the Fetch transports).
-  {
-    files: ['src/Scrapers/Pipeline/Strategy/**/*.ts'],
-    rules: {
-      'max-lines-per-function': ['error', { max: 40, skipBlankLines: true, skipComments: true }],
-      'max-statements': ['error', 20],
-    },
-  },
-
-  // 19.1d FETCH TRANSPORT LOCK — new Strategy/Fetch files at the canonical caps.
-  //
-  // §19.1 (above) grandfathers ALL of `Strategy/**` to a loose 40-line /
-  // 20-statement per-function cap, and §7 turns the file-size guard off
-  // there. The browserless card transport adds four Fetch modules
-  // (CookieJar, OriginCookieJar, SessionCookieFetchStrategy) and the capped
-  // transport adds four (CappedBody, CappedInvoke, NativeFetchDispatch,
-  // NativeFetchNetwork) and the session transport adds nine
-  // (CookieMatch, SetCookieScope, DomainCookieJar, UrlRule,
-  // RedirectFollow, StatusPolicy, DocumentResponse, ResponseHeaderSink,
-  // HeaderText) and the body/answer encodings add two (Latin1Form,
-  // TextResponse), and the dynamic client certificate adds two
-  // (Mtls/MtlsAgentSource, Mtls/ClientCertHolder),
-  // all written fresh to
-  // the canonical caps — so, per `eslint-rules-guidlines.md` §1, this
-  // block pins exactly those files to the three-rule lock §19.0 sets for
-  // new first-party code (10 lines / 10 statements per function, 150
-  // lines per file). Flat
-  // config is last-wins and this block sits AFTER §19.1, so the strict
-  // caps win for these paths while the rest of Strategy/Fetch keeps its
-  // grandfather. §4 (narrow, never revert): scope is the seventeen new files
-  // only. 150 is justified: every listed module measures well under it
-  // (skipBlankLines + skipComments).
-  //
-  // Canaries: `fetch-transport-fn-over-cap.canary.ts` over-sizes one
-  // function and `fetch-transport-file-over-cap.canary.ts` over-sizes a
-  // file, so verify.sh confirms both `max-lines-per-function` and
-  // `max-lines` fire.
-  {
-    files: [
-      'src/Scrapers/Pipeline/Strategy/Fetch/CookieJar.ts',
-      'src/Scrapers/Pipeline/Strategy/Fetch/OriginCookieJar.ts',
-      'src/Scrapers/Pipeline/Strategy/Fetch/SessionCookieFetchStrategy.ts',
-      'src/Scrapers/Pipeline/Strategy/Fetch/CappedBody.ts',
-      'src/Scrapers/Pipeline/Strategy/Fetch/CappedInvoke.ts',
-      'src/Scrapers/Pipeline/Strategy/Fetch/NativeFetchDispatch.ts',
-      'src/Scrapers/Pipeline/Strategy/Fetch/NativeFetchNetwork.ts',
-      'src/Scrapers/Pipeline/Strategy/Fetch/CookieMatch.ts',
-      'src/Scrapers/Pipeline/Strategy/Fetch/SetCookieScope.ts',
-      'src/Scrapers/Pipeline/Strategy/Fetch/DomainCookieJar.ts',
-      'src/Scrapers/Pipeline/Strategy/Fetch/UrlRule.ts',
-      'src/Scrapers/Pipeline/Strategy/Fetch/RedirectFollow.ts',
-      'src/Scrapers/Pipeline/Strategy/Fetch/StatusPolicy.ts',
-      'src/Scrapers/Pipeline/Strategy/Fetch/DocumentResponse.ts',
-      'src/Scrapers/Pipeline/Strategy/Fetch/ResponseHeaderSink.ts',
-      'src/Scrapers/Pipeline/Strategy/Fetch/HeaderText.ts',
-      'src/Scrapers/Pipeline/Strategy/Fetch/Latin1Form.ts',
-      'src/Scrapers/Pipeline/Strategy/Fetch/TextResponse.ts',
-      'src/Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsAgentSource.ts',
-      'src/Scrapers/Pipeline/Strategy/Fetch/Mtls/ClientCertHolder.ts',
-      'src/Scrapers/Pipeline/EslintCanaries/fetch-transport-fn-over-cap.canary.ts',
-      'src/Scrapers/Pipeline/EslintCanaries/fetch-transport-file-over-cap.canary.ts',
     ],
     rules: {
       'max-lines-per-function': [
@@ -2703,143 +2601,6 @@ export default tseslint.config(
         { max: 10, skipBlankLines: true, skipComments: true, IIFEs: true },
       ],
       'max-statements': ['error', 10],
-      'max-lines': ['error', { max: 150, skipBlankLines: true, skipComments: true }],
-    },
-  },
-
-  // 19.2 GRANDFATHER — Pipeline/Types (6 files, 24+4).
-  //   EXCLUDES `Pipeline/Types/PiiRedactor/**` — that cluster is
-  //   locked at canonical 10/10 by §13 and the guideline-coverage
-  //   gate (`lint-guideline-coverage.ts`) actively enforces it.
-  //   Flat-config is last-wins, so a broad block here would silently
-  //   regress §13's PII security cap.
-  {
-    files: ['src/Scrapers/Pipeline/Types/**/*.ts'],
-    ignores: ['src/Scrapers/Pipeline/Types/PiiRedactor/**/*.ts'],
-    rules: {
-      'max-lines-per-function': ['error', { max: 30, skipBlankLines: true, skipComments: true }],
-      'max-statements': ['error', 20],
-    },
-  },
-
-  // 19.2a RE-TIGHTEN — Pipeline/Types/Domain back to the canonical 10.
-  //   §19.2 above is BROADER than the earlier `Types/Domain/**` block
-  //   (which sets `max-lines-per-function: 10`) and lands LATER, so
-  //   flat-config last-wins silently raised Domain from 10 to 30. The
-  //   earlier block's own comment states the intent — "any future
-  //   runtime code in this folder must fit within 10 LoC" — and its
-  //   canary lives outside `Types/**`, so it kept firing at 10 while
-  //   production Domain files resolved to 30, hiding the regression.
-  //   All 20 Domain files already satisfy 10, so this restores the
-  //   declared intent without draining anything.
-  {
-    files: [
-      'src/Scrapers/Pipeline/Types/Domain/**/*.ts',
-      'src/Scrapers/Pipeline/EslintCanaries/types-domain-fn-over-10.canary.ts',
-    ],
-    rules: {
-      'max-lines-per-function': [
-        'error',
-        { max: 10, skipBlankLines: true, skipComments: true, IIFEs: true },
-      ],
-    },
-  },
-
-  // 19.3 GRANDFATHER — Pipeline/Core + Phases + Banks + Registry.
-  {
-    files: [
-      'src/Scrapers/Pipeline/Core/**/*.ts',
-      'src/Scrapers/Pipeline/Phases/**/*.ts',
-      'src/Scrapers/Pipeline/Banks/**/*.ts',
-      'src/Scrapers/Pipeline/Registry/**/*.ts',
-    ],
-    rules: {
-      'max-lines-per-function': ['error', { max: 15, skipBlankLines: true, skipComments: true }],
-      'max-statements': ['error', 10],
-    },
-  },
-
-  // 19.3a GRANDFATHER — Pipeline/Phases/Base/BasePhase.ts (Phase 12b — BasePhase migration target).
-  //   Phase 12b decoupled the mislabeled 633-LoC `Pipeline/Types/BasePhase.ts`
-  //   hub: the BasePhase abstract class + its helper functions move into
-  //   their semantically correct sibling location, `Pipeline/Phases/Base/`,
-  //   leaving `Types/BasePhase.ts` as a thin re-export shim for the v8.5
-  //   release window.
-  //
-  //   SCOPE NARROWED + DRAINED (CR PR #338 iteration 2): the eight stage
-  //   orchestrators (`runStages`, `runStagesAfterPre`, `handleStage`,
-  //   `takePhaseScreenshot`, `runPre`, `runAction`, `runPost`, `runFinal`)
-  //   were reduced to fit the §19.3 cap of 15 by extracting six helpers.
-  //   They are NOT all ≤10: `runStagesAfterPre` (15), `runPost` (13),
-  //   `runFinal` (13), `handleStage` (12) and `takePhaseScreenshot` (11)
-  //   still exceed the canonical 10 and await the Base cap-10 rollout.
-  //   The six extracted helpers are:
-  //     • `wrapStageThrow<T>`     — try/catch envelope (CR F3 — promotes
-  //       thrown stage exceptions into structured Procedure failures so
-  //       the runtime contract is uniform across happy + sad paths)
-  //     • `snapshotPreFail`       — PRE-fail screenshot extraction
-  //     • `capturePageScreenshot` — split from takePhaseScreenshot
-  //     • `logStage<T>`           — central phase-stage debug emit
-  //     • `mockShortCircuit<T>`   — MOCK_MODE Option<Procedure<T>> short-circuit
-  //     • `mergeActionResult`     — ACTION's IActionContext → IPipelineContext merge
-  //   The per-function (`max-lines-per-function`) + per-method
-  //   (`max-statements`) overrides have been DELETED entirely — global
-  //   §19.3 (15/10) now applies. Only `max-lines: 'off'` remains because
-  //   the abstract Template Method file legitimately exceeds the 300-LoC
-  //   global cap (~520 LoC after all six extractions + their typedoc) —
-  //   same precedent §7 grants to `Pipeline/{Mediator,Strategy,Types}/**`.
-  //
-  //   Flat-config is last-wins, so this block MUST appear after §19.3.
-  {
-    files: ['src/Scrapers/Pipeline/Phases/Base/BasePhase.ts'],
-    rules: {
-      // ~520 LoC Template Method abstract class. Same `max-lines: off`
-      // precedent §7 grants to `Pipeline/{Mediator,Strategy,Types}/**`.
-      // Per-function caps inherited from §19.3 — no override. Those are
-      // `max-lines-per-function: 15` and `max-statements: 10`, NOT 10/10:
-      // six methods here still measure 11–15 effective lines, so this file
-      // awaits the Base cap-10 rollout CLEAN_CODE.md tracks as follow-up.
-      'max-lines': 'off',
-    },
-  },
-
-  // 19.3b NEW CORE FILES LOCK — new Pipeline/Core files at the canonical cap.
-  //
-  // §19.3 (above) grandfathers ALL of `Core/**` to 15 lines per function;
-  // its 10-statement cap and the 150-line file cap are already canonical.
-  // The browserless card work adds Core modules written fresh to the
-  // canonical caps, so, per `eslint-rules-guidlines.md` §1, this block pins
-  // exactly those files to 10 lines per function. Flat config is last-wins
-  // and this block sits AFTER §19.3, so the strict cap wins for these paths
-  // while the rest of Core keeps its grandfather. §4 (narrow, never revert):
-  // scope is the listed new files only.
-  //
-  // Canary: `core-new-file-fn-over-cap.canary.ts` over-sizes one function,
-  // so `npm run lint:canaries` confirms `max-lines-per-function` fires.
-  {
-    files: [
-      'src/Scrapers/Pipeline/Core/Builder/ApiDirectClientCertRules.ts',
-      'src/Scrapers/Pipeline/Core/Builder/ApiDirectConfigRules.ts',
-      'src/Scrapers/Pipeline/Core/Builder/ApiDirectNativeRules.ts',
-      'src/Scrapers/Pipeline/Core/Builder/ApiDirectRuleInput.ts',
-      'src/Scrapers/Pipeline/Core/Builder/ApiDirectTransportRules.ts',
-      'src/Scrapers/Pipeline/EslintCanaries/core-new-file-fn-over-cap.canary.ts',
-    ],
-    rules: {
-      'max-lines-per-function': [
-        'error',
-        { max: 10, skipBlankLines: true, skipComments: true, IIFEs: true },
-      ],
-    },
-  },
-
-  // 19.5 GRANDFATHER — Base + Common.
-  // Phase 9 plans a per-file refactor pass to bring each ≤10/10.
-  {
-    files: ['src/Scrapers/Base/**/*.ts', 'src/Common/**/*.ts'],
-    rules: {
-      'max-lines-per-function': ['error', { max: 20, skipBlankLines: true, skipComments: true }],
-      'max-statements': ['error', 12],
     },
   },
 

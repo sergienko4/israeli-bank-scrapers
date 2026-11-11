@@ -33,17 +33,11 @@ export interface IClusterExpectations {
 
 /**
  * Canonical caps from CLEAN_CODE.md (the single source of truth).
- *   • Every drained cluster (§11/§12/§12B/§13/§14) holds the
- *     canonical ≤10 LoC per function HARD CAP (post Phase 8.5a/b/c).
- *   • §3 Main Source Strict still resolves `max-lines` to 300, so that
- *     ONE rule is deferred by name; its other three caps are enforced.
- *   • §6 Pipeline Phases already resolves every cap it declares, so it
- *     is enforced outright. That is what makes deleting a per-cluster
- *     declaration fail this gate rather than pass unnoticed.
- *   • §19.1d is not a drain: it pins the new Strategy/Fetch transport
- *     files to the canonical caps from the day they land.
- *   • §19.3b is not a drain either: it pins new Core files to the
- *     canonical 10-line function cap from the day they land.
+ * Every cluster holds the universal canonical caps with zero deferrals:
+ *   • `max-lines`: 150
+ *   • `max-lines-per-function`: 10
+ *   • `complexity`: 10
+ *   • `@typescript-eslint/max-params`: 3
  * Per-cluster overrides are allowed to be STRICTER but never laxer.
  */
 export const PIPELINE_CLUSTERS: readonly IClusterExpectations[] = [
@@ -52,23 +46,17 @@ export const PIPELINE_CLUSTERS: readonly IClusterExpectations[] = [
     representativeFile: 'src/index.ts',
     expectations: [
       { ruleId: 'max-lines', maxAllowed: 150 },
-      { ruleId: 'max-lines-per-function', maxAllowed: 20 },
+      { ruleId: 'max-lines-per-function', maxAllowed: 10 },
       { ruleId: 'complexity', maxAllowed: 10 },
       { ruleId: '@typescript-eslint/max-params', maxAllowed: 3 },
     ],
-    deferredRules: ['max-lines'],
   },
   {
-    // The §6 label is the config section, not the whole Pipeline tree: this row
-    // measures only the `Phases/**` regime that its representative sits in
-    // (15 per function, granted by the §19.3 grandfather rather than the
-    // canonical 10). The other regimes are covered by the per-file sweep in
-    // `lint:guideline-coverage`, not by this row.
     clusterName: 'Pipeline Phases regime (§6)',
     representativeFile: 'src/Scrapers/Pipeline/Phases/ApiDirectCall/ApiDirectCallPhase.ts',
     expectations: [
       { ruleId: 'max-lines', maxAllowed: 150 },
-      { ruleId: 'max-lines-per-function', maxAllowed: 15 },
+      { ruleId: 'max-lines-per-function', maxAllowed: 10 },
       { ruleId: 'complexity', maxAllowed: 10 },
       { ruleId: '@typescript-eslint/max-params', maxAllowed: 3 },
     ],
@@ -127,7 +115,7 @@ export const PIPELINE_CLUSTERS: readonly IClusterExpectations[] = [
     ],
   },
   {
-    clusterName: 'Strategy Fetch transport (§19.1d)',
+    clusterName: 'Strategy Fetch (§6/§19)',
     representativeFile: 'src/Scrapers/Pipeline/Strategy/Fetch/CappedInvoke.ts',
     expectations: [
       { ruleId: 'max-lines', maxAllowed: 150 },
@@ -137,7 +125,7 @@ export const PIPELINE_CLUSTERS: readonly IClusterExpectations[] = [
     ],
   },
   {
-    clusterName: 'Core new files (§19.3b)',
+    clusterName: 'Core (§6/§19)',
     representativeFile: 'src/Scrapers/Pipeline/Core/Builder/ApiDirectConfigRules.ts',
     expectations: [
       { ruleId: 'max-lines', maxAllowed: 150 },

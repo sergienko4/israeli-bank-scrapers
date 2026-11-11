@@ -19,55 +19,34 @@ PR #278 can never recur.
 
 | Cap                   | Value                             | Rule                            | Scope                          |
 | --------------------- | --------------------------------- | ------------------------------- | ------------------------------ |
-| File size             | **150** effective LoC             | `max-lines`                     | All `src/Scrapers/Pipeline/**` |
-| Per-function LoC      | **≤ 10** (hard cap)               | `max-lines-per-function`        | Per cluster (see below)        |
-| Cyclomatic complexity | **10**                            | `complexity`                    | All `src/Scrapers/Pipeline/**` |
-| Parameter count       | **3** (use options object beyond) | `@typescript-eslint/max-params` | All `src/Scrapers/Pipeline/**` |
+| File size             | **150** effective LoC             | `max-lines`                     | All production `src/**`        |
+| Per-function LoC      | **≤ 10** (hard cap)               | `max-lines-per-function`        | All production `src/**`        |
+| Cyclomatic complexity | **10**                            | `complexity`                    | All production `src/**`        |
+| Parameter count       | **3** (use options object beyond) | `@typescript-eslint/max-params` | All production `src/**`        |
 | Nesting depth         | **1**                             | `max-depth`                     | All `src/Scrapers/Pipeline/**` |
 | Classes per file      | **1**                             | `max-classes-per-file`          | All `src/**`                   |
 
-### Per-cluster `max-lines-per-function` (sourced from `eslint.config.mjs`)
+Every production tree (`src/index.ts`, `src/Common/**`, `src/Scrapers/Base/**`,
+`src/Scrapers/Registry/**`, and every `src/Scrapers/Pipeline/**` cluster)
+enforces `max-lines: 150` and `max-lines-per-function: 10` universally with
+zero grandfather overrides in `eslint.config.mjs` or
+`src/Tests/Tools/CapOverrides.ts`.
 
-| Cluster                 | Cap                           | Rationale                                                                                                                                                                                                                         |
-| ----------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| PiiRedactor (§13)       | **10**                        | Phase 8.5c drained the §13A `Facade.ts` grandfather (Routing + Dispatch + Composer split); the cluster now matches the canonical ≤10-LoC cap end-to-end.                                                                          |
-| Network (§11)           | **10**                        | Phase 8.5a drained the three grandfathered files and tightened the cap to match the canonical ≤10-LoC cap.                                                                                                                        |
-| Scrape (§12)            | **10**                        | Phase 8.5b drained the Scrape grandfathers; the cluster matches the canonical ≤10-LoC cap.                                                                                                                                        |
-| ConfigContracts (§14)   | **10**                        | Phase 8 split the IApiDirectCallConfig god-tree; sub-modules adopt the canonical ≤10-LoC cap.                                                                                                                                     |
-| Mediator Phase 2 (§14b) | **10** (full three-rule lock) | Phase 2 mega-PR drove ALL THREE Mediator/ clusters down to `max-statements: 10` + `max-lines-per-function: 10` + `max-lines: 150` (no relaxation). The strict-mode lockdown lands as a single chore commit at the end of Phase 2. |
-| Default §6C base        | **15**                        | All other Pipeline files; can be overridden stricter (the canonical target is 10 for every cluster — broader Types/** + Base/** per-fn:10 rollout is tracked as a follow-up).                                                     |
+> **Parameter count.** Multi-line typed signatures do NOT relax the
+> global ≤ 3-parameter cap (`@typescript-eslint/max-params`, row 4 of
+> the table above). Multi-line signatures exist only because the typed
+> parameter list of a 3-arg function exceeds the 100-char line cap;
+> functions that need more than three inputs MUST bundle the extras into
+> a `Readonly<{...}>` options object (the `IFooArgs` pattern used
+> throughout `Mediator/**`).
 
-> **Phase 2 lockdown — full three-rule lock (no relaxation).** §14b
-> covers the surviving API login, scrape and timing mediators; the exact
-> enforcing globs and their live canary scopes are in `eslint.config.mjs`.
-> Browser-only clusters and their dedicated canaries have been retired.
-> It
-> enforces all three caps simultaneously: `max-statements: 10` +
-> `max-lines-per-function: 10` + `max-lines: 150`. Earlier revisions of
-> the lockdown enforced only `max-statements` and deferred file-cap +
-> per-function-LoC to a follow-up — the user explicitly rejected that
-> relaxation and required the full strict three-rule lock to land in
-> the Phase 2 mega-PR. Every Phase 2 cluster file now passes all three
-> rules. Canary fixtures prove the enforcing selectors still fire.
->
-> **Parameter count.** The Phase 2 multi-line typed signature pattern
-> does NOT relax the global ≤ 3-parameter cap (`@typescript-eslint/max-params`,
-> row 5 of the table above). Multi-line signatures exist only because
-> the typed parameter list of a 3-arg function exceeds the 100-char
-> line cap; functions that need more than three inputs MUST bundle
-> the extras into a `Readonly<{...}>` options object (the `IFooArgs`
-> pattern used throughout `Mediator/**`). This applies to every Pipeline
-> cluster — Phase 2 included.
-
-> **Footnote — historical "ideal vs hard" terminology.** Earlier
-> phases of this codebase used "10 ideal / 20 hard" language. That
-> dual-tier was a transitional accommodation while clusters were
-> being drained one at a time. With Phase 8.5a/b/c complete, every
-> drained cluster enforces ≤10 LoC per function as a hard cap. Any
-> remaining `max-lines-per-function` value above 10 in
-> `eslint.config.mjs` corresponds to a not-yet-drained cluster
-> tracked for a future phase, NOT a license to write longer
-> functions in already-drained code.
+> **Footnote — historical "ideal vs hard" and grandfather terminology.**
+> Earlier phases of this codebase used "10 ideal / 20 hard" language and
+> temporary per-cluster grandfather blocks while clusters were drained
+> one at a time. All grandfather overrides have been retired: every
+> production module now enforces ≤ 10 LoC per function and ≤ 150
+> effective LoC per file as universal hard caps, verified on every
+> commit by `npm run lint:guideline-coverage` and Canary fixtures.
 
 ---
 
