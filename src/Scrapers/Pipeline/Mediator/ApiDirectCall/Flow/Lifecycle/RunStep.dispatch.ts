@@ -3,30 +3,30 @@
  * merge carry, and the top-level `runStep` entrypoint.
  */
 
-import { getDebug } from '../../../Logging/Debug.js';
-import { redactErrorMessage } from '../../../Types/PiiRedactor.js';
-import type { Procedure } from '../../../Types/Procedure.js';
-import { isOk, succeed } from '../../../Types/Procedure.js';
-import { extractFields } from '../Envelope/GenericEnvelopeParser.js';
-import type { ITemplateScope } from '../Template/RefResolver.js';
-import { openGuardedAnswer } from './Signing/RunStep.codec.js';
-import { answerSlots } from './Steps/RunStep.answerSlots.js';
-import { deriveStepCarry } from './Steps/RunStep.derive.js';
-import { ruleStepCarry } from './Steps/RunStep.extractRules.js';
-import { sanitiseStepFailure } from './Steps/RunStep.failure.js';
-import { fireStep } from './Steps/RunStep.fire.js';
-import { judgeAnswer } from './Steps/RunStep.judge.js';
-import { extractOptional } from './Steps/RunStep.optional.js';
-import { buildDispatchBundle, mergeScopeCarry } from './Steps/RunStep.prepare.js';
-import { prepareStepSession } from './Steps/RunStep.session.js';
+import { getDebug } from '../../../../Logging/Debug.js';
+import { redactErrorMessage } from '../../../../Types/PiiRedactor.js';
+import type { Procedure } from '../../../../Types/Procedure.js';
+import { isOk, succeed } from '../../../../Types/Procedure.js';
+import { extractFields } from '../../Envelope/GenericEnvelopeParser.js';
+import type { ITemplateScope } from '../../Template/RefResolver.js';
+import { openGuardedAnswer } from '../Signing/RunStep.codec.js';
+import { answerSlots } from '../Steps/RunStep.answerSlots.js';
+import { deriveStepCarry } from '../Steps/RunStep.derive.js';
+import { ruleStepCarry } from '../Steps/RunStep.extractRules.js';
+import { sanitiseStepFailure } from '../Steps/RunStep.failure.js';
+import { fireStep } from '../Steps/RunStep.fire.js';
+import { judgeAnswer } from '../Steps/RunStep.judge.js';
+import { extractOptional } from '../Steps/RunStep.optional.js';
+import { buildDispatchBundle, mergeScopeCarry } from '../Steps/RunStep.prepare.js';
+import { prepareStepSession } from '../Steps/RunStep.session.js';
 import type {
   CarryMap,
   IDispatchBundle,
   IRespDescriptor,
   IRunStepArgs,
   JsonValue,
-} from './Steps/RunStep.types.js';
-import { resolvePathAndQuery } from './Steps/RunStep.url.js';
+} from '../Steps/RunStep.types.js';
+import { resolvePathAndQuery } from '../Steps/RunStep.url.js';
 
 const LOG = getDebug(import.meta.url);
 
