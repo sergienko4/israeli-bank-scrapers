@@ -186,10 +186,13 @@ included, and `isColdStart` charges it to the one-SMS budget, leaving nothing
 for the cold retry if the bank rejects the seed. A config with no steps is
 no exception: `isColdStart` charges index 0 whether or not a step runs.
 `fromStepIndex` equal to `steps.length` runs no steps, because the stored value
-is already the final token. A fractional or `NaN` index fails the build,
-because the step walker would read a missing step and throw instead of
-failing the warm attempt into the cold retry. An index above `steps.length`
-fails it too: it would silently run no steps, which only a typo produces.
+is already the final token; only JWT validation may use that index. With
+`validation: 'bank-call'` the index must be less than `steps.length`, because
+the builder rejects an equal index: the bank-call check needs a step to run.
+A fractional or `NaN` index fails the build, because the step walker would
+read a missing step and throw instead of failing the warm attempt into the
+cold retry. An index above `steps.length` fails it too: it would silently run
+no steps, which only a typo produces.
 
 A config `pattern` or `valuePattern` is tested against bank and caller text, so
 the build accepts only a flat regex, which matches in linear time.

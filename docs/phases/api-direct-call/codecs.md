@@ -147,6 +147,7 @@ extractRules: {
   A header slot is always ruled: it holds the header, or its `fallback`.
 
 ```ts
+extractsToCarry: { certPem: '/certPem' },
 headerExtractsToCarry: { deviceStatus: { header: 'device-status' } },
 extractRules: {
   certPem: { type: 'string', pemCertificate: { keyRef: 'carry.certKeyPem' } },

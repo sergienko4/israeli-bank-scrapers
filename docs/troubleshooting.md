@@ -15,8 +15,8 @@ interactive CAPTCHA.
 | `blocked by Cloudflare edge (WAF) before reaching the API`    | The edge refused the client identity or TLS fingerprint; see [OneZero](banks/onezero.md#what-happens-when-the-edge-refuses) |
 | `challenged by Cloudflare edge (WAF) before reaching the API` | The edge returned a challenge; stop retrying immediately and wait                                                           |
 
-Read `errorMessage` for the failed call and status. API-direct failures attach
-`errorDetails` only on the Cloudflare/WAF path.
+Read `errorMessage` for the failed call and status. Cloudflare/WAF refusals do
+not attach `errorDetails`.
 
 ## `server certificate chain is below the TLS security floor`
 

@@ -1,5 +1,7 @@
 # API-DIRECT-CALL — Overview
 
+<a id="unified-api-direct-primitives"></a>
+
 How the phase is assembled: the shared primitives, the step model and the sub-step contract every api-direct bank reuses.
 
 Every api-direct bank reuses the **same building blocks** below the phase, so adding a new device-bound or symmetric-signing bank is config-only — no mediator code.
@@ -110,7 +112,7 @@ for a cold run of such a chain. Nothing branches on that label.
 
 | Hook      | What it does                                                                                                                                                                                                                                                                   |
 | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `.pre`    | Resolve `apiDirectCallConfig` from the bank's `PipelineDescriptor`; seed carry.                                                                                                                                                                                                |
+| `.pre`    | Resolve `apiDirectCallConfig` from the bank's `PipelineDescriptor`; classify and log the run's login kind. It does not seed carry — flow initialisation does that.                                                                                                             |
 | `.action` | Run the declarative step list: each POST step has a body template + optional crypto hook + optional signer; a [GET step](#get-steps) has no body. The mediator hydrates, signs, sends, parses response, updates carry. OTP step calls `credentials.otpCodeRetriever` mid-flow. |
 | `.post`   | Validate the final carry has the required slots (auth token, user id).                                                                                                                                                                                                         |
 | `.final`  | Publish the final carry via `setSessionContext`; build `IApiFetchContext`; commit `api` + `login` slots.                                                                                                                                                                       |

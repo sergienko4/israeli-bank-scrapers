@@ -122,16 +122,18 @@ slice.
 
 ## Transport errors
 
-Every HTTP transport — native fetch and its mTLS variant — names a URL in
-its errors and debug logs through `safeUrlForLog`, which keeps only the origin
-and path. Query parameters can carry device ids and session values, so they
-never reach an error message or a log line. Native fetch also passes
-a caught exception's text through `scrubUrlFromText`, so a transport message that
-quotes the request URL keeps only its origin and path as well.
+Every HTTP transport — native fetch and its mTLS variant — names the request
+URL in its errors and debug logs through `safeUrlForLog`, which keeps only the
+origin and path. Query parameters can carry device ids and session values, so
+they never reach an error message or a log line from that URL. Native fetch also
+passes a caught exception's text through `scrubUrlFromText`, so a transport
+message that quotes the request URL keeps only its origin and path as well.
+Response text is not covered by that guarantee: `classifyHttpFailure` appends
+the first 120 characters of the body to a non-2xx `GENERIC`, and a bank can echo
+query parameters back in it.
 
-A non-2xx response becomes `GENERIC`, with the message
-`<VERB> <url> <status>: ` followed by the first 120 characters of the body.
-The exception is a Cloudflare block page: a `4xx` HTML page carrying
+A non-2xx response becomes `GENERIC` with a `<VERB> <url> <status>: ` prefix;
+the exception is a Cloudflare block page: a `4xx` HTML page carrying
 Cloudflare's `cf-error` markers becomes `WAF_BLOCKED`, and a fixed reason
 replaces the body, because that page embeds the caller's IP and a Ray ID.
 Cloudflare's `5xx` origin-error pages carry the same markers but mean the bank

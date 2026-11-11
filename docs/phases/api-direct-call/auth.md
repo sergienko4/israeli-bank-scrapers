@@ -98,9 +98,12 @@ refresh path, not from a bug report — no issue tracks it.
 ### What changed for callers
 
 A session that dies mid-scrape used to be repaired in place, silently, at the
-cost of a message the caller never asked for. The first repair still happens.
-A second is refused rather than replaying a login the bank has already
-rejected.
+cost of a message the caller never asked for. A repair is a cold login, so it
+draws on the same one-SMS budget as the initial login. When the initial login
+was warm, the budget is unspent and the first repair runs; a second is refused
+rather than replaying a login the bank has already rejected. When the initial
+login was cold, the budget is already spent: the first repair is refused and
+the existing header is returned without another login.
 
 What a refusal looks like depends on what the run has to offer:
 
