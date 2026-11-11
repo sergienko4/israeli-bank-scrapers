@@ -8,14 +8,16 @@ the central redaction pipeline before write.
 
 ## Common fields
 
-| Field    | Type   | Notes                                                                               |
-| -------- | ------ | ----------------------------------------------------------------------------------- |
-| `bank`   | string | Active bank's async-local context                                                   |
-| `phase`  | string | `api-direct-call` or `api-direct-scrape` during phase execution                     |
-| `stage`  | string | `PRE`, `ACTION`, `POST` or `FINAL`                                                  |
-| `runId`  | string | Per-process run stamp; also names the trace folder when enabled                     |
-| `module` | string | Logger/module identifier; typically derived from the module URL, not the phase name |
-| `event`  | string | Present on discriminated events, including `phase-stage`                            |
+| Field    | Type   | Notes                                                                                                    |
+| -------- | ------ | -------------------------------------------------------------------------------------------------------- |
+| `bank`   | string | Active bank's async-local context (entered by `PipelineExecutor` via `runWithBankContext`)               |
+| `phase`  | string | `api-direct-call` or `api-direct-scrape` during phase execution (process-global via `ActiveState`)       |
+| `stage`  | string | `PRE`, `ACTION`, `POST` or `FINAL` (process-global via `ActiveState`)                                    |
+| `runId`  | string | Per-bank-run stamp (reset when `setActiveBank` switches banks); also names the trace folder when enabled |
+| `module` | string | Logger/module identifier; typically derived from the module URL, not the phase name                      |
+| `event`  | string | Present on discriminated events, including `phase-stage`                                                 |
+
+> **Concurrency note:** `bank` is scoped to each `executePipeline` call via `AsyncLocalStorage`, and `setActiveBank` clears `TraceConfig`'s cached run folder, network directories, and `runId` (minted uniquely via `TraceStamp`'s `nextRunStamp`, reset in tests via `resetRunStampState`) whenever the active bank slug changes so sequential runs in one process stay isolated. `ActiveState` (`phase` and `stage`) and `TraceConfig`'s active-bank, `runId`, and forensic artefact directory state remain process-global, so concurrent scrapes in the same process still share `phase`/`stage` labels, `runId`, and trace output paths; migrating them to async-local storage is a separate follow-up.
 
 ### Phase-stage records
 

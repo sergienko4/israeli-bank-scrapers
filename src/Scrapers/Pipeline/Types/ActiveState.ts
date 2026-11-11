@@ -2,6 +2,12 @@
  * Global pipeline state — active phase + stage.
  * Zero dependencies — safe to import from ANY module (no circular risk).
  * Set by BasePhase.run() via mediator. Read by any LOG call via getters.
+ *
+ * Residual concurrency boundary: unlike `Logging/BankContext` (which stores
+ * `bank` in `AsyncLocalStorage` per `executePipeline` run), `activePhase` and
+ * `activeStage` remain process-global module variables. Sequential scrapes in
+ * one process are isolated, whereas concurrent scrapes in the same process
+ * share these `phase` / `stage` labels until a future async-local migration.
  */
 
 import type { Brand } from './Brand.js';
