@@ -13,7 +13,7 @@ import type {
   IStepConfig,
 } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { captureSlotsOf } from '../../Mediator/ApiDirectCall/Flow/RunStep.textCapture.js';
-import type { IHeadlessUrlsConfig } from '../../Registry/Config/PipelineBankConfigTypes.js';
+import type { ITransportConfig } from '../../Registry/Config/PipelineBankConfigTypes.js';
 
 /** Longest value a config `maxChars` may allow. */
 const MAX_RULE_CHARS = 65536;
@@ -27,7 +27,7 @@ type AnswerCaptureEntry = readonly [string, IAnswerCapture];
 /** What the rules read: the call config and the bank's headless block. */
 interface IApiDirectRuleInput {
   readonly call: IApiDirectCallConfig;
-  readonly headless: IHeadlessUrlsConfig | false;
+  readonly headless: ITransportConfig | false;
 }
 
 /** One rule: the failure text and the check that finds it broken. */

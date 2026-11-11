@@ -7,7 +7,7 @@
 
 import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { MAX_ACCESS_TOKEN_CHARS } from '../../Mediator/ApiDirectCall/PersistentAuthStateRules.js';
-import type { IHeadlessUrlsConfig } from './PipelineBankConfigTypes.js';
+import type { ITransportConfig } from './PipelineBankConfigTypes.js';
 import { YAHAV_AUTH_PATHS, YAHAV_NATIVE_ORIGIN } from './PipelineBankConfigYahavConstants.js';
 import { YAHAV_RESUME_STEP_INDEX, YAHAV_STEPS } from './PipelineBankConfigYahavSteps.js';
 
@@ -37,7 +37,7 @@ const YAHAV_API_DIRECT_CALL: IApiDirectCallConfig = {
   steps: YAHAV_STEPS,
 };
 
-const YAHAV_HEADLESS: IHeadlessUrlsConfig = {
+const YAHAV_HEADLESS: ITransportConfig = {
   identityBase: `${YAHAV_NATIVE_ORIGIN}/`,
   // Yahav has no GraphQL; graphql names the native origin to satisfy the type.
   graphql: `${YAHAV_NATIVE_ORIGIN}/`,

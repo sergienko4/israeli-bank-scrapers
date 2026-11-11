@@ -11,7 +11,7 @@
  * Canary: `Tests/Unit/Pipeline/Registry/Config/PipelineBankConfigOneZeroWaf.test.ts`.
  */
 
-import type { IHeadlessUrlsConfig } from './PipelineBankConfigTypes.js';
+import type { ITransportConfig } from './PipelineBankConfigTypes.js';
 
 /**
  * User-Agent of the OneZero Android app (version 4.7.0, build 564). The WAF
@@ -22,7 +22,7 @@ import type { IHeadlessUrlsConfig } from './PipelineBankConfigTypes.js';
 const ONEZERO_USER_AGENT = 'ONEZEROIL/4.7.0(564) Lokalize/0 (Android 11 ; Pixel 3) MTLS';
 
 /** OneZero headless identity, GraphQL and auth endpoints plus transport identity. */
-const ONEZERO_HEADLESS: IHeadlessUrlsConfig = {
+const ONEZERO_HEADLESS: ITransportConfig = {
   identityBase: 'https://identity.tfd-bank.com/v1/',
   graphql: 'https://mobile.tfd-bank.com/mobile-graph/graphql',
   paths: {

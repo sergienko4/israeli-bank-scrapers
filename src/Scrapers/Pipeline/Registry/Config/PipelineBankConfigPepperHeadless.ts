@@ -4,10 +4,10 @@
  * each one verbatim, so no caller concatenates `identityBase` with a path.
  */
 
-import type { IHeadlessUrlsConfig } from './PipelineBankConfigTypes.js';
+import type { ITransportConfig } from './PipelineBankConfigTypes.js';
 
 /** Pepper headless identity, GraphQL and auth endpoints. */
-const PEPPER_HEADLESS: IHeadlessUrlsConfig = {
+const PEPPER_HEADLESS: ITransportConfig = {
   identityBase: 'https://sa.pepper.co.il/',
   graphql: 'https://fe-sec.pepper.co.il/graphql',
   paths: {

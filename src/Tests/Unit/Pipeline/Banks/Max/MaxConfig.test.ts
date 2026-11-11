@@ -23,12 +23,12 @@ import { hydrate } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall
 const CONFIG_DIR = '../../../../../Scrapers/Pipeline/Registry/Config/';
 
 /** The bank's headless block, as the build-time validator reads it. */
-type IHeadlessUrlsConfig = Exclude<IApiDirectRuleInput['headless'], false>;
+type ITransportConfig = Exclude<IApiDirectRuleInput['headless'], false>;
 
 /** Max's login config and headless block. */
 interface IMaxModule {
   readonly call: IApiDirectCallConfig;
-  readonly headless: IHeadlessUrlsConfig;
+  readonly headless: ITransportConfig;
 }
 
 const ORIGIN = 'https://www.max.co.il';
@@ -42,7 +42,7 @@ async function loadMax(): Promise<IMaxModule> {
   const path = `${CONFIG_DIR}PipelineBankConfigMax.js`;
   const loaded = (await import(path)) as Record<string, unknown>;
   const call = loaded.default as IApiDirectCallConfig;
-  const headless = loaded.MAX_HEADLESS as IHeadlessUrlsConfig;
+  const headless = loaded.MAX_HEADLESS as ITransportConfig;
   return { call, headless };
 }
 

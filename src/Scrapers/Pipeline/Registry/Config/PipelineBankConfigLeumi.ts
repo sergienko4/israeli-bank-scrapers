@@ -19,7 +19,7 @@ import {
   LEUMI_TRANSMIT_STEPS,
 } from './PipelineBankConfigLeumiTransmit.js';
 import deviceFingerprint from './PipelineBankConfigRuntimeFingerprint.js';
-import type { IHeadlessUrlsConfig } from './PipelineBankConfigTypes.js';
+import type { ITransportConfig } from './PipelineBankConfigTypes.js';
 
 const ORIGIN = 'https://hb2.bankleumi.co.il';
 const LEUMI_API_DIRECT_CALL: IApiDirectCallConfig = {
@@ -34,7 +34,7 @@ const LEUMI_API_DIRECT_CALL: IApiDirectCallConfig = {
   seedCarryFromCreds: [...LEUMI_TRANSMIT_SEEDS, ...LEUMI_PORTAL_SEEDS],
   steps: [...LEUMI_BOOTSTRAP_STEPS, ...LEUMI_TRANSMIT_STEPS, ...LEUMI_PORTAL_STEPS],
 };
-const LEUMI_HEADLESS: IHeadlessUrlsConfig = {
+const LEUMI_HEADLESS: ITransportConfig = {
   identityBase: ORIGIN,
   graphql: `${ORIGIN}/`,
   paths: { ...LEUMI_BOOTSTRAP_PATHS, ...LEUMI_TRANSMIT_PATHS, ...LEUMI_PORTAL_PATHS },

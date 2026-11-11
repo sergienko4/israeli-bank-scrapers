@@ -31,7 +31,7 @@ import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 const CONFIG_DIR = '../../../../../Scrapers/Pipeline/Registry/Config/';
 
 /** The bank's headless block, as the build-time validator reads it. */
-type IHeadlessUrlsConfig = Exclude<IApiDirectRuleInput['headless'], false>;
+type ITransportConfig = Exclude<IApiDirectRuleInput['headless'], false>;
 
 /** One ring issuer: where its config lives and the values a live login proved. */
 interface IRingIssuer {
@@ -68,7 +68,7 @@ const ISSUERS: readonly IRingIssuer[] = [
 /** An issuer's login config and headless block. */
 interface IRingModule {
   readonly call: IApiDirectCallConfig;
-  readonly headless: IHeadlessUrlsConfig;
+  readonly headless: ITransportConfig;
 }
 
 const CREDS = { id: '012345678', card6Digits: '123456', password: 'pw' } as const;
@@ -180,7 +180,7 @@ const EXPECTED_SERVICES = [
 async function loadModule(issuer: IRingIssuer): Promise<IRingModule> {
   const loaded = (await import(`${CONFIG_DIR}${issuer.module}`)) as Record<string, unknown>;
   const call = loaded.default as IApiDirectCallConfig;
-  const headless = loaded[issuer.headlessExport] as IHeadlessUrlsConfig;
+  const headless = loaded[issuer.headlessExport] as ITransportConfig;
   return { call, headless };
 }
 

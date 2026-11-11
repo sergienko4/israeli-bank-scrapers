@@ -24,7 +24,7 @@ import type {
   IStepConfig,
 } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { MAX_ORIGIN, MAX_STATIC_HEADERS } from './PipelineBankConfigMaxConstants.js';
-import type { IHeadlessUrlsConfig } from './PipelineBankConfigTypes.js';
+import type { ITransportConfig } from './PipelineBankConfigTypes.js';
 
 /** Per-call headers: the run's flow id as the session id, and a fresh correlation id. */
 const MAX_CALL_HEADERS = { sid: { $ref: 'carry.flowId' }, cid: { $ref: 'uuid' } } as const;
@@ -73,7 +73,7 @@ const MAX_API_DIRECT_CALL: IApiDirectCallConfig = {
 };
 
 /** Max headless endpoints. Every path is a full URL, registered verbatim. */
-const MAX_HEADLESS: IHeadlessUrlsConfig = {
+const MAX_HEADLESS: ITransportConfig = {
   identityBase: `${MAX_ORIGIN}/`,
   // Max has no GraphQL; graphql mirrors identityBase to satisfy the type.
   graphql: `${MAX_ORIGIN}/`,

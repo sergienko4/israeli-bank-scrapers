@@ -37,7 +37,7 @@ import {
   telebankLoginPage,
 } from './PipelineBankConfigTelebankFamilyConstants.js';
 import { telebankLoginSteps } from './PipelineBankConfigTelebankFamilySteps.js';
-import type { IHeadlessUrlsConfig } from './PipelineBankConfigTypes.js';
+import type { ITransportConfig } from './PipelineBankConfigTypes.js';
 
 /** The headless block's transport: one jar for the telebank domain, no stray redirect. */
 const TELEBANK_WIRE = {
@@ -91,7 +91,7 @@ function buildTelebankApiDirectCall(brand: ITelebankBrand): IApiDirectCallConfig
  * @param brand - Telebank brand.
  * @returns The headless block.
  */
-function buildTelebankHeadless(brand: ITelebankBrand): IHeadlessUrlsConfig {
+function buildTelebankHeadless(brand: ITelebankBrand): ITransportConfig {
   const base = `${TELEBANK_ORIGIN}/`;
   const paths = {
     'auth.prime': telebankLoginPage(brand),

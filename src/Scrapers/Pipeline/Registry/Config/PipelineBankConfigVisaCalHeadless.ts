@@ -5,13 +5,13 @@
  * here. Every path is a full URL, registered verbatim.
  */
 
-import type { IHeadlessUrlsConfig } from './PipelineBankConfigTypes.js';
+import type { ITransportConfig } from './PipelineBankConfigTypes.js';
 
 /** CAL mobile gateway — the host the Android app signs in on. */
 const CAL_LOGIN_BASE = 'https://api-cc.cal-online.co.il/';
 
 /** VisaCal headless identity and login endpoints. */
-const VISACAL_HEADLESS: IHeadlessUrlsConfig = {
+const VISACAL_HEADLESS: ITransportConfig = {
   identityBase: CAL_LOGIN_BASE,
   // CAL has no GraphQL; graphql mirrors identityBase to satisfy the type.
   graphql: CAL_LOGIN_BASE,

@@ -9,7 +9,7 @@ import { CompanyTypes } from '../../../../Definitions.js';
 import type { Brand } from '../../Types/Brand.js';
 import type { WKUrlGroup } from '../WK/UrlsWK.js';
 import { registerWkUrl } from '../WK/UrlsWK.js';
-import type { IHeadlessUrlsConfig, IPipelineBankConfig } from './PipelineBankConfigTypes.js';
+import type { IPipelineBankConfig, ITransportConfig } from './PipelineBankConfigTypes.js';
 
 /** WK seeder per-call result — branded so Rule #15 accepts the boolean return. */
 type DidSeed = Brand<boolean, 'DidSeed'>;
@@ -34,7 +34,7 @@ function seedOnePath(bankHint: CompanyTypes, key: string, url?: string): DidSeed
  * @param headless - Headless URLs block.
  * @returns True once all entries are written.
  */
-function seedWkFromHeadless(bankHint: CompanyTypes, headless: IHeadlessUrlsConfig): DidSeed {
+function seedWkFromHeadless(bankHint: CompanyTypes, headless: ITransportConfig): DidSeed {
   registerWkUrl('identityBase', bankHint, headless.identityBase);
   registerWkUrl('graphql', bankHint, headless.graphql);
   for (const [key, url] of Object.entries(headless.paths)) seedOnePath(bankHint, key, url);
