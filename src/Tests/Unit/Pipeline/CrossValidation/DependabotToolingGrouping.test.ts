@@ -9,7 +9,7 @@
  * go green without them.
  *
  * <p>The oracle is the repository, not the group's patterns: every dev
- * dependency `eslint.config.mjs` imports, plus the three runners, ESLint,
+ * dependency the ESLint config tree imports, plus the three runners, ESLint,
  * Prettier and Biome. Each must belong to `lint-tooling` and to no other
  * version-update group. Dependabot gives a package to the first group it
  * matches, so excluding it everywhere else keeps the split independent of
@@ -22,7 +22,7 @@ import {
 } from '../../../../../scripts/dev-tooling/tooling-group.mjs';
 import type { IDependabotGroup } from '../../../Helpers/DependabotConfig.js';
 import { npmGroupMap } from '../../../Helpers/DependabotConfig.js';
-import { readRepoFile } from '../../../Helpers/RepoFiles.js';
+import { readRepoFile, trackedFiles } from '../../../Helpers/RepoFiles.js';
 
 /** Update types the group takes; a major still gets a pull request of its own. */
 const TOOLING_UPDATE_TYPES = ['minor', 'patch'];
@@ -42,22 +42,37 @@ const RUNNERS = ['eslint', 'prettier', '@biomejs/biome'];
 /** The package behind #673, the bump this group exists for. */
 const TYPESCRIPT_ESLINT = 'typescript-eslint';
 
-/** A package import in `eslint.config.mjs`; relative imports start with `.`. */
+/** A package import in the ESLint config tree; relative imports start with `.`. */
 const PACKAGE_IMPORT = /^import .+ from '(?<specifier>[^'.][^']*)';$/gm;
+
+/** Tracked files that participate in the ESLint flat config. */
+const ESLINT_CONFIG_PATH = /^eslint(?:\.config\.mjs|\/.*\.mjs)$/u;
 
 interface IPackageJson {
   readonly devDependencies?: Readonly<Record<string, string>>;
 }
 
 /**
- * The packages `eslint.config.mjs` imports.
+ * The text of every tracked ESLint config module.
  *
- * @returns Their specifiers, in order.
+ * @returns Their contents, in tracked-file order.
+ */
+function eslintConfigTexts(): readonly string[] {
+  const paths = trackedFiles().filter(path => ESLINT_CONFIG_PATH.test(path));
+  return paths.map(path => readRepoFile(path));
+}
+
+/**
+ * The packages the ESLint config tree imports.
+ *
+ * @returns Their specifiers, in file order.
  */
 function eslintConfigImports(): readonly string[] {
-  const config = readRepoFile('eslint.config.mjs');
-  const imports = config.matchAll(PACKAGE_IMPORT);
-  return Array.from(imports, match => match.groups?.specifier ?? '');
+  const texts = eslintConfigTexts();
+  return texts.flatMap(text => {
+    const imports = text.matchAll(PACKAGE_IMPORT);
+    return Array.from(imports, match => match.groups?.specifier ?? '');
+  });
 }
 
 /**
