@@ -22,9 +22,12 @@ import {
 } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import {
   registerWkQuery,
-  WK_QUERIES,
+  resetWkRegistryForTest as resetWkQueriesForTest,
 } from '../../../../../Scrapers/Pipeline/Registry/WK/QueriesWK.js';
-import { registerWkUrl, WK_URLS } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
+import {
+  registerWkUrl,
+  resetWkRegistryForTest as resetWkUrlsForTest,
+} from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import type {
   IFetchOpts,
   IFetchStrategy,
@@ -153,8 +156,8 @@ const HINT = CompanyTypes.OneZero;
  * @returns True once cleared.
  */
 function resetRegistries(): boolean {
-  WK_QUERIES.clear();
-  WK_URLS.clear();
+  resetWkQueriesForTest();
+  resetWkUrlsForTest();
   return true;
 }
 

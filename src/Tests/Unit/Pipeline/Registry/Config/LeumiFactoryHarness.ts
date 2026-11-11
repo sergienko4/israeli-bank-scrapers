@@ -16,7 +16,7 @@ import PIPELINE_REGISTRY from '../../../../../Scrapers/Pipeline/Banks/PipelineRe
 import { createPipelineBuilder } from '../../../../../Scrapers/Pipeline/Core/Builder/PipelineBuilderFactory.js';
 import type { PipelineFactory } from '../../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
 import type { IApiDirectCallConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
-import { WK_URLS, type WKUrlGroup } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
+import { resetWkRegistryForTest } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import type { IPipelineContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import createScraper from '../../../../../Scrapers/Registry/Factory.js';
 import { SYNTHETIC_SDK } from './LeumiSyntheticWcf.js';
@@ -46,7 +46,6 @@ interface IModules {
 interface ISnapshot {
   readonly factory: PipelineFactory;
   readonly bank: BankConfig;
-  readonly urls: readonly (readonly [WKUrlGroup, Map<CompanyTypes, string>])[];
   readonly fetch: typeof globalThis.fetch;
 }
 
@@ -107,8 +106,7 @@ function snapshot(modules: IModules): ISnapshot {
   const factory = PIPELINE_REGISTRY[HINT];
   const bank = modules.registry.PIPELINE_BANK_CONFIG[HINT];
   if (factory === undefined || bank === undefined) throw new TypeError('missing registry');
-  const urls = [...WK_URLS].map(([group, banks]) => [group, new Map(banks)] as const);
-  return { factory, bank, urls, fetch: globalThis.fetch };
+  return { factory, bank, fetch: globalThis.fetch };
 }
 
 /**
@@ -121,8 +119,8 @@ function restore(modules: IModules, saved: ISnapshot): true {
   PIPELINE_REGISTRY[HINT] = saved.factory;
   modules.registry.PIPELINE_BANK_CONFIG[HINT] = saved.bank;
   globalThis.fetch = saved.fetch;
-  WK_URLS.clear();
-  for (const [group, banks] of saved.urls) WK_URLS.set(group, banks);
+  resetWkRegistryForTest();
+  modules.seeder.seedWkFromPipelineConfig(modules.registry.PIPELINE_BANK_CONFIG);
   return true;
 }
 
@@ -139,6 +137,7 @@ function install(modules: IModules, saved: ISnapshot, factory: PipelineFactory):
     ...saved.bank,
     transport: modules.candidate.LEUMI_HEADLESS,
   };
+  resetWkRegistryForTest();
   modules.seeder.seedWkFromPipelineConfig(modules.registry.PIPELINE_BANK_CONFIG);
   return true;
 }
