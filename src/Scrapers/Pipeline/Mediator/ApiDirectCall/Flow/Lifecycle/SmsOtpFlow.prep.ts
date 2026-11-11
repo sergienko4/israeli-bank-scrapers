@@ -15,8 +15,8 @@ import type { JsonValue } from '../../Envelope/JsonPointer.js';
 import type { ICollectionResult } from '../../Fingerprint/GenericFingerprintBuilder.js';
 import { buildCollectionResult } from '../../Fingerprint/GenericFingerprintBuilder.js';
 import type { ITemplateScope } from '../../Template/RefResolver.js';
-import { buildInitialCarry } from '../FlowInitCarry.js';
 import { checkRequiredCreds } from '../RequiredCreds.js';
+import { buildInitialCarry } from './FlowInitCarry.js';
 import type {
   ICoreSmsOtpInputs,
   IKeypairBundle,

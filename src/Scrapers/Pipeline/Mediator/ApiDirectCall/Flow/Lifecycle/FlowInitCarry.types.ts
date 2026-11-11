@@ -2,15 +2,15 @@
  * Shared types + private alias used across the FlowInitCarry cluster.
  */
 
-import type { Procedure } from '../../../Types/Procedure.js';
+import type { Procedure } from '../../../../Types/Procedure.js';
 import type {
   IApiDirectCallConfig,
   IDerivedCarry,
   ISeedCarrySource,
   RefToken,
   SeedCarryBootstrapKind,
-} from '../ConfigContracts/index.js';
-import type { JsonValue } from '../Envelope/JsonPointer.js';
+} from '../../ConfigContracts/index.js';
+import type { JsonValue } from '../../Envelope/JsonPointer.js';
 
 /** Mutable carry accumulator used while flow-init runs. */
 type CarryMut = Record<string, JsonValue>;
@@ -111,7 +111,7 @@ interface IReduceDerivationCtx {
 }
 
 /** Re-export of the public bootstrap kind for sibling consumers. */
-export type { IApiDirectCallConfig, SeedCarryBootstrapKind } from '../ConfigContracts/index.js';
+export type { IApiDirectCallConfig, SeedCarryBootstrapKind } from '../../ConfigContracts/index.js';
 
 export type {
   CarryMut,

@@ -10,19 +10,19 @@
 
 import { createHash } from 'node:crypto';
 
-import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
-import { matchesAnyUrlRule } from '../../../Strategy/Fetch/UrlRule.js';
-import type { Procedure } from '../../../Types/Procedure.js';
-import { fail, succeed } from '../../../Types/Procedure.js';
+import { ScraperErrorTypes } from '../../../../../Base/ErrorTypes.js';
+import { matchesAnyUrlRule } from '../../../../Strategy/Fetch/UrlRule.js';
+import type { Procedure } from '../../../../Types/Procedure.js';
+import { fail, succeed } from '../../../../Types/Procedure.js';
 import type {
   DerivedOp,
   IFormatOp,
   IFormatRule,
   IUrlPathMapOp,
   IUrlQueryOp,
-} from '../ConfigContracts/index.js';
-import { runUrlCompose } from './FlowUrlCompose.js';
-import { queryValue } from './FlowUrlQuery.js';
+} from '../../ConfigContracts/index.js';
+import { runUrlCompose } from '../FlowUrlCompose.js';
+import { queryValue } from '../FlowUrlQuery.js';
 
 /** The text an op shapes, the subject its failure names, and the op. */
 interface IOpInput {
@@ -159,6 +159,6 @@ function applyDerivedOp(input: IOpInput): Procedure<string> {
   return run(input, derivedOp);
 }
 
-export { isQueryKey } from './FlowUrlQuery.js';
+export { isQueryKey } from '../FlowUrlQuery.js';
 export { anchoredPattern, applyDerivedOp };
 export type { IOpInput };
