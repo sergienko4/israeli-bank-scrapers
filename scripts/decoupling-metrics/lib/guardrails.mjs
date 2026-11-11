@@ -13,12 +13,25 @@ const ANY_RE = /:\s*any\b|<any>|as\s+any\b/g;
 const RULE_RE = /^\s*'([\w@/-]+(?:\/[\w-]+)*)':\s*\[?\s*'(?:error|warn)'/gm;
 /** `import <clause> from '<specifier>'`, possibly spread over several lines. */
 const IMPORT_FROM_RE = /^[ \t]*import\s+([^'"]+?)\s+from\s*['"]([^'"]+)['"]/gm;
-/** `export <clause> from '<specifier>'` — a re-export applies its target. */
-const REEXPORT_FROM_RE = /^[ \t]*export\s+(?:\*|\{[^}]*\})\s+from\s*['"]([^'"]+)['"]/gm;
+/** `export * as <name> from '<specifier>'` — names the target's whole surface. */
+const REEXPORT_NAMESPACE_RE =
+  /^[ \t]*export\s*\*\s*as\s+([A-Za-z_$][\w$]*)\s+from\s*['"]([^'"]+)['"]/gm;
+/** `export * from '<specifier>'` — passes every named export through. */
+const REEXPORT_STAR_RE = /^[ \t]*export\s*\*\s+from\s*['"]([^'"]+)['"]/gm;
+/** `export { a, b as c } from '<specifier>'` — exposes only the listed names. */
+const REEXPORT_NAMED_RE = /^[ \t]*export\s*\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]/gm;
 /** `import '<specifier>'` — a side-effect import applies its target. */
 const SIDE_EFFECT_IMPORT_RE = /^[ \t]*import\s*['"]([^'"]+)['"]/gm;
 /** One JavaScript identifier. */
 const IDENT_RE = /[A-Za-z_$][\w$]*/g;
+/** Every statement that neither reads nor declares a body binding. */
+const STATEMENT_RES = [
+  IMPORT_FROM_RE,
+  REEXPORT_NAMESPACE_RE,
+  REEXPORT_STAR_RE,
+  REEXPORT_NAMED_RE,
+  SIDE_EFFECT_IMPORT_RE,
+];
 
 function countIn(root, files, re) {
   let total = 0;
@@ -84,98 +97,210 @@ function canaryHash(dir, name) {
  * read gets to "this module's rules reach the exported configuration", and it
  * catches both ways a cluster can be disconnected: the import removed, and the
  * import kept while its spread is deleted.
+ *
+ * Re-exports need the same test, and a stronger one. `export *` and
+ * `export { default } from` are how a barrel hands its blocks to the config, so
+ * they keep applying whenever the names they expose are wanted. A named
+ * re-export such as `export { metadata } from` exposes a name the default
+ * configuration never reads; keeping that compatibility line beside a deleted
+ * block would otherwise keep crediting the block's rules. The walk therefore
+ * carries the set of exported names each consumer needs and follows a re-export
+ * only for the names in that set.
  */
 
 /**
- * Local names an import clause binds.
+ * Parse an import clause into the names it requests and the names it binds.
  *
- * Handles the three clause shapes the config uses: a default import, a named
- * list (with or without `as` aliases), and `* as namespace`. Any other token
- * in the clause (`type`, punctuation) is ignored.
+ * `import Def, { a, b as c }` yields three entries; `import * as ns` yields one
+ * with `imported: '*'`. The imported name is what the target must export; the
+ * local name is what the body must mention for the import to apply.
  * @param {string} clause - Text between `import` and `from`.
- * @returns {string[]} Local binding names introduced by the clause.
+ * @returns {Array<{ imported: string, local: string }>} Clause entries in source order.
  */
-function bindingsOf(clause) {
-  const names = [];
-  const namespace = /\*\s+as\s+([A-Za-z_$][\w$]*)/.exec(clause);
-  if (namespace) names.push(namespace[1]);
+function importEntries(clause) {
+  /** @type {Array<{ imported: string, local: string }>} */
+  const entries = [];
   const named = /\{([^}]*)\}/.exec(clause);
   if (named) {
-    for (const entry of named[1].split(',')) {
-      const alias = /\bas\s+([A-Za-z_$][\w$]*)/.exec(entry);
-      const name = (alias ? alias[1] : entry).trim();
-      if (/^[A-Za-z_$][\w$]*$/.test(name)) names.push(name);
+    for (const raw of named[1].split(',')) {
+      const text = raw.replace(/^\s*type\s+/, '').trim();
+      const alias = /^([A-Za-z_$][\w$]*)\s+as\s+([A-Za-z_$][\w$]*)$/.exec(text);
+      if (alias) entries.push({ imported: alias[1], local: alias[2] });
+      else if (/^[A-Za-z_$][\w$]*$/.test(text)) entries.push({ imported: text, local: text });
     }
   }
+  const namespace = /\*\s+as\s+([A-Za-z_$][\w$]*)/.exec(clause);
+  if (namespace) entries.push({ imported: '*', local: namespace[1] });
   const rest = clause.replace(/\{[^}]*\}/, '').replace(/\*\s+as\s+[A-Za-z_$][\w$]*/, '');
   for (const part of rest.split(',')) {
     const name = part.trim();
-    if (/^[A-Za-z_$][\w$]*$/.test(name)) names.push(name);
+    if (/^[A-Za-z_$][\w$]*$/.test(name)) entries.push({ imported: 'default', local: name });
   }
-  return names;
+  return entries;
 }
 
 /**
- * Names a module body references, with every import/export-from removed.
+ * Parse a named re-export clause into exported-to-imported name pairs.
  *
- * Stripping the statements first is what makes the check meaningful: an
- * imported binding mentioned only by its own import line does not count as
- * used, which is exactly the "import kept, spread deleted" case.
- * @param {string} code - Comment-stripped module source.
- * @returns {Set<string>} Identifiers that appear outside import statements.
+ * The exported name is what a consumer asks this module for; the imported name
+ * is what this statement asks the target for.
+ * @param {string} clause - Text between `{` and `}`.
+ * @returns {Array<{ imported: string, exported: string }>} Pairs in source order.
  */
-function referencedNames(code) {
-  const body = code
-    .replace(IMPORT_FROM_RE, '')
-    .replace(REEXPORT_FROM_RE, '')
-    .replace(SIDE_EFFECT_IMPORT_RE, '');
-  return new Set(body.match(IDENT_RE) ?? []);
+function reexportEntries(clause) {
+  /** @type {Array<{ imported: string, exported: string }>} */
+  const entries = [];
+  for (const raw of clause.split(',')) {
+    const text = raw.replace(/^\s*type\s+/, '').trim();
+    const alias = /^([A-Za-z_$][\w$]*)\s+as\s+([A-Za-z_$][\w$]*)$/.exec(text);
+    if (alias) entries.push({ imported: alias[1], exported: alias[2] });
+    else if (/^[A-Za-z_$][\w$]*$/.test(text)) entries.push({ imported: text, exported: text });
+  }
+  return entries;
 }
 
 /**
- * Relative modules a module actually applies.
+ * Module source with every import and re-export statement removed.
  *
- * An `import … from` counts only when at least one of its bindings is
- * referenced in the body; a re-export or side-effect import always counts,
- * because both apply the target by definition.
+ * Stripping the statements is what makes the usage checks meaningful: a name
+ * mentioned only by its own import line, or exposed only by its own re-export
+ * line, does not count as read by the configuration.
  * @param {string} code - Comment-stripped module source.
- * @returns {string[]} Relative specifiers the module applies, in source order.
+ * @returns {string} Module body.
  */
-function appliedImports(code) {
-  const names = referencedNames(code);
-  const applied = [];
-  for (const match of code.matchAll(IMPORT_FROM_RE)) {
-    if (bindingsOf(match[1]).some(name => names.has(name))) applied.push(match[2]);
+function bodyOf(code) {
+  let body = code;
+  for (const re of STATEMENT_RES) body = body.replace(re, '');
+  return body;
+}
+
+/**
+ * Names read off a namespace import, or `null` when the namespace is used as a
+ * value.
+ *
+ * `ns.A` and `ns.B` request exactly `A` and `B`. Spreading or forwarding `ns`
+ * itself could reach any export, so it requests the whole surface.
+ * @param {string} body - Module body with import/export statements removed.
+ * @param {string} local - Namespace binding name.
+ * @returns {Set<string> | null} Member names, or `null` for the whole surface.
+ */
+function namespaceMembers(body, local) {
+  const members = new RegExp(`\\b${local}\\s*\\.\\s*([A-Za-z_$][\\w$]*)`, 'g');
+  const names = new Set();
+  for (const match of body.matchAll(members)) names.add(match[1]);
+  const leftover = new RegExp(`\\b${local}\\b`).test(body.replace(members, ''));
+  return leftover ? null : names;
+}
+
+/**
+ * Names one import statement requests from its target.
+ *
+ * Returns `null` when the target's whole export surface is needed, the imported
+ * names of every binding the body mentions otherwise, and `undefined` when no
+ * binding is mentioned and the statement therefore applies nothing.
+ * @param {Array<{ imported: string, local: string }>} entries - Parsed clause.
+ * @param {string} body - Module body with import/export statements removed.
+ * @param {Set<string>} bodyNames - Identifiers the body references.
+ * @returns {Set<string> | null | undefined} Requested names.
+ */
+function importRequest(entries, body, bodyNames) {
+  const names = new Set();
+  let everything = false;
+  let used = false;
+  for (const entry of entries) {
+    if (!bodyNames.has(entry.local)) continue;
+    used = true;
+    if (entry.imported !== '*') {
+      names.add(entry.imported);
+      continue;
+    }
+    const members = namespaceMembers(body, entry.local);
+    if (members === null) everything = true;
+    else for (const member of members) names.add(member);
   }
-  for (const re of [REEXPORT_FROM_RE, SIDE_EFFECT_IMPORT_RE]) {
-    for (const match of code.matchAll(re)) applied.push(match[1]);
-  }
-  return applied.filter(specifier => specifier.startsWith('.'));
+  if (!used) return undefined;
+  return everything ? null : names;
+}
+
+/**
+ * Names one named re-export requests from its target.
+ *
+ * A re-export applies only the names a consumer actually asks for, so a
+ * compatibility line kept beside a removed block contributes nothing.
+ * @param {Array<{ imported: string, exported: string }>} entries - Parsed clause.
+ * @param {Set<string> | null} wanted - Names the consumer needs from this module.
+ * @returns {Set<string> | undefined} Requested names, or `undefined` when unused.
+ */
+function reexportRequest(entries, wanted) {
+  const matched = entries.filter(entry => wanted === null || wanted.has(entry.exported));
+  if (matched.length === 0) return undefined;
+  return new Set(matched.map(entry => entry.imported));
 }
 
 /**
  * Resolve the modules the flat-config entry actually applies.
  *
- * A module that is left on disk, or imported but never spread, contributes no
+ * The entry's default export is the configuration ESLint loads, so the walk
+ * starts by asking for its `default` binding and carries the names each module
+ * must export down through re-exports. A module that is left on disk, imported
+ * but never spread, or reached only through a metadata re-export contributes no
  * rule to the effective config, so it must not contribute to the ratchet.
  * @param {string} root - Repository root.
  * @returns {string[]} Entry file plus every applied local module.
  */
 function appliedConfigFiles(root) {
   const entry = join(root, 'eslint.config.mjs');
-  const seen = new Set();
+  /** Names each module must export; `null` means the whole surface. */
+  const wanted = new Map([[entry, new Set(['default'])]]);
   const pending = [entry];
   while (pending.length > 0) {
     const file = pending.pop();
-    if (seen.has(file) || !existsSync(file)) continue;
-    seen.add(file);
+    if (!existsSync(file)) continue;
     const code = stripComments(readFileSync(file, 'utf8'));
-    for (const specifier of appliedImports(code)) {
+    const body = bodyOf(code);
+    const bodyNames = new Set(body.match(IDENT_RE) ?? []);
+    const needs = wanted.get(file);
+    /** @type {Array<{ specifier: string, names: Set<string> | null }>} */
+    const targets = [];
+    for (const match of code.matchAll(IMPORT_FROM_RE)) {
+      const request = importRequest(importEntries(match[1]), body, bodyNames);
+      if (request !== undefined) targets.push({ specifier: match[2], names: request });
+    }
+    for (const match of code.matchAll(SIDE_EFFECT_IMPORT_RE)) {
+      targets.push({ specifier: match[1], names: null });
+    }
+    for (const match of code.matchAll(REEXPORT_NAMED_RE)) {
+      const request = reexportRequest(reexportEntries(match[1]), needs);
+      if (request !== undefined) targets.push({ specifier: match[2], names: request });
+    }
+    for (const match of code.matchAll(REEXPORT_STAR_RE)) {
+      if (needs === null) {
+        targets.push({ specifier: match[1], names: null });
+        continue;
+      }
+      // `export *` never re-exports `default`, so a request for it alone does
+      // not keep the target alive.
+      const passthrough = new Set([...needs].filter(name => name !== 'default'));
+      if (passthrough.size > 0) targets.push({ specifier: match[1], names: passthrough });
+    }
+    for (const match of code.matchAll(REEXPORT_NAMESPACE_RE)) {
+      if (needs === null || needs.has(match[1])) {
+        targets.push({ specifier: match[2], names: null });
+      }
+    }
+    for (const { specifier, names } of targets) {
+      if (!specifier.startsWith('.')) continue;
       const target = resolve(dirname(file), specifier);
-      if (!seen.has(target)) pending.push(target);
+      if (!existsSync(target)) continue;
+      const previous = wanted.get(target);
+      if (previous === null) continue;
+      if (previous && names !== null && [...names].every(name => previous.has(name))) continue;
+      if (previous && names !== null) for (const name of names) previous.add(name);
+      else wanted.set(target, names);
+      pending.push(target);
     }
   }
-  return [...seen];
+  return [...wanted.keys()];
 }
 
 /**

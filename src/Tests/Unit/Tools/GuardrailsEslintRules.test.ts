@@ -2,10 +2,12 @@
  * Regression coverage for the ESLint-rule ratchet's applied-config walk.
  *
  * The decoupling metric must count rules that `eslint.config.mjs` actually
- * applies. A cluster can stop applying in two ways — the import is removed,
- * or the import stays while the spread that used it is deleted — and both must
- * stop contributing to the ratchet. Counting the directory hides the first;
- * following imports alone hides the second.
+ * applies. A cluster can stop applying in three ways — the import is removed,
+ * the import stays while the spread that used it is deleted, or the module is
+ * kept alive only by a metadata re-export — and all three must stop
+ * contributing to the ratchet. Counting the directory hides the first;
+ * following imports alone hides the second; following every re-export hides
+ * the third.
  */
 
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -127,6 +129,94 @@ function writeUnusedImportCluster(root: string): true {
   return true;
 }
 
+/**
+ * Build a module that exports metadata beside a block the config never uses.
+ *
+ * This is the compatibility shape: the metadata export survives, the block it
+ * used to accompany does not, and the named re-export still mentions the file.
+ * @param ruleName - Rule name to declare in the unused block.
+ * @returns ES module source.
+ */
+function metadataSource(ruleName: string): string {
+  return `export const metadata = { id: 'compatibility' };\nexport const BLOCKS = [\n${ruleBlock(ruleName)}\n];\n`;
+}
+
+/**
+ * Re-export a module's metadata without applying its blocks.
+ *
+ * `export { metadata } from` exposes a name the default configuration never
+ * reads. A compatibility re-export left behind after a block is removed must
+ * not keep that block's rules in the count.
+ * @param root - Owned temporary root.
+ * @returns Always true.
+ */
+function writeMetadataReexportEntry(root: string): true {
+  writeModule(
+    root,
+    'eslint.config.mjs',
+    "export { metadata } from './eslint/clusters/Metadata.mjs';\nexport default [];\n",
+  );
+  const source = metadataSource('metadata-rule');
+  writeModule(root, 'eslint/clusters/Metadata.mjs', source);
+  return true;
+}
+
+/**
+ * Apply a config through `export { default }` at the entry.
+ *
+ * A default re-export is how a config can hand over its blocks without a local
+ * spread, so it must keep the target's rules in the count.
+ * @param root - Owned temporary root.
+ * @returns Always true.
+ */
+function writeDefaultReexportEntry(root: string): true {
+  writeModule(
+    root,
+    'eslint.config.mjs',
+    "export { default } from './eslint/clusters/DefaultBlocks.mjs';\n",
+  );
+  writeModule(
+    root,
+    'eslint/clusters/DefaultBlocks.mjs',
+    `export default [\n${ruleBlock('default-rule')}\n];\n`,
+  );
+  return true;
+}
+
+/**
+ * Route a block through a barrel that also re-exports metadata.
+ *
+ * The default barrel re-export is legitimate and must keep applying; the
+ * metadata re-export beside it must not pull in a second module's rules.
+ * @param root - Owned temporary root.
+ * @returns Always true.
+ */
+function writeBarrelWithMetadata(root: string): true {
+  writeModule(
+    root,
+    'eslint.config.mjs',
+    "import { BLOCKS } from './eslint/clusters/Barrel.mjs';\nexport default [...BLOCKS];\n",
+  );
+  writeModule(
+    root,
+    'eslint/clusters/Barrel.mjs',
+    "export { default as BLOCKS } from './Applied.mjs';\nexport { metadata } from './Metadata.mjs';\n",
+  );
+  writeModule(
+    root,
+    'eslint/clusters/Applied.mjs',
+    `import { NESTED } from '../rules/Nested.mjs';\nexport default [\n${ruleBlock('applied-rule')}\n  ...NESTED,\n];\n`,
+  );
+  writeModule(
+    root,
+    'eslint/rules/Nested.mjs',
+    `export const NESTED = [\n${ruleBlock('nested-rule')}\n];\n`,
+  );
+  const metadata = metadataSource('metadata-rule');
+  writeModule(root, 'eslint/clusters/Metadata.mjs', metadata);
+  return true;
+}
+
 afterAll(() => {
   for (const dir of CREATED) rmSync(dir, { recursive: true, force: true });
 });
@@ -151,6 +241,27 @@ describe('Decoupling ESLint-rule ratchet', () => {
     const root = makeRoot();
     writeConnectedTree(root);
     writeUnusedImportCluster(root);
+    const result = GUARDRAILS.guardrails(root, []);
+    expect(result.eslintRules).toBe(2);
+  });
+
+  it('ignores a module reached only by a metadata re-export', () => {
+    const root = makeRoot();
+    writeMetadataReexportEntry(root);
+    const result = GUARDRAILS.guardrails(root, []);
+    expect(result.eslintRules).toBe(0);
+  });
+
+  it('keeps a default re-export at the entry', () => {
+    const root = makeRoot();
+    writeDefaultReexportEntry(root);
+    const result = GUARDRAILS.guardrails(root, []);
+    expect(result.eslintRules).toBe(1);
+  });
+
+  it('keeps a default barrel re-export but ignores metadata beside it', () => {
+    const root = makeRoot();
+    writeBarrelWithMetadata(root);
     const result = GUARDRAILS.guardrails(root, []);
     expect(result.eslintRules).toBe(2);
   });
