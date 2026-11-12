@@ -550,8 +550,8 @@ export interface IApiDirectScrapeShape<TAcct, TCursor> {
    * returns — bootstrap, customer, balance and transactions — after
    * `checkBody`. The patch is merged into session-context before the next
    * call. A failed patch, a refused merge, or an answer whose headers never
-   * reached the call's sink (for example, a GraphQL step) fails the
-   * call. The customer secondary identity GET is not read. Absent ⇒ the
+   * reached the call's sink fails the call.
+   * The customer secondary identity GET is not read. Absent ⇒ the
    * session-context changes only through bootstrap patches.
    */
   readonly responseSession?: IResponseSessionSpec;
