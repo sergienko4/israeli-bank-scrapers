@@ -1,5 +1,5 @@
 /**
- * Higher-level factories: headless (native fetch) + node:https ApiMediators.
+ * Higher-level factories: native-fetch and node:https ApiMediators.
  * Construct the underlying fetch strategies and wire them into createApiMediator.
  *
  * Why `Reflect.construct(...)` instead of `new`: this file IS the DI boundary
@@ -73,7 +73,7 @@ function applyStaticAuth(
 
 /**
  * Share bank response policies between the identity REST and GraphQL transports.
- * @param args - Headless mediator args carrying bank-wide defaults.
+ * @param args - HTTP mediator args carrying bank-wide defaults.
  * @returns Policies used by both native transports.
  */
 function nativePolicies(args: IGraphQLTransportArgs): INativeFetchOptions {
@@ -145,7 +145,7 @@ function assembleNodeMediator(
 }
 
 /**
- * Build a ready-to-use ApiMediator for a headless (API-only) bank.
+ * Build a ready-to-use ApiMediator with native-fetch transports.
  * @param args - Bank hint + URLs + optional staticAuth header.
  * @returns A fully-wired IApiMediator instance.
  */

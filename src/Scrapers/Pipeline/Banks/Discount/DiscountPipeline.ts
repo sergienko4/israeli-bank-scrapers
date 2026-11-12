@@ -3,7 +3,7 @@
  * API-DIRECT-CALL phase logs in with the id, password and user code over the
  * bank's web API and opens the retail app, then the shape-driven
  * API-DIRECT-SCRAPE phase reads the Titan accounts, balances and
- * transactions. No browser is launched.
+ * transactions. All calls use HTTP.
  */
 
 import type { ScraperOptions } from '../../../Base/Interface.js';
@@ -14,8 +14,8 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { DISCOUNT_SHAPE } from './scrape/DiscountShape.js';
 
 /**
- * Build the Discount pipeline descriptor: no browser; the direct-API login
- * runs on the headless transport, then the hard-model scrape.
+ * Build the Discount pipeline descriptor: the direct-API login
+ * runs on the HTTP transport, then the hard-model scrape.
  * @param options - Scraper options from the user.
  * @returns Pipeline descriptor.
  */

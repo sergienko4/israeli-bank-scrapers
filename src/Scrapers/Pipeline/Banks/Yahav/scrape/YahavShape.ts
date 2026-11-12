@@ -1,6 +1,6 @@
 /**
  * Yahav native scrape shape — the single
- * `IApiDirectScrapeShape` the browserless Yahav plugs into the ApiDirectScrape
+ * `IApiDirectScrapeShape` Yahav plugs into the ApiDirectScrape
  * driver. Zero logic here: the bootstrap logs in to BaNCS and resolves the
  * portfolio, the response session rotates the session state on every answer,
  * the body digest signs every body, and the accounts, balance and

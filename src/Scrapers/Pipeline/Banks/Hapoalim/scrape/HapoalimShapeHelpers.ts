@@ -2,7 +2,7 @@
  * Hapoalim scrape shape — account list + balance extractors + REST
  * urlTag builders for the ServerServices gateway. Transactions helpers
  * live in HapoalimShapeTxns.ts. Accounts + balance are cookie-authed GET
- * on the headless session the direct-API login opened; transactions is an
+ * on the HTTP session the direct-API login opened; transactions is an
  * anti-replay POST (see HapoalimShapeTxns.ts).
  *
  * Contract grounded in the captured trace

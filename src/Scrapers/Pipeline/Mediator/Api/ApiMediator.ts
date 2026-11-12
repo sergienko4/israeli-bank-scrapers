@@ -1,5 +1,5 @@
 /**
- * ApiMediator barrel — headless transport mediator (the Black Box).
+ * ApiMediator barrel — HTTP transport mediator (the Black Box).
  * Re-exports the public surface from co-located siblings:
  * `.types`, `.transport`, `.state`, `.retry`, `.ops`, `.builders`,
  * `.factory`, `.factories`.

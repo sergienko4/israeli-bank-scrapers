@@ -10,7 +10,7 @@
  * `XSRF-TOKEN` cookie as the `X-XSRF-TOKEN` header, carries the fixed
  * `pageUuid`, a fresh `uuid`, and the exact `content-type`. The
  * `@cookie:` sentinel is resolved from the live login session by
- * BrowserFetchStrategy at dispatch time.
+ * the session-cookie transport at dispatch time.
  *
  * Paging note: this endpoint is date-windowed, not offset-paged, and the bank
  * caps a response SERVER-SIDE at its own `numItemsPerPage` — it ignores the

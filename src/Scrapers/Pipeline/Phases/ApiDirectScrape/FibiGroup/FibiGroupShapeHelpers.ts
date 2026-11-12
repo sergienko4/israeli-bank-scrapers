@@ -5,9 +5,8 @@
  * All four brands speak the same Mataf/appsng contract and differ only by
  * their post-login origin: `userData` for account identity, and a
  * `bff-balancetransactions` prefix carrying accountType, balances and list.
- * Each brand keeps its own origin because BrowserFetchStrategy dispatches
- * through the live login page — the BFF must be same-origin or the session
- * cookies will not ride.
+ * Each brand keeps its own origin so BFF requests reach the host whose
+ * authenticated session cookies the HTTP login established.
  *
  * This module owns the origin-independent half. Brand modules bind it to
  * one origin via the `make*` builders, which keeps the family's behaviour

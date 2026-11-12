@@ -1,9 +1,9 @@
 /**
  * ApiMediatorAccessor — generic narrow of the context's mediator slot to an
- * `IApiMediator`. Contains NO bank-specific logic: any handler running under
- * the Headless Strategy reuses this accessor to avoid duplicating the slot
- * probe. The executor is responsible for populating the slot when headless
- * mode is active; here we only validate and return the value.
+ * `IApiMediator`. Contains NO bank-specific logic: handlers share this
+ * accessor rather than duplicating the slot probe. PipelineContextFactory
+ * populates the slot from the bank's transport wiring; this module only
+ * validates and returns the value.
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
@@ -46,7 +46,7 @@ function readSlot(ctx: IPipelineContext): Option<IApiMediator> {
 /**
  * Narrow a context's apiMediator slot to an `IApiMediator`, or fail.
  * The slot is populated by PipelineContextFactory when the bank has a
- * registered headless block. Without it the slot is `none()` and this
+ * registered transport block. Without it the slot is `none()` and this
  * accessor returns a labelled Generic failure — a handler that reaches
  * here without a mediator has a wiring bug, not a data bug.
  * @param ctx - The pipeline or action context.

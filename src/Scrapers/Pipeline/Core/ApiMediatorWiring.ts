@@ -78,7 +78,7 @@ function toApiWiring(cfg: ITransportConfig): IApiWiring {
 
 /**
  * Resolve identity + graphql URLs + transport flags from PIPELINE_BANK_CONFIG.
- * Returns false when the bank is not registered or has no headless block.
+ * Returns false when the bank is not registered or has no transport block.
  * @param companyId - Target bank company type.
  * @returns Resolved wiring, or false when the lookup fails.
  */
@@ -144,13 +144,13 @@ const MEDIATOR_FACTORIES: Readonly<Record<TransportKind, (args: TMediatorArgs) =
 };
 
 /**
- * Resolve the identity transport a bank's headless block selects, without
+ * Resolve the identity transport a bank's transport block selects, without
  * building a mediator. Shares {@link pickTransportKind} with
  * {@link selectApiMediator}, so a caller asking which transport a bank
  * runs gets the answer the runtime acts on.
  * @param companyId - Target bank company type.
- * @returns The transport kind, or false when the bank has no headless block.
- * @throws ScraperError when the headless block declares conflicting transports
+ * @returns The transport kind, or false when the bank has no transport block.
+ * @throws ScraperError when the transport block declares conflicting transports
  *   or none at all.
  */
 function resolveTransportKind(companyId: CompanyTypes): TransportKind | false {
@@ -175,7 +175,7 @@ function selectApiMediator(companyId: CompanyTypes, wiring: IApiWiring): IApiMed
 
 /**
  * Resolve the ApiMediator Option for a descriptor: some(mediator) only when
- * the bank has a registered headless block.
+ * the bank has a registered transport block.
  * @param descriptor - The pipeline descriptor (companyId).
  * @returns some(mediator) when applicable, else none().
  */

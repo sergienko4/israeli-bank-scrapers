@@ -2,8 +2,8 @@
  * An account whose window verdict is known.
  *
  * <p>Separate from {@link ITransactionsAccount} because the public field is
- * optional — absent there means "no audit ran", which is true of the browser
- * scrape strategies. Inside a phase that *does* run the audit, absent can only
+ * optional — absent there means "no audit ran". Inside a phase that does
+ * run the audit, absent can only
  * mean the verdict was computed and then dropped, which is the defect issue
  * #553 reports. Requiring it here makes that a compile error rather than a
  * silent omission a reader has to notice.

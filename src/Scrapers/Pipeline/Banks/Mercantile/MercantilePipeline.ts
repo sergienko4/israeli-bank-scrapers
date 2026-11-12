@@ -4,7 +4,7 @@
  * bank's web API and opens the retail app, then the shape-driven
  * API-DIRECT-SCRAPE phase reads the Titan accounts, balances and
  * transactions. Mercantile shares Discount's Telebank flow; only its brand
- * values differ. No browser is launched.
+ * values differ. All calls use HTTP.
  */
 
 import type { ScraperOptions } from '../../../Base/Interface.js';
@@ -15,8 +15,8 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { MERCANTILE_SHAPE } from './scrape/MercantileShape.js';
 
 /**
- * Build the Mercantile pipeline descriptor: no browser; the direct-API login
- * runs on the headless transport, then the hard-model scrape.
+ * Build the Mercantile pipeline descriptor: the direct-API login
+ * runs on the HTTP transport, then the hard-model scrape.
  * @param options - Scraper options from the user.
  * @returns Pipeline descriptor.
  */

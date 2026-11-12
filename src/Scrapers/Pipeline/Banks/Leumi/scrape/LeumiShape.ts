@@ -1,6 +1,6 @@
 /**
  * Leumi scrape shape — the `IApiDirectScrapeShape` data declaration
- * consumed by the generic buildGenericHeadlessScrape driver. The native
+ * consumed by the generic API-direct scrape driver. The native
  * login projects the body-borne WCF `SessionHeader.SessionID` into the
  * mediator session. All three calls
  * are POST to the same broker endpoint keyed by `moduleName`. Helpers

@@ -65,8 +65,8 @@ function safeStringify(value: unknown): string {
  */
 /**
  * Cross-realm-safe `Error` check. `instanceof Error` returns `false`
- * for Errors created in another JS realm (Node `vm` contexts, browser
- * iframes, jest's experimental-vm-modules) even when the value is a
+ * for Errors created in another JS realm (Node `vm` contexts or
+ * Jest's experimental-vm-modules) even when the value is a
  * fully-formed Error with `.message` / `.stack` / `.code`. The
  * `[[Class]]` brand survives realm crossings, so duck-typing via
  * `Object.prototype.toString.call` is the canonical realm-safe check.
@@ -85,11 +85,11 @@ function isErrorLike(value: unknown): value is Error {
  * permits `throw 'string'` / `throw 42` / `throw {…}`; a naive
  * `(caught as Error).message.includes(…)` then crashes with a
  * `TypeError`. Modules that contract "always resolves; never
- * throws" (e.g. `NavigationTransportProbe`) must funnel every
+ * throws" must funnel every
  * `catch` through this helper. Coercion failures fall back to
  * {@link UNREPRESENTABLE_ERROR} so the contract holds even for
  * pathological values whose `toString` throws. Cross-realm Errors
- * (jest VM modules, Node `vm` contexts, browser iframes) are
+ * (Jest VM modules and Node `vm` contexts) are
  * detected via {@link isErrorLike} so their `.code` / `.errno`
  * fields survive normalization.
  *

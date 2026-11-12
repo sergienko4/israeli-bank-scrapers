@@ -8,7 +8,7 @@
  * No `+`, no dash, no spaces. Length ≥ 10 digits.
  *
  * Each bank declares its wire format in
- * `PipelineBankConfig.headless.phoneNumberFormat`. This module is the
+ * `ITransportConfig.phoneNumberFormat`. This module is the
  * single place that translates the caller's value to a bank's wire
  * form — banks downstream consume the formatted value verbatim.
  */

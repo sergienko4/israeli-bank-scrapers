@@ -1,6 +1,6 @@
 /**
  * Pepper scrape shape — pure data declaration consumed by the generic
- * buildGenericHeadlessScrape driver. Numeric cursor (1-based page
+ * API-direct scrape driver. Numeric cursor (1-based page
  * number), posted + pending rows merged per page, termination when
  * totalCount is reached or a page underfills. Helpers split into
  * PepperShapeHelpers.ts (customer/balance) + PepperShapeTxns.ts.
@@ -81,7 +81,7 @@ function dynamicHeaders(queryname: string): (ctx: IActionContext) => HeaderMap {
   });
 }
 
-/** Pepper shape declaration — passed to buildGenericHeadlessScrape. */
+/** Pepper shape declaration — passed to the API-direct scrape driver. */
 const PEPPER_SHAPE: IApiDirectScrapeShape<IPepperAcct, number> = {
   stepName: 'PepperScrape',
   accountNumberOf,

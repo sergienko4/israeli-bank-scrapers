@@ -224,8 +224,8 @@ function liveDurableAuth(strategy: IConfigTokenStrategy): IDurableAuthState {
 /**
  * Publish the long-lived re-login handle onto the context.
  *
- * API-direct banks never run the browser LOGIN phase, so this is the only way
- * the artifact reaches `result.persistentOtpToken`. Callers need it to skip the
+ * This slot carries the artifact to `result.persistentOtpToken` after the
+ * API-direct login. Callers need it to skip the
  * SMS on the next run; without it the warm-start feature has no supported
  * retrieval channel (issue #576).
  *

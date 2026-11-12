@@ -1,6 +1,6 @@
 /**
  * VisaCal scrape shape — the `IApiDirectScrapeShape` data declaration
- * consumed by the generic headless scrape driver via `withApiDirect`.
+ * consumed by the generic HTTP scrape driver via `withApiDirect`.
  * balanceKind=card-cycle: each card's balance is its next ILS debit, one
  * frames POST per card. auth=token (the login flow installs the
  * `CALAuthScheme` Authorization on the mediator). Customer, balance and
@@ -33,8 +33,8 @@ import { txnsExtractPage, txnsUrl, txnsVars, validatePlan } from './VisaCalShape
 /**
  * CAL data-gateway JSON request headers. The gateway answers a JSON POST that
  * omits `content-type` with a 400 (empty body), even when the token is valid.
- * `x-site-id` is the identifier CAL's own web app sends; with no browser to
- * supply it, the Shape declares it. The mediator adds the `CALAuthScheme`
+ * `x-site-id` is the identifier CAL's own web app sends; the Shape
+ * declares it explicitly for HTTP requests. The mediator adds the `CALAuthScheme`
  * Authorization on top. Names are lowercase so they replace, rather than sit
  * beside, the transport's default `content-type`.
  * @returns CAL data-gateway JSON request headers.

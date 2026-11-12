@@ -1,6 +1,6 @@
 /**
  * Massad (FIBI group) scrape shape — the `IApiDirectScrapeShape` data
- * declaration consumed by the generic buildGenericHeadlessScrape driver via
+ * declaration consumed by the generic API-direct scrape driver via
  * `withApiDirect`. balanceKind=account.
  *
  * Account identity spans two cookie-authed GETs: `userData` (customer) for
@@ -15,8 +15,7 @@
  * The stance stays declared here, not inherited, so the WINDOW-CANARY gate
  * keeps seeing a conscious per-bank decision. Contract shared with
  * Beinleumi (same FIBI Mataf portal). Grounded in the captured trace
- * (C:\tmp\runs\pipeline\beinleumi\04-07-2026_11221970). Replaces the
- * generic AUTH-DISCOVERY/ACCOUNT-RESOLVE/DASHBOARD chain.
+ * (C:\tmp\runs\pipeline\beinleumi\04-07-2026_11221970).
  */
 
 import { makeFibiGroupShape } from '../../../Phases/ApiDirectScrape/FibiGroup/FibiGroupShape.js';

@@ -1,5 +1,5 @@
 /**
- * Headless transport rules — the ordered rule table that picks a headless
+ * HTTP transport rules — the ordered rule table that picks an API-direct
  * bank's identity transport, plus the guard that rejects a config declaring
  * two mutually-exclusive transports. Split from ApiMediatorWiring to
  * keep that file under the 150-LoC cap.
@@ -13,7 +13,7 @@ import type { IApiWiring, TransportKind } from './ApiWiringTypes.js';
 const TRANSPORT_CONFLICT_MSG =
   'Conflicting headless transport: node:https (client cert / TLS profile) and native fetch are mutually exclusive';
 
-/** Message when a headless bank declares no identity transport at all. */
+/** Message when a bank declares no identity transport at all. */
 const TRANSPORT_MISSING_MSG =
   'Missing headless transport: declare nativeFetch, a client cert or a TLS profile';
 
@@ -72,7 +72,7 @@ function assertSingleTransport(companyId: CompanyTypes, wiring: IApiWiring): boo
  * @param companyId - Target bank company type (for the error message).
  * @param wiring - Resolved wiring entry (URLs + flags).
  * @returns The first matching rule's kind.
- * @throws ScraperError when the headless block declares no transport.
+ * @throws ScraperError when the transport block declares no transport.
  */
 function pickTransportKind(companyId: CompanyTypes, wiring: IApiWiring): TransportKind {
   const match = TRANSPORT_RULES.find((rule): boolean => rule.applies(wiring));

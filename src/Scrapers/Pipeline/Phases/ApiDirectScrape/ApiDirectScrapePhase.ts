@@ -42,7 +42,7 @@ class ApiDirectScrapePhase extends BasePhase {
 
   /**
    * Create the phase bound to a bank's shape literal.
-   * @param scrapeFn - Bound scrape function from buildGenericHeadlessScrape.
+   * @param scrapeFn - Bound scrape function from the API-direct scrape driver.
    * @param resultGuard - Optional fail-closed guard run in POST.
    */
   constructor(scrapeFn: ApiDirectScrapeFn, resultGuard?: ResultGuardFn) {
