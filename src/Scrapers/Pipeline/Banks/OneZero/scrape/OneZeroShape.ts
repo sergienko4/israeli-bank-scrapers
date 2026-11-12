@@ -1,6 +1,6 @@
 /**
  * OneZero scrape shape — pure data declaration consumed by the generic
- * buildGenericHeadlessScrape driver. String cursor (GraphQL cursor),
+ * API-direct scrape driver. String cursor (GraphQL cursor),
  * balance falls back to 0, stops when the oldest movement predates
  * the resolved startDate window. Helpers split into
  * OneZeroShapeHelpers.ts (customer/balance) + OneZeroShapeTxns.ts.
@@ -17,7 +17,7 @@ import {
 } from './OneZeroShapeHelpers.js';
 import { stopPredicate, txnsExtractPage, txnsVars } from './OneZeroShapeTxns.js';
 
-/** OneZero shape declaration — passed to buildGenericHeadlessScrape. */
+/** OneZero shape declaration — passed to the API-direct scrape driver. */
 const ONE_ZERO_SHAPE: IApiDirectScrapeShape<IOneZeroAcct, string> = {
   stepName: 'OneZeroScrape',
   accountNumberOf,

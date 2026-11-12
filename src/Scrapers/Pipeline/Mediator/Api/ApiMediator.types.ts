@@ -173,7 +173,7 @@ type IResolverMethods = Pick<
 /** Picked subset of `IApiMediator` produced by `buildCallMethods`. */
 type ICallMethods = Pick<IApiMediator, 'apiPost' | 'apiGet' | 'apiQuery'>;
 
-/** Args bundle for the headless-mediator factory — re-exported from {@link IApiMediatorArgs}. */
+/** Args bundle for the HTTP-mediator factory — re-exported from {@link IApiMediatorArgs}. */
 // (definitions live in ./ApiMediator.transport.types.ts to keep this file ≤150 LoC)
 export type { IApiQueryOpts } from '../../Types/Domain/ApiQueryOpts.js';
 export type {

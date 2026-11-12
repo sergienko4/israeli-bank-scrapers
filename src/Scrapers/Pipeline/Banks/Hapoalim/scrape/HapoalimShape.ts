@@ -1,6 +1,6 @@
 /**
  * Hapoalim scrape shape — the `IApiDirectScrapeShape` data declaration
- * consumed by the generic buildGenericHeadlessScrape driver via
+ * consumed by the generic API-direct scrape driver via
  * `withApiDirect`. balanceKind=account (issues a real balance
  * call); accounts + balance are cookie-authed GET (cookies ride the
  * session through the native fetch transport), transactions is an
@@ -10,8 +10,7 @@
  *
  * Contract grounded in the captured trace
  * (C:\tmp\runs\pipeline\hapoalim\04-07-2026_03183039) and the upstream
- * `hapoalim.ts` recipe. Replaces the generic
- * AUTH-DISCOVERY/ACCOUNT-RESOLVE/DASHBOARD chain.
+ * `hapoalim.ts` recipe.
  */
 
 import type { IApiDirectScrapeShape } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';

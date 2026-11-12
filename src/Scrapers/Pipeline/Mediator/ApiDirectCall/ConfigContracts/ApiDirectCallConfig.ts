@@ -106,7 +106,7 @@ interface IApiDirectCallConfig {
   readonly sessionCarry?: readonly string[];
   /**
    * What happens to the login's cookies when it finishes (default `shared`).
-   * `isolate` needs `headless.cookieDomains`.
+   * `isolate` needs `transport.cookieDomains`.
    */
   readonly cookieHandoff?: CookieHandoff;
   /** How the scrape recovers from a rejected session (default `per-request`). */

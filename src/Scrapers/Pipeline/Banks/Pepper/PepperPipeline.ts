@@ -19,7 +19,7 @@ import { PEPPER_SHAPE } from './scrape/PepperShape.js';
 /**
  * Build the Pepper pipeline descriptor.
  * @param options - Scraper options from the user.
- * @returns Pipeline descriptor (Headless Strategy + config-driven API-DIRECT-CALL).
+ * @returns Pipeline descriptor (HTTP transport + config-driven API-DIRECT-CALL).
  */
 function buildPepperPipeline(options: ScraperOptions): Procedure<IPipelineDescriptor> {
   return createPipelineBuilder()

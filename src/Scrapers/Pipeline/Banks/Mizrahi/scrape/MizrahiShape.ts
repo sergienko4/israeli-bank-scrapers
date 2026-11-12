@@ -1,6 +1,6 @@
 /**
  * Mizrahi scrape shape — the `IApiDirectScrapeShape` data declaration
- * consumed by the generic buildGenericHeadlessScrape driver via
+ * consumed by the generic API-direct scrape driver via
  * `withApiDirect`. Auth = the session cookies the API-DIRECT-CALL login set,
  * kept by the node transport, + the `mizrahixsrftoken` header every data
  * call sends ({@link mizrahiHeaders}).

@@ -219,7 +219,7 @@ interface IStepBase extends IStepFailureTyping {
   readonly documentMarker?: string;
   /** Media type the answer must name, over the bank's per-kind default. */
   readonly mediaType?: string;
-  /** Decode the answer as strict UTF-8, over the bank's `headless.strictUtf8`. */
+  /** Decode the answer as strict UTF-8, over the bank's `transport.strictUtf8`. */
   readonly strictUtf8?: boolean;
   /** Bounds and optionally pins response bytes, overriding the bank default. */
   readonly responseIntegrity?: IResponseIntegrity;
@@ -231,7 +231,7 @@ interface IStepBase extends IStepFailureTyping {
   readonly seal?: ISealFieldConfig;
   /** Client cookies (name → source) set in the domain jar before the request. */
   readonly setCookies?: Readonly<Record<string, ClientCookieSource>>;
-  /** Device certificate installed before the request; needs headless `clientCert`. */
+  /** Device certificate installed before the request; needs `transport.clientCert`. */
   readonly clientCert?: IStepClientCert;
   /** Rules per body- or header-extract slot, checked once the answer is read. */
   readonly extractRules?: Readonly<Record<string, IExtractRule>>;

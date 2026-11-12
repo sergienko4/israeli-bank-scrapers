@@ -3,7 +3,7 @@
  * API-DIRECT-CALL phase logs in over the ring app API (ID, card suffix and
  * password on a cold run; a stored device key resumes the session on a warm
  * run), then the shape-driven API-DIRECT-SCRAPE phase reads cards, the next
- * debit and transactions. No browser is launched.
+ * debit and transactions. All calls use HTTP.
  */
 
 import type { ScraperOptions } from '../../../Base/Interface.js';
@@ -16,7 +16,7 @@ import { AMEX_SHAPE } from './scrape/AmexShape.js';
 /**
  * Build the Amex pipeline descriptor.
  * @param options - Scraper options from the user.
- * @returns Pipeline descriptor (Headless Strategy + config-driven API-DIRECT-CALL).
+ * @returns Pipeline descriptor (HTTP transport + config-driven API-DIRECT-CALL).
  */
 function buildAmexPipeline(options: ScraperOptions): Procedure<IPipelineDescriptor> {
   return createPipelineBuilder()

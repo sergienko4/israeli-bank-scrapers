@@ -3,7 +3,7 @@
  * API-DIRECT-CALL phase logs in over CAL's login API (username + password
  * on a cold run; a stored login hash resumes the session on a warm run),
  * then the shape-driven API-DIRECT-SCRAPE phase reads cards, balances and
- * transactions. No browser is launched.
+ * transactions. All calls use HTTP.
  */
 
 import type { ScraperOptions } from '../../../Base/Interface.js';
@@ -16,7 +16,7 @@ import { VISACAL_SHAPE } from './scrape/VisaCalShape.js';
 /**
  * Build the VisaCal pipeline descriptor.
  * @param options - Scraper options from the user.
- * @returns Pipeline descriptor (Headless Strategy + config-driven API-DIRECT-CALL).
+ * @returns Pipeline descriptor (HTTP transport + config-driven API-DIRECT-CALL).
  */
 function buildVisaCalPipeline(options: ScraperOptions): Procedure<IPipelineDescriptor> {
   return createPipelineBuilder()

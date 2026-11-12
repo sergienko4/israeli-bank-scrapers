@@ -6,7 +6,7 @@
 
 import type { ITransportConfig } from '../Registry/Config/PipelineBankConfigTypes.js';
 
-/** Identity-transport flags decoded from the optional headless config block. */
+/** Identity-transport flags decoded from the optional transport config block. */
 interface IWiringFlags {
   /** When true, present the bank's registered client certificate over node:https. */
   readonly requiresClientCert: boolean;
@@ -21,7 +21,7 @@ interface IWiringFlags {
 /** Identity transport an API-direct bank runs over. */
 type TransportKind = 'node-tls' | 'native';
 
-/** Optional transport settings a headless config block hands to the factory. */
+/** Optional transport settings the registry config block hands to the factory. */
 type TTransportKey =
   | 'tlsProfile'
   | 'clientCert'

@@ -1,13 +1,12 @@
 /**
  * FIBI group scrape shape — per-call request headers. Every financial call
- * sends a fresh `X-FIBI-Transaction-Id`, as the portal shell does. Once a
- * headless login has stored the portal-shell `authorization` answer (the
+ * sends a fresh `X-FIBI-Transaction-Id`, as the portal shell does. Once an
+ * HTTP login has stored the portal-shell `authorization` answer (the
  * bank config's `sessionCarry`), every call also sends it verbatim as
  * `Authorization`, with what the portal page itself sends: a JSON
  * `Accept`, the library's `User-Agent` and — from the landing URL the
- * login kept — its `Origin` and `Referer`. The browser path holds no
- * authorization slot — its bus already sends the page's headers — so the
- * shape adds only the transaction id there.
+ * login kept — its `Origin` and `Referer`. Without an authorization slot,
+ * the shape returns only the transaction id.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -62,7 +61,7 @@ function pageHeaders(landingUrl: string): HeaderMap {
 /**
  * Headers for one FIBI financial call.
  * @param ctx - Action context carrying the API mediator.
- * @returns A fresh transaction id, plus the portal headers on a headless session.
+ * @returns A fresh transaction id, plus portal headers when authorization is present.
  */
 export default function fibiCallHeaders(ctx: IActionContext): HeaderMap {
   const headers: HeaderMap = { [TXN_ID_HEADER]: randomUUID() };

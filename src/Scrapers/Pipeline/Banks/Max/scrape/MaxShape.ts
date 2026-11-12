@@ -1,6 +1,6 @@
 /**
  * Max scrape shape — the `IApiDirectScrapeShape` data declaration consumed by
- * the generic buildGenericHeadlessScrape driver via `withApiDirect`.
+ * the generic API-direct scrape driver via `withApiDirect`.
  * balanceKind=card-cycle: Max publishes an outstanding ILS cycle debit per
  * card on the very `getHomePageData` object the customer step already read,
  * so `balance.skipFetch` stays on and `extract` reads the account rather than

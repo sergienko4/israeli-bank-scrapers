@@ -1,5 +1,5 @@
 /**
- * Beinleumi (FIBI) pipeline — browserless FIBI-family login (Transmit
+ * Beinleumi (FIBI) pipeline — HTTP-only FIBI-family login (Transmit
  * password, SMS code only for an unknown device, portal hand-off, SSO
  * authorization) + hard-model scrape: userData + accountType identity GETs,
  * balances GET, transactions list POST. balanceKind=account.
@@ -13,8 +13,8 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { BEINLEUMI_SHAPE } from './scrape/BeinleumiShape.js';
 
 /**
- * Build the Beinleumi pipeline descriptor: no browser; the direct-API login
- * runs on the headless transport, then the hard-model scrape.
+ * Build the Beinleumi pipeline descriptor: the direct-API login
+ * runs on the HTTP transport, then the hard-model scrape.
  * @param options - Scraper options from the user.
  * @returns Pipeline descriptor.
  */

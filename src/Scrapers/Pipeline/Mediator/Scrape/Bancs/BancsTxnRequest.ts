@@ -6,11 +6,9 @@
  * <p>BaNCS multiplexes account-details, transactions, balance and
  * portfolio through the SAME `POST …/BaNCSDigitalApp/account` URL,
  * differentiated only by the request BODY (`Payload.Category` + a
- * date-range `Filters` tree). The URL-based txn picker
- * ({@link "../../Network/Scoring/ShapeAware.js"} `filterPoolMatches`)
- * and the DASHBOARD FINAL gate therefore never match it. This module is
- * the default-deny body-shape guard that lets exactly the CURRENT_ACCOUNT
- * txn capture — and nothing else — satisfy both.
+ * date-range `Filters` tree). A URL alone cannot distinguish these calls.
+ * This module's default-deny body-shape guard recognizes only the
+ * CURRENT_ACCOUNT transaction query.
  *
  * <p>Discriminator (verified from the live trace, PII-safe): the request
  * body carries `Payload.Category` including `CURRENT_ACCOUNT` AND a
@@ -20,9 +18,8 @@
  *
  * <p>Default-deny: {@link isBancsTxnCapture} returns `false` for every
  * non-BaNCS capture (bad/empty JSON, non-`/account` URL, wrong Category,
- * missing date range), so the picker + gate keep their exact URL-only
- * behaviour for the other pipeline banks (Leumi/Discount/VisaCal/Max/
- * Isracard). No Network/Dashboard import — a pure leaf keyed by shape.
+ * missing date range). This pure leaf recognizes captured data without
+ * coupling to network selection or pipeline phases.
  */
 
 import type { ApiRecord } from '../AutoMapperFacade/AutoMapperTypes.js';

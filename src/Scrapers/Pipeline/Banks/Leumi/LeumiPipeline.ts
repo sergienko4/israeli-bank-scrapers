@@ -1,5 +1,5 @@
 /**
- * Leumi pipeline — native API-direct login and WCF scraping, no browser.
+ * Leumi pipeline — native API-direct login and WCF scraping, HTTP-only.
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
@@ -26,7 +26,7 @@ function hasValidStartDate(options: ScraperOptions): boolean {
  * Builds the registered native descriptor.
  * Post-auth data path uses the Leumi hard model (api-direct WCF scrape).
  * @param options - Scraper options from the user.
- * @returns Browserless pipeline descriptor.
+ * @returns HTTP-only pipeline descriptor.
  */
 function buildLeumiNativePipeline(options: ScraperOptions): Procedure<IPipelineDescriptor> {
   if (!hasValidStartDate(options)) {

@@ -1,6 +1,6 @@
 /**
  * Discount (Telebank group) scrape shape — the `IApiDirectScrapeShape` data
- * declaration consumed by the generic buildGenericHeadlessScrape driver via
+ * declaration consumed by the generic API-direct scrape driver via
  * `withApiDirect`. balanceKind=account.
  *
  * The family wiring — the Titan URLs, the routing headers, the answer check

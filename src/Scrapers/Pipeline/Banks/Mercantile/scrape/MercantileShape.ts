@@ -1,6 +1,6 @@
 /**
  * Mercantile (Telebank group) scrape shape — the `IApiDirectScrapeShape` data
- * declaration consumed by the generic buildGenericHeadlessScrape driver via
+ * declaration consumed by the generic API-direct scrape driver via
  * `withApiDirect`. balanceKind=account.
  *
  * Mercantile reads the same Titan tenant as Discount, so the family wiring —

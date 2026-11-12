@@ -37,7 +37,7 @@ interface IJwtClaimsConfig {
 /**
  * Authorization scheme: "raw" sends the JWT verbatim, "bearer" prefixes the
  * standard bearer word, "prefixed" prefixes `authPrefix`, and "none" sends no
- * header because the session is a cookie (needs `headless.sessionCookies`).
+ * header because the session is a cookie (needs `transport.sessionCookies`).
  */
 type AuthScheme = 'raw' | 'bearer' | 'prefixed' | 'none';
 

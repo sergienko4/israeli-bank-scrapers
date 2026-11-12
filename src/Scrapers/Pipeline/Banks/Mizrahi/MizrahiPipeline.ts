@@ -3,7 +3,7 @@
  * phase logs in with the username and password over Mizrahi's web API and
  * hands the session to the online-banking host, then the shape-driven
  * API-DIRECT-SCRAPE phase switches to each account and reads its balance and
- * transactions. No browser is launched.
+ * transactions. All calls use HTTP.
  */
 
 import type { ScraperOptions } from '../../../Base/Interface.js';
@@ -16,7 +16,7 @@ import { MIZRAHI_SHAPE } from './scrape/MizrahiShape.js';
 /**
  * Build the Mizrahi pipeline descriptor.
  * @param options - Scraper options from the user.
- * @returns Pipeline descriptor (Headless Strategy + config-driven API-DIRECT-CALL).
+ * @returns Pipeline descriptor (HTTP transport + config-driven API-DIRECT-CALL).
  */
 function buildMizrahiPipeline(options: ScraperOptions): Procedure<IPipelineDescriptor> {
   return createPipelineBuilder()

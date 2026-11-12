@@ -1,8 +1,8 @@
 /**
  * The dynamic client-certificate port. A bank whose flow obtains its
  * device certificate at runtime — issued by the bank from a CSR the flow
- * built — declares `clientCert: { mode: 'dynamic', origin }` on its headless
- * transport; the node:https mediator then exposes this port, and a flow step
+ * built — declares `clientCert: { mode: 'dynamic', origin }` in its transport
+ * config; the node:https mediator then exposes this port, and a flow step
  * installs the issued pair through it. The certificate is presented to the
  * declared origin only and is never written anywhere.
  */
@@ -23,7 +23,7 @@ interface IClientCertControl {
   readonly clear: () => true;
 }
 
-/** A headless transport whose certificate the flow installs at runtime. */
+/** A transport whose certificate the flow installs at runtime. */
 interface IDynamicClientCert {
   readonly mode: 'dynamic';
   /** The exact https origin the certificate is presented to. */

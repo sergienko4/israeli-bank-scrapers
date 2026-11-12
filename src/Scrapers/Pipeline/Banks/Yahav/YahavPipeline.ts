@@ -1,5 +1,5 @@
 /**
- * Yahav pipeline — browserless native-app login (device registration with a
+ * Yahav pipeline — HTTP-only native-app login (device registration with a
  * client certificate, then the OAuth logon) + hard-model scrape against the
  * TCS BaNCS mobile API: a single multiplexed `/BaNCSDigitalApp/account` route
  * serves accounts, balance and transactions, differentiated by the request
@@ -14,8 +14,8 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { YAHAV_SHAPE } from './scrape/YahavShape.js';
 
 /**
- * Build the Yahav pipeline descriptor: no browser; the direct-API login runs
- * on the headless transport, then the hard-model scrape.
+ * Build the Yahav pipeline descriptor: the direct-API login runs
+ * on the HTTP transport, then the hard-model scrape.
  * @param options - Scraper options from the user.
  * @returns Pipeline descriptor.
  */

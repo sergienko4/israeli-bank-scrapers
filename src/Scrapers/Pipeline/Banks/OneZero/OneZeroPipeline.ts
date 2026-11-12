@@ -19,7 +19,7 @@ import { ONE_ZERO_SHAPE } from './scrape/OneZeroShape.js';
 /**
  * Build the OneZero pipeline descriptor.
  * @param options - Scraper options from the user.
- * @returns Pipeline descriptor (Headless Strategy + config-driven API-DIRECT-CALL).
+ * @returns Pipeline descriptor (HTTP transport + config-driven API-DIRECT-CALL).
  */
 function buildOneZeroPipeline(options: ScraperOptions): Procedure<IPipelineDescriptor> {
   return createPipelineBuilder()

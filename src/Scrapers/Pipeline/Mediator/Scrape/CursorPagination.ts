@@ -1,5 +1,5 @@
 /**
- * Generic cursor-pagination wire helpers — shared across every headless bank.
+ * Generic cursor-pagination wire helpers shared by API-direct scrape shapes.
  * Exposes a branded wire value for the first page of any cursor-paginated
  * GraphQL query. The project's architecture rules forbid raw `null` and
  * `unknown` in source, so the wire value is minted via JSON.parse and
