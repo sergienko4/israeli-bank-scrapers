@@ -1,6 +1,6 @@
 /**
- * Hapoalim browserless login — mocked E2E for the outcomes: a cold run with
- * the SMS step and no browser, a run the bank lets skip the SMS, each
+ * Hapoalim HTTP-only login — mocked E2E for the outcomes: a cold run with
+ * the SMS step, a run the bank lets skip the SMS, each
  * password-step refusal, a refused replay, bank errors and invalid answers,
  * empty and partial movement pages, a lost session and every way step 0 can
  * fail. The SMS step's own edges live in HapoalimOtp, the wire in HapoalimWire.

@@ -1,5 +1,5 @@
 /**
- * FIBI group browserless device memory — mocked E2E. A caller that supplies a
+ * FIBI group HTTP-only device memory — mocked E2E. A caller that supplies a
  * storage callback and no state enrolls: the run publishes the device id the
  * bank issued, once. A caller that hands that state back resumes: every
  * Transmit call names the stored id, even when the bank answers a different

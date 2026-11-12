@@ -9,7 +9,7 @@
  * contract — correct options, and a FRESH scraper per attempt so a failed
  * warm attempt cannot leak session state into the cold retry.
  *
- * `createScraper` is mocked, so no browser starts and no network call runs.
+ * `createScraper` is mocked, so no network call runs.
  */
 
 import { jest } from '@jest/globals';

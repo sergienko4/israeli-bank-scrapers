@@ -1,5 +1,5 @@
 /**
- * Synthetic reply builders and cookie checks shared by the browserless bank
+ * Synthetic reply builders and cookie checks shared by the HTTP-only bank
  * fetch mocks: a body, a bodiless status, JSON, a 302, and the Cookie header
  * a recorded call sent.
  */

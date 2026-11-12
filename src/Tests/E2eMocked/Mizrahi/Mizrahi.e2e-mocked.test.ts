@@ -1,6 +1,6 @@
 /**
- * Mizrahi browserless login — mocked E2E for the outcomes: a cold run over
- * both hosts with no browser, each login refusal, a refused replay, the
+ * Mizrahi HTTP-only login — mocked E2E for the outcomes: a cold run over
+ * both hosts, each login refusal, a refused replay, the
  * logon envelope, an empty page, a lost session and every way step 0 can
  * fail. The wire itself (cookies, hops, headers) lives in MizrahiWire.
  *

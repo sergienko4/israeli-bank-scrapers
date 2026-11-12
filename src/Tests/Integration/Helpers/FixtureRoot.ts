@@ -2,8 +2,8 @@
  * Locates the committed bank fixture tree.
  *
  * <p>Fixtures hold captured, PII-redacted bank responses that offline
- * contract tests read from disk. Kept apart from any browser tooling so the
- * fixtures stay reachable after the browser stack is retired.
+ * contract tests read from disk. Resolving their location depends only on
+ * this module's URL and the fixture directory layout.
  */
 
 import * as path from 'node:path';

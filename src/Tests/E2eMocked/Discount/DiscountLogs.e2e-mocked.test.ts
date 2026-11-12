@@ -1,5 +1,5 @@
 /**
- * Discount browserless logs — no credential, formatted id, token, session
+ * Discount HTTP-only logs — no credential, formatted id, token, session
  * id, cookie, login binding or bank text reaches a log line, across a full
  * run and every refusal. Every pipeline logger is swapped for a real pino
  * logger at `trace` with the production redaction config.

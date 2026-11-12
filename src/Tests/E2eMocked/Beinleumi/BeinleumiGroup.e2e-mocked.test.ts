@@ -1,6 +1,6 @@
 /**
  * Beinleumi group siblings — mocked E2E. Each sibling runs Beinleumi's
- * browserless login on its own online origin, portal, Transmit app, bank
+ * HTTP-only login on its own online origin, portal, Transmit app, bank
  * number and device-memory provider. The synthetic bank, bound to the
  * sibling's brand, checks every call: a cold run that enrolls the device, an
  * SMS step the bank asks for, a resume with the stored device, and a device
@@ -32,7 +32,7 @@ const GENERATE_TRAIL = [...OPENING_TRAIL, ...OTP_TRAIL, ...PORTAL_TRAIL, ...SCRA
 const RESUME = { storedDid: BN_STORED_DID, callback: 'record' } as const;
 
 /**
- * Expect a run to have signed in and scraped, every call on spec, with no browser.
+ * Expect a run to have signed in and scraped, every HTTP call on spec.
  * @param run - The run.
  * @param trail - The calls it must have made.
  * @returns True once checked.

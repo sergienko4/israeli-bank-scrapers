@@ -1,5 +1,5 @@
 /**
- * Mizrahi browserless wire — mocked E2E for what crosses the wire: which
+ * Mizrahi HTTP-only wire — mocked E2E for what crosses the wire: which
  * cookie reaches which host, the anti-forgery header, the landing hops and
  * their limits, the composed data token, the raw bodies and the exact
  * header map on every call.

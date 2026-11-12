@@ -10,9 +10,9 @@ import { defaultStartDate } from './Helpers.js';
 /**
  * Runs one real-bank scrape and resolves with its result.
  *
- * <p>Each invocation builds a FRESH scraper (and therefore a fresh
- * browser), so a warm-path failure cannot leak session state into the
- * cold-path retry driven by {@link scrapeWithWarmFallback}.
+ * <p>Each invocation builds a fresh scraper, so a warm-path failure cannot
+ * leak session state into the cold-path retry driven by
+ * {@link scrapeWithWarmFallback}.
  * @param creds - Warm or cold credential shape.
  * @returns Scrape result.
  */
@@ -48,7 +48,7 @@ function durableOptionsOf(args: IScrapeAttemptArgs): Partial<ScraperOptions> {
 /**
  * Build the scraper options shared by every OTP-bank E2E attempt.
  * @param args - Bank-specific configuration.
- * @returns Options for a single headless attempt.
+ * @returns Options for a single HTTP scrape attempt.
  */
 function buildAttemptOptions(args: IScrapeAttemptArgs): ScraperOptions {
   const durable = durableOptionsOf(args);

@@ -1,5 +1,5 @@
 /**
- * FIBI group browserless refusals — mocked E2E. Each login, envelope, page,
+ * FIBI group HTTP-only refusals — mocked E2E. Each login, envelope, page,
  * hand-off or SSO answer off the recorded contract, and a data read the bank
  * fails, fails the run with the error type the contract maps it to, before any later
  * call; no failure carries the bank's own text.

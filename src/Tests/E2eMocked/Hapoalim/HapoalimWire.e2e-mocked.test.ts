@@ -1,5 +1,5 @@
 /**
- * Hapoalim browserless wire — mocked E2E for what crosses the wire: the exact
+ * Hapoalim HTTP-only wire — mocked E2E for what crosses the wire: the exact
  * header map on every call, the raw form bodies in field order, the sealed
  * password, the client-set `G3CmE` cookie, the decoded CSRF echo, and the
  * per-account data queries with the movements body exactly `[]`.

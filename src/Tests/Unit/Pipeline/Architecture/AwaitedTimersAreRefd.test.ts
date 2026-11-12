@@ -11,10 +11,9 @@
  * <p>Issue #552 is that failure, shipped. A consumer's scrape returned
  * nothing at all: no result, no error, no diagnostic, and the actionable
  * message the launcher had already prepared was discarded on the way out.
- * Inside this repo the defect is invisible, because Jest, an open browser
- * or a live socket always keeps the loop busy enough for the timer to fire
- * anyway. It only appears when the library is the only thing running —
- * which is every consumer, and no CI job.
+ * Test infrastructure or a live socket can mask the defect by keeping the
+ * loop busy enough for the timer to fire. The failure appears when no other
+ * referenced work remains in the consumer's event loop.
  *
  * <p>The four original offenders were all written the same way, so a
  * per-site fix would not have stopped the fifth. This scans the shipped

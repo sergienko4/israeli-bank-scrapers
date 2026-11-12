@@ -1,5 +1,5 @@
 /**
- * Ring issuers' browserless login (Isracard, Amex) — mocked-ring E2E, run
+ * Ring issuers' HTTP-only login (Isracard, Amex) — mocked-ring E2E, run
  * once per issuer against the synthetic ring playing that issuer, for what
  * the shared
  * API-DIRECT flow spec cannot see: the six-step device-key login, the

@@ -1,5 +1,5 @@
 /**
- * Mizrahi browserless login — no credential, cookie, token or bank text
+ * Mizrahi HTTP-only login — no credential, cookie, token or bank text
  * reaches a log line. Every pipeline logger is swapped for a real pino logger
  * at `trace` level with the production redaction config, so full runs and
  * failures are observed at full verbosity.

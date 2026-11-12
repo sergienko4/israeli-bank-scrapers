@@ -1,5 +1,5 @@
 /**
- * Mizrahi synthetic fetch mock — stands in for www and mto so the browserless
+ * Mizrahi synthetic fetch mock — stands in for www and mto so the HTTP-only
  * login and scrape run with no network.
  *
  * Rule #18: every value here is SYNTHETIC. No real PII.

@@ -1,12 +1,9 @@
 /**
  * Maximum time allowed for a full scrape operation in E2E tests (ms).
  *
- * 900_000 ms = 15 minutes. Slow-bank SPA login (VisaCal/MAX cal-online
- * stack) can spend ~4 minutes in login+dashboard before the scrape
- * phase even begins. The per-account 90s cap and 180s global scrape
- * budget in ScrapeDispatch.ts bound scrape duration separately, so
- * this jest-level ceiling only protects against pathological hangs
- * further upstream.
+ * 900_000 ms = 15 minutes. This Jest-level ceiling covers the entire HTTP
+ * login and scrape attempt, including OTP retrieval and bank response waits.
+ * It is separate from the scrape phase's own request and account budgets.
  */
 export const SCRAPE_TIMEOUT = 900_000;
 

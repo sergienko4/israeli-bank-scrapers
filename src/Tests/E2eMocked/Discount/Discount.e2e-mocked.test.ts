@@ -1,6 +1,6 @@
 /**
- * Discount browserless login — mocked E2E for the outcomes: a cold run with
- * no browser, each account's balance and movements, every refusal the login
+ * Discount HTTP-only login — mocked E2E for the outcomes: a cold run,
+ * each account's balance and movements, every refusal the login
  * or the data API can give, and the credentials refused before any request.
  * The wire itself (headers, bodies, seals, cookies) lives in DiscountWire.
  *

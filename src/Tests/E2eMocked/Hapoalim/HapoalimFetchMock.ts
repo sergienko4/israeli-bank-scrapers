@@ -1,6 +1,6 @@
 /**
  * Hapoalim synthetic fetch mock — stands in for the bank's one origin so the
- * browserless login and scrape run with no network. The routes live in
+ * HTTP-only login and scrape run with no network. The routes live in
  * HapoalimAuthRoutes (login, `identity`) and HapoalimDataRoutes (`graphql`).
  *
  * Rule #18: every value here is SYNTHETIC. No real PII.

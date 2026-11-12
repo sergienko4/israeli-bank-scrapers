@@ -1,5 +1,5 @@
 /**
- * Beinleumi browserless login and scrape — mocked E2E. A cold run reads the
+ * Beinleumi HTTP-only login and scrape — mocked E2E. A cold run reads the
  * login page, opens a Transmit envelope, asserts the password, posts the
  * login form back with the Transmit token, follows the portal hand-off and
  * trades the SSO code for the authorization the BFF reads carry. Every call

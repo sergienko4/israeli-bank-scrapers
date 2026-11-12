@@ -1,5 +1,5 @@
 /**
- * FIBI group browserless SMS step — mocked E2E. When the password answer
+ * FIBI group HTTP-only SMS step — mocked E2E. When the password answer
  * offers an SMS code the run asks the caller for it: a `generate` offer is
  * triggered first (and the trigger's answer names the code's real length), a
  * `validate` offer is asserted straight away. A fresh session id the bank
