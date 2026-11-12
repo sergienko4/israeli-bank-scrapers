@@ -112,7 +112,7 @@ function pageChecks(
  */
 function prime(call: IRecordedCall, state: IBeinleumiMockState): Response {
   hit(state, 'prime');
-  const headers = headerChecks(call, { accept: HTML_TYPE, 'user-agent': WIRE_UA });
+  const headers = headerChecks(call, PAGE_HEADERS);
   const query = entryQueryOf(state.brand);
   const isQuery = isQueryExactly(call, query);
   if (!checkWire(state, call, { ...headers, query: isQuery })) return errorReply(400);
