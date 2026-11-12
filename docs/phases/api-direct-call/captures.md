@@ -33,6 +33,13 @@ textCaptures: {
   answer over it fails `<step> text too long`, never truncated.
 - A failure names the step and the slot only, never the text.
 
+At debug level, `logCaptureRefusal` logs the configured step/slot, refusal
+reason, answer length and fixed lexical opening-tag counts (`html`, `title`,
+`form`, `input`, `script`, `iframe`). Counts are hints, not parsed elements or
+a WAF classification: tag-like text inside scripts or comments may contribute.
+Response text, title values, attributes, URLs and captured values are never
+emitted. Successful captures add no diagnostics.
+
 ## Login-form capture
 
 Some banks hand out a login form whose hidden fields the logon post must send

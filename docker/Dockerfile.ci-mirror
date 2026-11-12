@@ -1,24 +1,24 @@
 # CI mirror — Ubuntu + the build Node from .nvmrc; package.json is the single
 # source of truth for the npm package versions.
-# Built to match GitHub's `ubuntu-latest` (= 24.04) runner image so local
-# repro of the E2E Real A jobs matches the CI environment byte-for-byte
-# above the OS level. Used for two purposes:
-#   1. Reproduce CI-only flakes locally (e.g. Beinleumi HOME load
-#      variance, Hapoalim auth-API rejections) for root-cause analysis.
+# Matches the Ubuntu 26.04 runner family observed in the real-bank CI jobs.
+# Node and npm dependencies follow the same repository pins; kernel, runner
+# tooling and network egress still differ from the hosted runner.
+# Used for two purposes:
+#   1. Reproduce Linux-specific real-bank failures for root-cause analysis.
 #   2. Run each bank in its own container, so the banks can run in
 #      parallel without sharing a process space or a resolver.
 #
 # Build:   docker build -f docker/Dockerfile.ci-mirror -t isbs-ci:latest .
 # Single:  bash docker/run-banks.sh Beinleumi
-# Parallel: bash docker/run-banks.sh   (no args = all 6)
+# Parallel: bash docker/run-banks.sh   (no args = configured default banks)
 
 # Pinned by SHA-256 digest — closes CodeQL alert #34
 # (PinnedDependenciesID). The tag is kept for readability; the digest
-# pins reproducibility by content hash so a re-tag of `ubuntu:24.04`
+# pins reproducibility by content hash so a re-tag of `ubuntu:26.04`
 # upstream cannot silently change what this image carries. Dependabot
 # (`.github/dependabot.yml` `package-ecosystem: docker`) auto-bumps
 # the digest on upstream releases.
-FROM ubuntu:25.10@sha256:7cc5e35f6567ee8c66d2abb4aab0fd866669e6207c237c3a8f0947a5c7f17092
+FROM ubuntu:26.04@sha256:0d5255be560e2d2ddcfbfda88549e9e815ef29e7cd7fc62183d5709e6e2963c6
 
 ARG DEBIAN_FRONTEND=noninteractive
 

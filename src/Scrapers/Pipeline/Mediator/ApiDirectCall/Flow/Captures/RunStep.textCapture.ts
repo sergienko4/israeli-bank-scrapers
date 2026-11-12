@@ -14,6 +14,7 @@ import type { IProcedureFailure, Procedure } from '../../../../Types/Procedure.j
 import { fail, isOk, succeed } from '../../../../Types/Procedure.js';
 import type { IStepConfig, ITextCapture } from '../../ConfigContracts/index.js';
 import type { CarryMap, JsonValue } from '../Steps/RunStep.types.js';
+import { logCaptureRefusal } from './RunStep.textCapture.diagnostics.js';
 
 /** One capture: its carry slot and its pattern. */
 type CaptureEntry = readonly [string, ITextCapture];
@@ -73,6 +74,7 @@ function firstTwoMatches(text: string, pattern: string): readonly RegExpExecArra
  * @returns Generic failure.
  */
 function refuse(input: ICaptureInput, slot: string, reason: CaptureReason): IProcedureFailure {
+  logCaptureRefusal(input, slot, reason);
   return fail(ScraperErrorTypes.Generic, `${input.stepName} capture ${slot} ${reason}`);
 }
 
