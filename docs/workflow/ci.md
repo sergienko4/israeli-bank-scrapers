@@ -7,7 +7,6 @@ source-files:
   - .github/workflows/cache-cleanup.yml
   - .github/workflows/dev-tooling-watch.yml
   - .github/scripts/ci/detect-changes.sh
-  - .github/scripts/ci/capture-fibi-entry.mjs
   - .github/actions/setup-consumer-runtime/action.yml
   - .github/scripts/ci/consumer-install.sh
   - .github/scripts/ci/consumer-smoke.cjs
@@ -32,17 +31,6 @@ The browser-stack gate and browser integration harness are removed.
 Post-merge is a different pipeline: one `Main Pipeline` run per merge — scans
 and release together — covered in
 [Main pipeline (post-merge CI)](main-pipeline.md).
-
-For the unresolved hosted Beinleumi bootstrap failure, the existing Group B
-job temporarily samples one fresh anonymous entry GET after that bank's E2E
-step fails. It sends no credentials, Authorization or cookies, does not follow
-redirects, and is bounded to 20 seconds and 2 MiB without retries. Its body
-and numeric metadata go under the existing private archive (0700 directory,
-0600 files); no response headers or page text enter public logs or artifacts.
-The sample is independent of the failed scraper response, not a replay.
-Diagnostic failure cannot replace the original failing E2E result. Remove
-this temporary capture once the hosted response is understood; the library's
-`omitBankText` policy is unchanged.
 
 ## Gate matrix
 

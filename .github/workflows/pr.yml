@@ -1578,7 +1578,6 @@ jobs:
       - uses: $/.github/actions/setup-node-deps
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
       - name: E2E real (${{ matrix.bank }})
-        id: bank_e2e
         env:
           # FORENSIC_TRACE (repo variable) gates per-run artefact capture
           # (pipeline.log, network dumps, screenshots) under RUNS_ROOT:
@@ -1603,13 +1602,6 @@ jobs:
             --testPathIgnorePatterns='/node_modules/' \
             --verbose \
             --forceExit
-      # Temporary owner-approved anonymous evidence; never shares scraper cookies.
-      - name: Capture anonymous Beinleumi entry after failure
-        if: ${{ !cancelled() && matrix.bank == 'Beinleumi' && steps.bank_e2e.outcome == 'failure' }}
-        timeout-minutes: 1
-        env:
-          RUNS_ROOT: /tmp/runs
-        run: node .github/scripts/ci/capture-fibi-entry.mjs
       - name: Upload full diagnostics to private store (${{ matrix.bank }})
         if: ${{ !cancelled() && (failure() || vars.FORENSIC_TRACE != '') }}
         env:

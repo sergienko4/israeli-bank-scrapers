@@ -98,6 +98,12 @@ The entry GET uses the ordinary web caller's
 its response policy still requires HTML and the real bank/IP/form context.
 An HTTP 200 without those values is not an authenticated or usable login page.
 
+Hosted CI can receive a Radware browser-verification page instead of that
+entry page, before any credentials are submitted. This HTTP-only scraper
+does not execute browser challenges or invent the missing bank context.
+Such a response needs an approved, bank-accessible network path; changing
+the request Accept alone does not resolve it.
+
 ## Warm start
 
 The bank remembers the device it names during a login, and a device it knows
