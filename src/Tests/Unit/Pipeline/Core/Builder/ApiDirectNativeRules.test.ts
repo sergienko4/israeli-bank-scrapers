@@ -13,7 +13,7 @@ import {
 } from '../../../../../Scrapers/Pipeline/Core/Builder/Validation/ApiDirectConfigRules.js';
 import type { IStepConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 
-/** The bank's headless block when it has one. */
+/** The bank's transport block when it has one. */
 type HeadlessBlock = Exclude<IApiDirectRuleInput['transport'], false>;
 
 const HOST = 'https://native.example';
@@ -78,9 +78,9 @@ function carrying(header: string): IStepConfig {
 }
 
 /**
- * Rule input running the given steps beside the given headless block.
+ * Rule input running the given steps beside the given transport block.
  * @param steps - Login steps.
- * @param headless - Bank headless block, or false when it has none.
+ * @param headless - Bank transport block, or false when it has none.
  * @returns Rule input.
  */
 function runOf(
@@ -93,7 +93,7 @@ function runOf(
 /**
  * Rule input whose only resume step is the given one.
  * @param step - Resume step.
- * @returns Rule input with a plain headless block.
+ * @returns Rule input with a plain transport block.
  */
 function resumeOf(step: IStepConfig): IApiDirectRuleInput {
   const persistentAuth = {
@@ -140,7 +140,7 @@ function bankTyped(mediaTypes: Readonly<Record<string, string>>): IApiDirectRule
   return runOf([CALL], { ...NATIVE, mediaTypes });
 }
 
-/** A config, the headless block beside it, and the text it fails with. */
+/** A config, the transport block beside it, and the text it fails with. */
 interface IBrokenCase {
   readonly label: string;
   readonly input: IApiDirectRuleInput;

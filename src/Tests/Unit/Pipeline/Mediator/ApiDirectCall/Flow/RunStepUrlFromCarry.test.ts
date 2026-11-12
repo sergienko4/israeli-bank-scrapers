@@ -5,7 +5,7 @@
  * carried one: a raw query, the extract URL rules, the form action and the
  * client cookies. A slot that is absent, not text or not an absolute URL fails
  * before anything is sent. The cases drive the real mediator over the
- * headless native transport.
+ * native HTTP transport.
  */
 
 import { CompanyTypes } from '../../../../../../Definitions.js';
@@ -107,7 +107,7 @@ function tokenAnswer(): Response {
 }
 
 /**
- * A headless mediator whose cookie session covers the bank's domain.
+ * An HTTP mediator whose cookie session covers the bank's domain.
  * @returns The bus.
  */
 function jarBus(): ITokenBus {

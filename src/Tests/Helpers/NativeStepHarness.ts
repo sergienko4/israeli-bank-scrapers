@@ -1,5 +1,5 @@
 /**
- * Native-step harness — the real api mediator over the real headless native
+ * Native-step harness — the real api mediator over the real native HTTP
  * transport, answered by a fake fetch. RunStep tests use it to drive a step
  * through the transport's response hooks end-to-end, without a network.
  */
@@ -33,7 +33,7 @@ export function installJsonAnswer(body: object, headers: readonly HeaderPair[]):
 }
 
 /**
- * Real mediator over the real headless native transport.
+ * Real mediator over the real native HTTP transport.
  * @param hint - The bank the mediator serves.
  * @param origin - The transport's base URL.
  * @returns The mediator a step fires through.

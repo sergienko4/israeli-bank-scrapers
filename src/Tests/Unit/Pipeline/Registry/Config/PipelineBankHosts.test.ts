@@ -16,7 +16,7 @@
  *   - T-DNS-2: `he.isracard.co.il` is never declared — it has no A record.
  *   - T-DNS-4: no bank re-declares the host already in its `urls.base`.
  *   - T-DNS-5: every key is a bank the registry actually knows.
- *   - T-DNS-6: every host a bank's headless block calls is declared, unless
+ *   - T-DNS-6: every host a bank's transport block calls is declared, unless
  *     it is the bank's own `urls.base` host.
  *   - T-DNS-7: GraphQL-only hosts remain covered by the completeness guard.
  *   - T-DNS-8: VisaCal declares only its active mobile gateway.
@@ -38,7 +38,7 @@ const BARE_HOSTNAME = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]
  */
 const NO_SUCH_HOST = 'he.isracard.co.il';
 
-/** Hosts reachable only through each bank's `headless.graphql` field. */
+/** Hosts reachable only through each bank's `transport.graphql` field. */
 const GRAPHQL_ONLY_HOSTS = [
   [CompanyTypes.OneZero, 'mobile.tfd-bank.com'],
   [CompanyTypes.Pepper, 'fe-sec.pepper.co.il'],
@@ -83,7 +83,7 @@ async function allDeclaredHosts(): Promise<string[]> {
 }
 
 /**
- * Hosts one bank's headless block calls that the warm-up would leave cold:
+ * Hosts one bank's transport block calls that the warm-up would leave cold:
  * neither the bank's `urls.base` host nor declared in the manifest.
  *
  * @param companyId - Registry key.

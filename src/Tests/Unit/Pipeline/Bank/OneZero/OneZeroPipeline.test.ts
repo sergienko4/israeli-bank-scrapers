@@ -1,7 +1,7 @@
 /**
  * Unit tests for the OneZero pipeline factory.
  * Asserts the descriptor is a success Procedure and the phase list matches
- * the headless strategy (no browser phases).
+ * the HTTP-only phase sequence.
  */
 
 import { buildOneZeroPipeline } from '../../../../../Scrapers/Pipeline/Banks/OneZero/OneZeroPipeline.js';

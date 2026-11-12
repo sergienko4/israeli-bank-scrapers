@@ -1,6 +1,6 @@
 /**
  * Shared Mizrahi hard-model test factory — the committed response loader, a
- * mock mediator whose `apiPost` a spec serves, and the real generic headless
+ * mock mediator whose `apiPost` a spec serves, and the real generic API-direct
  * scrape driven over a pinned window.
  *
  * <p>Extracted so the shape suite, the simulated multi-account session and
@@ -41,7 +41,7 @@ interface IScrapeWindow {
   readonly end: Date;
 }
 
-/** What the generic headless scrape resolves to. */
+/** What the generic API-direct scrape resolves to. */
 type MizrahiScrapeRun = ReturnType<ReturnType<typeof buildGenericHeadlessScrape>>;
 
 /**
@@ -95,7 +95,7 @@ function ctxOf(bus: IApiMediator, window: IScrapeWindow): IActionContext {
 }
 
 /**
- * Drive MIZRAHI_SHAPE through the generic headless scrape.
+ * Drive MIZRAHI_SHAPE through the generic API-direct scrape.
  * @param bus - Mock mediator.
  * @param window - Requested start and pinned end.
  * @returns Scrape procedure.

@@ -1,6 +1,6 @@
 /**
  * A dynamic client certificate is checked when the pipeline is built: a
- * step `clientCert` needs the headless dynamic block, whose `origin` must be
+ * step `clientCert` needs the dynamic transport block, whose `origin` must be
  * an exact https origin, and the block excludes a registered certificate.
  */
 
@@ -11,7 +11,7 @@ import {
 } from '../../../../../Scrapers/Pipeline/Core/Builder/Validation/ApiDirectConfigRules.js';
 import type { IStepConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 
-/** The bank's headless block when it has one. */
+/** The bank's transport block when it has one. */
 type HeadlessBlock = Exclude<IApiDirectRuleInput['transport'], false>;
 
 const STEP_MSG = 'steps.clientCert: not allowed without transport.clientCert';
@@ -37,7 +37,7 @@ const INSTALLING: IStepConfig = {
 /**
  * Rule input whose one login step is the given step.
  * @param step - The login step.
- * @param headless - The bank's headless block, or false.
+ * @param headless - The bank's transport block, or false.
  * @returns Rule input.
  */
 function runOf(step: IStepConfig, headless: HeadlessBlock | false): IApiDirectRuleInput {
@@ -45,9 +45,9 @@ function runOf(step: IStepConfig, headless: HeadlessBlock | false): IApiDirectRu
 }
 
 /**
- * A dynamic headless block presenting to the given origin.
+ * A dynamic transport block presenting to the given origin.
  * @param origin - Declared origin.
- * @returns Headless block.
+ * @returns Transport block.
  */
 function presentingTo(origin: string): HeadlessBlock {
   return { ...PLAIN, clientCert: { mode: 'dynamic', origin } };
@@ -56,7 +56,7 @@ function presentingTo(origin: string): HeadlessBlock {
 /**
  * Rule input whose only resume step is the given one.
  * @param step - Resume step.
- * @returns Rule input with a plain headless block.
+ * @returns Rule input with a plain transport block.
  */
 function resumeOf(step: IStepConfig): IApiDirectRuleInput {
   const persistentAuth = {

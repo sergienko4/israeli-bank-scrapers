@@ -1,9 +1,9 @@
 /**
  * WK seeding contract for PIPELINE_BANK_CONFIG.
  *
- * Loading the bank-config module seeds every headless URL into the WK
+ * Loading the bank-config module seeds every transport URL into the WK
  * registry. The seeder walks the CompanyTypes enum, so these tests pin that
- * every configured headless URL resolves, and banks without a headless block
+ * every configured transport URL resolves, and banks without a transport block
  * stay unregistered.
  */
 
@@ -26,16 +26,16 @@ const SEEDER =
 /** One bank's entry in PIPELINE_BANK_CONFIG. */
 type BankConfig = (typeof PIPELINE_BANK_CONFIG)[CompanyTypes];
 
-/** One bank's headless `paths` map. */
+/** One bank's transport `paths` map. */
 type HeadlessPaths = NonNullable<NonNullable<BankConfig>['transport']>['paths'];
 
 /** One URL the seeder must register: [group, bank, url]. */
 type SeededUrl = readonly [WKUrlGroup, CompanyTypes, string];
 
 /**
- * List the per-bank auth-path URLs one headless block declares.
+ * List the per-bank auth-path URLs one transport block declares.
  * @param bankId - Bank to read.
- * @param paths - That bank's headless `paths` map.
+ * @param paths - That bank's transport `paths` map.
  * @returns The path URLs the seeder must register.
  */
 function expectedPathUrls(bankId: CompanyTypes, paths: HeadlessPaths): SeededUrl[] {
@@ -45,7 +45,7 @@ function expectedPathUrls(bankId: CompanyTypes, paths: HeadlessPaths): SeededUrl
 }
 
 /**
- * List every URL one bank's headless block declares.
+ * List every URL one bank's transport block declares.
  * @param bankId - Bank to read.
  * @param config - That bank's pipeline config.
  * @returns The URLs the seeder must register for the bank.

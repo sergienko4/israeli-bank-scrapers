@@ -1,6 +1,6 @@
 /**
  * A `text` step's captures run on its real `{ text }` answer through the
- * headless native transport. Each pattern must match exactly once and its slot
+ * native HTTP transport. Each pattern must match exactly once and its slot
  * takes the group's text; an `absent` guard must not match and carries nothing.
  * A captured slot passes its extract rules, `maxChars` 8192 when it has none.
  * `maxTextChars` moves the answer cap. A failure names the step and the slot,

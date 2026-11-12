@@ -1,6 +1,6 @@
 /**
  * A step may carry response headers. `headerExtractsToCarry` names a
- * carry slot per header; the real mediator over the headless native transport
+ * carry slot per header; the real mediator over the native HTTP transport
  * answers from a fake fetch, and the step's carry is read back.
  */
 

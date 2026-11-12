@@ -1,6 +1,6 @@
 /**
  * Discount api-direct login config. The build-time
- * validator accepts it with its headless block; each step hydrates to the
+ * validator accepts it with its transport block; each step hydrates to the
  * request the protocol trace pinned — the login page with the routing
  * cookies, the RSA key, the sealed login with its one redirect hop, and the
  * retail app — and each answer check maps the bank's verdict to the

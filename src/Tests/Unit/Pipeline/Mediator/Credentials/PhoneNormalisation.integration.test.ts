@@ -149,7 +149,7 @@ function makeCapturingBus(capture: ICredsCapture): IApiMediator {
 /**
  * Build a pipeline bank config literal mirroring the shape of a
  * `PIPELINE_BANK_CONFIG` entry — only the fields exercised by
- * `withNormalisedCreds` (headless.phoneNumberFormat) carry meaning.
+ * `withNormalisedCreds` (transport.phoneNumberFormat) carry meaning.
  * Keeps the test self-contained per DI rule (no production-config import).
  * @param format - Wire-format tag declared by the bank.
  * @returns Pipeline bank config literal.

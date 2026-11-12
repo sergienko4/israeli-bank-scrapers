@@ -20,7 +20,7 @@ import type {
 const SLOT_MSG = 'sessionCarry: each slot must name a step extract';
 const HANDOFF_MSG = 'cookieHandoff: isolate not allowed without transport.cookieDomains';
 
-/** The bank's headless block, as the rules read it. */
+/** The bank's transport block, as the rules read it. */
 type Headless = IApiDirectRuleInput['transport'];
 
 const NATIVE = {
@@ -123,8 +123,8 @@ describe('validateApiDirectConfig — sessionCarry', () => {
 });
 
 /**
- * Validate a one-step flow with the given headless block and hand-off.
- * @param headless - Headless block.
+ * Validate a one-step flow with the given transport block and hand-off.
+ * @param headless - Transport block.
  * @param cookieHandoff - Hand-off under test; omitted for the default.
  * @returns Build-rule verdict.
  */

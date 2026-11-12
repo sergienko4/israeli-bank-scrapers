@@ -1,7 +1,7 @@
 /**
  * Unit tests for the transport rule in Core/ApiMediatorWiring.
  *
- * A headless bank that declares a client certificate (static or dynamic) or a
+ * A bank that declares a client certificate (static or dynamic) or a
  * TLS ClientHello profile runs over node:https; a bank that opts into
  * `nativeFetch` runs over Node's own fetch; a bank that declares more than one
  * transport, or none, fails fast. The bank registry and every mediator
@@ -22,7 +22,7 @@ import type {
   StatusPolicy,
 } from '../../../../Scrapers/Pipeline/Types/Domain/FetchPolicy.js';
 
-/** Transport flags a headless config block may declare. */
+/** Flags a bank's transport config block may declare. */
 interface ITransportFlags {
   readonly requiresClientCert?: boolean;
   readonly clientCert?: IDynamicClientCert;
@@ -84,8 +84,8 @@ const MISSING_FLAGS: readonly (readonly [string, ITransportFlags])[] = [
 ];
 
 /**
- * Register a headless block declaring the given flags for every bank.
- * @param flags - Transport flags of the bank's headless block.
+ * Register a transport block declaring the given flags for every bank.
+ * @param flags - Transport flags of the bank's transport block.
  * @returns True once the config mock is set.
  */
 function mockHeadless(flags: ITransportFlags): boolean {
@@ -94,8 +94,8 @@ function mockHeadless(flags: ITransportFlags): boolean {
 }
 
 /**
- * Resolve the headless mediator for a bank declaring the given flags.
- * @param flags - Transport flags of the bank's headless block.
+ * Resolve the HTTP mediator for a bank declaring the given flags.
+ * @param flags - Transport flags of the bank's transport block.
  * @returns True once the resolver has run.
  */
 function resolveWith(flags: ITransportFlags): boolean {

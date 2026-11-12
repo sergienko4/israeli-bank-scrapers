@@ -17,10 +17,10 @@ import type { IApiDirectRuleInput } from '../../../../../Scrapers/Pipeline/Core/
 import { validateApiDirectConfig } from '../../../../../Scrapers/Pipeline/Core/Builder/Validation/ApiDirectConfigRules.js';
 import type { IApiDirectCallConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 
-/** The bank's headless block, as the build-time validator reads it. */
+/** The bank's transport block, as the build-time validator reads it. */
 type HeadlessBlock = Exclude<IApiDirectRuleInput['transport'], false>;
 
-/** A group bank's login config and its headless block. */
+/** A group bank's login config and its transport block. */
 interface ILoadedConfig {
   readonly call: IApiDirectCallConfig;
   readonly headless: HeadlessBlock;
@@ -50,8 +50,8 @@ const SWAPS: readonly ISwap[] = [
  * Load a group bank's config module as JSON text; the config is pure data,
  * so nothing is dropped.
  * @param module - The config module's file name.
- * @param headlessExport - The name its headless block is exported under.
- * @returns The login config and headless block, and their text.
+ * @param headlessExport - The name its transport block is exported under.
+ * @returns The login config and transport block, and their text.
  */
 async function loadConfig(
   module: string,

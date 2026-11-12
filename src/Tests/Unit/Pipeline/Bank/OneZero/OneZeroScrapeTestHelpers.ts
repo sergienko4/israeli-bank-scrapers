@@ -1,7 +1,7 @@
 /**
  * Shared helpers for OneZero scrape unit tests — synthetic portfolios,
  * GraphQL envelopes, a router-backed mock IApiMediator, and a context
- * factory that mirrors the executor's headless-mode mediator wiring.
+ * factory that supplies the pipeline's HTTP mediator slot.
  * All fixture data here is synthetic — Rule #18.
  */
 

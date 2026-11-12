@@ -125,7 +125,7 @@ interface IRefusal extends IBuildCase {
 /**
  * Rule input for a build case.
  * @param build - Steps, resume steps and session slots.
- * @returns Rule input over a native headless block.
+ * @returns Rule input over a native transport block.
  */
 function inputOf(build: IBuildCase): IApiDirectRuleInput {
   const { steps, sessionCarry } = build;

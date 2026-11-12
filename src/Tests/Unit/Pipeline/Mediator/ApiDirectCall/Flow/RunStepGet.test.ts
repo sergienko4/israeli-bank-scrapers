@@ -3,7 +3,7 @@
  *
  * The stub cases prove the method map picks `apiGet` and hands it the query
  * and the Set-Cookie sink. The end-to-end cases drive the real mediator over
- * the headless native transport and read what reached `fetch`: a GET carries
+ * the native HTTP transport and read what reached `fetch`: a GET carries
  * no body and no content-type, a POST still sends JSON.
  */
 
@@ -130,7 +130,7 @@ function installPage(html: string | Uint8Array<ArrayBuffer>): IFetchFake {
 }
 
 /**
- * Real mediator over the real headless native transport.
+ * Real mediator over the real native HTTP transport.
  * @returns Mediator bound to the fake fetch.
  */
 function makeNativeMediator(): ITokenBus {

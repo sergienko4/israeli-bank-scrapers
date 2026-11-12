@@ -7,8 +7,8 @@
  * `Payload.Filters[].Filters[].OrigDt {Day,Month,Year}` range), and that
  * they default-deny (`false`) for the portfolioBalance / account-details
  * requests that share the same `/account` URL — plus every non-BaNCS
- * capture. That default-deny keeps the URL-only txn picker + the
- * DASHBOARD gate unchanged for the other pipeline banks.
+ * capture. These tests pin the pure recognizers without assuming
+ * active pipeline consumers.
  *
  * Every value is fabricated — no real account data appears.
  */

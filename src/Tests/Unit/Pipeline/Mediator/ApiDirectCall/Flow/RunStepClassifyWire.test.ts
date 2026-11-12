@@ -2,7 +2,7 @@
  * The answer classifier on the wire. A step's classifier runs on its
  * opened answer after `failIfPresent` and `outcome` and before its extracts;
  * the matched case's name and captures land in carry beside the extracts. The
- * cases drive the real mediator over the headless native transport.
+ * cases drive the real mediator over the native HTTP transport.
  */
 
 import { CompanyTypes } from '../../../../../../Definitions.js';

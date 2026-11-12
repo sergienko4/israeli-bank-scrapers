@@ -1,8 +1,8 @@
 /**
  * Unit tests for CookieHeaderSentinel.ts — the `@cookie:<name>` header
- * resolver used by BrowserFetchStrategy for anti-replay banks (Hapoalim
+ * resolver used by the session HTTP transport for anti-replay banks (Hapoalim
  * X-XSRF-TOKEN ← XSRF-TOKEN cookie), its strict `@cookie-strict:` form and
- * the `?<fallback>` suffix. Pure functions — no Page mock.
+ * the `?<fallback>` suffix. Pure functions; no transport mock.
  */
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';

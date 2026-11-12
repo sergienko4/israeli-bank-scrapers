@@ -1,6 +1,6 @@
 /**
  * A POST step naming `encoding: 'form'` sends its hydrated flat record
- * form-encoded through the real mediator and headless native transport; a
+ * form-encoded through the real mediator and native HTTP transport; a
  * value that hydrates to anything but a string, finite number or boolean
  * fails the step before any request.
  */

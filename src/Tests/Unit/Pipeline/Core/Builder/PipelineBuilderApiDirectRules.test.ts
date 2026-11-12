@@ -1,5 +1,5 @@
 /**
- * At the builder — `build()` reads the bank's headless block from the
+ * At the builder — `build()` reads the bank's transport block from the
  * registry and refuses an api-direct call config that cannot work with it.
  *
  * The bank-config resolver is mocked so one bank keeps a session cookie jar
@@ -31,7 +31,7 @@ const DYNAMIC_CERT = { mode: 'dynamic', origin: 'https://native.example' } as co
  * Mocked resolver: only the jar bank has a config; the TLS banks need
  * node:https.
  * @param companyId - Bank named in the options.
- * @returns A config whose headless block names the transport, or false.
+ * @returns A config whose transport block names the transport, or false.
  */
 function resolveMocked(companyId: CompanyTypes): object | false {
   if (companyId === TLS_BANK) {
@@ -104,7 +104,7 @@ const DYNAMIC_CALL: IApiDirectCallConfig = {
 };
 
 /**
- * Build a headless api-direct pipeline for the given bank and call config.
+ * Build an API-direct pipeline for the given bank and call config.
  * @param opts - Scraper options naming the bank.
  * @param call - Call config under test.
  * @returns Build result.
@@ -120,8 +120,8 @@ function buildWith(
 }
 
 /**
- * Build a headless pipeline whose call config sets no transport option, so any
- * refusal comes from the bank's headless block alone.
+ * Build a pipeline whose call config sets no transport option, so any
+ * refusal comes from the bank's transport block alone.
  * @param opts - Scraper options naming the bank.
  * @returns Build result.
  */
