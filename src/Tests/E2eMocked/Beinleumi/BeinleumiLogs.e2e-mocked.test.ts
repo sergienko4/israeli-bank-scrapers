@@ -5,7 +5,7 @@
  * line or a failure message, across the wrong-credential, SMS-outcome and
  * device-memory runs. Every pipeline logger is swapped for a real pino logger
  * at `trace` with the production redaction config. The scrape receives only
- * the authorization and the landing page: no other login value rides on a BFF
+ * the authorization: no other login value rides on a BFF
  * read, and it sends only the cookies the portal set. The bank-fault runs live
  * in BeinleumiLogsFaults; the split lets the two suites run on separate workers.
  *
@@ -65,7 +65,7 @@ describe.each(BRANDS.FIBI_MOCK_BRANDS)(
   (brand): void => {
     const carry = {
       authorization: DATA.BN_AUTHORIZATION,
-      referer: BRANDS.landingUrlOf(brand),
+      referer: '',
     };
 
     beforeEach((): void => {
@@ -101,7 +101,7 @@ describe.each(BRANDS.FIBI_MOCK_BRANDS)(
     });
 
     it.each(['none', 'otpSidRefresh'] as const)(
-      'hands the scrape only the authorization, the landing page and the portal cookies on the %s run',
+      'hands the scrape only the authorization and the portal cookies on the %s run',
       async fault => {
         const run = await RUN.runBeinleumi(fault, { ...ORACLE.RESUME, brand });
         const reads = run.calls.filter((call): boolean => isDataCall(call, brand));

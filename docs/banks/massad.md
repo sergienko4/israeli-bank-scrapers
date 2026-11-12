@@ -74,6 +74,6 @@ encoded, not encrypted, so store it as a secret.
 After login, the `MASSAD_SHAPE` `IApiDirectScrapeShape` (helpers under
 `Banks/Massad/scrape/`) declares each endpoint on the online origin. The calls
 are sent as Beinleumi's are, over the login's cookie session with the
-`authorization` and landing URL its `sessionCarry` keeps; see
+`authorization` slot its `sessionCarry` keeps; see
 [Beinleumi hard-model post-auth](beinleumi.md#hard-model-post-auth) and
 [api-direct-scrape](../phases/api-direct-scrape.md).

@@ -56,14 +56,14 @@ export interface IRunSetup {
   readonly stateBrand?: IFibiMockBrand;
 }
 
-/** The opening: the login page, the envelope, the login, the password. */
-export const OPENING_TRAIL = ['prime', 'encryptionKey', 'login', 'assertPassword'];
+/** The opening: the envelope, the login, the password. */
+export const OPENING_TRAIL = ['encryptionKey', 'login', 'assertPassword'];
 
 /** The SMS step the bank asks for: the trigger, then the code. */
 export const OTP_TRAIL = ['otpInit', 'assertOtp'];
 
-/** The portal hand-off and the SSO calls. */
-export const PORTAL_TRAIL = ['logon', 'landing', 'landed', 'bootstrap', 'sessionToken'];
+/** The form post and the SSO calls. */
+export const PORTAL_TRAIL = ['logon', 'bootstrap', 'sessionToken'];
 
 /**
  * The BFF reads of the one selected account: its movements twice. The oldest

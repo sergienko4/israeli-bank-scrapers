@@ -64,7 +64,6 @@ export const LOGIN_SECRETS: readonly string[] = [
   DATA.BN_OTP_TARGET,
   DATA.BN_PHONE_MASK,
   DATA.BN_CLIENT_IP,
-  DATA.BN_HANDOFF_RID,
   DATA.BN_BANK_NOTICE,
   serverPoint(),
 ];
@@ -172,10 +171,6 @@ const FAULTS: readonly BeinleumiFault[] = [
   'locked',
   'expired',
   'plaintextAssert',
-  'noPasswordEnc',
-  'ambiguousHandoff',
-  'postMessageHandoff',
-  'crossOriginHandoff',
   'sso204',
 ];
 

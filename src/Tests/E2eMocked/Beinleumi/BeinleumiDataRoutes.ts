@@ -1,8 +1,8 @@
 /**
  * Beinleumi mocked data routes — the portal BFF a logged-in shell reads: the
  * user's accounts, their type, the balance and the movements. Every call must
- * carry the authorization the SSO bought, the landing page as its sender, and
- * a fresh transaction id; every GET a fresh `uid`.
+ * carry the authorization the SSO bought and a fresh transaction id; every GET
+ * a fresh `uid`.
  *
  * Rule #18: every value here is SYNTHETIC. No real PII.
  */
@@ -14,7 +14,6 @@ import type { JsonUnknownRecord } from '../../../Scrapers/Pipeline/Types/JsonVal
 import type { IRecordedCall } from '../Helpers/FetchMockKit.js';
 import { errorReply, parseBody } from '../Helpers/FetchMockKit.js';
 import { json } from '../Helpers/MockReplies.js';
-import { landingUrlOf } from './BeinleumiBrands.js';
 import type { IBeinleumiMockState, Route } from './BeinleumiFaults.js';
 import { checkWire, headerChecks, hit } from './BeinleumiFaults.js';
 import {
@@ -59,17 +58,17 @@ interface IListBody {
 }
 
 /**
- * The checks every BFF call must pass: the logged-in shell's headers, sent
- * from the landing page, and a fresh transaction id.
- * @param state - Run state.
+ * The checks every BFF call must pass: the logged-in shell's authorization
+ * headers and a fresh transaction id. After the page-free login the scrape
+ * carries no sender URL, so no `Origin`/`Referer` is demanded.
  * @param call - The call checked.
  * @returns The checks.
  */
-function dataChecks(state: IBeinleumiMockState, call: IRecordedCall): Record<string, boolean> {
-  const sender = { origin: state.brand.origin, referer: landingUrlOf(state.brand) };
-  const headers = headerChecks(call, { ...DATA_HEADERS, ...sender });
+function dataChecks(call: IRecordedCall): Record<string, boolean> {
+  const headers = headerChecks(call, DATA_HEADERS);
   const txnId = call.headers.get('x-fibi-transaction-id') ?? '';
-  return { ...headers, 'transaction id': UUID.test(txnId) };
+  const isNoSender = call.headers.get('referer') === null && call.headers.get('origin') === null;
+  return { ...headers, 'no sender': isNoSender, 'transaction id': UUID.test(txnId) };
 }
 
 /**
@@ -83,7 +82,7 @@ function read(name: string, record: JsonUnknownRecord): Route {
     hit(state, name);
     const { searchParams } = new URL(call.url);
     const isUid = [...searchParams.keys()].length === 1 && UUID.test(searchParams.get('uid') ?? '');
-    if (!checkWire(state, call, { ...dataChecks(state, call), uid: isUid })) return errorReply(400);
+    if (!checkWire(state, call, { ...dataChecks(call), uid: isUid })) return errorReply(400);
     return json(record);
   };
 }
@@ -114,7 +113,7 @@ function list(call: IRecordedCall, state: IBeinleumiMockState): Response {
   const isRequest = isDeepStrictEqual(body, {
     initialRequest: { ...LIST_REQUEST, endDate: endDay },
   });
-  if (!checkWire(state, call, { ...dataChecks(state, call), end: isEnd, request: isRequest })) {
+  if (!checkWire(state, call, { ...dataChecks(call), end: isEnd, request: isRequest })) {
     return errorReply(400);
   }
   return json({ transactions: rowsUpTo(endDay) });

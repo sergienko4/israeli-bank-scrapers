@@ -119,8 +119,6 @@ interface ISlotCase {
   readonly isOk: boolean;
 }
 
-const PRIME_SLOTS = { bankNum: '031', client_ip: '192.0.2.7' };
-
 const LOGIN_CASES: readonly (readonly [string, JsonValue, Json | string])[] = [
   [
     'the password method',
@@ -295,31 +293,6 @@ describe('Beinleumi api-direct login config — answers', () => {
 
 describe('Beinleumi api-direct login config — slot rules', () => {
   it.each<ISlotCase>([
-    { name: 'prime', label: 'the bank number, an IPv4 client', carry: PRIME_SLOTS, isOk: true },
-    {
-      name: 'prime',
-      label: 'another bank number',
-      carry: { ...PRIME_SLOTS, bankNum: '046' },
-      isOk: false,
-    },
-    {
-      name: 'prime',
-      label: 'an IPv6 client',
-      carry: { ...PRIME_SLOTS, client_ip: '2001:db8::1' },
-      isOk: true,
-    },
-    {
-      name: 'prime',
-      label: 'a client with markup',
-      carry: { ...PRIME_SLOTS, client_ip: '192.0.2.7<' },
-      isOk: false,
-    },
-    {
-      name: 'prime',
-      label: 'a one-letter client',
-      carry: { ...PRIME_SLOTS, client_ip: 'x' },
-      isOk: false,
-    },
     { name: 'bootstrap', label: 'an SSO code', carry: { ssoCode: CARRY.ssoCode }, isOk: true },
     { name: 'bootstrap', label: 'a code with a fragment', carry: { ssoCode: 'a#b' }, isOk: false },
     { name: 'bootstrap', label: 'a code with a space', carry: { ssoCode: 'a b' }, isOk: false },
