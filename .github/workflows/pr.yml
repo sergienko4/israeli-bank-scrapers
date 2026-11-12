@@ -1550,7 +1550,7 @@ jobs:
       (github.event_name == 'workflow_dispatch' ||
       github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: ${{ matrix.bank == 'Beinleumi' && 40 || 30 }}
     # Serialize same-bank runs repo-wide. Critical for Hapoalim:
     # WAF risk-score escalation observed 2026-06-03 (PR #298 +
     # PR #299 testing window hit Hapoalim 5+ times in 3h → hCaptcha
@@ -1576,8 +1576,38 @@ jobs:
       - name: Force reliable DNS for ${{ matrix.bank }}
         run: bash .github/scripts/ci/dns-warmup.sh ${{ matrix.bank }}
       - uses: $/.github/actions/setup-node-deps
-      - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
+      - id: test_config
+        run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
+      - name: Install published FIBI baseline in isolation
+        id: published_install
+        if: ${{ matrix.bank == 'Beinleumi' }}
+        run: |
+          baseline="$RUNNER_TEMP/fibi-npm-10.0.1"
+          mkdir -p "$baseline"
+          printf '%s\n' '{"private":true,"dependencies":{"@sergienko4/israeli-bank-scrapers":"10.0.1"}}' > "$baseline/package.json"
+          npm install --prefix "$baseline" --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org
+      - name: Published 10.0.1 comparison (Beinleumi)
+        id: published_e2e
+        if: ${{ matrix.bank == 'Beinleumi' }}
+        env:
+          E2E_FIBI_PUBLISHED_ENTRY: ${{ runner.temp }}/fibi-npm-10.0.1/node_modules/@sergienko4/israeli-bank-scrapers/lib/index.mjs
+          FORENSIC_TRACE: ${{ vars.FORENSIC_TRACE || 'true' }}
+          LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
+          RUNS_ROOT: /tmp/runs/pipeline/published-10.0.1
+          BEINLEUMI_USERNAME: ${{ secrets.BEINLEUMI_USERNAME }}
+          BEINLEUMI_PASSWORD: ${{ secrets.BEINLEUMI_PASSWORD }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          node --experimental-vm-modules node_modules/jest/bin/jest.js \
+            --ci \
+            --testPathPatterns="E2eReal/${{ matrix.bank }}\\.e2e-real" \
+            --testNamePattern='scrapes transactions successfully' \
+            --testPathIgnorePatterns='/node_modules/' \
+            --verbose \
+            --forceExit
       - name: E2E real (${{ matrix.bank }})
+        if: ${{ !cancelled() && steps.test_config.outcome == 'success' && (matrix.bank != 'Beinleumi' || steps.published_install.outcome == 'success') }}
         env:
           # FORENSIC_TRACE (repo variable) gates per-run artefact capture
           # (pipeline.log, network dumps, screenshots) under RUNS_ROOT:
@@ -1585,7 +1615,7 @@ jobs:
           # private store on failure only. LOG_LEVEL only sets log verbosity.
           FORENSIC_TRACE: ${{ vars.FORENSIC_TRACE || 'true' }}
           LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
-          RUNS_ROOT: /tmp/runs
+          RUNS_ROOT: ${{ matrix.bank == 'Beinleumi' && '/tmp/runs/pipeline/current-source' || '/tmp/runs' }}
           # OTP api-direct banks. Telegram secrets deliver the SMS
           # OTP to the Jest poller during the login flow.
           HAPOALIM_USER_CODE: ${{ secrets.HAPOALIM_USER_CODE }}
