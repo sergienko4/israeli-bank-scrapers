@@ -24,7 +24,7 @@ type ClassifierCheck = (classifier: IAnswerClassifier, step: IStepConfig) => boo
 /** One answer capture: its carry slot and its config. */
 type AnswerCaptureEntry = readonly [string, IAnswerCapture];
 
-/** What the rules read: the call config and the bank's headless block. */
+/** What the rules read: the call config and the bank's transport block. */
 interface IApiDirectRuleInput {
   readonly call: IApiDirectCallConfig;
   readonly transport: ITransportConfig | false;

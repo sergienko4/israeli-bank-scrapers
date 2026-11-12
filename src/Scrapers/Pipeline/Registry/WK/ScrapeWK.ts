@@ -68,7 +68,7 @@ export const PIPELINE_WELL_KNOWN_API = {
     /GetBusinessAccountTrx/i,
   ],
   // Negative patterns — URL paths that MATCH the `transactions` list
-  // above but actually serve dashboard-PREVIEW / status-page WIDGET
+  // above but actually serve account-preview / status-page WIDGET
   // data (capped at "latest N" records per card). Backbase-style banks
   // (Amex, Isracard) expose `/ocp/statuspage/...` modules whose
   // endpoint names (`GetLatestTransactions`) match the affirmative
@@ -164,8 +164,8 @@ export const PIPELINE_WELL_KNOWN_HEADERS = {
   referer: ['referer'],
   /** Request header names that carry a site/session ID. */
   siteId: ['x-site-id', 'x-session-id'],
-  /** Headers that `fetch()` MUST own (forbidden / browser-managed)
-   *  or that this module sets from its own discovery layers. Only
+  /** Headers owned by the HTTP transport or supplied separately
+   *  by the request-header discovery layers. Only
    *  these are dropped from `extractSpaHeaders`'s output — everything
    *  else the SPA sent (Accept, Accept-Language, Cache-Control,
    *  Pragma, Referer, Content-Type, User-Agent, X-* custom headers)
@@ -174,12 +174,11 @@ export const PIPELINE_WELL_KNOWN_HEADERS = {
    *
    *  Excluded reasons:
    *  - cookie / host / content-length / connection / transfer-
-   *    encoding: forbidden header names in fetch (browser sets).
-   *  - accept-encoding / upgrade-insecure-requests: browser-managed
-   *    transport hints.
+   *    encoding: connection framing and session headers.
+   *  - accept-encoding / upgrade-insecure-requests: transport hints.
    *  - sec-ch-ua* / sec-fetch-*: client hints / origin policy
-   *    fingerprint, browser-controlled.
-   *  - origin: forbidden header name; bank-specific value injected
+   *    fingerprint, not replayed from captured requests.
+   *  - origin: bank-specific value injected
    *    by `discoverHeaderValue(ORIGIN_HEADERS)` separately.
    *  - authorization: bank-specific value injected by `cachedAuth`
    *    separately.

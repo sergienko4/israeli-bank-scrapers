@@ -1,5 +1,5 @@
 /**
- * Leumi's native login and headless transport configuration.
+ * Leumi's native login and HTTP transport configuration.
  */
 
 import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';

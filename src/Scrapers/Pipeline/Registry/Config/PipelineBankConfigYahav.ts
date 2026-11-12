@@ -1,5 +1,5 @@
 /**
- * Yahav native login: the call config and the headless URLs. The
+ * Yahav native login: the call config and the transport URLs. The
  * steps live in their own file; the origin, paths and app constants in the
  * constants file. Every call runs over node:https, which presents the device
  * certificate the login registers to the mobile origin alone.

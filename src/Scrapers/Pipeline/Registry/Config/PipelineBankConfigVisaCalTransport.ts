@@ -1,5 +1,5 @@
 /**
- * VisaCal headless registry block — isolated so the central registry stays
+ * VisaCal transport registry block — isolated so the central registry stays
  * under its file cap. Login and data calls share CAL's mobile gateway; the
  * scrape Shape owns literal data URLs, so only the two login paths are seeded
  * here. Every path is a full URL, registered verbatim.
@@ -10,7 +10,7 @@ import type { ITransportConfig } from './PipelineBankConfigTypes.js';
 /** CAL mobile gateway — the host the Android app signs in on. */
 const CAL_LOGIN_BASE = 'https://api-cc.cal-online.co.il/';
 
-/** VisaCal headless identity and login endpoints. */
+/** VisaCal transport identity and login endpoints. */
 const VISACAL_TRANSPORT: ITransportConfig = {
   identityBase: CAL_LOGIN_BASE,
   // CAL has no GraphQL; graphql mirrors identityBase to satisfy the type.

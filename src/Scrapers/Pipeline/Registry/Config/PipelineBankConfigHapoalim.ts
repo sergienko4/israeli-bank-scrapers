@@ -1,5 +1,5 @@
 /**
- * Hapoalim direct-API login: the call config and the headless URLs. The steps
+ * Hapoalim direct-API login: the call config and the transport URLs. The steps
  * live in their own file; the shared origin, headers and rules in the
  * constants file.
  */

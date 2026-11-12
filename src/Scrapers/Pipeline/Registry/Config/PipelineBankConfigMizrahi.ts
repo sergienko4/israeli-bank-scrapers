@@ -1,5 +1,5 @@
 /**
- * Mizrahi IApiDirectCallConfig literal and headless block — data-only bank
+ * Mizrahi IApiDirectCallConfig literal and transport block — data-only bank
  * surface.
  *
  * Password login with no OTP, on the web app's own API, then the session
@@ -123,7 +123,7 @@ const MIZRAHI_API_DIRECT_CALL: IApiDirectCallConfig = {
   steps: [BOOTSTRAP_STEP, LOGIN_STEP, LANDING_STEP, LOGON_STEP],
 };
 
-/** Mizrahi headless endpoints. Every path is a full URL, registered verbatim. */
+/** Mizrahi transport endpoints. Every path is a full URL, registered verbatim. */
 const MIZRAHI_TRANSPORT: ITransportConfig = {
   identityBase: `${MIZRAHI_WEB}/`,
   // Mizrahi has no GraphQL; graphql mirrors identityBase to satisfy the type.

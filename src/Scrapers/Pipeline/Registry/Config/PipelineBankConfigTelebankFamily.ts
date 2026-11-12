@@ -1,5 +1,5 @@
 /**
- * Telebank family login — the api-direct call config and headless block a
+ * Telebank family login — the api-direct call config and transport block a
  * Telebank brand (Discount, Mercantile) is built from.
  *
  * Password login with no OTP on the bank's own web API, then the handoff to
@@ -39,7 +39,7 @@ import {
 import { telebankLoginSteps } from './PipelineBankConfigTelebankFamilySteps.js';
 import type { ITransportConfig } from './PipelineBankConfigTypes.js';
 
-/** The headless block's transport: one jar for the telebank domain, no stray redirect. */
+/** Shared transport policy: one jar for the telebank domain, no stray redirect. */
 const TELEBANK_WIRE = {
   // The cookie sentinels and the cookies the steps set resolve only through it.
   nativeFetch: true,
@@ -87,9 +87,9 @@ function buildTelebankApiDirectCall(brand: ITelebankBrand): IApiDirectCallConfig
 }
 
 /**
- * The brand's headless endpoints. Every path is a full URL, registered verbatim.
+ * The brand's transport endpoints. Every path is a full URL, registered verbatim.
  * @param brand - Telebank brand.
- * @returns The headless block.
+ * @returns The transport block.
  */
 function buildTelebankHeadless(brand: ITelebankBrand): ITransportConfig {
   const base = `${TELEBANK_ORIGIN}/`;

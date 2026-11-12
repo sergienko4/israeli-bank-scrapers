@@ -39,7 +39,7 @@ const FIBI_LOGIN = {
   derivedCarry: [{ into: 'uid', parts: ['creds.username'], transform: 'lower' }],
 } as const;
 
-/** What every family headless block shares: native fetch in one cookie session. */
+/** What every family transport block shares: native fetch in one cookie session. */
 const FIBI_WIRE = {
   nativeFetch: true,
   sessionCookies: true,
@@ -116,10 +116,10 @@ function fibiPaths(brand: IFibiBrand): ITransportConfig['paths'] {
 }
 
 /**
- * The family's headless block: every call on the brand's online origin,
+ * The family's transport block: every call on the brand's online origin,
  * redirects and every 2xx but 200 refused, strict UTF-8.
  * @param brand - FIBI-family brand.
- * @returns The headless block.
+ * @returns The transport block.
  */
 function buildFibiHeadless(brand: IFibiBrand): ITransportConfig {
   const base = `${brand.origin}/`;

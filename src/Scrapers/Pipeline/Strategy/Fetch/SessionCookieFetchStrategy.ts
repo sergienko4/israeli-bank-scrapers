@@ -10,8 +10,8 @@
  * redirect policy the transport files each hop's lines under the hop URL and
  * asks the decorator (`sessionHeadersFor`) for each hop's Cookie header and
  * `@cookie:` headers, recomputed for the hop URL. Built only for node
- * transports whose headless block sets `sessionCookies`; the browser transport
- * keeps the page's own jar. A bank that also sets `cookieDomains` gets the RFC 6265 domain jar
+ * transports whose bank configuration sets `sessionCookies`. A bank that also
+ * sets `cookieDomains` gets the RFC 6265 domain jar
  * instead, and `withCookieSession` hands its port (`ICookieSession`) to the
  * mediator so login steps can read, set, export, import and clear cookies.
  * The headers each request and hop sends — `@cookie:` sentinels resolved and
@@ -152,7 +152,7 @@ class SessionCookieFetchStrategy implements IFetchStrategy {
 
 /**
  * Wrap a transport in a session jar when the bank opts in.
- * @param transport - The headless identity transport.
+ * @param transport - The underlying HTTP strategy.
  * @param args - Mediator args: the optional `sessionCookies` flag and the
  *   transport's base URL.
  * @returns The decorated transport, or the same transport when the flag is off.
@@ -175,7 +175,7 @@ function toCookieSession(jar: IDomainCookieJar): ICookieSession {
 
 /**
  * Wrap a transport in its session jar and expose the domain jar's session.
- * @param transport - The headless identity transport.
+ * @param transport - The underlying HTTP strategy.
  * @param args - Mediator args: `sessionCookies`, `cookieDomains`, base URL.
  * @returns The transport (decorated when the flag is on) and, only with
  *   `cookieDomains`, the cookie session sharing its jar.

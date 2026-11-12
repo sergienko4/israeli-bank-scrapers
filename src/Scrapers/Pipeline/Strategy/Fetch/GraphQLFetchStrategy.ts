@@ -8,7 +8,7 @@
  * because some GraphQL gateways sit behind an edge WAF that allow-lists a
  * specific client identity on EVERY request — including the post-auth probe,
  * which carries no shape-level headers. Banks declare the bag as data in
- * `PipelineBankConfig.headless.graphqlHeaders`; an empty bag is byte-identical
+ * `ITransportConfig.graphqlHeaders`; an empty bag is byte-identical
  * to not passing one (OCP — no bank branching in this layer).
  */
 

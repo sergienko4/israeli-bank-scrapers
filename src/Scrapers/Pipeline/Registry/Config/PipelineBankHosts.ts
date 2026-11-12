@@ -27,7 +27,7 @@ export type BankExtraDnsHosts = Readonly<Partial<Record<CompanyTypes, readonly s
  * Auth/API origins each bank's flow depends on, keyed by company.
  *
  * Every entry is referenced by that bank's pipeline module (see the
- * `*ShapeHelpers` / `*Static` constants) or, for a headless bank, by
+ * `*ShapeHelpers` / `*Static` constants) or, for an API-direct bank, by
  * its registry config (`PipelineBankConfig*`). Banks whose entire flow
  * lives on `urls.base` (Max) are intentionally absent.
  */

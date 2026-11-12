@@ -1,8 +1,7 @@
 /**
  * Pipeline bank registry — Zero-Knowledge config.
- * HOME phase URL for every migrated bank. Optional proxy-auth for
- * card banks. Optional OTP and headless-URL blocks. All runtime
- * details (tokens, cookies, session) discovered by Strategy.
+ * HTTP transport endpoints and login configuration for every bank.
+ * Runtime tokens, cookies and session state belong to each pipeline run.
  */
 
 import { CompanyTypes } from '../../../../Definitions.js';
@@ -94,7 +93,7 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
       },
       phoneNumberFormat: 'international-dash',
       // `apipin.payboxapp.com` is Cloudflare-fronted but serves the app's JSON
-      // API to Node's own fetch without a challenge, so no browser identity
+      // API to Node's own fetch without a challenge, so no captured client identity
       // is needed to reach it.
       nativeFetch: true,
       // Every PayBox call is a single hop: a connect timeout is then retried on

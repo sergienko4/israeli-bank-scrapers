@@ -1,6 +1,6 @@
 /**
  * Dynamic client-certificate rules for an api-direct call config. A
- * step `clientCert` installs through the port the headless `clientCert` block
+ * step `clientCert` installs through the port the transport `clientCert` block
  * creates, so it needs that block; the block's `origin` is compared exactly
  * with each request's URL origin, so it must be an exact https origin; and a
  * dynamic certificate replaces a registered one, so the two exclude.
@@ -22,7 +22,7 @@ function dynamicCertOf(input: IApiDirectRuleInput): IDynamicClientCert | false {
 /**
  * Whether a step installs a certificate the bank declares no port for.
  * @param input - Rule input.
- * @returns True when a step names `clientCert` without the headless block.
+ * @returns True when a step names `clientCert` without the transport block.
  */
 function isStepCertWithoutBlock(input: IApiDirectRuleInput): boolean {
   if (dynamicCertOf(input) !== false) return false;

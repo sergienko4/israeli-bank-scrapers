@@ -14,8 +14,8 @@
  * `C:\tmp\runs\pipeline\<bank>\`; counts are rows carrying a non-empty value.
  *
  * Institution sweep — all 12 supported providers were checked against captured
- * rows (or, where a provider is headless and emits no network dump, against the
- * closed query contract it ships). The eight not aliased here are covered or
+ * rows (or, where no captured dump is available, against the
+ * provider's closed query contract). The eight not aliased here are covered or
  * genuinely have nothing to add:
  *
  * - Max: sends `categoryId` (numeric) and `planName` ("רגילה"), a charge kind

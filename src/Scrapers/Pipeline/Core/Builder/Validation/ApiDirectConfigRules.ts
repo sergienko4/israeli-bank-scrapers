@@ -1,5 +1,5 @@
 /**
- * Cross-field rules for an api-direct call config and its bank's headless
+ * Cross-field rules for an api-direct call config and its bank's transport
  * block. They run when the pipeline is built, so a config that cannot work
  * fails before any run starts. The first broken rule fails the build as
  * `Generic` with `"<field>: <rule>"`. Outcome rules in
@@ -40,7 +40,7 @@ import { API_DIRECT_TRANSPORT_RULES } from '../Transport/ApiDirectTransportRules
 import { API_DIRECT_OUTCOME_RULES, API_DIRECT_STEP_RULES } from './ApiDirectStepRules.js';
 
 /**
- * Whether the bank's headless block keeps a session cookie jar.
+ * Whether the bank's transport block keeps a session cookie jar.
  * @param input - Rule input.
  * @returns True when `transport.sessionCookies` is set.
  */
@@ -259,8 +259,8 @@ const API_DIRECT_RULES: readonly IApiDirectRule[] = [
 ];
 
 /**
- * Check a call config against its bank's headless block.
- * @param input - Call config and headless block.
+ * Check a call config against its bank's transport block.
+ * @param input - Call config and transport block.
  * @returns Success, or a Generic failure naming the first broken rule.
  */
 function validateApiDirectConfig(input: IApiDirectRuleInput): Procedure<true> {
