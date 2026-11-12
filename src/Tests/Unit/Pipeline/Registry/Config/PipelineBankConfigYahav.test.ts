@@ -1,6 +1,6 @@
 /**
  * Yahav native login config. The build-time validator
- * accepts it with its headless block; each login step hydrates to the request
+ * accepts it with its transport block; each login step hydrates to the request
  * the protocol trace pinned (body, key order, headers and the generated key
  * material); each step's rules refuse what the trace never showed; and a warm
  * start resumes at the token step, past both cold-only calls.
@@ -27,10 +27,10 @@ import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
 const CONFIG_MODULE = '../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigYahav.js';
 
-/** The bank's headless block, as the build-time validator reads it. */
+/** The bank's transport block, as the build-time validator reads it. */
 type HeadlessBlock = Exclude<IApiDirectRuleInput['transport'], false>;
 
-/** The Yahav login config and its headless block. */
+/** The Yahav login config and its transport block. */
 interface IYahavModule {
   readonly call: IApiDirectCallConfig;
   readonly headless: HeadlessBlock;
@@ -84,7 +84,7 @@ const TOKEN_FORM = {
 
 /**
  * Load the Yahav config module.
- * @returns Its login config and headless block.
+ * @returns Its login config and transport block.
  */
 async function loadModule(): Promise<IYahavModule> {
   const loaded = (await import(CONFIG_MODULE)) as Record<string, unknown>;

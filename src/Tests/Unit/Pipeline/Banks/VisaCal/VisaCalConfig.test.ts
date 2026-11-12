@@ -2,7 +2,7 @@
  * VisaCal API-direct call config — the invariants the login flow relies on.
  *
  * The config is data only, so these checks pin what a run cannot survive
- * losing: the build-time validator accepts it with its headless block, the
+ * losing: the build-time validator accepts it with its transport block, the
  * warm entry step reads the very carry slot the stored token seeds, the bank's
  * wrong-credentials code maps to `InvalidPassword` on both steps, and no login
  * header name could sit beside the transport's lowercase default.
@@ -22,10 +22,10 @@ import { warmCarryField } from '../../../../../Scrapers/Pipeline/Mediator/ApiDir
 
 const CONFIG_DIR = '../../../../../Scrapers/Pipeline/Registry/Config/';
 
-/** The bank's headless block, as the build-time validator reads it. */
+/** The bank's transport block, as the build-time validator reads it. */
 type ITransportConfig = Exclude<IApiDirectRuleInput['transport'], false>;
 
-/** Module shape shared by the call-config and headless-block modules. */
+/** Module shape shared by the call-config and transport-block modules. */
 interface IDefaultModule<T> {
   readonly default: T;
 }
@@ -41,8 +41,8 @@ async function loadCall(): Promise<IApiDirectCallConfig> {
 }
 
 /**
- * Load the VisaCal headless block.
- * @returns The headless block.
+ * Load the VisaCal transport block.
+ * @returns The transport block.
  */
 async function loadHeadless(): Promise<ITransportConfig> {
   const path = `${CONFIG_DIR}PipelineBankConfigVisaCalTransport.js`;

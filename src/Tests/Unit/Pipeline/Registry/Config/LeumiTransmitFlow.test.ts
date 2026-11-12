@@ -340,7 +340,7 @@ async function runThroughPortal(peer: IPeer): Promise<{
 
 /**
  * Validate and register the candidate's synthetic portal routes.
- * @returns Candidate config and headless policies.
+ * @returns Candidate config and transport policies.
  */
 async function portalSetup(): Promise<{
   config: IApiDirectCallConfig;

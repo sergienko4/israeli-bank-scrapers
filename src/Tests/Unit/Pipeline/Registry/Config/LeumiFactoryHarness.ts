@@ -88,7 +88,7 @@ function syntheticConfig(config: IApiDirectCallConfig): IApiDirectCallConfig {
 }
 
 /**
- * Build a headless candidate through the normal descriptor builder.
+ * Build an API-direct candidate through the normal descriptor builder.
  * @param config - Synthetic login configuration.
  * @returns Factory accepted by the public registry.
  */

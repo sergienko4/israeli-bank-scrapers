@@ -1,6 +1,6 @@
 /**
  * Unit tests for Core/ApiMediatorWiring.resolveApiMediator — the
- * transport selector. Asserts: a bank with no headless config yields none();
+ * transport selector. Asserts: a bank with no transport config yields none();
  * OneZero (requiresClientCert) yields a mTLS-backed mediator; PayBox (native
  * fetch) yields a Node-fetch-backed mediator, and a PayBox phoneValidate POST
  * reaches the configured URL through a stubbed globalThis.fetch. No network is

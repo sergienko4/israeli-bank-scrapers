@@ -4,7 +4,7 @@
  * once it passes the step's own `redirect.allow` rules; otherwise the step
  * fails `<step> final url refused`, naming no URL. A later step reads the slot
  * like any carry slot, e.g. as a `Referer` header template. The cases drive
- * the real mediator over the headless native transport.
+ * the real mediator over the native HTTP transport.
  */
 
 import { CompanyTypes } from '../../../../../../Definitions.js';

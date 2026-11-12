@@ -1,5 +1,5 @@
 /**
- * Unit tests for PipelineContextFactory's headless-mediator wiring —
+ * Unit tests for PipelineContextFactory's HTTP-mediator wiring —
  * covers the branches driven off PIPELINE_BANK_CONFIG.
  */
 
@@ -83,8 +83,8 @@ describe('PipelineContextFactory — headless mediator wiring', () => {
 
   /**
    * Cross-bank native-transport matrix: Pepper and PayBox run their identity
-   * calls over Node's own fetch, so their headless ApiMediator drives no
-   * browser and exposes NO `dispose` hook. Driven via a single config array
+   * calls over Node's own fetch, and their ApiMediator exposes NO `dispose`
+   * hook. Driven via a single config array
    * per CLAUDE.md's "config arrays mapped with .map() — no duplication" rule.
    * OneZero (node:https mTLS) follows the same contract — see OZ-PCF-01 below.
    */

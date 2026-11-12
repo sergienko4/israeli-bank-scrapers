@@ -2,7 +2,7 @@
  * Max API-direct call config — the invariants the login flow relies on.
  *
  * The config is data only, so these checks pin what a run cannot survive
- * losing: the build-time validator accepts it with its headless block, the
+ * losing: the build-time validator accepts it with its transport block, the
  * session is primed before the password is sent, the login body hydrates to
  * the field set a live login proved, each `LoginStatus` maps to its typed
  * error, and every call carries the session id and a fresh correlation id.
@@ -22,10 +22,10 @@ import { hydrate } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall
 
 const CONFIG_DIR = '../../../../../Scrapers/Pipeline/Registry/Config/';
 
-/** The bank's headless block, as the build-time validator reads it. */
+/** The bank's transport block, as the build-time validator reads it. */
 type ITransportConfig = Exclude<IApiDirectRuleInput['transport'], false>;
 
-/** Max's login config and headless block. */
+/** Max's login config and transport block. */
 interface IMaxModule {
   readonly call: IApiDirectCallConfig;
   readonly headless: ITransportConfig;
@@ -36,7 +36,7 @@ const CREDS = { username: 'user1', password: 'pw' } as const;
 
 /**
  * Load Max's config module.
- * @returns Its login config and headless block.
+ * @returns Its login config and transport block.
  */
 async function loadMax(): Promise<IMaxModule> {
   const path = `${CONFIG_DIR}PipelineBankConfigMax.js`;

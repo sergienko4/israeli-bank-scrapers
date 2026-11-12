@@ -240,7 +240,7 @@ function thisDir(): string {
   return dirname(thisFile);
 }
 
-/** A bank's headless block as the seeder reads it. */
+/** A bank's transport block as the seeder reads it. */
 type HeadlessBlock = Exclude<IApiDirectRuleInput['transport'], false>;
 
 const SESSION_ORIGIN = 'https://session.example';
@@ -253,7 +253,7 @@ const VERIFY_URL = `${SESSION_ORIGIN}/verify`;
 const OTP_INIT_URL = `${SESSION_ORIGIN}/otp-init`;
 const OTP_VERIFY_URL = `${SESSION_ORIGIN}/otp-verify`;
 
-/** Every session-transport auth path a headless block can name. */
+/** Every session-transport auth path a transport block can name. */
 const SESSION_PATHS: HeadlessBlock['paths'] = {
   'auth.bootstrap': BOOTSTRAP_URL,
   'auth.landing': LANDING_URL,
@@ -278,7 +278,7 @@ const SESSION_TAGS = [
 ] as const;
 
 /**
- * Seed one synthetic api-direct bank whose headless block names every
+ * Seed one synthetic api-direct bank whose transport block names every
  * session-transport path. Dynamic import dodges the DI rule.
  * @returns Resolves once the registry is seeded.
  */

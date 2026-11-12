@@ -30,7 +30,7 @@ import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
 const CONFIG_DIR = '../../../../../Scrapers/Pipeline/Registry/Config/';
 
-/** The bank's headless block, as the build-time validator reads it. */
+/** The bank's transport block, as the build-time validator reads it. */
 type ITransportConfig = Exclude<IApiDirectRuleInput['transport'], false>;
 
 /** One ring issuer: where its config lives and the values a live login proved. */
@@ -65,7 +65,7 @@ const ISSUERS: readonly IRingIssuer[] = [
   },
 ];
 
-/** An issuer's login config and headless block. */
+/** An issuer's login config and transport block. */
 interface IRingModule {
   readonly call: IApiDirectCallConfig;
   readonly headless: ITransportConfig;
@@ -175,7 +175,7 @@ const EXPECTED_SERVICES = [
 /**
  * Load an issuer's config module.
  * @param issuer - The issuer.
- * @returns Its login config and headless block.
+ * @returns Its login config and transport block.
  */
 async function loadModule(issuer: IRingIssuer): Promise<IRingModule> {
   const loaded = (await import(`${CONFIG_DIR}${issuer.module}`)) as Record<string, unknown>;

@@ -5,7 +5,7 @@
  * closes the loop: it hands the session the committed `SkyBL/logon`
  * `Accounts[]`, as the login carries them, and serves the committed
  * `SkyBL/changeAccount` and `SkyOSH/get428Index` responses to the REAL
- * generic headless scrape driving `MIZRAHI_SHAPE`, and pins the live API
+ * generic API-direct scrape driving `MIZRAHI_SHAPE`, and pins the live API
  * contract end to end:
  *
  * <ul>

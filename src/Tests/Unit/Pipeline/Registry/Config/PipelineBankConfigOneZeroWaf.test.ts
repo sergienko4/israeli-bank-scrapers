@@ -20,8 +20,8 @@ const APP_UA = /^ONEZEROIL\//;
 // PipelineBankConfigPepperWaf.test.ts).
 
 /**
- * Read OneZero's headless transport block from the bank registry.
- * @returns The headless block, or false when OneZero has none.
+ * Read OneZero's transport block from the bank registry.
+ * @returns The transport block, or false when OneZero has none.
  */
 async function oneZeroHeadless(): Promise<object | false> {
   const registry =

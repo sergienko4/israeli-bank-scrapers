@@ -1,5 +1,5 @@
 /**
- * The headless mediator factory hands the bank's `strictUtf8` to its
+ * The HTTP mediator factory hands the bank's `strictUtf8` to its
  * native transport, so every call on that bank decodes its answer strictly.
  */
 

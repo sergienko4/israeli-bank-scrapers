@@ -1,10 +1,9 @@
 /**
  * ApiDirectScrapePhase — .final balance emission coverage.
  *
- * <p>v6 PART F: the phase emits ctx.balanceResolution directly from
- * the api-direct shape's per-account balances so PipelineResult reads
- * a single source across both browser and api-direct paths. This file
- * pins both branches of the absent-scrape guard.
+ * <p>The phase emits ctx.balanceResolution directly from the API-direct
+ * shape's per-account balances so PipelineResult reads the shape-provided
+ * balances. This file pins both branches of the absent-scrape guard.
  */
 
 import { ApiDirectScrapePhase } from '../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.js';

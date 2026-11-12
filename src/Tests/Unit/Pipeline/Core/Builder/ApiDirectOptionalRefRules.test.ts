@@ -65,7 +65,7 @@ interface IBuildCase {
 /**
  * Rule input for a build case.
  * @param build - Login steps and optional resume steps.
- * @returns Rule input over a native headless block.
+ * @returns Rule input over a native transport block.
  */
 function inputOf(build: IBuildCase): IApiDirectRuleInput {
   const call: IApiDirectCallConfig = { flow: 'sms-otp', envelope: {}, steps: build.steps };

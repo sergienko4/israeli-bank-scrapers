@@ -1,8 +1,8 @@
 /**
  * Unit tests for the Mizrahi pipeline factory.
- * Pins the browserless chain: the config-driven API-DIRECT-CALL login, then
- * the shape-driven API-DIRECT-SCRAPE — no browser phase, no interceptor.
- * `build()` validates the call config against Mizrahi's headless block, so a
+ * Pins the HTTP-only chain: the config-driven API-DIRECT-CALL login, then
+ * the shape-driven API-DIRECT-SCRAPE.
+ * `build()` validates the call config against Mizrahi's transport block, so a
  * success also proves the config is well-formed.
  */
 
@@ -11,7 +11,7 @@ import { buildMizrahiPipeline } from '../../../../../Scrapers/Pipeline/Banks/Miz
 import { assertOk } from '../../../../Helpers/AssertProcedure.js';
 import { makeMockOptions } from '../../Infrastructure/MockFactories.js';
 
-/** Options naming Mizrahi, so the builder checks Mizrahi's headless entry. */
+/** Options naming Mizrahi, so the builder checks Mizrahi's transport entry. */
 const MIZRAHI_OPTIONS = { companyId: CompanyTypes.Mizrahi } as const;
 
 /** API-direct login + hard-model scrape — nothing else runs. */

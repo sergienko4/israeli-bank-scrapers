@@ -174,7 +174,7 @@ describe('ApiDirectScrapeDispatch.dispatchStep — REST signer branch', () => {
 
 describe('ApiDirectScrapeDispatch.dispatchStep — REST literal URL', () => {
   it('forwards an inline literal absolute URL to apiPost as the urlTag', async () => {
-    // A browser bank declares its endpoint inline via `literalUrl(...)`
+    // A bank declares its endpoint inline via `literalUrl(...)`
     // instead of a WK group. dispatchStep must forward that absolute URL
     // verbatim as apiPost's first arg (mediator passthrough resolves it).
     const okOutcome = succeed({});

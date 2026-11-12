@@ -5,7 +5,7 @@
  * Every financial call (userData, accountType, balances, transactions
  * list) sends a fresh `X-FIBI-Transaction-Id` and, when the session holds
  * one, the portal-shell `authorization` value verbatim as `Authorization`.
- * A headless session (one holding that value) also sends what the portal
+ * A session holding that authorization value also sends what the portal
  * page sent: the JSON accept, the library's user agent and, from the
  * landing URL the login kept, its origin and referer.
  * The transactions list returns the whole date range in one answer, so a
@@ -62,7 +62,7 @@ const LANDING = 'https://online.example.test/portal/landing?tab=1';
 /** The family constants, loaded the way the config tests load config modules. */
 const FIBI_CONSTANTS =
   '../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigFibiFamilyConstants.js';
-/** Header names a headless call sends when it holds no usable landing URL. */
+/** Header names an authorized call sends when it holds no usable landing URL. */
 const NO_PAGE_NAMES = ['Accept', 'Authorization', TXN_ID, 'User-Agent'];
 const ACCT: IFibiAcct = { accountNumber: '555001', branch: '770', accountType: 105 };
 const USER_DATA: ApiBody = { accounts: [{ account: '555001', branch: '770', selected: true }] };

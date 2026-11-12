@@ -20,7 +20,7 @@ import type {
 } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 
 const HOST = 'https://url.example';
-/** A native headless block; a step's manual redirect needs the bank to reject the rest. */
+/** A native transport block; a step's manual redirect needs the bank to reject the rest. */
 const NATIVE = {
   identityBase: HOST,
   graphql: `${HOST}/graphql`,
@@ -110,7 +110,7 @@ interface IRefusalCase extends IBuildCase {
 /**
  * Rule input for a build case.
  * @param build - Login steps and optional resume steps.
- * @returns Rule input over a native headless block.
+ * @returns Rule input over a native transport block.
  */
 function inputOf(build: IBuildCase): IApiDirectRuleInput {
   const call: IApiDirectCallConfig = { flow: 'sms-otp', envelope: {}, steps: build.steps };

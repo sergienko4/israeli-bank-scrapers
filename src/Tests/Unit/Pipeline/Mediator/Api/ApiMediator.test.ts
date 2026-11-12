@@ -1,5 +1,5 @@
 /**
- * ApiMediator — unit tests for the Black Box headless transport mediator.
+ * ApiMediator — unit tests for the Black Box HTTP transport mediator.
  * Covers WK URL/query resolution, Bearer injection, GraphQL envelope unwrap,
  * and the reuse-contract regex guard (no bank names leak into the file).
  */

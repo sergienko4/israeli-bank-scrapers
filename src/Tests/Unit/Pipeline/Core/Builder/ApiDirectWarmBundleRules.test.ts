@@ -18,10 +18,10 @@ import type {
   IStepConfig,
 } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 
-/** The bank's headless block as the rules read it. */
+/** The bank's transport block as the rules read it. */
 type HeadlessBlock = IApiDirectRuleInput['transport'];
 
-/** A headless block with a cookie-domain session, as a jar-keeping bundle needs. */
+/** A transport block with a cookie-domain session, as a jar-keeping bundle needs. */
 const DOMAINS = {
   sessionCookies: true,
   nativeFetch: true,
@@ -83,7 +83,7 @@ interface IBundleCase {
 
 /**
  * A two-step config warm-started from a carry bundle.
- * @param bundleCase - Bundle fields, headless block and steps to set.
+ * @param bundleCase - Bundle fields, transport block and steps to set.
  * @returns Rule input, sound unless the case breaks it.
  */
 function bundleWarm(bundleCase: IBundleCase = {}): IApiDirectRuleInput {

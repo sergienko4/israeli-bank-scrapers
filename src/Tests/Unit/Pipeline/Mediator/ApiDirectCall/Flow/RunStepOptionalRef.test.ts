@@ -2,7 +2,7 @@
  * An optional ref on the wire. A query-template or body key whose
  * optional carry slot is absent is left out of what the step sends; once the
  * slot is carried, the key goes as a plain ref would send it. The cases drive
- * the real mediator over the headless native transport.
+ * the real mediator over the native HTTP transport.
  */
 
 import { CompanyTypes } from '../../../../../../Definitions.js';

@@ -1,7 +1,7 @@
 /**
  * Unit tests for the Pepper pipeline factory.
  * Asserts the descriptor is a success Procedure and the phase list matches
- * the headless strategy.
+ * the HTTP-only phase sequence.
  */
 
 import { buildPepperPipeline } from '../../../../../Scrapers/Pipeline/Banks/Pepper/PepperPipeline.js';

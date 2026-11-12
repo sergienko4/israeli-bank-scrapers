@@ -2,7 +2,7 @@
  * A step's raw query. The joined text goes after the step URL's `?`
  * verbatim, never re-encoded; a text outside printable ASCII, holding a
  * banned character, empty or over 32 768 chars fails before anything is sent.
- * The cases drive the real mediator over the headless native transport and
+ * The cases drive the real mediator over the native HTTP transport and
  * read the URL and signature that reached `fetch`.
  */
 
@@ -113,7 +113,7 @@ function installFetch(): IFetchFake {
 }
 
 /**
- * Real mediator over the real headless native transport.
+ * Real mediator over the real native HTTP transport.
  * @returns Mediator bound to the fake fetch.
  */
 function makeNativeMediator(): ITokenBus {

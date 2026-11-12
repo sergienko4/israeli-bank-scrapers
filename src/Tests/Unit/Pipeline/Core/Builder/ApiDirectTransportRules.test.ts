@@ -1,6 +1,6 @@
 /**
  * The session-transport fields of an api-direct call config are
- * checked against its bank's headless block when the pipeline is built.
+ * checked against its bank's transport block when the pipeline is built.
  *
  * A document step reads no body extracts, outcome or bank-error guard, and carries a marker
  * only when it is a document step; a manual redirect runs only on a GET step,
@@ -21,7 +21,7 @@ import type {
   RedirectPolicy,
 } from '../../../../../Scrapers/Pipeline/Types/Domain/FetchPolicy.js';
 
-/** The bank's headless block when it has one. */
+/** The bank's transport block when it has one. */
 type HeadlessBlock = Exclude<IApiDirectRuleInput['transport'], false>;
 
 const ORIGIN = 'https://session.example';
@@ -61,9 +61,9 @@ const LOGON: IStepConfig = {
 };
 
 /**
- * The bank's headless block under the given default redirect policy.
+ * The bank's transport block under the given default redirect policy.
  * @param redirectPolicy - Bank default.
- * @returns Headless block.
+ * @returns Transport block.
  */
 function bankWith(redirectPolicy: RedirectPolicy): HeadlessBlock {
   return { ...BANK, redirectPolicy };
@@ -74,9 +74,9 @@ const FOLLOW = bankWith('follow');
 const BANK_MANUAL = bankWith(MANUAL);
 
 /**
- * Rule input running the given steps beside the given headless block.
+ * Rule input running the given steps beside the given transport block.
  * @param steps - Login steps.
- * @param headless - Bank headless block, or false when it has none.
+ * @param headless - Bank transport block, or false when it has none.
  * @returns Rule input.
  */
 function runOf(
@@ -151,7 +151,7 @@ const MARKED_JSON: IStepConfig = { ...LOGON, documentMarker: 'welcome' };
 const POST_MANUAL: IStepConfig = { ...LOGON, redirect: MANUAL };
 const POST_AS_GET: IStepConfig = { ...LOGON, redirect: { ...MANUAL, postAsGet: true } };
 
-/** A config, the headless block beside it, and the text it fails with. */
+/** A config, the transport block beside it, and the text it fails with. */
 interface IBrokenCase {
   readonly label: string;
   readonly input: IApiDirectRuleInput;

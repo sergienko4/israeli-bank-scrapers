@@ -31,7 +31,7 @@ const ACCOUNT_BODY = {
 };
 
 /**
- * Builds a mediator through the real headless wiring.
+ * Builds a mediator through the real transport wiring.
  * @returns The native mediator.
  */
 function mediator(): IApiMediator {

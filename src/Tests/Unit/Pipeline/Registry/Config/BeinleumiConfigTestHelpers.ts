@@ -20,10 +20,10 @@ import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 const CONFIG_MODULE =
   '../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigBeinleumi.js';
 
-/** The bank's headless block, as the build-time validator reads it. */
+/** The bank's transport block, as the build-time validator reads it. */
 type HeadlessBlock = Exclude<IApiDirectRuleInput['transport'], false>;
 
-/** The Beinleumi login config and its headless block. */
+/** The Beinleumi login config and its transport block. */
 interface IBeinleumiModule {
   readonly call: IApiDirectCallConfig;
   readonly headless: HeadlessBlock;
@@ -81,7 +81,7 @@ const ENVELOPE_HEADERS = [
 
 /**
  * Load the Beinleumi config module.
- * @returns Its login config and headless block.
+ * @returns Its login config and transport block.
  */
 async function loadModule(): Promise<IBeinleumiModule> {
   const loaded = (await import(CONFIG_MODULE)) as Record<string, unknown>;

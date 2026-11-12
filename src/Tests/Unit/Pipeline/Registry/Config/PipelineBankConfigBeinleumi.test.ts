@@ -1,6 +1,6 @@
 /**
  * Beinleumi api-direct login config. The build-time
- * validator accepts it with its headless block; each step hydrates to the
+ * validator accepts it with its transport block; each step hydrates to the
  * request the protocol trace pinned — the entry page, the Transmit key
  * exchange, login and assertions, the portal hand-off and the SSO token — and
  * the config remembers the device the bank names, so a known device logs in

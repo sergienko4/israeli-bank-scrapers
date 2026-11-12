@@ -22,10 +22,10 @@ import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 const CONFIG_MODULE =
   '../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigDiscount.js';
 
-/** The bank's headless block, as the build-time validator reads it. */
+/** The bank's transport block, as the build-time validator reads it. */
 type HeadlessBlock = Exclude<IApiDirectRuleInput['transport'], false>;
 
-/** The Discount login config and its headless block. */
+/** The Discount login config and its transport block. */
 interface IDiscountModule {
   readonly call: IApiDirectCallConfig;
   readonly headless: HeadlessBlock;
@@ -48,7 +48,7 @@ const CARRY = { uid: UID, uidMd5: UID_MD5, rsaKey: 'syn-key', mi6: UID_MD5 } as 
 
 /**
  * Load the Discount config module.
- * @returns Its login config and headless block.
+ * @returns Its login config and transport block.
  */
 async function loadModule(): Promise<IDiscountModule> {
   const loaded = (await import(CONFIG_MODULE)) as Record<string, unknown>;

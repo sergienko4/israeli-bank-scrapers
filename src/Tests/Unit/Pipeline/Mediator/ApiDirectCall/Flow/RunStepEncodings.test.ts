@@ -1,6 +1,6 @@
 /**
  * Login steps naming `encoding: 'form-latin1'` or `encoding: 'text'`,
- * and `response: 'text'`, and `encoding: 'form-utf8'`, run through the real mediator and headless native
+ * and `response: 'text'`, and `encoding: 'form-utf8'`, run through the real mediator and native HTTP
  * transport. Every refusal fails the step by name with a fixed reason and
  * names no value.
  */

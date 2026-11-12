@@ -1,5 +1,5 @@
 /**
- * An api-direct call config is checked against its bank's headless
+ * An api-direct call config is checked against its bank's transport
  * block when the pipeline is built.
  *
  * Each rule has broken configs that fail with its exact `"<field>: <rule>"`
@@ -24,7 +24,7 @@ import type {
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockOptions } from '../../Infrastructure/MockFactories.js';
 
-/** The bank's headless block as the rules read it. */
+/** The bank's transport block as the rules read it. */
 type HeadlessBlock = IApiDirectRuleInput['transport'];
 
 const JAR_ON = { sessionCookies: true } as unknown as HeadlessBlock;
@@ -66,7 +66,7 @@ const GUARDED_STEP: IStepConfig = { ...STEP, runIf: { carry: 'route', oneOf: ['o
  * A bank-call warm config, defaulting to two steps.
  * @param fromStepIndex - First warm step.
  * @param steps - The config's steps.
- * @returns Rule input with no headless block.
+ * @returns Rule input with no transport block.
  */
 function bankCallFrom(fromStepIndex: number, steps = [STEP, STEP]): IApiDirectRuleInput {
   const warmStart = { ...WARM, fromStepIndex, validation: 'bank-call' } as const;
@@ -76,7 +76,7 @@ function bankCallFrom(fromStepIndex: number, steps = [STEP, STEP]): IApiDirectRu
 /**
  * A two-step config warm-started under JWT claims from the given step index.
  * @param fromStepIndex - First warm step.
- * @returns Rule input with no headless block.
+ * @returns Rule input with no transport block.
  */
 function jwtFrom(fromStepIndex: number): IApiDirectRuleInput {
   const warmStart = { ...WARM, fromStepIndex };
@@ -90,14 +90,14 @@ function jwtFrom(fromStepIndex: number): IApiDirectRuleInput {
  * A config with no steps, warm-started under JWT claims from the given index.
  * Index 0 still starts there, so the budget charges it as a cold flow.
  * @param fromStepIndex - Warm start index.
- * @returns Rule input with no headless block.
+ * @returns Rule input with no transport block.
  */
 function emptyFlowFrom(fromStepIndex: number): IApiDirectRuleInput {
   const warmStart = { ...WARM, fromStepIndex };
   return { call: makeCall({ warmStart, steps: [], jwtClaims: CLAIMS }), transport: false };
 }
 
-/** A headless block with a cookie session, as a cookie-jar warm start needs. */
+/** A transport block with a cookie session, as a cookie-jar warm start needs. */
 const JAR_DOMAINS = {
   sessionCookies: true,
   nativeFetch: true,
@@ -110,7 +110,7 @@ type JarBinding = Partial<Pick<ICookieJarWarmStart, 'provider' | 'accountField'>
 /**
  * A config warm-started from a cookie jar with the given ceiling.
  * @param maxTokenChars - Token ceiling.
- * @param headless - Headless block beside the call.
+ * @param headless - Transport block beside the call.
  * @param binding - Binding fields to set on top.
  * @returns Rule input.
  */
@@ -168,7 +168,7 @@ function resumeWith(step: IStepConfig): IApiDirectCallConfig['persistentAuth'] {
   };
 }
 
-/** A config, the headless block beside it, and the text it fails with. */
+/** A config, the transport block beside it, and the text it fails with. */
 type BrokenCase = readonly [string, IApiDirectRuleInput, string];
 
 const PREFIX_MSG = 'authPrefix: required when authScheme is prefixed';

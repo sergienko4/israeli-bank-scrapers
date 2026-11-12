@@ -1,5 +1,5 @@
 /**
- * N61 — the headless mediator factory passes bank media-type rules to
+ * The HTTP mediator factory passes bank media-type rules to
  * its native transport.
  */
 
