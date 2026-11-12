@@ -13,7 +13,7 @@ import PIPELINE_REGISTRY from '../../../../../Scrapers/Pipeline/Banks/PipelineRe
 import {
   type IApiDirectRuleInput,
   validateApiDirectConfig,
-} from '../../../../../Scrapers/Pipeline/Core/Builder/ApiDirectConfigRules.js';
+} from '../../../../../Scrapers/Pipeline/Core/Builder/Validation/ApiDirectConfigRules.js';
 import type { IPipelineDescriptor } from '../../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
 import type {
   IApiDirectCallConfig,

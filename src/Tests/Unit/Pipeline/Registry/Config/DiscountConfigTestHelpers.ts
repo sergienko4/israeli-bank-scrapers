@@ -5,7 +5,7 @@
  * its answer checks.
  */
 
-import type { IApiDirectRuleInput } from '../../../../../Scrapers/Pipeline/Core/Builder/ApiDirectConfigRules.js';
+import type { IApiDirectRuleInput } from '../../../../../Scrapers/Pipeline/Core/Builder/Validation/ApiDirectConfigRules.js';
 import type {
   IApiDirectCallConfig,
   IStepConfig,

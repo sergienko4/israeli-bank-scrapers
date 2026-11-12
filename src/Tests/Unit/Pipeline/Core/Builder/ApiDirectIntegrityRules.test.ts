@@ -5,7 +5,7 @@
 import {
   type IApiDirectRuleInput,
   validateApiDirectConfig,
-} from '../../../../../Scrapers/Pipeline/Core/Builder/ApiDirectConfigRules.js';
+} from '../../../../../Scrapers/Pipeline/Core/Builder/Validation/ApiDirectConfigRules.js';
 import type { IStepConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { IResponseIntegrity } from '../../../../../Scrapers/Pipeline/Types/Domain/FetchPolicy.js';
 

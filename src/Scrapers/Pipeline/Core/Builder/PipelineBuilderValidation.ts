@@ -12,9 +12,9 @@ import type { ITransportConfig } from '../../Registry/Config/PipelineBankConfigT
 import type { Brand } from '../../Types/Brand.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
-import { validateApiDirectConfig } from './ApiDirectConfigRules.js';
-import { NATIVE_TRANSPORT_FIELDS } from './ApiDirectNativeRules.js';
 import type { IBuilderState } from './PipelineAssembly.js';
+import { NATIVE_TRANSPORT_FIELDS } from './Transport/ApiDirectNativeRules.js';
+import { validateApiDirectConfig } from './Validation/ApiDirectConfigRules.js';
 
 /** Per-check error flag — branded so Rule #15 accepts the inline predicate. */
 type IsErrCheck = Brand<boolean, 'BuilderIsErrCheck'>;

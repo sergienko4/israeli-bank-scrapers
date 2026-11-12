@@ -9,7 +9,7 @@
 import {
   type IApiDirectRuleInput,
   validateApiDirectConfig,
-} from '../../../../../Scrapers/Pipeline/Core/Builder/ApiDirectConfigRules.js';
+} from '../../../../../Scrapers/Pipeline/Core/Builder/Validation/ApiDirectConfigRules.js';
 import type {
   IPostStep,
   JsonValueTemplate,
