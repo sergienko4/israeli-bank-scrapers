@@ -133,6 +133,10 @@ done
 run_one_bank() {
     local bank="$1"
     local log="${LOG_DIR}/${bank}.log"
+    local status=0
+    printf '1\n' > "${log}.exit" || return 1
+    mkdir -p "${LOG_DIR}/${bank}.runs" || return 1
+    chmod 700 "${LOG_DIR}/${bank}.runs" || return 1
     # MSYS_NO_PATHCONV=1 disables git-bash's automatic path translation
     # so `-v <src>:/work -w /work` keep their POSIX-style values when
     # they reach the docker CLI (without it git-bash rewrites `/work`
@@ -164,6 +168,7 @@ run_one_bank() {
     --dns=8.8.8.8 --dns=1.1.1.1 \
     -v "${REPO_ROOT_DOCKER}:/work" \
     -v /work/node_modules \
+    -v "${REPO_ROOT_DOCKER}/docker/logs/${bank}.runs:/tmp/runs" \
     -w /work \
     --env-file "$ENV_FILE_DOCKER" \
     -e CI=true \
@@ -176,8 +181,10 @@ run_one_bank() {
     --testNamePattern='scrapes transactions successfully' \
     --testPathIgnorePatterns='/node_modules/' \
     --verbose --forceExit \
-    > "$log" 2>&1
-    echo "$bank: exit=$?"
+    > "$log" 2>&1 || status=$?
+    printf '%s\n' "$status" > "${log}.exit" || return 1
+    echo "$bank: exit=$status"
+    return "$status"
 }
 
 run_group_sequentially() {
@@ -218,8 +225,7 @@ echo "DOCKER E2E RESULTS — wall=${WALL}s"
 echo "════════════════════════════════════════════════════════════"
 for bank in "${BANKS[@]}"; do
     log="${LOG_DIR}/${bank}.log"
-    if grep -q '"action":"OK","index":"[0-9]\+/[0-9]\+"' "$log" 2>/dev/null \
-    && ! grep -q '"action":"FAIL"' "$log" 2>/dev/null; then
+    if [ -f "${log}.exit" ] && [ "$(cat "${log}.exit")" = 0 ]; then
         status=PASS
     else
         status=FAIL

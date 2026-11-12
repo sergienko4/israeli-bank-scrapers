@@ -45,6 +45,18 @@ checks and browser-install actions are not validation dependencies.
 Removing the browser runtime does not relax vulnerability thresholds,
 dependency license controls or the full-suite policy for critical updates.
 
+The local real-bank CI mirror pins an Ubuntu 26.04 x64 base by digest and
+reads Node from `.nvmrc`. This matches the OS family observed in hosted
+real-bank jobs, not their kernel, installed runner tools or Azure egress.
+Build it without sending `.env` or private captures in the context:
+`tar -cf - .nvmrc package.json package-lock.json docker/Dockerfile.ci-mirror | docker build -f docker/Dockerfile.ci-mirror -t isbs-ci:latest -`.
+Run one bank with `bash docker/run-banks.sh Beinleumi`. Its exit code and
+summary use the container exit status, not historical pipeline log markers;
+`bash docker/test-run-banks.sh` checks both outcomes offline using a Docker
+stub and the same Bash 4+ required by the runner.
+When `.env` opts in with `FORENSIC_TRACE=true`, per-run diagnostics survive
+container removal under `docker/logs/<Bank>.runs/` in a private host directory.
+
 The root `license` fields in `package.json` and `package-lock.json` identify
 this fork's own grant: `PolyForm-Noncommercial-1.0.0` (with a separate paid
 commercial license option) starting with 10.0.0. The only root license file
