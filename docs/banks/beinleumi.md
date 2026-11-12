@@ -93,6 +93,11 @@ The config sets `omitBankText`, so no failure message carries the bank's own
 text. Browser options passed to `createScraper` are no longer supported; see the
 [migration notes](../configuration.md#removed-browser-options).
 
+The entry GET uses the ordinary web caller's
+`Accept: text/html,application/xhtml+xml`, like the later portal pages, while
+its response policy still requires HTML and the real bank/IP/form context.
+An HTTP 200 without those values is not an authenticated or usable login page.
+
 ## Warm start
 
 The bank remembers the device it names during a login, and a device it knows

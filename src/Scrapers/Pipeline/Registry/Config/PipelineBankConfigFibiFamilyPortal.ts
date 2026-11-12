@@ -44,7 +44,7 @@ const PRIME: IGetStep = {
   urlTag: 'auth.prime',
   method: 'GET',
   extractsToCarry: {},
-  headers: literalHeaders({ accept: FIBI_HTML, 'user-agent': FIBI_UA }),
+  headers: literalHeaders({ accept: FIBI_PAGE_ACCEPT, 'user-agent': FIBI_UA }),
   ...PAGE,
   generate: [
     { kind: 'ecdh-key', curve: 'secp256k1', publicInto: 'ecdhPublic', privateInto: 'ecdhPrivate' },

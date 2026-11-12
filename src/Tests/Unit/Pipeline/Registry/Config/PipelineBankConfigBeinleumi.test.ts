@@ -303,7 +303,10 @@ describe('Beinleumi api-direct login config — portal requests', () => {
     const { call } = await loadModule();
     const step = stepNamed(call, 'prime');
     const headers = hydratedHeaders(step, call);
-    expect(headers).toEqual({ accept: 'text/html', 'user-agent': UA });
+    expect(headers).toEqual({
+      accept: 'text/html,application/xhtml+xml',
+      'user-agent': UA,
+    });
     expect(step).toMatchObject({ response: 'text', maxTextChars: 2097152, mediaType: 'text/html' });
     expect(step.generate).toEqual([
       {
