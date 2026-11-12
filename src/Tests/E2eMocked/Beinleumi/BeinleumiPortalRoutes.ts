@@ -1,8 +1,8 @@
 /**
- * Beinleumi mocked portal routes: the login page,
- * the form post whose page hands off to the portal, the hand-off and its one
- * redirect, the SSO code, and the authorization header the code buys. The
- * portal keeps its session in cookies, so each later call must echo them.
+ * Beinleumi mocked portal routes: the login-form post that hands the Transmit
+ * token to the servlet, the SSO code, and the authorization header the code
+ * buys. The servlet keeps the session in cookies, so each later call must echo
+ * them. No page is read before the post.
  *
  * Rule #18: every value here is SYNTHETIC. No real PII.
  */
@@ -11,23 +11,20 @@ import { isDeepStrictEqual } from 'node:util';
 
 import type { IRecordedCall } from '../Helpers/FetchMockKit.js';
 import { errorReply, parseBody, parseForm } from '../Helpers/FetchMockKit.js';
-import { bodiless, hasCookies, redirectTo, reply } from '../Helpers/MockReplies.js';
+import { bodiless, hasCookies, reply } from '../Helpers/MockReplies.js';
 import type { IFibiMockBrand } from './BeinleumiBrands.js';
-import { entryQueryOf, entryUrlOf, landingUrlOf } from './BeinleumiBrands.js';
+import { entryUrlOf } from './BeinleumiBrands.js';
 import type { IBeinleumiMockState, Route } from './BeinleumiFaults.js';
 import { checkWire, headerChecks, hit, isQueryExactly } from './BeinleumiFaults.js';
 import {
   BEINLEUMI_MOCK_CREDS,
   BN_AUTHORIZATION,
-  BN_HANDOFF_PATH,
-  BN_HANDOFF_RID,
   BN_LANDING_COOKIE,
-  BN_LANDING_PATH,
   BN_PORTAL_COOKIE,
   BN_SSO_CODE,
   BN_TOKEN,
 } from './BeinleumiMockData.js';
-import { formFieldsOf, handoffPage, LANDING_PAGE, loginPage } from './BeinleumiPages.js';
+import { formFieldsOf, logonPage } from './BeinleumiPages.js';
 import { HTML_TYPE, PAGE_ACCEPT, WIRE_PATHS, WIRE_UA } from './BeinleumiWireSpec.js';
 
 export const UUID = /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/;
@@ -37,17 +34,18 @@ const FORM_TYPE = 'application/x-www-form-urlencoded;charset=UTF-8';
 const PORTAL_COOKIES = [BN_PORTAL_COOKIE, BN_LANDING_COOKIE];
 
 /**
- * The headers the login form is posted with, from the login page.
+ * The headers the login form is posted with, from the brand entry URL.
  * @param brand - The bank.
  * @returns The headers.
  */
 function logonHeadersOf(brand: IFibiMockBrand): Record<string, string> {
   const sender = { origin: brand.origin, referer: entryUrlOf(brand) };
-  return { ...PAGE_HEADERS, ...sender, 'content-type': FORM_TYPE };
+  return { ...PAGE_HEADERS, ...sender };
 }
 
 /**
- * The login form as the client must post it: the user and the Transmit token.
+ * The login form as the client must post it: the static fields, the user and
+ * the Transmit token.
  * @param brand - The bank.
  * @returns The form fields.
  */
@@ -57,12 +55,12 @@ function logonFormOf(brand: IFibiMockBrand): Record<string, string> {
 }
 
 /**
- * The headers the portal shell sends its SSO calls with, from the landing.
+ * The headers the portal shell sends its SSO calls with.
  * @param brand - The bank.
  * @returns The headers.
  */
 function ssoHeadersOf(brand: IFibiMockBrand): Record<string, string> {
-  const sender = { origin: brand.origin, referer: landingUrlOf(brand) };
+  const sender = { origin: brand.origin, referer: entryUrlOf(brand) };
   return { accept: 'application/json', 'user-agent': WIRE_UA, ...sender };
 }
 
@@ -89,82 +87,30 @@ function html(body: string, setCookies: readonly string[] = []): Response {
 }
 
 /**
- * The checks a portal page call must pass: its headers, query and cookies.
- * @param call - The call checked.
- * @param query - The exact query it names.
- * @param cookies - The cookies it must echo.
- * @returns The checks.
- */
-function pageChecks(
-  call: IRecordedCall,
-  query: Readonly<Record<string, string>>,
-  cookies: readonly string[],
-): Record<string, boolean> {
-  const headers = headerChecks(call, PAGE_HEADERS);
-  return { ...headers, query: isQueryExactly(call, query), cookies: hasCookies(call, cookies) };
-}
-
-/**
- * The login page, setting the portal session.
+ * The login form posted back, its password the Transmit token. The answer
+ * sets the portal session; there is no hand-off to follow.
  * @param call - The request.
  * @param state - Run state.
- * @returns The page, or a 400 when the request is off spec.
- */
-function prime(call: IRecordedCall, state: IBeinleumiMockState): Response {
-  hit(state, 'prime');
-  const headers = headerChecks(call, PAGE_HEADERS);
-  const query = entryQueryOf(state.brand);
-  const isQuery = isQueryExactly(call, query);
-  if (!checkWire(state, call, { ...headers, query: isQuery })) return errorReply(400);
-  const page = loginPage(state.fault, state.brand);
-  return html(page, [`${BN_PORTAL_COOKIE}; Path=/; Secure; HttpOnly`]);
-}
-
-/**
- * The login form posted back, its password the Transmit token.
- * @param call - The request.
- * @param state - Run state.
- * @returns The hand-off page, or a 400 when the request is off spec.
+ * @returns The portal page, or a 400 when the request is off spec.
  */
 function logon(call: IRecordedCall, state: IBeinleumiMockState): Response {
   hit(state, 'logon');
   const form = parseForm(call.body);
   const expected = logonFormOf(state.brand);
-  const checks = {
-    ...pageChecks(call, {}, [BN_PORTAL_COOKIE]),
-    form: isDeepStrictEqual(form, expected),
-  };
   const wanted = logonHeadersOf(state.brand);
-  const headers = headerChecks(call, wanted);
-  if (!checkWire(state, call, { ...checks, ...headers })) return errorReply(400);
-  const page = handoffPage(state.fault);
-  return html(page);
-}
-
-/**
- * The portal home the hand-off names: one redirect to the landing.
- * @param call - The request.
- * @param state - Run state.
- * @returns The redirect, or a 400 when the request is off spec.
- */
-function landing(call: IRecordedCall, state: IBeinleumiMockState): Response {
-  hit(state, 'landing');
-  const checks = pageChecks(call, { rid: BN_HANDOFF_RID }, [BN_PORTAL_COOKIE]);
+  const formHeaders = headerChecks(call, { ...PAGE_HEADERS, 'content-type': FORM_TYPE });
+  const checks = {
+    ...formHeaders,
+    ...headerChecks(call, wanted),
+    form: isDeepStrictEqual(form, expected),
+    query: isQueryExactly(call, {}),
+  };
   if (!checkWire(state, call, checks)) return errorReply(400);
-  return redirectTo(BN_LANDING_PATH, [`${BN_LANDING_COOKIE}; Path=/; Secure`]);
-}
-
-/**
- * The landing page.
- * @param call - The request.
- * @param state - Run state.
- * @returns The page, or a 400 when the request is off spec.
- */
-function landed(call: IRecordedCall, state: IBeinleumiMockState): Response {
-  hit(state, 'landed');
-  const checks = pageChecks(call, {}, PORTAL_COOKIES);
-  if (!checkWire(state, call, checks)) return errorReply(400);
-  return html(LANDING_PAGE);
+  const page = logonPage();
+  return html(page, [
+    `${BN_PORTAL_COOKIE}; Path=/; Secure; HttpOnly`,
+    `${BN_LANDING_COOKIE}; Path=/; Secure`,
+  ]);
 }
 
 /**
@@ -208,10 +154,7 @@ function sessionToken(call: IRecordedCall, state: IBeinleumiMockState): Response
 }
 
 export const PORTAL_ROUTES: Readonly<Record<string, Route>> = {
-  [`GET ${WIRE_PATHS.servlet}`]: prime,
   [`POST ${WIRE_PATHS.servlet}`]: logon,
-  [`GET ${BN_HANDOFF_PATH}`]: landing,
-  [`GET ${BN_LANDING_PATH}`]: landed,
   [`POST ${WIRE_PATHS.bootstrap}`]: bootstrap,
   [`GET ${WIRE_PATHS.authorize}`]: sessionToken,
 };

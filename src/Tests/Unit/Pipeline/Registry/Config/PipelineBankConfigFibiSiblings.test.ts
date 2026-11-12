@@ -144,10 +144,10 @@ function swapBrand(text: string, to: IBrandLiterals): string {
 }
 
 describe.each(SIBLINGS)('$companyId api-direct login config (Beinleumi group)', sibling => {
-  it('uses the proven ordinary-web entry Accept without changing the response policy', async () => {
+  it('posts the login form with the ordinary-web Accept and reads its HTML answer', async () => {
     const { call } = await loadConfig(sibling);
-    const prime = call.steps.find(step => step.name === 'prime');
-    expect(prime).toMatchObject({
+    const logon = call.steps.find(step => step.name === 'logon');
+    expect(logon).toMatchObject({
       headers: { accept: { $literal: 'text/html,application/xhtml+xml' } },
       response: 'text',
       mediaType: 'text/html',

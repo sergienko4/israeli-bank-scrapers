@@ -20,9 +20,8 @@ export type OtpFault =
 /** A login or assertion answer the run must refuse. */
 export type LoginFault = 'locked' | 'expired' | 'plaintextAssert';
 
-/** A login page, hand-off page or SSO answer the run must refuse. */
-export type PortalFault =
-  'noPasswordEnc' | 'ambiguousHandoff' | 'postMessageHandoff' | 'crossOriginHandoff' | 'sso204';
+/** A portal answer the run must refuse. */
+export type PortalFault = 'sso204';
 
 /** A BFF read the bank fails with its own text. */
 export type DataFault = 'accountType500';

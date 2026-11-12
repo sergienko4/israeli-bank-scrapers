@@ -1,15 +1,20 @@
 /**
- * FIBI-family portal steps: the entry page that
- * states the bank number and client address and carries the login form; the
- * form post that hands off to the portal; the landing; the SSO code; and the
- * authorization header the code buys. Pure data (Rule #11).
+ * FIBI-family portal steps: the login-form post that hands the Transmit token
+ * to the servlet, the SSO code, and the authorization header the code buys.
+ * Pure data (Rule #11).
+ *
+ * <p>No page is read. The servlet's form fields are static and observed on the
+ * wire; the bank number comes from the brand record; the client address the
+ * page used to supply is not required by the login call. That removes the only
+ * HTML request the login used to make.</p>
  */
 
 import type {
+  IBodyTemplate,
   IGetStep,
   IPostStep,
   IStepConfig,
-  ITextCapture,
+  JsonValueTemplate,
 } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import {
   FIBI_HTML,
@@ -18,8 +23,6 @@ import {
   FIBI_SSO_MAX_CHARS,
   FIBI_UA,
   fibiEntryUrl,
-  fibiPortalRule,
-  fibiServletUrl,
   type IFibiBrand,
 } from './PipelineBankConfigFibiFamilyConstants.js';
 import { literalHeaders } from './PipelineBankConfigLiteralHeaders.js';
@@ -31,55 +34,88 @@ const SSO_MAX_CHARS = 32768;
 const PAGE = { response: 'text', maxTextChars: FIBI_PAGE_MAX_CHARS, mediaType: FIBI_HTML } as const;
 
 /**
- * A script assignment `name = "value"` (either quote); a page with two is refused.
- * @param name - The assigned variable.
- * @returns The capture.
+ * The servlet form's static fields, observed on the real login page.
+ * @param brand - FIBI-family brand.
+ * @returns The fields, without the user or the token.
  */
-function assignment(name: string): ITextCapture {
-  return { pattern: String.raw`\b${name}\s*=\s*(["'])([^"']*)\1`, group: 2 };
+function staticFormFields(brand: IFibiBrand): Readonly<Record<string, string>> {
+  return {
+    isPaymentProc: 'false',
+    KODSAFA: 'HE',
+    userLoginHome: 'Private',
+    bankId: brand.portalId,
+    showCaptcha: 'false',
+    lang: 'HE',
+  };
 }
 
-const PRIME: IGetStep = {
-  name: 'prime',
-  urlTag: 'auth.prime',
-  method: 'GET',
-  extractsToCarry: {},
-  headers: literalHeaders({ accept: FIBI_PAGE_ACCEPT, 'user-agent': FIBI_UA }),
-  ...PAGE,
-  generate: [
-    { kind: 'ecdh-key', curve: 'secp256k1', publicInto: 'ecdhPublic', privateInto: 'ecdhPrivate' },
-  ],
-  textCaptures: { bankNum: assignment('bankNum'), client_ip: assignment('client_ip') },
+/**
+ * One field of the login form, as a template.
+ * @param value - The field's static value.
+ * @returns Its template.
+ */
+function literalField(value: string): JsonValueTemplate {
+  return { $literal: value };
+}
+
+/**
+ * One field of the login form, as a `[name, template]` entry.
+ * @param field - The field's name and static value.
+ * @returns The entry.
+ */
+function formEntryOf(field: [string, string]): [string, JsonValueTemplate] {
+  const [name, value] = field;
+  return [name, literalField(value)];
+}
+
+/** The form values the client fills in; the rest are static. */
+const FILLED: Record<string, JsonValueTemplate> = {
+  passwordEnc: { $ref: 'carry.token' },
+  user: { $ref: 'creds.username' },
 };
 
-/** The entry form, its password replaced by the Transmit token. */
-const LOGON: IPostStep = {
-  name: 'logon',
-  urlTag: 'auth.logon',
-  extractsToCarry: {},
-  body: {
-    shape: {
-      $merge: {
-        base: 'carry.loginForm',
-        set: { passwordEnc: { $ref: 'carry.token' }, user: { $ref: 'creds.username' } },
-      },
-    },
-  },
-  encoding: 'form-utf8',
-  ...PAGE,
-};
+/**
+ * The login form's shape: the static fields, the user and the token.
+ * @param brand - FIBI-family brand.
+ * @returns The body template.
+ */
+function logonBodyOf(brand: IFibiBrand): IBodyTemplate {
+  const fields = staticFormFields(brand);
+  const entries = Object.entries(fields);
+  const literalEntries = entries.map(formEntryOf);
+  const shape = { ...Object.fromEntries(literalEntries), ...FILLED };
+  return { shape };
+}
 
-const LANDING: IGetStep = {
-  name: 'landing',
-  urlTag: 'auth.landing',
-  method: 'GET',
-  extractsToCarry: {},
-  urlFromCarry: 'handoffUrl',
-  finalUrlInto: 'landingUrl',
-  headers: literalHeaders({ accept: FIBI_PAGE_ACCEPT, 'user-agent': FIBI_UA }),
-  response: 'document',
-  mediaType: FIBI_HTML,
-};
+/**
+ * The headers the login form is posted with.
+ * @param brand - FIBI-family brand.
+ * @returns The headers.
+ */
+function logonHeadersOf(brand: IFibiBrand): Readonly<Record<string, JsonValueTemplate>> {
+  const referer = fibiEntryUrl(brand);
+  return literalHeaders({
+    accept: FIBI_PAGE_ACCEPT,
+    'user-agent': FIBI_UA,
+    origin: brand.origin,
+    referer,
+  });
+}
+
+/**
+ * The entry form, its password replaced by the Transmit token.
+ *
+ * <p>The servlet accepts the token without a preceding page read and answers
+ * `200` with the session cookies; there is no `Location` to follow.</p>
+ * @param brand - FIBI-family brand.
+ * @returns The logon step.
+ */
+function fibiLogonStep(brand: IFibiBrand): IPostStep {
+  const body = logonBodyOf(brand);
+  const headers = logonHeadersOf(brand);
+  const step = { name: 'logon', urlTag: 'auth.logon', extractsToCarry: {} } as const;
+  return { ...step, method: 'POST', body, encoding: 'form-utf8', headers, ...PAGE };
+}
 
 const BOOTSTRAP: IPostStep = {
   name: 'bootstrap',
@@ -115,56 +151,20 @@ const SESSION_TOKEN: IGetStep = {
   strictUtf8: false,
 };
 
-const CLIENT_IP_RULE = { pattern: '^[0-9A-Fa-f.:]{2,45}$', maxChars: 45 } as const;
-
-const LOGIN_FORM_BASE = {
-  form: 'loginServlet',
-  into: 'loginForm',
-  required: ['user', 'passwordEnc', 'bankId'],
-  forbidden: ['password'],
-  minFields: 3,
-  maxFields: 32,
-} as const;
-
 /**
- * Row 1: the entry page, checked to be the brand's own, and its login form.
- * @param brand - FIBI-family brand.
- * @returns The prime step.
- */
-function fibiPrimeStep(brand: IFibiBrand): IGetStep {
-  const action = fibiServletUrl(brand);
-  const extractRules = { bankNum: { oneOf: [brand.bankNum] }, client_ip: CLIENT_IP_RULE };
-  const formCapture = { ...LOGIN_FORM_BASE, action };
-  return { ...PRIME, extractRules, formCapture };
-}
-
-/**
- * Rows 5–6: the form post, whose page names the portal hand-off, then the
- * hand-off itself; both kept to the portal.
- * @param brand - FIBI-family brand.
- * @returns The logon and landing steps.
- */
-function fibiHandoffSteps(brand: IFibiBrand): readonly IStepConfig[] {
-  const portal = [fibiPortalRule(brand)];
-  const referer = fibiEntryUrl(brand);
-  const sender = { 'user-agent': FIBI_UA, origin: brand.origin, referer };
-  const headers = literalHeaders({ accept: FIBI_PAGE_ACCEPT, ...sender });
-  const locationCapture = { into: 'handoffUrl', userAgent: FIBI_UA, url: portal };
-  const landing = { ...LANDING, redirect: { maxHops: 3, allow: portal } };
-  return [{ ...LOGON, headers, locationCapture }, landing];
-}
-
-/**
- * Rows 7–8: the SSO code and its authorization header, sent from the landing.
+ * Rows 7–8: the SSO code and its authorization header, sent from the portal.
  * @param brand - FIBI-family brand.
  * @returns The bootstrap and session-token steps.
  */
 function fibiSsoSteps(brand: IFibiBrand): readonly IStepConfig[] {
   const sender = { accept: 'application/json', 'user-agent': FIBI_UA, origin: brand.origin };
-  const headers = { ...literalHeaders(sender), referer: { $ref: 'carry.landingUrl' } } as const;
+  const headers = {
+    ...literalHeaders(sender),
+    referer: { $literal: fibiEntryUrl(brand) },
+  } as const;
   const transactionId = { 'x-fibi-transaction-id': { $ref: 'uuid' } } as const;
   const sessionToken = { ...SESSION_TOKEN, headers: { ...headers, ...transactionId } };
   return [{ ...BOOTSTRAP, headers }, sessionToken];
 }
 
-export { fibiHandoffSteps, fibiPrimeStep, fibiSsoSteps };
+export { fibiLogonStep, fibiSsoSteps };

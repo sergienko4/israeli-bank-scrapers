@@ -15,7 +15,6 @@ import { release, type as osType } from 'node:os';
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import { validateApiDirectConfig } from '../../../../../Scrapers/Pipeline/Core/Builder/Validation/ApiDirectConfigRules.js';
 import type { JsonValue } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Envelope/JsonPointer.js';
-import { captureText } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Captures/RunStep.textCapture.js';
 import {
   CARRY,
   ENTRY,
@@ -42,16 +41,13 @@ const SEALED = {
 } as const;
 const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/;
 
-/** The SSO calls' shared headers, sent from the landing page. */
+/** The SSO calls' shared headers, sent from the brand's entry URL. */
 const SSO_HEADERS = {
   accept: 'application/json',
   'user-agent': UA,
   origin: ORIGIN,
-  referer: CARRY.landingUrl,
+  referer: ENTRY,
 };
-
-/** An entry page's script, stating the bank number and client address. */
-const ENTRY_SCRIPT = 'var bankNum = \'031\';\nvar client_ip = "192.0.2.7";';
 
 /** Carry before the bank names a device. */
 const COLD_CARRY = withoutSlot(CARRY, 'did');
@@ -63,18 +59,16 @@ describe('Beinleumi api-direct login config — wiring', () => {
     expect(result).toEqual({ success: true, value: true });
   });
 
-  it('primes, opens a Transmit session, hands off to the portal, then takes the SSO token', async () => {
+  it('opens a Transmit session, posts the login form, then takes the SSO token', async () => {
     const { call } = await loadModule();
     const named = call.steps.map(step => [step.name, step.urlTag, step.method ?? 'POST']);
     expect(named).toEqual([
-      ['prime', 'auth.prime', 'GET'],
       ['encryptionKey', 'auth.encryptionKey', 'POST'],
       ['login', 'auth.login', 'POST'],
       ['assertPassword', 'auth.assert', 'POST'],
       ['otpInit', 'auth.assert', 'POST'],
       ['assertOtp', 'auth.assert', 'POST'],
       ['logon', 'auth.logon', 'POST'],
-      ['landing', 'auth.landing', 'GET'],
       ['bootstrap', 'auth.bootstrap', 'POST'],
       ['sessionToken', 'identity.sessionToken', 'GET'],
     ]);
@@ -83,7 +77,6 @@ describe('Beinleumi api-direct login config — wiring', () => {
   it('names each call on the online origin', async () => {
     const { headless } = await loadModule();
     expect(headless.paths).toEqual({
-      'auth.prime': ENTRY,
       'auth.encryptionKey': `${TRANSMIT}/key_exchange`,
       'auth.login': `${TRANSMIT}/login`,
       'auth.assert': `${TRANSMIT}/assert`,
@@ -123,14 +116,14 @@ describe('Beinleumi api-direct login config — wiring', () => {
     expect(call.warmStart).toBeUndefined();
   });
 
-  it('hands the scrape only the SSO authorization and the landing URL, under no auth scheme', async () => {
+  it('hands the scrape only the SSO authorization, under no auth scheme', async () => {
     const { call } = await loadModule();
     expect(call).toMatchObject({
       flow: 'sms-otp',
       authScheme: 'none',
       omitBankText: true,
       requiredCreds: { username: 'nonEmpty', password: 'nonEmpty' },
-      sessionCarry: ['authorization', 'landingUrl'],
+      sessionCarry: ['authorization'],
     });
   });
 
@@ -182,6 +175,14 @@ describe('Beinleumi api-direct login config — Transmit requests', () => {
       headers: [ENVELOPE_HEADERS[0], { type: 'key_exchange', scheme: 2, y: CARRY.ecdhPublic }],
       data: { r: 'Hello Encrypted World' },
     });
+    expect(step.generate).toEqual([
+      {
+        kind: 'ecdh-key',
+        curve: 'secp256k1',
+        publicInto: 'ecdhPublic',
+        privateInto: 'ecdhPrivate',
+      },
+    ]);
     expect(step.codec).toEqual({
       kind: 'ecdh-aes-cbc',
       mode: 'exchange',
@@ -191,7 +192,7 @@ describe('Beinleumi api-direct login config — Transmit requests', () => {
     });
   });
 
-  it('logs in with the entry page context and the fingerprint, sealed', async () => {
+  it('logs in with the brand number and the fingerprint, sealed', async () => {
     const { call } = await loadModule();
     const step = stepNamed(call, 'login');
     const body = hydrateFixed(step.body?.shape ?? {}, call);
@@ -199,7 +200,7 @@ describe('Beinleumi api-direct login config — Transmit requests', () => {
       headers: ENVELOPE_HEADERS,
       data: {
         policy_request_id: 'Login',
-        params: { bankId: CARRY.bankNum, client_ip: CARRY.client_ip },
+        params: { bankId: CARRY.bankNum },
         collection_result: FINGERPRINT,
       },
     });
@@ -299,56 +300,21 @@ describe('Beinleumi api-direct login config — Transmit requests', () => {
 });
 
 describe('Beinleumi api-direct login config — portal requests', () => {
-  it('reads the entry page as HTML and generates the session key pair', async () => {
-    const { call } = await loadModule();
-    const step = stepNamed(call, 'prime');
-    const headers = hydratedHeaders(step, call);
-    expect(headers).toEqual({
-      accept: 'text/html,application/xhtml+xml',
-      'user-agent': UA,
-    });
-    expect(step).toMatchObject({ response: 'text', maxTextChars: 2097152, mediaType: 'text/html' });
-    expect(step.generate).toEqual([
-      {
-        kind: 'ecdh-key',
-        curve: 'secp256k1',
-        publicInto: 'ecdhPublic',
-        privateInto: 'ecdhPrivate',
-      },
-    ]);
-    expect(step.formCapture).toEqual({
-      form: 'loginServlet',
-      into: 'loginForm',
-      action: SERVLET,
-      required: ['user', 'passwordEnc', 'bankId'],
-      forbidden: ['password'],
-      minFields: 3,
-      maxFields: 32,
-    });
-  });
-
-  it.each([
-    ['states each once', ENTRY_SCRIPT, { bankNum: '031', client_ip: '192.0.2.7' }],
-    [
-      'states the bank number twice',
-      `${ENTRY_SCRIPT}\nbankNum = "046";`,
-      'prime capture bankNum ambiguous',
-    ],
-    ['omits the client address', "var bankNum = '031';", 'prime capture client_ip missing'],
-  ] as const)('reads the entry page context when the page %s', async (_label, text, expected) => {
-    const { call } = await loadModule();
-    const step = stepNamed(call, 'prime');
-    const verdict = captureText(step, { text });
-    const read = verdict.success ? verdict.value : verdict.errorMessage;
-    expect(read).toEqual(expected);
-  });
-
-  it('posts the captured login form with the issued token and the user name', async () => {
+  it('posts the static login form with the issued token and the user name', async () => {
     const { call } = await loadModule();
     const step = stepNamed(call, 'logon');
     const body = hydrateFixed(step.body?.shape ?? {}, call);
     const headers = hydratedHeaders(step, call);
-    expect(body).toEqual({ ...CARRY.loginForm, passwordEnc: CARRY.token, user: 'SynUser' });
+    expect(body).toEqual({
+      isPaymentProc: 'false',
+      KODSAFA: 'HE',
+      userLoginHome: 'Private',
+      bankId: 'FIBIPORTAL',
+      showCaptcha: 'false',
+      lang: 'HE',
+      passwordEnc: CARRY.token,
+      user: 'SynUser',
+    });
     expect(step.encoding).toBe('form-utf8');
     expect(headers).toEqual({
       accept: 'text/html,application/xhtml+xml',
@@ -359,35 +325,16 @@ describe('Beinleumi api-direct login config — portal requests', () => {
     expect(step).toMatchObject({ response: 'text', maxTextChars: 2097152, mediaType: 'text/html' });
   });
 
-  it('reads the hand-off target from the logon page, on the portal only', async () => {
+  it('posts the form without a page read or a hand-off to follow', async () => {
     const { call } = await loadModule();
     const step = stepNamed(call, 'logon');
-    const portal = {
-      origin: ORIGIN,
-      anyPathExcept: ['logout', 'changepass', 'recovery', 'resetpassword'],
-    };
-    expect(step.locationCapture).toEqual({ into: 'handoffUrl', userAgent: UA, url: [portal] });
+    expect(step.locationCapture).toBeUndefined();
+    const names = call.steps.map(candidate => candidate.name);
+    expect(names).not.toContain('prime');
+    expect(names).not.toContain('landing');
   });
 
-  it('follows the hand-off to the portal, keeping where it landed', async () => {
-    const { call } = await loadModule();
-    const step = stepNamed(call, 'landing');
-    const headers = hydratedHeaders(step, call);
-    const portal = {
-      origin: ORIGIN,
-      anyPathExcept: ['logout', 'changepass', 'recovery', 'resetpassword'],
-    };
-    expect(headers).toEqual({ accept: 'text/html,application/xhtml+xml', 'user-agent': UA });
-    expect(step).toMatchObject({
-      urlFromCarry: 'handoffUrl',
-      redirect: { maxHops: 3, allow: [portal] },
-      finalUrlInto: 'landingUrl',
-      response: 'document',
-      mediaType: 'text/html',
-    });
-  });
-
-  it('asks the shell for an SSO code from the landing page', async () => {
+  it('asks the shell for an SSO code from the brand entry URL', async () => {
     const { call } = await loadModule();
     const step = stepNamed(call, 'bootstrap');
     const body = hydrateFixed(step.body?.shape ?? {}, call);

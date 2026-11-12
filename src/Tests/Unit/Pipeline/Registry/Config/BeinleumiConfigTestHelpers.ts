@@ -49,16 +49,12 @@ const CARRY = {
   sid: 'syn-sid',
   ecdhPublic: 'BHN5bi1wdWI=',
   bankNum: '031',
-  client_ip: '192.0.2.7',
   pwdAssertionId: 'syn-pwd-assertion',
   challenge: 'syn-challenge',
   otpAssertionId: 'syn-otp-assertion',
   otpTargetId: 'syn-target',
   otpCode: '123456',
   token: 'syn.token-1',
-  loginForm: { user: '', passwordEnc: '', bankId: 'FIBIPORTAL', site: 'Private' },
-  handoffUrl: `${ORIGIN}/appsng/Resources/PortalNG/shell/`,
-  landingUrl: `${ORIGIN}/appsng/Resources/PortalNG/shell/#/accountSummary`,
   ssoCode: 'syn-code_1',
 } as const;
 

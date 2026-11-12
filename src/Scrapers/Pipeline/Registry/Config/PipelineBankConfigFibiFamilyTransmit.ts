@@ -14,10 +14,10 @@ import type {
 } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import {
   FIBI_KEY_EXCHANGE_BODY,
-  FIBI_LOGIN_BODY,
   FIBI_OTP_BODY,
   FIBI_OTP_TRIGGER_BODY,
   FIBI_PASSWORD_BODY,
+  fibiLoginBody,
 } from './PipelineBankConfigFibiFamilyBodies.js';
 import {
   FIBI_AUTH_CLASSIFIER,
@@ -65,6 +65,10 @@ const ENCRYPTION_KEY: StepPart = {
   extractsToCarry: {},
   optionalExtractsToCarry: SESSION_EXTRACTS,
   body: FIBI_KEY_EXCHANGE_BODY,
+  /** The client point the login and the seal read; no page supplies it now. */
+  generate: [
+    { kind: 'ecdh-key', curve: 'secp256k1', publicInto: 'ecdhPublic', privateInto: 'ecdhPrivate' },
+  ],
   codec: {
     kind: 'ecdh-aes-cbc',
     mode: 'exchange',
@@ -75,12 +79,11 @@ const ENCRYPTION_KEY: StepPart = {
 };
 
 /** The login answer opens the session, so its session id is required. */
-const LOGIN: StepPart = {
+const LOGIN: Omit<StepPart, 'body'> = {
   name: 'login',
   urlTag: 'auth.login',
   extractsToCarry: { sid: SID_POINTER },
   optionalExtractsToCarry: { did: DID },
-  body: FIBI_LOGIN_BODY,
   codec: SEALED,
   classify: FIBI_LOGIN_CLASSIFIER,
 };
@@ -154,7 +157,8 @@ function fibiOpeningSteps(brand: IFibiBrand): readonly IPostStep[] {
   const did = { $ref: 'carry.did', optional: true } as const;
   const queryTemplate = { aid: { $literal: brand.aid }, did };
   const part = { headers: transmitHeaders(brand), queryTemplate, extractRules: SESSION_RULES };
-  return [ENCRYPTION_KEY, LOGIN].map(step => ({ ...step, ...part }));
+  const login = { ...LOGIN, body: fibiLoginBody(brand.bankNum) };
+  return [ENCRYPTION_KEY, login].map(step => ({ ...step, ...part }));
 }
 
 /**
