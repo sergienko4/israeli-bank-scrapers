@@ -12,8 +12,6 @@
  */
 process.env.TZ = 'Asia/Jerusalem';
 
-const PUBLISHED_FIBI_ENTRY = process.env.E2E_FIBI_PUBLISHED_ENTRY;
-
 /** @type {import('jest').Config} */
 export default {
   preset: 'ts-jest/presets/default-esm',
@@ -26,7 +24,6 @@ export default {
   rootDir: './src',
   extensionsToTreatAsEsm: ['.ts'],
   moduleNameMapper: {
-    ...(PUBLISHED_FIBI_ENTRY ? { '^\\.\\./\\.\\./index\\.js$': PUBLISHED_FIBI_ENTRY } : {}),
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
   transform: {
@@ -38,13 +35,7 @@ export default {
   },
   setupFilesAfterEnv: ['./Tests/JestSetup.ts'],
   testEnvironment: 'node',
-  testPathIgnorePatterns: [
-    '/node_modules/',
-    'E2ePublic/',
-    'E2eCredentials/',
-    'E2eOtp/',
-    'E2eFull/',
-  ],
+  testPathIgnorePatterns: ['/node_modules/', 'E2ePublic/', 'E2eCredentials/', 'E2eOtp/', 'E2eFull/'],
   collectCoverageFrom: ['**/*.ts', '!Tests/**', '!**/*.test.ts'],
   coveragePathIgnorePatterns: ['EslintCanaries'],
   coverageReporters: ['text', 'lcov'],

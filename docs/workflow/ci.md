@@ -7,7 +7,6 @@ source-files:
   - .github/workflows/cache-cleanup.yml
   - .github/workflows/dev-tooling-watch.yml
   - .github/scripts/ci/detect-changes.sh
-  - jest.config.js
   - .github/actions/setup-consumer-runtime/action.yml
   - .github/scripts/ci/consumer-install.sh
   - .github/scripts/ci/consumer-smoke.cjs
@@ -32,22 +31,6 @@ The browser-stack gate and browser integration harness are removed.
 Post-merge is a different pipeline: one `Main Pipeline` run per merge — scans
 and release together — covered in
 [Main pipeline (post-merge CI)](main-pipeline.md).
-
-The temporary Beinleumi comparison in Group B runs published
-`@sergienko4/israeli-bank-scrapers@10.0.1` and the current source on the same
-hosted runner, using the same happy-path test and OTP handling. The published
-package installs in an isolated temporary directory with lifecycle scripts
-disabled; only that attempt sets `E2E_FIBI_PUBLISHED_ENTRY` to select its
-actual ESM artifact. The current attempt keeps the default source mapping.
-Both attempts run even when the baseline fails, and either failure keeps
-the job red. Their existing private traces are separated under
-`pipeline/published-10.0.1` and `pipeline/current-source` in the same archive.
-Only Beinleumi's job budget grows to 40 minutes to accommodate two existing
-15-minute test ceilings plus setup and cooldown. Approval, concurrency and
-the Hapoalim path and budget are unchanged. Sequential runs
-share a runner/network but still have separate sessions and order effects;
-their outcomes alone do not prove a code regression. Remove the comparison
-once the diagnosis is complete.
 
 ## Gate matrix
 
