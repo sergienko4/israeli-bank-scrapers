@@ -1,5 +1,5 @@
 /**
- * FIBI-group browserless logs, bank faults  — no password, code, user
+ * FIBI-group HTTP-only logs, bank faults  — no password, code, user
  * or account name, Transmit token, authorization, envelope key, device or
  * session id, SSO code, cookie or bank text reaches a log line or a failure
  * message, across the success, SMS and every bank fault fixture. Every

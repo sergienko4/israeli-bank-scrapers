@@ -1,5 +1,5 @@
 /**
- * Max browserless login — mocked E2E for what the shared API-DIRECT flow spec
+ * Max HTTP-only login — mocked E2E for what the shared API-DIRECT flow spec
  * cannot see: the session cookie and id headers, each login refusal, a lost session, and every way step 0 can fail. The
  * happy cold run lives in ApiDirectFlow.
  *

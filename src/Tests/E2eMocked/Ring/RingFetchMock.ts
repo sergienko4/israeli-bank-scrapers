@@ -1,6 +1,6 @@
 /**
  * Ring synthetic fetch mock — stands in for a card issuer's mobile "ring"
- * gateway so the browserless login and scrape run with no network. One mock
+ * gateway so the HTTP-only login and scrape run with no network. One mock
  * serves every ring issuer; an {@link IRingTarget} names the issuer.
  *
  * Rule #18: every value here is SYNTHETIC. No real PII.

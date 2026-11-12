@@ -1,9 +1,9 @@
 /**
- * Beinleumi browserless login and scrape — mocked E2E. A cold run opens a
- * Transmit envelope, asserts the password, posts the static login form with
- * the Transmit token and trades the SSO code for the authorization the BFF
- * reads carry. No page is read. Every call is checked against the recorded
- * contract by the synthetic bank.
+ * Beinleumi HTTP-only login and scrape — mocked E2E. A cold run reads the
+ * login page, opens a Transmit envelope, asserts the password, posts the
+ * login form back with the Transmit token, follows the portal hand-off and
+ * trades the SSO code for the authorization the BFF reads carry. Every call
+ * is checked against the recorded contract by the synthetic bank.
  *
  * Rule #18: all credentials + data are synthetic; no real PII.
  */

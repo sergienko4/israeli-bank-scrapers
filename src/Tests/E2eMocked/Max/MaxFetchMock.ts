@@ -1,5 +1,5 @@
 /**
- * Max synthetic fetch mock — stands in for max.co.il so the browserless login
+ * Max synthetic fetch mock — stands in for max.co.il so the HTTP-only login
  * and scrape run with no network.
  *
  * Rule #18: every value here is SYNTHETIC. No real PII.

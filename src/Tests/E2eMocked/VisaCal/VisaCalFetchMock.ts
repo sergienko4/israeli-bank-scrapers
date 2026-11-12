@@ -1,6 +1,6 @@
 /**
  * Visa Cal synthetic fetch mock — stands in for CAL's API gateway so the
- * browserless login and scrape run with no network.
+ * HTTP-only login and scrape run with no network.
  *
  * Rule #18: every value here is SYNTHETIC. No real PII.
  *

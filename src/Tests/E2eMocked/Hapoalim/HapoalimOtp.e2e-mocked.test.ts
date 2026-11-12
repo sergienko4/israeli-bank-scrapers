@@ -1,5 +1,5 @@
 /**
- * Hapoalim browserless SMS step — mocked E2E for its edges: no retriever, a
+ * Hapoalim HTTP-only SMS step — mocked E2E for its edges: no retriever, a
  * wrong or malformed code, the bank refusing the code step, a missing or
  * unusable CSRF cookie or flow, and an otp-init state other than the pending
  * one. Each pins whether the caller was asked for a code, and how far the

@@ -22,10 +22,8 @@ const hasCoreCreds = !!(process.env.PEPPER_PHONE_NUMBER && process.env.PEPPER_PA
 
 /**
  * Pepper routes its Transmit-Security auth calls over Node's own fetch
- * (`nativeFetch: true` in PipelineBankConfig); the browser identity
- * transport it used before is no longer involved. The Telegram OTP
- * fetcher (commits 41aba838 + 024c18e4) feeds the SMS code back without a
- * human in the loop, so the test runs on the same gate as every
+ * (`nativeFetch: true` in PipelineBankConfig). The Telegram OTP fetcher feeds
+ * the SMS code back without a human in the loop, so the test runs on the same gate as every
  * other bank: skipped if PEPPER_PHONE_NUMBER + PEPPER_PASSWORD are
  * absent, runs otherwise.
  */

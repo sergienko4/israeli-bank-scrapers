@@ -1,5 +1,5 @@
 /**
- * Discount browserless wire — mocked E2E for what crosses the wire: the
+ * Discount HTTP-only wire — mocked E2E for what crosses the wire: the
  * exact header map on every call (routing headers, the XSRF token before and
  * after it rotates, the per-account `AccountNumber`), the exact cookie set
  * on every call (the client's seeds, then each cookie the bank sets as the

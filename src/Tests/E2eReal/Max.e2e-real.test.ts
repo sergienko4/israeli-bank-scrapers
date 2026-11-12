@@ -17,7 +17,7 @@ dotenv.config();
 const hasCredentials = !!(process.env.MAX_USERNAME && process.env.MAX_PASSWORD);
 
 /**
- * Max logs in over its web app's own API and opens no browser. Every run
+ * Max logs in over its web app's own API. Every run
  * logs in cold with the username and password; the bank keeps the session
  * in a cookie and hands back no long-term token. The mocked suite pins the
  * calls and refusals; this suite proves the real bank accepts the login.

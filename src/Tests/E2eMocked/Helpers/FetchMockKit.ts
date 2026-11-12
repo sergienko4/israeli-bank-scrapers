@@ -1,5 +1,5 @@
 /**
- * Fetch-mock kit — the plumbing every browserless bank mock shares. It swaps
+ * Fetch-mock kit — the plumbing every HTTP-only bank mock shares. It swaps
  * `globalThis.fetch` for a server, records each request as the server saw
  * it, tallies login against data calls and restores fetch on dispose.
  *

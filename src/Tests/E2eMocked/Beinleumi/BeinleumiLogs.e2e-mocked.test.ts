@@ -1,5 +1,5 @@
 /**
- * FIBI-group browserless logs, caller outcomes  — no password, code,
+ * FIBI-group HTTP-only logs, caller outcomes  — no password, code,
  * user or account name, Transmit token, authorization, envelope key, device or
  * session id, SSO code, cookie, bank text or opaque device state reaches a log
  * line or a failure message, across the wrong-credential, SMS-outcome and

@@ -1,5 +1,5 @@
 /**
- * Visa Cal browserless login — mocked-gateway E2E for what the shared
+ * Visa Cal HTTP-only login — mocked-gateway E2E for what the shared
  * API-DIRECT flow spec cannot see: the request headers, the password
  * staying off the warm path, and every way step 0
  * can fail. The happy cold and warm runs live in ApiDirectFlow.

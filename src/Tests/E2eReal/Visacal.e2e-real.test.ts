@@ -18,7 +18,7 @@ dotenv.config();
 const hasCredentials = !!(process.env.VISACAL_USERNAME && process.env.VISACAL_PASSWORD);
 
 /**
- * Visa Cal logs in over the bank's API and opens no browser. A cold login
+ * Visa Cal logs in over the bank's API. A cold login
  * (password) returns a long-term hash on `persistentOtpToken`; a warm login
  * sends only that hash. The bank rotates the hash on every login, so each run
  * hands back a new token. Cal sends no SMS, so a rejected hash costs nothing:

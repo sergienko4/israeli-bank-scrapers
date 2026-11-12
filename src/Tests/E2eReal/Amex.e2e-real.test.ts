@@ -21,7 +21,7 @@ const hasCredentials = !!(
 );
 
 /**
- * Amex logs in over the issuer's mobile gateway and opens no browser. A
+ * Amex logs in over the issuer's mobile gateway. A
  * cold login (ID, card digits, password) registers a device key and returns
  * it on `persistentOtpToken`; a warm login signs in with that key alone. The
  * key does not rotate, so a warm run hands the same key back. No step sends

@@ -3,9 +3,8 @@
  * Pepper Transmit + GraphQL API so the pipeline can be exercised without
  * network. Rule #18: every value is SYNTHETIC (no real PII).
  *
- * Pepper runs on `nativeFetch: true`, so every auth and GraphQL call goes
- * straight through `globalThis.fetch` and this override intercepts it with
- * no browser involved.
+ * Pepper runs on `nativeFetch: true`, so this override intercepts every
+ * auth and GraphQL call through `globalThis.fetch`.
  *
  * Auth routes are served by the synthetic Transmit server in
  * `PepperAuthServer.ts`, which verifies every request signature. GraphQL

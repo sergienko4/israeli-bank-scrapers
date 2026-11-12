@@ -1,6 +1,6 @@
 /**
  * Discount synthetic fetch mock — stands in for start.telebank.co.il so the
- * browserless login and Titan scrape run with no network.
+ * HTTP-only login and Titan scrape run with no network.
  *
  * Rule #18: every value here is SYNTHETIC. No real PII.
  *
