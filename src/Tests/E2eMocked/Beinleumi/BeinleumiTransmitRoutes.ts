@@ -17,7 +17,7 @@ import assertRoute from './BeinleumiAssertRoute.js';
 import type { IFibiMockBrand } from './BeinleumiBrands.js';
 import type { IBeinleumiMockState, Route } from './BeinleumiFaults.js';
 import { checkWire, hit } from './BeinleumiFaults.js';
-import { BN_CLIENT_IP, BN_CRYPTO_SESSION, BN_DID, BN_SID } from './BeinleumiMockData.js';
+import { BN_CRYPTO_SESSION, BN_DID, BN_SID } from './BeinleumiMockData.js';
 import { sealedReply, serverPoint, sharedKeyOf } from './BeinleumiPeer.js';
 import { loginRecord } from './BeinleumiTransmitAnswers.js';
 import {
@@ -106,8 +106,8 @@ function keyExchange(call: IRecordedCall, state: IBeinleumiMockState): Response 
 }
 
 /**
- * Whether the login names the bank, the client address and the fingerprint,
- * whose app is the portal's host.
+ * Whether the login names the bank number and the fingerprint, whose app is
+ * the portal's host.
  * @param data - The opened data.
  * @param brand - The bank.
  * @returns True when it does.
@@ -117,7 +117,7 @@ function isLoginData(data: JsonUnknownRecord, brand: IFibiMockBrand): boolean {
   const metadata = collected.metadata ?? {};
   const isApp = metadata.physical_app_id === new URL(brand.origin).host;
   const isFingerprint = isApp && typeof metadata.timestamp === 'number';
-  const params = { bankId: brand.bankNum, client_ip: BN_CLIENT_IP };
+  const params = { bankId: brand.bankNum };
   const isParams = isDeepStrictEqual(data.params, params);
   return data.policy_request_id === 'Login' && isParams && isFingerprint;
 }

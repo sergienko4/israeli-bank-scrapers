@@ -26,7 +26,6 @@ interface IRefusal {
 
 /** The login up to and including the call the bank's answer was refused at. */
 const TO_LOGIN = OPENING_TRAIL.slice(0, OPENING_TRAIL.indexOf('login') + 1);
-const TO_LOGON = [...OPENING_TRAIL, 'logon'];
 const TO_BOOTSTRAP = [
   ...OPENING_TRAIL,
   ...PORTAL_TRAIL.slice(0, PORTAL_TRAIL.indexOf('bootstrap') + 1),
@@ -72,38 +71,6 @@ const REFUSALS: readonly IRefusal[] = [
     errorType: ScraperErrorTypes.Generic,
     message: 'assertPassword envelope invalid',
     trail: OPENING_TRAIL,
-  },
-  {
-    label: 'a login form without passwordEnc',
-    fault: 'noPasswordEnc',
-    setup: {},
-    errorType: ScraperErrorTypes.Generic,
-    message: 'prime form fields invalid',
-    trail: ['prime'],
-  },
-  {
-    label: 'two hand-off assignments',
-    fault: 'ambiguousHandoff',
-    setup: {},
-    errorType: ScraperErrorTypes.Generic,
-    message: 'logon handoff ambiguous',
-    trail: TO_LOGON,
-  },
-  {
-    label: 'a hand-off whose selected branch posts a message',
-    fault: 'postMessageHandoff',
-    setup: {},
-    errorType: ScraperErrorTypes.Generic,
-    message: 'logon handoff script unsupported',
-    trail: TO_LOGON,
-  },
-  {
-    label: 'a hand-off off the portal',
-    fault: 'crossOriginHandoff',
-    setup: {},
-    errorType: ScraperErrorTypes.Generic,
-    message: 'logon handoff refused',
-    trail: TO_LOGON,
   },
   {
     label: 'an SSO answer of 204',

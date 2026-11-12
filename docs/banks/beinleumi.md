@@ -29,33 +29,38 @@ is called only when the bank asks for a code.
 
 ## Login
 
-Beinleumi logs in the way its web login page does, with no browser. Every call
-runs on the bank's online origin. `BEINLEUMI_API_DIRECT_CALL` and
-`BEINLEUMI_TRANSPORT` (`Registry/Config/PipelineBankConfigBeinleumi.ts`) are the
-FIBI-family login built for one `IFibiBrand` record: the origin, the entry
-page's `bankId`, the Transmit app id, the bank number and the device-memory
-provider. `buildFibiApiDirectCall` and `buildFibiHeadless`
+Beinleumi logs in through the same HTTP calls its web client makes, with no
+browser and no portal page read. Every call runs on the bank's online origin.
+`BEINLEUMI_API_DIRECT_CALL` and `BEINLEUMI_TRANSPORT`
+(`Registry/Config/PipelineBankConfigBeinleumi.ts`) are the FIBI-family login
+built for one `IFibiBrand` record: the origin, the servlet's `bankId`, the
+Transmit app id, the bank number and the device-memory provider.
+`buildFibiApiDirectCall` and `buildFibiHeadless`
 (`Registry/Config/PipelineBankConfigFibiFamily.ts`) build both from the brand,
 so a sibling bank of the family differs by its brand alone.
 
 | Step             | Call                                     | Sends                                                                       | Keeps                                                                                                     |
 | ---------------- | ---------------------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `prime`          | `GET` the entry page (`fibiEntryUrl`)    | —                                                                           | the login form, the bank number (it must be the brand's) and the client address, each stated exactly once |
 | `encryptionKey`  | `POST` the key exchange                  | a fresh `secp256k1` public key                                              | the envelope key and session                                                                              |
-| `login`          | `POST` the login                         | the user id, sealed                                                         | the session id; the login must offer the password method alone                                            |
+| `login`          | `POST` the login                         | the user id and the brand's bank number, sealed                             | the session id; the login must offer the password method alone                                            |
 | `assertPassword` | `POST` the assertion                     | the password, sealed                                                        | the login token, or the one SMS target the bank offers                                                    |
 | `otpInit`        | `POST` the assertion                     | a request to send the code                                                  | the code's format; runs only when the code is yet to be sent                                              |
 | `assertOtp`      | `POST` the assertion                     | the code from `otpCodeRetriever`, 4–10 digits of the length the bank stated | the login token; runs only when the bank asked for a code                                                 |
-| `logon`          | `POST` the entry form (`fibiServletUrl`) | the form, its password replaced by the token                                | the portal hand-off URL the page names                                                                    |
-| `landing`        | `GET` the hand-off                       | —                                                                           | the landing URL, after at most 3 redirects                                                                |
+| `logon`          | `POST` the entry form (`fibiServletUrl`) | the static form fields, the user and the token as `passwordEnc`             | —                                                                                                         |
 | `bootstrap`      | `POST` the SSO bootstrap                 | `{TPPName: 'shell'}`                                                        | the SSO code                                                                                              |
 | `sessionToken`   | `GET` the authorization, with the code   | —                                                                           | the `authorization` header the scrape sends                                                               |
 
-`fibiPrimeStep`, `fibiOpeningSteps`, `fibiAssertSteps`, `fibiHandoffSteps`
-and `fibiSsoSteps` build these rows; the sealed request bodies are
-`FIBI_KEY_EXCHANGE_BODY`, `FIBI_LOGIN_BODY`, `FIBI_PASSWORD_BODY`,
-`FIBI_OTP_TRIGGER_BODY` and `FIBI_OTP_BODY`
-(`Registry/Config/PipelineBankConfigFibiFamilyBodies.ts`).
+`fibiOpeningSteps`, `fibiAssertSteps`, `fibiLogonStep` and `fibiSsoSteps`
+build these rows; the sealed request bodies are `fibiLoginBody`,
+`FIBI_KEY_EXCHANGE_BODY`, `FIBI_PASSWORD_BODY`, `FIBI_OTP_TRIGGER_BODY` and
+`FIBI_OTP_BODY` (`Registry/Config/PipelineBankConfigFibiFamilyBodies.ts`).
+
+The `logon` form's fields are static — `isPaymentProc=false`, `KODSAFA=HE`,
+`userLoginHome=Private`, `bankId=<brand>`, `showCaptcha=false`, `lang=HE` —
+so the login no longer reads the page to learn them. The servlet accepts the
+token without a preceding page read and answers `200` with the session
+cookies; there is no `Location` to follow, and the SSO calls run from the same
+cookie jar.
 
 The answers are read the way the web SDK reads them, and anything else fails
 closed. `FIBI_LOGIN_CLASSIFIER` accepts one pending action offering the
@@ -67,13 +72,10 @@ completed login only. A bank error on the password or the code fails as
 `InvalidPassword` or `InvalidOtp`. A code of the wrong length fails before it
 is sent.
 
-The hand-off, every landing hop and the SSO calls are kept to the brand's
-origin: `fibiPortalRule` refuses any other origin and any path naming one of
-`FIBI_DENIED_PATHS` (logout, password change or recovery). Each call sends
-`FIBI_UA`, which names this library rather than a browser; the Transmit calls
-also send the SDK's `FIBI_TS_CLIENT_VERSION` and `FIBI_TS_AUTHORIZATION`. The
-device the SDK reports is this host's OS, Node.js version and time zone, with
-no location.
+The SSO calls are kept to the brand's origin. Each call sends `FIBI_UA`, which
+names this library rather than a browser; the Transmit calls also send the
+SDK's `FIBI_TS_CLIENT_VERSION` and `FIBI_TS_AUTHORIZATION`. The device the SDK
+reports is this host's OS, Node.js version and time zone, with no location.
 
 ## Wire policy
 
@@ -81,10 +83,10 @@ no location.
 origin, keeps one cookie session over native fetch and refuses what the web
 login never answers:
 
-- any redirect, except the `landing` hops above;
+- any redirect;
 - any `2xx` but `200` (`FIBI_STATUS_POLICY`);
-- a login page that is not `FIBI_HTML` (`FIBI_PAGE_ACCEPT` is what the pages
-  are asked for) or longer than `FIBI_PAGE_MAX_CHARS`, and an SSO answer
+- a login answer that is not `FIBI_HTML` (`FIBI_PAGE_ACCEPT` is what the
+  servlet is asked for) or longer than `FIBI_PAGE_MAX_CHARS`, and an SSO answer
   longer than `FIBI_SSO_MAX_CHARS`;
 - a body that is not strict UTF-8, except the `sessionToken` answer, whose
   body is never read.
@@ -92,6 +94,11 @@ login never answers:
 The config sets `omitBankText`, so no failure message carries the bank's own
 text. Browser options passed to `createScraper` are no longer supported; see the
 [migration notes](../configuration.md#removed-browser-options).
+
+The login never requests the portal HTML page that bot protection guards. The
+`logon` post sends the ordinary form `Accept: text/html,application/xhtml+xml`,
+and an HTTP 200 without the servlet's session cookies is not an authenticated
+login. This removed the only HTML read from the login path.
 
 ## Warm start
 
@@ -124,8 +131,8 @@ After login, the `BEINLEUMI_SHAPE` `IApiDirectScrapeShape`
 `extractAccounts`, `balanceExtract` / `balanceUrl`, `txnsVars` /
 `txnsExtractPage`) declares each endpoint. Each call goes over the login's
 cookie session on the online origin and sends the `authorization` the login
-kept, with a fresh `x-fibi-transaction-id`, and what the portal page sends:
-`Accept: application/json`, `FIBI_UA`, and the landing URL the login kept as
-`Referer`, with its origin as `Origin`. The login's `sessionCarry` hands the
-scrape these two slots (`authorization`, `landingUrl`) and nothing else. See
+kept, with a fresh `x-fibi-transaction-id`, `Accept: application/json` and
+`FIBI_UA`. The bank answered these calls without `Origin` or `Referer`, so
+neither is sent. The login's `sessionCarry` hands the scrape that one slot
+(`authorization`) and nothing else. See
 [api-direct-scrape](../phases/api-direct-scrape.md) for the phase contract.

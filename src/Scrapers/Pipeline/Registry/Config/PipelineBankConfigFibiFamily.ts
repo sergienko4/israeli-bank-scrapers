@@ -1,26 +1,22 @@
 /**
  * FIBI-family api-direct login: one builder per concern, fed a
  * brand record, so each family bank's config is its brand alone. The flow
- * reads the entry page, opens a Transmit session, asserts the password (and
- * the SMS code when the bank asks for one), posts the login form, follows the
- * portal hand-off and trades the SSO code for the authorization header the
- * scrape sends. The device the bank names is remembered, so a known device
- * logs in without a code. Pure data (Rule #11).
+ * opens a Transmit session, asserts the password (and the SMS code when the
+ * bank asks for one), posts the static login form, then trades the SSO code
+ * for the authorization header the scrape sends. No portal page is read, so
+ * the login does not depend on the HTML host that bot protection guards. The
+ * device the bank names is remembered, so a known device logs in without a
+ * code. Pure data (Rule #11).
  */
 
 import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import {
   FIBI_PATHS,
   FIBI_STATUS_POLICY,
-  fibiEntryUrl,
   fibiServletUrl,
   type IFibiBrand,
 } from './PipelineBankConfigFibiFamilyConstants.js';
-import {
-  fibiHandoffSteps,
-  fibiPrimeStep,
-  fibiSsoSteps,
-} from './PipelineBankConfigFibiFamilyPortal.js';
+import { fibiLogonStep, fibiSsoSteps } from './PipelineBankConfigFibiFamilyPortal.js';
 import { fibiAssertSteps, fibiOpeningSteps } from './PipelineBankConfigFibiFamilyTransmit.js';
 import deviceFingerprint from './PipelineBankConfigRuntimeFingerprint.js';
 import type { ITransportConfig } from './PipelineBankConfigTypes.js';
@@ -32,7 +28,7 @@ const FIBI_LOGIN = {
   authScheme: 'none',
   omitBankText: true,
   requiredCreds: { username: 'nonEmpty', password: 'nonEmpty' },
-  sessionCarry: ['authorization', 'landingUrl'],
+  sessionCarry: ['authorization'],
   seedCarryFromCreds: [
     { field: 'flowId', bootstrap: { kind: 'random-hex', bytes: 32, isUpperCase: true } },
   ],
@@ -69,9 +65,12 @@ function fibiDeviceMemory(brand: IFibiBrand): NonNullable<IApiDirectCallConfig['
  * @returns Full login step sequence for the brand.
  */
 function fibiLoginSteps(brand: IFibiBrand): IApiDirectCallConfig['steps'] {
-  const opening = [fibiPrimeStep(brand), ...fibiOpeningSteps(brand)];
-  const portal = [...fibiHandoffSteps(brand), ...fibiSsoSteps(brand)];
-  return [...opening, ...fibiAssertSteps(brand), ...portal];
+  return [
+    ...fibiOpeningSteps(brand),
+    ...fibiAssertSteps(brand),
+    fibiLogonStep(brand),
+    ...fibiSsoSteps(brand),
+  ];
 }
 
 /**
@@ -110,7 +109,7 @@ function fibiOriginPaths(origin: string): Readonly<Record<string, string>> {
  * @returns URL tag → absolute URL.
  */
 function fibiPaths(brand: IFibiBrand): ITransportConfig['paths'] {
-  const portal = { 'auth.prime': fibiEntryUrl(brand), 'auth.logon': fibiServletUrl(brand) };
+  const portal = { 'auth.logon': fibiServletUrl(brand) };
   const api = fibiOriginPaths(brand.origin);
   return { ...portal, ...api };
 }

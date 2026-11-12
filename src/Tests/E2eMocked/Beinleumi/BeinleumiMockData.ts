@@ -15,10 +15,10 @@ export const BEINLEUMI_MOCK_CREDS = { username: 'SynUser042', password: 'syn-Pas
 /** The lower-cased user name every sealed call names as `uid`. */
 export const BN_UID = 'synuser042';
 
-/** The client address the login page assigns in its script. */
+/** The client address the login used to read from the page; no longer sent. */
 export const BN_CLIENT_IP = '192.0.2.31';
 
-/** The portal session cookie the login page sets; the logon post must echo it. */
+/** A portal session cookie the servlet sets; the SSO calls must echo it. */
 export const BN_PORTAL_COOKIE = 'JSESSIONID=SYN-portal-0031';
 
 /** The envelope session the key exchange opens. */
@@ -47,12 +47,7 @@ export const BN_OTP = '24681357';
 /** The Transmit token a completed assertion hands out. */
 export const BN_TOKEN = 'syn-transmit-token-0031';
 
-/** The portal pages the hand-off script and its one redirect name. */
-export const BN_HANDOFF_PATH = '/wps/portal/FibiMenu/home';
-export const BN_HANDOFF_RID = 'syn-rid-01';
-export const BN_LANDING_PATH = '/wps/myportal/FibiMenu/Online/syn-landing';
-
-/** The portal session cookie the redirect to the landing sets; the SSO calls must echo it. */
+/** The portal session cookie the servlet sets, as a landing would; the SSO calls must echo it. */
 export const BN_LANDING_COOKIE = 'LtpaToken2=SYN-ltpa-0031';
 
 /** The SSO code the bootstrap answer carries, and the authorization it buys. */

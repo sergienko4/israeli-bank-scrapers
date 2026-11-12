@@ -36,11 +36,21 @@ const FIBI_KEY_EXCHANGE_BODY: IBodyTemplate = {
   },
 };
 
-const LOGIN_DATA: JsonValueTemplate = {
-  policy_request_id: { $literal: 'Login' },
-  params: { bankId: { $ref: 'carry.bankNum' }, client_ip: { $ref: 'carry.client_ip' } },
-  collection_result: { $ref: 'fingerprint' },
-};
+/**
+ * The login data: the bank's number and the device collection.
+ *
+ * <p>The number comes from the brand record, not the portal page, and the
+ * client address the page used to supply is not required by the bank.</p>
+ * @param bankNum - Brand bank number, e.g. `031`.
+ * @returns The login data template.
+ */
+function loginData(bankNum: string): JsonValueTemplate {
+  return {
+    policy_request_id: { $literal: 'Login' },
+    params: { bankId: { $literal: bankNum } },
+    collection_result: { $ref: 'fingerprint' },
+  };
+}
 
 const PASSWORD_DATA: JsonValueTemplate = {
   action: ACTION,
@@ -79,15 +89,24 @@ function sealed(data: JsonValueTemplate): IBodyTemplate {
   return { shape: { headers: [FLOW_HEADER, UID_HEADER], data } };
 }
 
-const FIBI_LOGIN_BODY = sealed(LOGIN_DATA);
 const FIBI_PASSWORD_BODY = sealed(PASSWORD_DATA);
 const FIBI_OTP_TRIGGER_BODY = sealed(OTP_TRIGGER_DATA);
 const FIBI_OTP_BODY = sealed(OTP_DATA);
 
+/**
+ * The sealed login body for one brand.
+ * @param bankNum - Brand bank number.
+ * @returns The body template.
+ */
+function fibiLoginBody(bankNum: string): IBodyTemplate {
+  const data = loginData(bankNum);
+  return sealed(data);
+}
+
 export {
   FIBI_KEY_EXCHANGE_BODY,
-  FIBI_LOGIN_BODY,
   FIBI_OTP_BODY,
   FIBI_OTP_TRIGGER_BODY,
   FIBI_PASSWORD_BODY,
+  fibiLoginBody,
 };

@@ -10,7 +10,6 @@
  */
 
 import { CompanyTypes } from '../../../Definitions.js';
-import { BN_LANDING_PATH } from './BeinleumiMockData.js';
 import { WIRE_PATHS } from './BeinleumiWireSpec.js';
 
 /** One Beinleumi group bank, as the mocked bank sees it. */
@@ -94,13 +93,4 @@ export function entryQueryOf(brand: IFibiMockBrand): Readonly<Record<string, str
 export function entryUrlOf(brand: IFibiMockBrand): string {
   const query = new URLSearchParams(entryQueryOf(brand));
   return `${brand.origin}${WIRE_PATHS.servlet}?${query.toString()}`;
-}
-
-/**
- * The portal page the hand-off lands on.
- * @param brand - The bank.
- * @returns Its URL.
- */
-export function landingUrlOf(brand: IFibiMockBrand): string {
-  return `${brand.origin}${BN_LANDING_PATH}`;
 }

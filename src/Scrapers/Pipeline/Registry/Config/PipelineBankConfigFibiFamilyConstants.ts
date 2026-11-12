@@ -1,21 +1,20 @@
 /**
  * FIBI-family constants: the brand record the family's banks differ by, the
- * paths every brand serves on its own online origin, the Transmit SDK's fixed
- * values and the portal URL rule. Pure data (Rule #11).
+ * paths every brand serves on its own online origin and the Transmit SDK's
+ * fixed values. Pure data (Rule #11).
  */
 
-import type { IUrlRule } from '../../Types/Domain/FetchPolicy.js';
 import ONLY_200_STATUS_POLICY from './PipelineBankConfigHttpStatus.js';
 
 /** What one FIBI-family bank differs by. */
 interface IFibiBrand {
   /** The online origin every login call goes to. */
   readonly origin: string;
-  /** The entry page's `bankId` query value. */
+  /** The servlet's `bankId` form value. */
   readonly portalId: string;
   /** The Transmit application id, sent as `?aid`. */
   readonly aid: string;
-  /** The bank number the entry page must state. */
+  /** The bank number the login names. */
   readonly bankNum: string;
   /** Device-memory provider tag. */
   readonly provider: string;
@@ -40,10 +39,7 @@ const FIBI_PATHS = {
   authorize: '/appsng/bff-portal-shell/api/v1/autorization/authorize',
 } as const;
 
-/** Path texts a portal hand-off must not reach. */
-const FIBI_DENIED_PATHS = ['logout', 'changepass', 'recovery', 'resetpassword'] as const;
-
-/** Longest login page read, in chars. */
+/** Longest login answer read, in chars. */
 const FIBI_PAGE_MAX_CHARS = 2097152;
 
 /** Longest SSO answer read, in chars. */
@@ -59,7 +55,8 @@ const FIBI_PAGE_ACCEPT = 'text/html,application/xhtml+xml';
 const FIBI_STATUS_POLICY = ONLY_200_STATUS_POLICY;
 
 /**
- * The brand's entry page, which states the bank number and client address.
+ * The servlet URL the login answers the form at, with the query the browser
+ * shows as the referer.
  * @param brand - FIBI-family brand.
  * @returns Absolute entry URL.
  */
@@ -69,7 +66,7 @@ function fibiEntryUrl(brand: IFibiBrand): string {
 }
 
 /**
- * The login servlet the entry page's form posts to.
+ * The login servlet the form posts to.
  * @param brand - FIBI-family brand.
  * @returns Absolute servlet URL.
  */
@@ -77,18 +74,8 @@ function fibiServletUrl(brand: IFibiBrand): string {
   return `${brand.origin}${FIBI_PATHS.servlet}`;
 }
 
-/**
- * The rule a portal hand-off URL must pass: the brand's origin, no exit path.
- * @param brand - FIBI-family brand.
- * @returns The URL rule.
- */
-function fibiPortalRule(brand: IFibiBrand): IUrlRule {
-  return { origin: brand.origin, anyPathExcept: FIBI_DENIED_PATHS };
-}
-
 export type { IFibiBrand };
 export {
-  FIBI_DENIED_PATHS,
   FIBI_HTML,
   FIBI_PAGE_ACCEPT,
   FIBI_PAGE_MAX_CHARS,
@@ -99,6 +86,5 @@ export {
   FIBI_TS_CLIENT_VERSION,
   FIBI_UA,
   fibiEntryUrl,
-  fibiPortalRule,
   fibiServletUrl,
 };

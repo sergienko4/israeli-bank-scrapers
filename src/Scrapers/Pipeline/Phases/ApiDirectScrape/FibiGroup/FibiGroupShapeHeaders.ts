@@ -3,10 +3,9 @@
  * sends a fresh `X-FIBI-Transaction-Id`, as the portal shell does. Once an
  * HTTP login has stored the portal-shell `authorization` answer (the
  * bank config's `sessionCarry`), every call also sends it verbatim as
- * `Authorization`, with what the portal page itself sends: a JSON
- * `Accept`, the library's `User-Agent` and — from the landing URL the
- * login kept — its `Origin` and `Referer`. Without an authorization slot,
- * the shape returns only the transaction id.
+ * `Authorization`, with the JSON `Accept` and the library's `User-Agent`.
+ * The bank accepts these calls without `Origin` or `Referer`. Without an
+ * authorization slot, the shape returns only the transaction id.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -48,27 +47,15 @@ function textOf(session: SessionContext, slot: string): string {
 }
 
 /**
- * The page headers a landing URL names, or none when it is not a URL.
- * @param landingUrl - The landing URL the login kept.
- * @returns `Origin` and `Referer`, or an empty map.
- */
-function pageHeaders(landingUrl: string): HeaderMap {
-  if (!URL.canParse(landingUrl)) return {};
-  const origin = new URL(landingUrl).origin;
-  return { Origin: origin, Referer: landingUrl };
-}
-
-/**
  * Headers for one FIBI financial call.
  * @param ctx - Action context carrying the API mediator.
  * @returns A fresh transaction id, plus portal headers when authorization is present.
  */
 export default function fibiCallHeaders(ctx: IActionContext): HeaderMap {
-  const headers: HeaderMap = { [TXN_ID_HEADER]: randomUUID() };
+  const txnId = randomUUID();
+  const headers: HeaderMap = { [TXN_ID_HEADER]: txnId };
   const session = sessionOf(ctx);
   const authorization = textOf(session, 'authorization');
   if (authorization === '') return headers;
-  const landingUrl = textOf(session, 'landingUrl');
-  const page = pageHeaders(landingUrl);
-  return { ...headers, Authorization: authorization, ...PORTAL_HEADERS, ...page };
+  return { ...headers, Authorization: authorization, ...PORTAL_HEADERS };
 }
