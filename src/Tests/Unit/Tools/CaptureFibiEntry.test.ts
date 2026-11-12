@@ -157,3 +157,46 @@ it('[FIBI-CAP-7] the CLI fails explicitly without printing private exception det
   expect(result.stdout).toBe('');
   expect(result.stderr).toBe('FIBI_ENTRY_CAPTURE_FAILED\n');
 });
+
+it('[FIBI-CAP-8] cancels a stalled body after headers and a first chunk arrive', async () => {
+  const root = makeRoot();
+  const deadline = new AbortController();
+  const failure = new DOMException('synthetic body timeout', 'TimeoutError');
+  const timeout = jest.spyOn(AbortSignal, 'timeout').mockReturnValue(deadline.signal);
+  const invoke = jest.fn<Promise<Response>, [string, RequestInit]>((_url, init) => {
+    const signal = init.signal;
+    if (!signal) throw new RangeError('missing body deadline');
+    const body = new ReadableStream<Uint8Array>({
+      /**
+       * Fill the queue so cancellation cannot run before body consumption.
+       * @param controller Stream controller.
+       * @returns Nothing.
+       */
+      start(controller): void {
+        signal.addEventListener(
+          'abort',
+          () => {
+            controller.error(signal.reason);
+          },
+          { once: true },
+        );
+        controller.enqueue(new Uint8Array([0x61]));
+      },
+      /**
+       * Cancel when the consumer asks for another body chunk.
+       * @returns Nothing.
+       */
+      pull(): void {
+        deadline.abort(failure);
+      },
+    });
+    const response = new Response(body);
+    return Promise.resolve(response);
+  });
+  const pending = captureFibiEntry(root, invoke);
+  await expect(pending).rejects.toThrow('synthetic body timeout');
+  expect(timeout).toHaveBeenCalledWith(20_000);
+  expect(invoke).toHaveBeenCalledTimes(1);
+  const files = readdirSync(root, { recursive: true });
+  expect(files).toEqual([]);
+});
