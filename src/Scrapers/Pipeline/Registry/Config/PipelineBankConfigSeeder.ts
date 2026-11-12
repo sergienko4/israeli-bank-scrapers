@@ -1,6 +1,6 @@
 /**
  * Seed WK URL registry from PIPELINE_BANK_CONFIG at module load.
- * Keeps every headless URL in one canonical place (the bank config)
+ * Keeps every transport URL in one canonical place (the bank config)
  * while still making identityBase / graphql / identity.* paths
  * resolvable via WK for ApiMediator.apiPost.
  */
@@ -58,7 +58,7 @@ function seedOneBank(
 }
 
 /**
- * Iterate PIPELINE_BANK_CONFIG and write every headless URL into WK.
+ * Iterate PIPELINE_BANK_CONFIG and write every transport URL into WK.
  * Walks the CompanyTypes enum rather than `Object.entries`, so every bank
  * id stays typed without a cast.
  * Called once at bank-config module load.

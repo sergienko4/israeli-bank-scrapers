@@ -4,13 +4,13 @@
  *
  * Anti-replay banks (e.g. Hapoalim) require a request header whose value
  * is a cookie the SPA set at login: `X-XSRF-TOKEN` must carry the value
- * of the `XSRF-TOKEN` cookie. A hard-model shape cannot read cookies (its
- * `extraHeaders(ctx)` has no page handle), so it declares the header as
+ * of the `XSRF-TOKEN` cookie. A shape's `extraHeaders(ctx)` does not read the
+ * transport's cookie jar, so it declares the header as
  * the sentinel `@cookie:XSRF-TOKEN`; the transport substitutes the live
  * value here, just before dispatch.
  *
  * - `@cookie:<name>` sends the value through the transport's own `loose`
- *   decode: raw in the browser, `decodeCookieLenient` over a session jar.
+ *   decode: raw for a supplied cookie list, `decodeCookieLenient` over a session jar.
  * - `@cookie-strict:<name>` always decodes with `decodeCookieStrict`; a
  *   value that does not decode fails the request, naming the cookie only.
  * - `?<fallback>` after the name (which ends at the first `?`) is sent
@@ -18,8 +18,8 @@
  * - Otherwise a header naming an absent cookie is dropped — upstream
  *   parity: `X-XSRF-TOKEN` is omitted when `XSRF-TOKEN` is missing.
  *
- * The browser resolves against the page's cookies (`substituteCookieHeaders`);
- * the node session transport through a lookup onto its own jar
+ * A supplied cookie list resolves through `substituteCookieHeaders`;
+ * the session transport resolves through a lookup onto its own jar
  * (`substituteCookieHeadersBy`).
  */
 
@@ -271,7 +271,7 @@ function findInJar(jar: CookieJar, name: string): Option<string> {
 }
 
 /**
- * A `@cookie:` value as stored: the browser sends page cookies raw.
+ * A `@cookie:` value from a supplied cookie list is sent raw.
  * @param raw - Stored cookie value.
  * @returns The same value.
  */

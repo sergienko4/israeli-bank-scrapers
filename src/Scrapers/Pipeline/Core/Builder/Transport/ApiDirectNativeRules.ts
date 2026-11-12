@@ -27,7 +27,7 @@ type GatedStepField =
   | 'headerExtractsToCarry'
   | 'encoding';
 
-/** Headless defaults not passed to the node:https strategy. */
+/** Transport defaults not passed to the node:https strategy. */
 const NATIVE_TRANSPORT_FIELDS = [
   'redirectPolicy',
   'statusPolicy',
@@ -38,7 +38,7 @@ const NATIVE_TRANSPORT_FIELDS = [
   'isConnectRetryDisabled',
 ] as const;
 
-/** A headless field one transport family acts on. */
+/** A transport field one transport family acts on. */
 type GatedTransportField = 'cookieDomains' | (typeof NATIVE_TRANSPORT_FIELDS)[number];
 
 /** The transports that act on a field, and the rule text off them. */
@@ -48,14 +48,14 @@ interface IFieldGate {
   readonly offText: string;
 }
 
-/** Headless keys that put the bank's calls on node:https (as the transport pick reads them). */
+/** Transport keys that put the bank's calls on node:https (as the transport pick reads them). */
 const NODE_TLS_KEYS = ['clientCert', 'tlsProfile', 'requiresClientCert'] as const;
 
 /** An HTTP header name: one RFC 9110 token. */
 const HEADER_NAME = /^[\w!#$%&'*+.^`|~-]+$/;
 
 /**
- * Whether the bank's calls run anywhere but the headless native fetch.
+ * Whether the bank's calls use a strategy other than native fetch.
  * @param input - Rule input.
  * @returns True when native fetch is not selected.
  */
@@ -105,7 +105,7 @@ const STEP_FIELD_GATES: readonly (readonly [GatedStepField, IFieldGate])[] = [
   ['encoding', NODE_GATE],
 ];
 
-/** Headless fields and the transports that act on them, in check order. */
+/** Transport fields and the transports that act on them, in check order. */
 const TRANSPORT_FIELD_GATES: readonly (readonly [GatedTransportField, IFieldGate])[] = [
   ['cookieDomains', NODE_GATE],
   ...NATIVE_TRANSPORT_FIELDS.map((field): readonly [GatedTransportField, IFieldGate] => [
@@ -132,11 +132,11 @@ function hasStepFieldOff(
 }
 
 /**
- * Whether the headless block names a field its transport ignores.
- * @param field - Gated headless field.
+ * Whether the transport block names a field its transport ignores.
+ * @param field - Gated transport field.
  * @param gate - The transports that act on it.
  * @param input - Rule input.
- * @returns True when the headless block sets the field off its transports.
+ * @returns True when the transport block sets the field off its transports.
  */
 function hasTransportFieldOff(
   field: GatedTransportField,
@@ -159,7 +159,7 @@ function stepFieldRule(entry: readonly [GatedStepField, IFieldGate]): IApiDirect
 }
 
 /**
- * The rule refusing a headless field off the transports that act on it.
+ * The rule refusing a transport field off the transports that act on it.
  * @param entry - The field and its gate.
  * @returns The rule.
  */

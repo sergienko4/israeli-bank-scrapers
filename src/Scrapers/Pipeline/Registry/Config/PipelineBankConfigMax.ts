@@ -1,5 +1,5 @@
 /**
- * Max IApiDirectCallConfig literal and headless block — data-only bank
+ * Max IApiDirectCallConfig literal and transport block — data-only bank
  * surface.
  *
  * Password login with no OTP, on the web app's own API:
@@ -72,7 +72,7 @@ const MAX_API_DIRECT_CALL: IApiDirectCallConfig = {
   steps: [PRIME_STEP, LOGIN_STEP],
 };
 
-/** Max headless endpoints. Every path is a full URL, registered verbatim. */
+/** Max transport endpoints. Every path is a full URL, registered verbatim. */
 const MAX_TRANSPORT: ITransportConfig = {
   identityBase: `${MAX_ORIGIN}/`,
   // Max has no GraphQL; graphql mirrors identityBase to satisfy the type.

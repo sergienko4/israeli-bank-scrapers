@@ -19,7 +19,7 @@
  *   - `billingSumSekel`     — Amex data.billingSumSekel (aggregate)
  *   - `totalIlsBillingDate` — Amex per-card vouchers.totalForStatement
  *
- * Plus one v6 addition for browser banks that fold the balance into the
+ * Plus one v6 addition for banks that fold the balance into the
  * transactions response (no separate balance endpoint):
  *   - `BalanceDisplay`      — Bank Leumi UC_SO_27 top-level balance
  *                             (essential for zero-txn checking accounts

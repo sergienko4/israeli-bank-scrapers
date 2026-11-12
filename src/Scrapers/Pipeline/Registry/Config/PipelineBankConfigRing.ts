@@ -1,5 +1,5 @@
 /**
- * Ring factory — the login config and headless endpoints for an issuer on
+ * Ring factory — the login config and transport endpoints for an issuer on
  * the ring mobile gateway. Issuers differ only in their constants
  * (`IRingConstants`); everything else is shared.
  *
@@ -57,10 +57,10 @@ function buildRingApiDirectCall(ring: IRingConstants): IApiDirectCallConfig {
 }
 
 /**
- * Build an issuer's headless endpoints. Every login step posts to one
+ * Build an issuer's transport endpoints. Every login step posts to one
  * `service` URL and names its bank service in the query string.
  * @param ring - Issuer constants.
- * @returns Headless endpoints.
+ * @returns Transport endpoints.
  */
 function buildRingHeadless(ring: IRingConstants): ITransportConfig {
   const identityBase = `${ring.base}/`;

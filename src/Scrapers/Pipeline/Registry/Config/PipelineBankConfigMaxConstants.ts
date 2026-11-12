@@ -7,7 +7,7 @@
 /** Max web origin — the login API and the registered data API both live here. */
 const MAX_ORIGIN = 'https://www.max.co.il';
 
-/** User agent of the desktop browser the web app's calls were captured from. */
+/** Desktop user-agent identity captured with the web app's HTTP calls. */
 const MAX_USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:135.0) Gecko/20100101 Firefox/135.0';
 

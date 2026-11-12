@@ -1,5 +1,5 @@
 /**
- * Native fetch strategy — uses globalThis.fetch for API-only scrapers (no browser).
+ * Native fetch strategy — uses globalThis.fetch for HTTP-only scrapers.
  * Caller-supplied extraHeaders WIN on collision with the default content-type.
  * Every async path returns Procedure<T>; no thrown errors escape the class.
  *

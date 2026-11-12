@@ -1,7 +1,7 @@
 /**
  * Per-bank client-certificate resolvers for the node:https transport.
  *
- * A bank whose headless config sets `requiresClientCert` presents the
+ * A bank whose transport config sets `requiresClientCert` presents the
  * certificate its entry here resolves. Adding a bank is one map entry, so the
  * mediator factory never names a bank (OCP). A bank that asks for a client
  * certificate without registering a resolver fails at mediator build instead
@@ -26,7 +26,7 @@ const MISSING_RESOLVER_MSG = 'requiresClientCert is set but no client certificat
 
 /**
  * Resolves the client certificate a bank presents on every handshake.
- * @param bank - Bank whose headless config requires a client certificate.
+ * @param bank - Bank whose transport config requires a client certificate.
  * @returns The bank's PEM certificate + key.
  * @throws ScraperError when the bank has no registered resolver.
  */

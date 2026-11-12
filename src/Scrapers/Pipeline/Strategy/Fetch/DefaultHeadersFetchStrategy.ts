@@ -2,12 +2,9 @@
  * Default-headers fetch-strategy decorator.
  *
  * Wraps any {@link IFetchStrategy} to merge a fixed default-header bag
- * UNDER every call's per-call `extraHeaders`. A browser hard-model bank
- * uses this to carry its SPA's own content-negotiation headers (Accept,
- * X-Requested-With, Content-Type) + Origin / Referer / X-Site-Id —
- * discovered once at BIND from the bank's captured transactions endpoint —
- * on every customer / balance / transactions call, without each shape
- * re-declaring them. Replicates the generic AUTH-DISCOVERY green path.
+ * UNDER every call's per-call `extraHeaders`. The bag can carry
+ * content-negotiation headers (Accept, X-Requested-With, Content-Type)
+ * and Origin / Referer / X-Site-Id without each call re-declaring them.
  *
  * Precedence: per-call `extraHeaders` (and the mediator's rawAuth
  * Authorization, already merged into `opts` upstream) always win over the

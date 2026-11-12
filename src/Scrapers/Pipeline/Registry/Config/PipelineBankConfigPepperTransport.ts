@@ -1,12 +1,12 @@
 /**
- * Pepper headless registry block — isolated so the central registry stays
+ * Pepper transport registry block — isolated so the central registry stays
  * under its file cap. Every auth path is a full URL; the seeder registers
  * each one verbatim, so no caller concatenates `identityBase` with a path.
  */
 
 import type { ITransportConfig } from './PipelineBankConfigTypes.js';
 
-/** Pepper headless identity, GraphQL and auth endpoints. */
+/** Pepper transport identity, GraphQL and auth endpoints. */
 const PEPPER_TRANSPORT: ITransportConfig = {
   identityBase: 'https://sa.pepper.co.il/',
   graphql: 'https://fe-sec.pepper.co.il/graphql',

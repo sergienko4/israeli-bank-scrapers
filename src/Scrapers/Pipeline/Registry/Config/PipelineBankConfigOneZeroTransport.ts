@@ -1,5 +1,5 @@
 /**
- * OneZero headless registry block — isolated so the central registry stays
+ * OneZero transport registry block — isolated so the central registry stays
  * under its file cap, and so the app identity the edge checks lives in one
  * place.
  *
@@ -21,7 +21,7 @@ import type { ITransportConfig } from './PipelineBankConfigTypes.js';
  */
 const ONEZERO_USER_AGENT = 'ONEZEROIL/4.7.0(564) Lokalize/0 (Android 11 ; Pixel 3) MTLS';
 
-/** OneZero headless identity, GraphQL and auth endpoints plus transport identity. */
+/** OneZero identity, GraphQL and auth endpoints plus client identity. */
 const ONEZERO_TRANSPORT: ITransportConfig = {
   identityBase: 'https://identity.tfd-bank.com/v1/',
   graphql: 'https://mobile.tfd-bank.com/mobile-graph/graphql',
