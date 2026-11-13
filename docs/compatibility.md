@@ -45,7 +45,7 @@ createScraper({ companyId, startDate });
 
 **Impact:** Breaking
 
-`CompanyTypes.Behatsdaa` (`'behatsdaa'`) and `CompanyTypes.BeyahadBishvilha` (`'beyahadBishvilha'`) are no longer exported, and their `SCRAPERS` entries are gone. They were the last two scrapers on the legacy browser chain, which is removed with them. `createScraper` now resolves every company through the Pipeline registry, so a company id that is not registered throws `ScraperError('unknown company id <id>')` instead of falling back to a legacy scraper. The other 17 institutions are unchanged.
+`CompanyTypes.Behatsdaa` (`'behatsdaa'`) and `CompanyTypes.BeyahadBishvilha` (`'beyahadBishvilha'`) are no longer exported, and their `SCRAPERS` entries are gone. They were the last two scrapers on the legacy browser chain, which is removed with them. `createScraper` now resolves every company through the Pipeline registry, so a company id that is not registered throws `ScraperError('unknown company id <id>')` instead of falling back to a legacy scraper. The other 17 institutions remain supported.
 
 **What to do:** Stop passing these two company ids. TypeScript callers see a compile error on the removed enum members; JavaScript callers get the thrown `ScraperError` at `createScraper`. If you still need either institution, pin `^9` until you have another source for it.
 
@@ -65,7 +65,7 @@ After:
 
 **Impact:** Breaking
 
-Every supported bank runs over HTTP, so the Playwright/Camoufox engine, the `postinstall` patch and both browser dependencies are gone. `ScraperOptions` no longer accepts `browser`, `browserContext`, `skipCloseBrowser`, `preparePage`, `defaultTimeout`, `viewportSize`, `shouldShowBrowser`, `executablePath`, `args`, `prepareBrowser`, `timeout`, `storeFailureScreenShotPath` or `navigationRetryCount`. Browser option types and Playwright imports no longer appear in the public declarations. `playwright-core` and `@hieutran094/camoufox-js` are no longer installed, so a consumer install downloads no browser binary and runs no browser patch.
+Every supported bank runs over HTTP, so the Playwright/Camoufox engine, the `postinstall` patch and both browser dependencies are gone. `ScraperOptions` no longer accepts `browser`, `browserContext`, `skipCloseBrowser`, `preparePage`, `defaultTimeout`, `viewportSize`, `shouldShowBrowser`, `executablePath`, `args`, `prepareBrowser`, `timeout`, `storeFailureScreenShotPath` or `navigationRetryCount`. Browser option types and Playwright imports no longer appear in the public declarations. Each bank that used a browser now signs in over HTTP, and has its own entry below. `playwright-core` and `@hieutran094/camoufox-js` are no longer installed, so a consumer install downloads no browser binary and runs no browser patch.
 
 **What to do:** Remove those options from `createScraper` calls. A run no longer opens a page, so `page` hooks, viewport and timeout settings have no effect. If your own code imported Playwright types through this package, add `playwright-core` to your dependencies explicitly.
 
@@ -81,7 +81,7 @@ After:
 createScraper({ companyId, startDate });
 ```
 
-### 9.1.0 - API-direct login failures name the step and HTTP status
+### 10.0.0 - API-direct login failures name the step and HTTP status
 
 **Impact:** Behavior
 
@@ -89,117 +89,117 @@ When a login request fails for OneZero, PayBox or Pepper, `errorMessage` is now 
 
 **What to do:** If you read the URL or the bank's reply out of a login failure's `errorMessage`, branch on `errorType` instead; the new message still names the step and the status.
 
-### 9.1.0 - Browser options on a browserless bank log a `ScraperOptionsWarning`
+### 10.0.0 - Visa Cal signs in without a browser
 
 **Impact:** Behavior
 
-A bank that never opens a browser — OneZero and Visa Cal today — ignores browser options. It used to ignore them silently. `createScraper` now emits one `ScraperOptionsWarning` that names every browser option passed for such a bank: `args`, `browser`, `browserContext`, `defaultTimeout`, `executablePath`, `prepareBrowser`, `preparePage`, `shouldShowBrowser`, `timeout` or `viewportSize`. Only option names are printed, never values. The scrape itself is unchanged.
-
-**What to do:** Remove the named options from that bank's `createScraper` call to silence the warning. See [Browser options on browserless banks](configuration.md#browser-options-on-browserless-banks).
-
-### 9.1.0 - Visa Cal signs in without a browser
-
-**Impact:** Behavior
-
-Visa Cal now logs in and scrapes over the issuer's API with Node's own `fetch`, so no browser starts. Browser options passed for it no longer apply: `createScraper` names them in a `ScraperOptionsWarning` and ignores them, so a `preparePage` hook or a caller's `browser` is not used. Credentials are still `username` and `password`. A run now also returns `persistentOtpToken`, a hash that changes on every run; passed back as `otpLongTermToken`, it skips the password step. A wrong password fails as `INVALID_PASSWORD` with the message `login outcome 4`.
+Visa Cal now logs in and scrapes over the issuer's API with Node's own `fetch`, so no browser starts. `ScraperOptions` no longer accepts browser options (see the browser-engine entry above), so a `preparePage` hook or a caller's `browser` is not used. Credentials are still `username` and `password`. A run now also returns `persistentOtpToken`, a hash that changes on every run; passed back as `otpLongTermToken`, it skips the password step. A wrong password fails as `INVALID_PASSWORD` with the message `login outcome 4`.
 
 **What to do:** Remove browser options from Visa Cal's `createScraper` call. To skip the password step, store `result.persistentOtpToken` after every run and pass it as `otpLongTermToken` next time; keep `username` and `password` too, because a rejected hash falls back to a full login.
 
-### 9.1.0 - Isracard signs in without a browser
+### 10.0.0 - Isracard signs in without a browser
 
 **Impact:** Behavior
 
-Isracard now logs in and scrapes over its mobile gateway with Node's own `fetch` and a cookie jar, so no browser starts. Browser options passed for it no longer apply: `createScraper` names them in a `ScraperOptionsWarning` and ignores them, so a `preparePage` hook or a caller's `browser` is not used. Credentials are still `id`, `card6Digits` and `password`. A cold login registers a device key and returns it as `persistentOtpToken`; the key stays the same from run to run, and passed back as `otpLongTermToken` it skips the password step. The session rides on cookies, so `onAuthFlowComplete` receives an empty `bearer`. A wrong password still fails as `INVALID_PASSWORD`, now with the message `login outcome unmapped`.
+Isracard now logs in and scrapes over its mobile gateway with Node's own `fetch` and a cookie jar, so no browser starts. `ScraperOptions` no longer accepts browser options (see the browser-engine entry above), so a `preparePage` hook or a caller's `browser` is not used. Credentials are still `id`, `card6Digits` and `password`. A cold login registers a device key and returns it as `persistentOtpToken`; the key stays the same from run to run, and passed back as `otpLongTermToken` it skips the password step. The session rides on cookies, so `onAuthFlowComplete` receives an empty `bearer`. A wrong password still fails as `INVALID_PASSWORD`, now with the message `login outcome unmapped`.
 
 **What to do:** Remove browser options from Isracard's `createScraper` call. To skip the password step, store `result.persistentOtpToken` and pass it as `otpLongTermToken`; keep `id`, `card6Digits` and `password` too, because a rejected key falls back to a full login. Do not read `bearer` from `onAuthFlowComplete` for Isracard.
 
-### 9.1.0 - Amex signs in without a browser
+### 10.0.0 - Amex signs in without a browser
 
 **Impact:** Behavior
 
-Amex now logs in and scrapes over its mobile gateway with Node's own `fetch` and a cookie jar, the same flow as Isracard, so no browser starts. Browser options passed for it no longer apply: `createScraper` names them in a `ScraperOptionsWarning` and ignores them, so a `preparePage` hook or a caller's `browser` is not used. Credentials are still `id`, `card6Digits` and `password`. A cold login registers a device key and returns it as `persistentOtpToken`; the key stays the same from run to run, and passed back as `otpLongTermToken` it skips the password step. The session rides on cookies, so `onAuthFlowComplete` receives an empty `bearer`. A wrong password still fails as `INVALID_PASSWORD`, now with the message `login outcome unmapped`.
+Amex now logs in and scrapes over its mobile gateway with Node's own `fetch` and a cookie jar, the same flow as Isracard, so no browser starts. `ScraperOptions` no longer accepts browser options (see the browser-engine entry above), so a `preparePage` hook or a caller's `browser` is not used. Credentials are still `id`, `card6Digits` and `password`. A cold login registers a device key and returns it as `persistentOtpToken`; the key stays the same from run to run, and passed back as `otpLongTermToken` it skips the password step. The session rides on cookies, so `onAuthFlowComplete` receives an empty `bearer`. A wrong password still fails as `INVALID_PASSWORD`, now with the message `login outcome unmapped`.
 
 **What to do:** Remove browser options from Amex's `createScraper` call. To skip the password step, store `result.persistentOtpToken` and pass it as `otpLongTermToken`; keep `id`, `card6Digits` and `password` too, because a rejected key falls back to a full login. Do not read `bearer` from `onAuthFlowComplete` for Amex.
 
-### 9.1.0 - Max signs in without a browser
+### 10.0.0 - Max signs in without a browser
 
 **Impact:** Behavior
 
-Max now logs in and scrapes over its website's API with Node's own `fetch`, keeping the run's cookies, so no browser starts. Browser options passed for it no longer apply: `createScraper` names them in a `ScraperOptionsWarning` and ignores them, so a `preparePage` hook or a caller's `browser` is not used. Credentials are still `username` and `password`. There is no long-term token: every run logs in with the password, and `persistentOtpToken` stays unset. A wrong password still fails as `INVALID_PASSWORD`, now with the message `login outcome 4`.
+Max now logs in and scrapes over its website's API with Node's own `fetch`, keeping the run's cookies, so no browser starts. `ScraperOptions` no longer accepts browser options (see the browser-engine entry above), so a `preparePage` hook or a caller's `browser` is not used. Credentials are still `username` and `password`. There is no long-term token: every run logs in with the password, and `persistentOtpToken` stays unset. A wrong password still fails as `INVALID_PASSWORD`, now with the message `login outcome 4`.
 
 **What to do:** Remove browser options from Max's `createScraper` call. Nothing else changes.
 
-### 9.1.0 - Mizrahi signs in without a browser
+### 10.0.0 - Mizrahi signs in without a browser
 
 **Impact:** Behavior
 
-Mizrahi now logs in and scrapes over its website's JSON API with Node's own `fetch` and one cookie jar, so no browser starts. Browser options passed for it no longer apply: `createScraper` names them in a `ScraperOptionsWarning` and ignores them, so a `preparePage` hook or a caller's `browser` is not used. Credentials are still `username` and `password`. There is no long-term token: every run logs in with the password, and `persistentOtpToken` stays unset. A wrong password fails as `INVALID_PASSWORD` with the message `login outcome 2`. Login failures and HTTP failures from data calls omit the bank's response text.
+Mizrahi now logs in and scrapes over its website's JSON API with Node's own `fetch` and one cookie jar, so no browser starts. `ScraperOptions` no longer accepts browser options (see the browser-engine entry above), so a `preparePage` hook or a caller's `browser` is not used. Credentials are still `username` and `password`. There is no long-term token: every run logs in with the password, and `persistentOtpToken` stays unset. A wrong password fails as `INVALID_PASSWORD` with the message `login outcome 2`. Login failures and HTTP failures from data calls omit the bank's response text.
 
 **What to do:** Remove browser options from Mizrahi's `createScraper` call. Nothing else changes.
 
-### 9.1.0 - Hapoalim signs in without a browser
+### 10.0.0 - Hapoalim signs in without a browser
 
 **Impact:** Behavior
 
-Hapoalim now logs in and scrapes over its website's API with Node's own `fetch` and one cookie jar, so no browser starts. Browser options passed for it no longer apply: `createScraper` names them in a `ScraperOptionsWarning` and ignores them, so a `preparePage` hook or a caller's `browser` is not used. Credentials are still `userCode` and `password`. The SMS step runs only when the bank asks for it: `otpCodeRetriever`, from the credentials or the options, receives the masked phone number, and if the bank asks while no retriever was passed the run fails as `TWO_FACTOR_RETRIEVER_MISSING`. A run now also returns `persistentOtpToken`, a `v1.` token holding the session cookies; passed back as `otpLongTermToken`, it skips the login and the SMS. A locked or disabled account fails as `ACCOUNT_BLOCKED`, a password the bank wants replaced as `CHANGE_PASSWORD`, any other state the password check returns as `GENERIC` with the message `verify outcome unmapped`, and a reply that carries a bank error as `GENERIC` with `verify bank error`. A wrong password may therefore fail as `GENERIC` rather than `INVALID_PASSWORD`. Failed data calls now name the call and HTTP status instead of the request URL (for example, `transactions HTTP 500`). No failure message carries the bank's own text.
+Hapoalim now logs in and scrapes over its website's API with Node's own `fetch` and one cookie jar, so no browser starts. `ScraperOptions` no longer accepts browser options (see the browser-engine entry above), so a `preparePage` hook or a caller's `browser` is not used. Credentials are still `userCode` and `password`. The SMS step runs only when the bank asks for it: `otpCodeRetriever`, from the credentials or the options, receives the masked phone number, and if the bank asks while no retriever was passed the run fails as `TWO_FACTOR_RETRIEVER_MISSING`. A run now also returns `persistentOtpToken`, a `v1.` token holding the session cookies; passed back as `otpLongTermToken`, it skips the login and the SMS. A locked or disabled account fails as `ACCOUNT_BLOCKED`, a password the bank wants replaced as `CHANGE_PASSWORD`, any other state the password check returns as `GENERIC` with the message `verify outcome unmapped`, and a reply that carries a bank error as `GENERIC` with `verify bank error`. A wrong password may therefore fail as `GENERIC` rather than `INVALID_PASSWORD`. Failed data calls now name the call and HTTP status instead of the request URL (for example, `transactions HTTP 500`). No failure message carries the bank's own text.
 
 **What to do:** Remove browser options from Hapoalim's `createScraper` call and keep passing `otpCodeRetriever`. To skip the login and the SMS, store `result.persistentOtpToken` after every run and pass it as `otpLongTermToken` next time. The token is a live session, so store it as a secret. Keep `userCode`, `password` and the retriever too, because a refused session falls back to a full login with one SMS.
 
-### 9.1.0 - Yahav signs in without a browser
+### 10.0.0 - Yahav signs in without a browser
 
 **Impact:** Behavior
 
-Yahav now logs in and scrapes over its mobile app's API through `node:https` and one cookie jar, so no browser starts. Browser options passed for it no longer apply: `createScraper` names them in a `ScraperOptionsWarning` and ignores them, so a `preparePage` hook or a caller's `browser` is not used. Credentials are still `num` (or the legacy `username`), `nationalID` and `password`. They are checked before any request: a blank `num`, a `nationalID` that is not all digits or a `password` outside Latin-1 fails as `GENERIC` with `Missing or malformed credentials`. A cold login enrols the run as a device of the customer, which may sign the customer's phone app out. Wrong credentials draw a `401` at that enrolment and fail as `INVALID_PASSWORD`, with the message `register HTTP 401`; the reply names no reason, so every `401` there is reported the same way. A run returns `persistentOtpToken`, a `v1.` token holding that device, its private key and the session cookies; passed back as `otpLongTermToken`, it skips the enrolment. Login and failed data calls omit the bank's response text from failure messages.
+Yahav now logs in and scrapes over its mobile app's API through `node:https` and one cookie jar, so no browser starts. `ScraperOptions` no longer accepts browser options (see the browser-engine entry above), so a `preparePage` hook or a caller's `browser` is not used. Credentials are still `num` (or the legacy `username`), `nationalID` and `password`. They are checked before any request: a blank `num`, a `nationalID` that is not all digits or a `password` outside Latin-1 fails as `GENERIC` with `Missing or malformed credentials`. A cold login enrols the run as a device of the customer, which may sign the customer's phone app out. Wrong credentials draw a `401` at that enrolment and fail as `INVALID_PASSWORD`, with the message `register HTTP 401`; the reply names no reason, so every `401` there is reported the same way. A run returns `persistentOtpToken`, a `v1.` token holding that device, its private key and the session cookies; passed back as `otpLongTermToken`, it skips the enrolment. Login and failed data calls omit the bank's response text from failure messages.
 
 **What to do:** Remove browser options from Yahav's `createScraper` call. Store `result.persistentOtpToken` after every run and pass it as `otpLongTermToken` next time, so a run enrols a device only when it must. The token holds a private key, so store it as a secret. Keep `num`, `nationalID` and `password` too, because a token the bank rejects with a `401` or `403` falls back to a full login. If the bank keeps refusing the token with a `400`, drop it once so the next run enrols afresh.
 
-### 9.1.0 - Beinleumi signs in without a browser
+### 10.0.0 - Beinleumi signs in without a browser
 
 **Impact:** Behavior
 
-Beinleumi now logs in and scrapes over its web login API on `online.fibi.co.il` with Node's own `fetch` and one cookie jar, so no browser starts. Browser options passed for it no longer apply: `createScraper` names them in a `ScraperOptionsWarning` and ignores them, so a `preparePage` hook or a caller's `browser` is not used. Credentials are still `username` and `password`; a blank one fails as `GENERIC` with `Missing or malformed credentials` before any request. The SMS step runs only when the bank asks for it: `otpCodeRetriever`, from the credentials or the options, is called with an empty hint, and if the bank asks while no retriever was passed the run fails as `TWO_FACTOR_RETRIEVER_MISSING`. A code of the wrong length fails before it is sent. A password the bank refuses fails as `INVALID_PASSWORD` and a refused code as `INVALID_OTP`. Device memory is opt-in: with `onPersistentAuthStateUpdate`, a run that starts with no stored state hands the callback a state naming the provider, the lower-cased `username` and the device id the bank issued, with no password or token; passed back as `persistentAuthState`, that id is sent on later logins and the bank may skip the SMS. No failure message carries the bank's own text.
+Beinleumi now logs in and scrapes over its web login API on `online.fibi.co.il` with Node's own `fetch` and one cookie jar, so no browser starts. `ScraperOptions` no longer accepts browser options (see the browser-engine entry above), so a `preparePage` hook or a caller's `browser` is not used. Credentials are still `username` and `password`; a blank one fails as `GENERIC` with `Missing or malformed credentials` before any request. The SMS step runs only when the bank asks for it: `otpCodeRetriever`, from the credentials or the options, is called with an empty hint, and if the bank asks while no retriever was passed the run fails as `TWO_FACTOR_RETRIEVER_MISSING`. A code of the wrong length fails before it is sent. A password the bank refuses fails as `INVALID_PASSWORD` and a refused code as `INVALID_OTP`. Device memory is opt-in: with `onPersistentAuthStateUpdate`, a run that starts with no stored state hands the callback a state naming the provider, the lower-cased `username` and the device id the bank issued, with no password or token; passed back as `persistentAuthState`, that id is sent on later logins and the bank may skip the SMS. No failure message carries the bank's own text.
 
 **What to do:** Remove browser options from Beinleumi's `createScraper` call and keep passing `otpCodeRetriever`, because the bank decides when it asks for a code. To let the bank remember the device, pass `onPersistentAuthStateUpdate`, store the state it receives and pass it back as `persistentAuthState` on later runs.
 
-### 9.1.0 - Massad signs in without a browser
+### 10.0.0 - Massad signs in without a browser
 
 **Impact:** Behavior
 
-Massad now logs in and scrapes over its web login API on `online.bankmassad.co.il` the way Beinleumi does, with Node's own `fetch` and one cookie jar, so no browser starts. Browser options passed for it no longer apply: `createScraper` names them in a `ScraperOptionsWarning` and ignores them, so a `preparePage` hook or a caller's `browser` is not used. Credentials are still `username` and `password`; a blank one fails as `GENERIC` with `Missing or malformed credentials` before any request. The SMS step runs only when the bank asks for it: `otpCodeRetriever`, from the credentials or the options, is called with an empty hint, and if the bank asks while no retriever was passed the run fails as `TWO_FACTOR_RETRIEVER_MISSING`. A code of the wrong length fails before it is sent. A password the bank refuses fails as `INVALID_PASSWORD` and a refused code as `INVALID_OTP`. Device memory is opt-in, as for Beinleumi, under its own provider: a state stored for another bank of the group fails as `GENERIC` before any request. No failure message carries the bank's own text.
+Massad now logs in and scrapes over its web login API on `online.bankmassad.co.il` the way Beinleumi does, with Node's own `fetch` and one cookie jar, so no browser starts. `ScraperOptions` no longer accepts browser options (see the browser-engine entry above), so a `preparePage` hook or a caller's `browser` is not used. Credentials are still `username` and `password`; a blank one fails as `GENERIC` with `Missing or malformed credentials` before any request. The SMS step runs only when the bank asks for it: `otpCodeRetriever`, from the credentials or the options, is called with an empty hint, and if the bank asks while no retriever was passed the run fails as `TWO_FACTOR_RETRIEVER_MISSING`. A code of the wrong length fails before it is sent. A password the bank refuses fails as `INVALID_PASSWORD` and a refused code as `INVALID_OTP`. Device memory is opt-in, as for Beinleumi, under its own provider: a state stored for another bank of the group fails as `GENERIC` before any request. No failure message carries the bank's own text.
 
 **What to do:** Remove browser options from Massad's `createScraper` call and keep passing `otpCodeRetriever`, because the bank decides when it asks for a code. To let the bank remember the device, pass `onPersistentAuthStateUpdate`, store the state it receives and pass it back as `persistentAuthState` on later runs.
 
-### 9.1.0 - Otsar Hahayal signs in without a browser
+### 10.0.0 - Otsar Hahayal signs in without a browser
 
 **Impact:** Behavior
 
-Otsar Hahayal now logs in and scrapes over its web login API on `online.bankotsar.co.il` the way Beinleumi does, with Node's own `fetch` and one cookie jar, so no browser starts. Browser options passed for it no longer apply: `createScraper` names them in a `ScraperOptionsWarning` and ignores them, so a `preparePage` hook or a caller's `browser` is not used. Credentials are still `username` and `password`; a blank one fails as `GENERIC` with `Missing or malformed credentials` before any request. The SMS step runs only when the bank asks for it: `otpCodeRetriever`, from the credentials or the options, is called with an empty hint, and if the bank asks while no retriever was passed the run fails as `TWO_FACTOR_RETRIEVER_MISSING`. A code of the wrong length fails before it is sent. A password the bank refuses fails as `INVALID_PASSWORD` and a refused code as `INVALID_OTP`. Device memory is opt-in, as for Beinleumi, under its own provider: a state stored for another bank of the group fails as `GENERIC` before any request. No failure message carries the bank's own text.
+Otsar Hahayal now logs in and scrapes over its web login API on `online.bankotsar.co.il` the way Beinleumi does, with Node's own `fetch` and one cookie jar, so no browser starts. `ScraperOptions` no longer accepts browser options (see the browser-engine entry above), so a `preparePage` hook or a caller's `browser` is not used. Credentials are still `username` and `password`; a blank one fails as `GENERIC` with `Missing or malformed credentials` before any request. The SMS step runs only when the bank asks for it: `otpCodeRetriever`, from the credentials or the options, is called with an empty hint, and if the bank asks while no retriever was passed the run fails as `TWO_FACTOR_RETRIEVER_MISSING`. A code of the wrong length fails before it is sent. A password the bank refuses fails as `INVALID_PASSWORD` and a refused code as `INVALID_OTP`. Device memory is opt-in, as for Beinleumi, under its own provider: a state stored for another bank of the group fails as `GENERIC` before any request. No failure message carries the bank's own text.
 
 **What to do:** Remove browser options from Otsar Hahayal's `createScraper` call and keep passing `otpCodeRetriever`, because the bank decides when it asks for a code. To let the bank remember the device, pass `onPersistentAuthStateUpdate`, store the state it receives and pass it back as `persistentAuthState` on later runs.
 
-### 9.1.0 - Pagi signs in without a browser
+### 10.0.0 - Pagi signs in without a browser
 
 **Impact:** Behavior
 
-Pagi now logs in and scrapes over its web login API on `online.pagi.co.il` the way Beinleumi does, with Node's own `fetch` and one cookie jar, so no browser starts. Browser options passed for it no longer apply: `createScraper` names them in a `ScraperOptionsWarning` and ignores them, so a `preparePage` hook or a caller's `browser` is not used. Credentials are still `username` and `password`; a blank one fails as `GENERIC` with `Missing or malformed credentials` before any request. The SMS step runs only when the bank asks for it: `otpCodeRetriever`, from the credentials or the options, is called with an empty hint, and if the bank asks while no retriever was passed the run fails as `TWO_FACTOR_RETRIEVER_MISSING`. A code of the wrong length fails before it is sent. A password the bank refuses fails as `INVALID_PASSWORD` and a refused code as `INVALID_OTP`. Device memory is opt-in, as for Beinleumi, under its own provider: a state stored for another bank of the group fails as `GENERIC` before any request. No failure message carries the bank's own text.
+Pagi now logs in and scrapes over its web login API on `online.pagi.co.il` the way Beinleumi does, with Node's own `fetch` and one cookie jar, so no browser starts. `ScraperOptions` no longer accepts browser options (see the browser-engine entry above), so a `preparePage` hook or a caller's `browser` is not used. Credentials are still `username` and `password`; a blank one fails as `GENERIC` with `Missing or malformed credentials` before any request. The SMS step runs only when the bank asks for it: `otpCodeRetriever`, from the credentials or the options, is called with an empty hint, and if the bank asks while no retriever was passed the run fails as `TWO_FACTOR_RETRIEVER_MISSING`. A code of the wrong length fails before it is sent. A password the bank refuses fails as `INVALID_PASSWORD` and a refused code as `INVALID_OTP`. Device memory is opt-in, as for Beinleumi, under its own provider: a state stored for another bank of the group fails as `GENERIC` before any request. No failure message carries the bank's own text.
 
 **What to do:** Remove browser options from Pagi's `createScraper` call and keep passing `otpCodeRetriever`, because the bank decides when it asks for a code. To let the bank remember the device, pass `onPersistentAuthStateUpdate`, store the state it receives and pass it back as `persistentAuthState` on later runs.
 
-### 9.1.0 - Discount signs in without a browser
+### 10.0.0 - Discount signs in without a browser
 
 **Impact:** Behavior
 
-Discount now logs in and scrapes over its web API on `start.telebank.co.il`, with Node's own `fetch` and one cookie jar, so no browser starts. Browser options passed for it no longer apply: `createScraper` names them in a `ScraperOptionsWarning` and ignores them, so a `preparePage` hook or a caller's `browser` is not used. Credentials are still `id`, `password` and `num`. A blank one, an `id` that is not all digits, or a `password` or `num` outside Latin-1 fails as `GENERIC` with `Missing or malformed credentials` before any request; an `id` of more than nine digits also fails as `GENERIC` before any request, unless it is ten digits starting with `9`. A login answer whose status is anything other than success fails as `INVALID_PASSWORD`. An answer that asks for a further action, a redirect the login does not expect, or any other refusal fails as `GENERIC`. No failure message carries the bank's own text.
+Discount now logs in and scrapes over its web API on `start.telebank.co.il`, with Node's own `fetch` and one cookie jar, so no browser starts. `ScraperOptions` no longer accepts browser options (see the browser-engine entry above), so a `preparePage` hook or a caller's `browser` is not used. Credentials are still `id`, `password` and `num`. A blank one, an `id` that is not all digits, or a `password` or `num` outside Latin-1 fails as `GENERIC` with `Missing or malformed credentials` before any request; an `id` of more than nine digits also fails as `GENERIC` before any request, unless it is ten digits starting with `9`. A login answer whose status is anything other than success fails as `INVALID_PASSWORD`. An answer that asks for a further action, a redirect the login does not expect, or any other refusal fails as `GENERIC`. No failure message carries the bank's own text.
 
 **What to do:** Remove browser options from Discount's `createScraper` call; its credentials stay the same.
 
-### 9.1.0 - Mercantile signs in without a browser
+### 10.0.0 - Mercantile signs in without a browser
 
 **Impact:** Behavior
 
-Mercantile now logs in and scrapes over the same web API as Discount on `start.telebank.co.il`, under its own bank code, with Node's own `fetch` and one cookie jar, so no browser starts. Browser options passed for it no longer apply: `createScraper` names them in a `ScraperOptionsWarning` and ignores them, so a `preparePage` hook or a caller's `browser` is not used. Credentials are still `id`, `password` and `num`, and are checked as Discount's are: a blank one, an `id` that is not all digits, or a `password` or `num` outside Latin-1 fails as `GENERIC` with `Missing or malformed credentials` before any request; an `id` of more than nine digits also fails as `GENERIC` before any request, unless it is ten digits starting with `9`. A login answer whose status is anything other than success fails as `INVALID_PASSWORD`. An answer that asks for a further action, a redirect the login does not expect, or any other refusal fails as `GENERIC`. No failure message carries the bank's own text.
+Mercantile now logs in and scrapes over the same web API as Discount on `start.telebank.co.il`, under its own bank code, with Node's own `fetch` and one cookie jar, so no browser starts. `ScraperOptions` no longer accepts browser options (see the browser-engine entry above), so a `preparePage` hook or a caller's `browser` is not used. Credentials are still `id`, `password` and `num`, and are checked as Discount's are: a blank one, an `id` that is not all digits, or a `password` or `num` outside Latin-1 fails as `GENERIC` with `Missing or malformed credentials` before any request; an `id` of more than nine digits also fails as `GENERIC` before any request, unless it is ten digits starting with `9`. A login answer whose status is anything other than success fails as `INVALID_PASSWORD`. An answer that asks for a further action, a redirect the login does not expect, or any other refusal fails as `GENERIC`. No failure message carries the bank's own text.
 
 **What to do:** Remove browser options from Mercantile's `createScraper` call; its credentials stay the same.
+
+### 10.0.0 - Leumi signs in without a browser
+
+**Impact:** Behavior
+
+Leumi now logs in and scrapes over its web APIs with Node's own `fetch` and a session cookie jar, so no browser starts. `ScraperOptions` no longer accepts browser options (see the browser-engine entry above), so a `preparePage` hook or a caller's `browser` is not used. Credentials are still `username` and `password`. There is no long-term token: every run starts a fresh session and logs in with the password. An OTP or any other unsupported challenge stops the run instead of being submitted.
+
+**What to do:** Remove browser options from Leumi's `createScraper` call. Nothing else changes.
 
 ### 9.0.0 - Node 24.11 or later required; Node 22 is no longer supported
 
