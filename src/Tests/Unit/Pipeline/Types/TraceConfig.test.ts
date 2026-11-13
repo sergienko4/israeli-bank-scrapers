@@ -490,6 +490,25 @@ describe('TraceConfig — setActiveBank bank-switch cache isolation', () => {
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   });
 
+  it('setActiveBank inside a run scope still switches the process-global bank and clears its caches', async () => {
+    const tmpRoot = makeTmpRoot('traceconfig-scoped-switch');
+    process.env.FORENSIC_TRACE = 'true';
+    process.env.RUNS_ROOT = tmpRoot;
+    jest.resetModules();
+    const mod = await loadTraceConfig();
+    const scopes = await import('../../../../Scrapers/Pipeline/Types/RunScope.js');
+    mod.setActiveBank('beinleumi');
+    const folderBefore = mod.getRunFolder();
+    const runIdBefore = mod.getActiveRunId();
+    scopes.openRunScope('discount', () => mod.setActiveBank('discount'));
+    const folderAfter = mod.getRunFolder();
+    expect(folderBefore).toContain(`${path.sep}beinleumi${path.sep}`);
+    expect(folderAfter).toContain(`${path.sep}discount${path.sep}`);
+    const runIdAfter = mod.getActiveRunId();
+    expect(runIdAfter).not.toBe(runIdBefore);
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  });
+
   it('setActiveBank preserves cached folders and runId when called again with the same bank', async () => {
     const tmpRoot = makeTmpRoot('traceconfig-idempotent');
     process.env.FORENSIC_TRACE = 'true';

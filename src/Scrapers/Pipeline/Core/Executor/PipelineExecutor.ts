@@ -4,26 +4,33 @@ import type { IScraperScrapingResult, ScraperCredentials } from '../../../Base/I
 import type { LifecyclePromise } from '../../../Base/Interfaces/CallbackTypes.js';
 import ScraperError from '../../../Base/ScraperError.js';
 import { runWithBankContext } from '../../Logging/Debug.js';
+import { retireRunLogger } from '../../Logging/RootLogger.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { setActiveBank } from '../../Types/TraceConfig.js';
+import { isKnownBankSlug } from '../../Types/TraceConfig.js';
 import { buildInitialContext } from '../PipelineContextFactory.js';
 import type { IPipelineDescriptor } from '../PipelineDescriptor.js';
 import { toResult } from '../PipelineResult.js';
+import { reportCleanupFailure } from './CleanupDiagnostic.js';
 import { type IContextTracker, reducePhases, wrapError } from './PipelineReducer.js';
 
 /**
- * Awaits an optional dispose() callback, swallowing any thrown error so the
- * already-failing scrape outcome is never masked.
+ * Awaits an optional dispose() callback. A failure never masks the already
+ * produced scrape outcome and never escapes; it is reported once, allowlisted,
+ * through the execution's own logger.
+ * @param ctx - The last-known pipeline context carrying the mediator slot.
  * @param disposeFn - Optional dispose hook (undefined for mediators with no
  * owned resources).
- * @returns Resolves once dispose has been attempted (success or swallowed).
+ * @returns Resolves once dispose has been attempted (success or reported).
  */
-async function tryDispose(disposeFn?: () => Promise<void>): LifecyclePromise {
+async function tryDispose(
+  ctx: IPipelineContext,
+  disposeFn?: () => Promise<void>,
+): LifecyclePromise {
   try {
     await disposeFn?.();
-  } catch {
-    /* silent: dispose must never mask the original scrape outcome */
+  } catch (error) {
+    reportCleanupFailure(ctx, error);
   }
 }
 
@@ -32,10 +39,10 @@ async function tryDispose(disposeFn?: () => Promise<void>): LifecyclePromise {
  * connection). Mediators without an own resource (dispose === undefined) are
  * a no-op.
  * @param ctx - The last-known pipeline context carrying the mediator slot.
- * @returns Resolves once dispose has been attempted (success or swallowed).
+ * @returns Resolves once dispose has been attempted (success or reported).
  */
 async function disposeApiMediatorSafe(ctx: IPipelineContext): LifecyclePromise {
-  if (ctx.apiMediator.has) await tryDispose(ctx.apiMediator.value.dispose);
+  if (ctx.apiMediator.has) await tryDispose(ctx, ctx.apiMediator.value.dispose);
 }
 
 /**
@@ -56,6 +63,17 @@ async function runGuardedPhases(
 }
 
 /**
+ * End one execution: dispose its mediator, then retire only the log destination
+ * that execution owned. The order matters, since disposal still logs.
+ * @param ctx - The last-known pipeline context.
+ * @returns Resolves once both steps have been attempted.
+ */
+async function finishRun(ctx: IPipelineContext): LifecyclePromise {
+  await disposeApiMediatorSafe(ctx);
+  retireRunLogger();
+}
+
+/**
  * Run phase reduction with cleanup guarantee.
  * @param tracker - Context tracker.
  * @param initialCtx - Initial pipeline context.
@@ -68,7 +86,7 @@ async function runWithCleanup(
   try {
     return await runGuardedPhases(tracker, initialCtx);
   } finally {
-    await disposeApiMediatorSafe(tracker.lastCtx);
+    await finishRun(tracker.lastCtx);
   }
 }
 
@@ -100,13 +118,14 @@ function runInBankContext(
 }
 
 /**
- * Register the active bank or fail loudly. There is no run without a bank.
+ * Validate the bank or fail loudly. There is no run without a bank. The run's
+ * own scope carries the bank from here on, so nothing process-global is set.
  * @param ctx - Initial pipeline context carrying companyId.
- * @returns True after successful registration (throws otherwise).
+ * @returns True when the bank is known (throws otherwise).
  */
 function registerOrFail(ctx: IPipelineContext): true {
-  const wasRegistered = setActiveBank(ctx.companyId);
-  if (wasRegistered) return true;
+  const isKnown = isKnownBankSlug(ctx.companyId);
+  if (isKnown) return true;
   const slug = ctx.companyId;
   const reason = `companyId="${slug}" is not a known TraceConfig slug`;
   throw new ScraperError(`[PipelineExecutor] No run without bank — ${reason}.`);
