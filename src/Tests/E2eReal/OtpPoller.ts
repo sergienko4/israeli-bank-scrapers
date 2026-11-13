@@ -376,11 +376,14 @@ const DIGITS_ONLY_REGEX = /(\d{4,8})/;
  *   (e.g. "Beinleumi"). Becomes the env-var prefix (uppercased)
  *   and the poll-file basename (lowercased).
  * @param log - Pino-shaped logger.
+ * @param timeoutMs - Optional wait budget; defaults to the pipeline's own
+ *   OTP deadline so an interactive run can widen both together.
  * @returns OTP retriever (`(hint?) => Promise<string>`).
  */
 function createBankOtpPoller(
   bankName: string,
   log: ScraperLogger,
+  timeoutMs?: number,
 ): (hint?: string) => Promise<string> {
   const upper = bankName.toUpperCase();
   const lower = bankName.toLowerCase();
@@ -390,6 +393,7 @@ function createBankOtpPoller(
     log,
     bankName,
     bankRegex: DIGITS_ONLY_REGEX,
+    timeoutMs,
   });
 }
 

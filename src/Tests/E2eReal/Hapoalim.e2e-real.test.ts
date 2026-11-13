@@ -4,6 +4,7 @@ import * as dotenv from 'dotenv';
 import { CompanyTypes, createScraper } from '../../index.js';
 import { getDebug } from '../../Scrapers/Pipeline/Logging/Debug.js';
 import { INVALID_CREDS_HAPOALIM } from '../TestConstants.js';
+import { hapoalimWarmRunKindOf } from './HapoalimWarmHarness.js';
 import {
   assertFailedLogin,
   assertSuccessfulScrape,
@@ -18,7 +19,12 @@ dotenv.config();
 const LOG = getDebug(import.meta.url);
 
 const hasCredentials = !!(process.env.HAPOALIM_USER_CODE && process.env.HAPOALIM_PASSWORD);
-const DESCRIBE_IF = hasCredentials ? describe : describe.skip;
+/**
+ * A flagged warm run belongs to `HapoalimWarm.e2e-real.test.ts`, so this cold
+ * suite skips it and one invocation runs exactly one scenario.
+ */
+const isWarmRun = hapoalimWarmRunKindOf(process.env) !== 'off';
+const DESCRIBE_IF = hasCredentials && !isWarmRun ? describe : describe.skip;
 
 DESCRIBE_IF('E2E: Bank Hapoalim (real credentials)', () => {
   beforeAll(() => {
