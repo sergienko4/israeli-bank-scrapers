@@ -267,9 +267,14 @@ the account's concurrent-job limit.
     mapping falls back when a field is missing (the account number to the account
     id, a missing balance to 0, the date to the effective date) and identical
     values would hide that. Posted and pending transactions are checked field by
-    field. A query is rejected when it names no registered operation, uses syntax
-    the stub does not understand (aliases, fragments), or sends an account-scoped
-    query without the account id from the first response. Anything rejected is
+    field, and amounts are compared as numbers, so one served as a string fails.
+    A query is rejected when it names no registered operation, uses syntax the
+    stub does not understand (aliases, fragments), or sends an account-scoped
+    query without the account id from the first response. Its variables must also
+    line up the way a GraphQL server requires: each one the query uses is declared
+    and each one it declares is used, and every variable the library sends for an
+    account-scoped query is bound to the argument of the same name, so a dropped,
+    undeclared or crossed binding is caught. Anything rejected is
     counted and named by origin and path only. The smoke prints the operations it
     served, the unexpected-request count and its own verdict on the result; the
     gate requires all three, plus `"success":true`. This is the only scenario that

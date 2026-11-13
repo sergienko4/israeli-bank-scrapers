@@ -248,6 +248,64 @@ function project(value, tree) {
   return Object.fromEntries(kept.filter(([, projected]) => projected !== undefined));
 }
 
+/**
+ * Whether a token is a GraphQL name.
+ * @param {string | undefined} token - The token.
+ * @returns {boolean} True for a name.
+ */
+function isName(token) {
+  return /^[A-Za-z_]\w*$/.test(token ?? '');
+}
+
+/**
+ * The variables a query declares, and the argument each one is bound to in its selection.
+ * Only `name: $variable` bindings are understood, and a variable declared twice is not;
+ * anything else is rejected, not guessed at.
+ * @param {string} query - The query text.
+ * @returns {{declared: Set<string>, bound: Map<string, string>} | false} The declarations and
+ * the argument-to-variable bindings, or false when the query is not understood.
+ */
+function bindingsOf(query) {
+  const tokens = tokenize(query);
+  const open = tokens[2] === '(' ? afterParens(tokens, 2) : 2;
+  if (open < 0) return false;
+  const header = tokens.slice(3, open - 1);
+  const names = header.filter((t, i) => header[i - 1] === '$' && isName(t));
+  const declared = new Set(names);
+  const isDeclaredOnce =
+    declared.size === names.length && header.filter(t => t === '$').length === names.length;
+  const body = tokens.slice(open);
+  const pairs = body.flatMap((t, i) =>
+    t === ':' && body[i + 1] === '$' && isName(body[i - 1]) && isName(body[i + 2])
+      ? [[body[i - 1], body[i + 2]]]
+      : [],
+  );
+  const bound = new Map(pairs);
+  const isClean =
+    bound.size === pairs.length && body.filter(t => t === '$').length === pairs.length;
+  return isClean && isDeclaredOnce ? { declared, bound } : false;
+}
+
+/**
+ * Whether the query's variables line up the way a GraphQL server needs: every variable it
+ * uses is declared and every one it declares is used. For an account-scoped operation each
+ * variable the library sends must also be bound to the argument of the same name, so a
+ * dropped or renamed binding cannot leave the account, window or page unrequested.
+ * @param {string} query - The query text.
+ * @param {object} variables - The variables the request carried.
+ * @param {boolean} isScoped - Whether the operation is account-scoped.
+ * @returns {boolean} True when the declarations and bindings hold.
+ */
+function bindingsHold(query, variables, isScoped) {
+  const found = bindingsOf(query);
+  if (found === false) return false;
+  const used = new Set(found.bound.values());
+  const isMatched =
+    used.size === found.declared.size && [...used].every(n => found.declared.has(n));
+  const isBound = Object.keys(variables).every(name => found.bound.get(name) === name);
+  return isMatched && (!isScoped || isBound);
+}
+
 /** Operations that must carry the account id the first response supplied. */
 const ACCOUNT_SCOPED = new Set(['fetchAccountBalance', 'Transactions']);
 
@@ -306,6 +364,7 @@ function rejectionOf(request) {
   if (selectionOf(query) === false) return `selection ${operation}`;
   const isScoped = ACCOUNT_SCOPED.has(operation);
   if (isScoped && variables?.accountId !== ACCOUNT_ID) return `variables ${operation}`;
+  if (!bindingsHold(query, variables ?? {}, isScoped)) return `bindings ${operation}`;
   return '';
 }
 
@@ -333,14 +392,16 @@ function makeGraphqlFetch(state) {
 }
 
 /**
- * One transaction field across both rows, joined, so each posted and pending row
- * has to carry its own value for the comparison to hold.
+ * Whether one transaction field holds exactly the expected values, first row first. Each
+ * value is compared strictly, so a number served as a string does not pass.
  * @param {object} result - What `scrape` returned.
  * @param {string} field - The transaction field.
- * @returns {string} The values, first row first.
+ * @param {unknown[]} expected - The values, first row first.
+ * @returns {boolean} True when every row carries its own expected value.
  */
-function acrossRows(result, field) {
-  return result.accounts[0].txns.map(txn => String(txn[field])).join('|');
+function sameAcross(result, field, expected) {
+  const values = result.accounts[0].txns.map(txn => txn[field]);
+  return values.length === expected.length && values.every((value, i) => value === expected[i]);
 }
 
 /** The result fields the synthetic responses must map into, with their expected values. */
@@ -350,13 +411,16 @@ const RESULT_CHECKS = [
   ['account number', r => r.accounts[0].accountNumber === '40286139'],
   ['balance', r => r.accounts[0].balance === 2850.6],
   ['two transactions', r => r.accounts[0].txns.length === 2],
-  ['transaction identifiers', r => acrossRows(r, 'identifier') === 'txn-1|txn-2'],
-  ['transaction amounts', r => acrossRows(r, 'chargedAmount') === '-12.5|-5'],
-  ['transaction dates', r => acrossRows(r, 'date') === '2026-03-10T00:00:00Z|2026-03-15T00:00:00Z'],
-  ['transaction currencies', r => acrossRows(r, 'originalCurrency') === 'ILS|USD'],
+  ['transaction identifiers', r => sameAcross(r, 'identifier', ['txn-1', 'txn-2'])],
+  ['transaction amounts', r => sameAcross(r, 'chargedAmount', [-12.5, -5])],
+  [
+    'transaction dates',
+    r => sameAcross(r, 'date', ['2026-03-10T00:00:00Z', '2026-03-15T00:00:00Z']),
+  ],
+  ['transaction currencies', r => sameAcross(r, 'originalCurrency', ['ILS', 'USD'])],
   [
     'transaction descriptions',
-    r => acrossRows(r, 'description') === 'Synthetic coffee|Synthetic pending',
+    r => sameAcross(r, 'description', ['Synthetic coffee', 'Synthetic pending']),
   ],
 ];
 
