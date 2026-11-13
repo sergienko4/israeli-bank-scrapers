@@ -3,14 +3,14 @@ import { createRequire } from 'node:module';
 import { jest } from '@jest/globals';
 
 interface IConsumerExports {
-  readonly CompanyTypes: { readonly Leumi: string };
+  readonly CompanyTypes: { readonly Leumi: string; readonly Pepper?: string };
   readonly createScraper: () => {
-    readonly scrape: () => Promise<{ readonly success: boolean }>;
+    readonly scrape: (credentials?: unknown) => Promise<unknown>;
   };
 }
 
 interface ISmoke {
-  readonly runScrape: (exports: IConsumerExports) => Promise<void>;
+  readonly runScrape: (exports: IConsumerExports, scenario?: string) => Promise<void>;
 }
 
 const SMOKE = createRequire(import.meta.url)(

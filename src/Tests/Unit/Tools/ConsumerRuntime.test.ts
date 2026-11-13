@@ -5,6 +5,7 @@ import { join } from 'node:path';
 
 import { parse } from 'yaml';
 
+import ScraperError from '../../../Scrapers/Base/ScraperError.js';
 import { canRunPosixBash } from '../../Helpers/HostCapabilities.js';
 import { createTempRepo, writeTempFile } from '../../Helpers/TempRepoTree.js';
 
@@ -340,5 +341,170 @@ describe('consumer dependency-layout probe', () => {
     expect(call).toBeLessThan(environments);
     expect(script).toContain('set -euo pipefail');
     expect(script).toContain('FAILED=1');
+  });
+});
+
+/**
+ * The part of `consumer-install.sh` that decides whether a smoke's output is the
+ * expected one: its expectation constants and the two functions that apply them.
+ * The rest of the script packs and installs, which a unit test must not do.
+ * @returns The decision logic as runnable bash, or an empty string when it is absent.
+ */
+function gateDecisionSource(): string {
+  const script = readFileSync(SCRIPT_PATH, 'utf8');
+  const constants = script.match(/^(?:EXPECTED_|GRAPHQL_EXPECTED_|SETTLED_MARKER)\w*=.*$/gmu) ?? [];
+  const expectations = /^expectations_for\(\) \{\n[\s\S]+?\n\}$/mu.exec(script)?.[0] ?? '';
+  const assertion = /^assert_expected_outcome\(\) \{\n[\s\S]+?\n\}$/mu.exec(script)?.[0] ?? '';
+  return [...constants, 'FAILED=0', expectations, assertion].join('\n');
+}
+
+/** What the gate concluded about one smoke output. */
+interface IGateVerdict {
+  readonly isAccepted: boolean;
+  readonly isFailureRecorded: boolean;
+}
+
+/**
+ * Feed one smoke output to the script's own decision logic under real bash.
+ * @param scenario Scenario the output claims to come from.
+ * @param output What the smoke printed.
+ * @returns Whether the gate accepted it and whether it recorded a failure.
+ * @throws ScraperError when bash did not run or printed no verdict, so a harness that
+ * never ran can never be read as the gate rejecting the output.
+ */
+function judge(scenario: string, output: string): IGateVerdict {
+  const program = `${gateDecisionSource()}\nassert_expected_outcome "$SMOKE_OUT" "$SMOKE_SCENARIO" >/dev/null\nstatus=$?\necho "status=$status failed=$FAILED"`;
+  const env = { ...process.env, SMOKE_OUT: output, SMOKE_SCENARIO: scenario };
+  const result = spawnSync('bash', ['-c', program], { env, encoding: 'utf8' });
+  if (result.status !== 0) {
+    const cause = String(result.error ?? result.status);
+    throw new ScraperError(`the gate harness did not run: ${cause}`);
+  }
+  const reported = /status=(\d) failed=(\d)/u.exec(result.stdout);
+  if (reported === null) throw new ScraperError('the gate harness printed no verdict');
+  return { isAccepted: reported[1] === '0', isFailureRecorded: reported[2] === '1' };
+}
+
+const LEUMI_OK = [
+  'OFFLINE_REQUEST',
+  'SETTLED result {"success":false,"errorType":"GENERIC","errorMessage":"prime HTTP 503"}',
+].join('\n');
+
+const PEPPER_OK = [
+  'SETTLED result {"success":true,"accounts":[]}',
+  'GRAPHQL_OPERATIONS Transactions,UserDataV2,fetchAccountBalance',
+  'GRAPHQL_UNEXPECTED 0',
+  'GRAPHQL_VERDICT ok',
+].join('\n');
+
+/** One smoke output with the verdict the gate must reach on it. */
+interface IGateCase {
+  readonly id: string;
+  readonly name: string;
+  readonly scenario: string;
+  readonly output: string;
+  readonly isAccepted: boolean;
+}
+
+const GATE_CASES: readonly IGateCase[] = [
+  {
+    id: 'CRL-6a',
+    name: 'the Leumi 503 outcome under its own scenario',
+    scenario: 'leumi-503',
+    output: LEUMI_OK,
+    isAccepted: true,
+  },
+  {
+    id: 'CRL-6b',
+    name: 'the Pepper GraphQL outcome under its own scenario',
+    scenario: 'pepper-graphql',
+    output: PEPPER_OK,
+    isAccepted: true,
+  },
+  {
+    id: 'CRL-6c',
+    name: 'the Pepper outcome presented as the Leumi scenario',
+    scenario: 'leumi-503',
+    output: PEPPER_OK,
+    isAccepted: false,
+  },
+  {
+    id: 'CRL-6d',
+    name: 'the Leumi outcome presented as the Pepper scenario',
+    scenario: 'pepper-graphql',
+    output: LEUMI_OK,
+    isAccepted: false,
+  },
+  {
+    id: 'CRL-6e',
+    name: 'a GraphQL run that failed its scrape',
+    scenario: 'pepper-graphql',
+    output: PEPPER_OK.replace('"success":true', '"success":false'),
+    isAccepted: false,
+  },
+  {
+    id: 'CRL-6f',
+    name: 'a GraphQL run that served an unexpected request',
+    scenario: 'pepper-graphql',
+    output: PEPPER_OK.replace('UNEXPECTED 0', 'UNEXPECTED 1 url https://bank.example/graphql'),
+    isAccepted: false,
+  },
+  {
+    id: 'CRL-6g',
+    name: 'a GraphQL run whose typed result did not match',
+    scenario: 'pepper-graphql',
+    output: PEPPER_OK.replace('VERDICT ok', 'VERDICT mismatch: balance'),
+    isAccepted: false,
+  },
+  {
+    id: 'CRL-6h',
+    name: 'a GraphQL run that skipped an operation',
+    scenario: 'pepper-graphql',
+    output: PEPPER_OK.replace('Transactions,', ''),
+    isAccepted: false,
+  },
+  {
+    id: 'CRL-6i',
+    name: 'a run that printed nothing',
+    scenario: 'pepper-graphql',
+    output: '',
+    isAccepted: false,
+  },
+  {
+    id: 'CRL-6j',
+    name: 'a scenario the gate does not know',
+    scenario: 'no-such-scenario',
+    output: PEPPER_OK,
+    isAccepted: false,
+  },
+];
+
+describe('consumer-install gate decisions', () => {
+  it.each(GATE_CASES)('[$id] judges $name', row => {
+    if (canRunPosixBash(process.platform)) {
+      const verdict = judge(row.scenario, row.output);
+      expect(verdict.isAccepted).toBe(row.isAccepted);
+      expect(verdict.isFailureRecorded).toBe(!row.isAccepted);
+    }
+  });
+
+  it('[CRL-7] runs every smoke program under every scenario and both environments', () => {
+    const script = readFileSync(SCRIPT_PATH, 'utf8');
+    const loop = /^for program in [\s\S]+?\ndone$/mu.exec(script)?.[0] ?? '';
+    expect(loop).toContain('for program in smoke.cjs smoke.mjs');
+    expect(loop).toContain('for scenario in leumi-503 pepper-graphql');
+    expect(loop).toContain('"default (CI and NODE_ENV unset)" -u CI -u NODE_ENV -u PRETTY_LOGS');
+    expect(loop).toContain('"NODE_ENV=production" -u CI -u PRETTY_LOGS NODE_ENV=production');
+  });
+
+  it('[CRL-8] passes the scenario to the program as an argument, never through the environment', () => {
+    const script = readFileSync(SCRIPT_PATH, 'utf8');
+    expect(script).toContain('"$CONSUMER_NODE" "./${program}" "${scenario}"');
+    const cjsPath = join(ROOT, '.github/scripts/ci/consumer-smoke.cjs');
+    const esmPath = join(ROOT, '.github/scripts/ci/consumer-smoke.mjs');
+    const smoke = readFileSync(cjsPath, 'utf8');
+    const esm = readFileSync(esmPath, 'utf8');
+    expect(smoke).toContain('process.argv[2]');
+    expect(esm).toContain('process.argv[2]');
   });
 });
