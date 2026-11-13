@@ -33,13 +33,9 @@ function assertNoErrorReported(result: IScraperScrapingResult): true {
 }
 
 /**
- * Synthetic fallback `accountNumber` value the SCRAPE phase emits when
- * no record carries a display id. Mirrored from the production
- * constant `DEFAULT_ACCOUNT_NUMBER` in
- * `src/Scrapers/Pipeline/Strategy/Scrape/ScrapeDataActions.ts:402`
- * (file-private over there; test-only PR cannot export it without
- * touching production). Any account that lands in CI with this id
- * means account-resolution leaked the fallback and the scrape is a
+ * Placeholder `accountNumber` that no real account carries. Any account
+ * that lands in CI with this id means account resolution produced a
+ * placeholder instead of the bank's own id and the scrape is a
  * regression — `redactAccount` masks it as `***fault` in production
  * traces.
  */

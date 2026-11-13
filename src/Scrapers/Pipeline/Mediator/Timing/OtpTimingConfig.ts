@@ -1,26 +1,16 @@
 /**
- * OTP-phase timing budgets (TRIGGER + FILL + form-probe). Split out of the TimingConfig barrel during
- * Phase 12b. The barrel was retired once every importer moved to a
- * domain file.
+ * OTP timing budgets. Split out of the TimingConfig barrel, which was retired
+ * once every importer moved to a domain file.
+ *
+ * <p>Only `DEFAULT_OTP_TIMEOUT_MS` is read today, by the sms-otp pre-hook. The
+ * other budgets belong to the OTP trigger and fill screens, which no longer
+ * exist, and no module reads them.
  */
 
-/**
- * OTP-TRIGGER prelude — DOM-ready ceiling for phone-hint scan + click.
- *
- * <p>`waitForDomReady` budget before OTP-TRIGGER.PRE scans for the phone
- * hint / send-code button and before ACTION fires the click. DOM parsing
- * is sufficient — OTP screens are typically server-rendered or already
- * hydrated by the time this phase runs.
- */
+/** OTP-TRIGGER prelude ceiling (ms). */
 export const OTP_TRIGGER_PRELUDE_TIMEOUT_MS = 6_000;
 
-/**
- * OTP-FILL prelude — DOM-ready ceiling for OTP input discovery.
- *
- * <p>OTP-FILL.PRE budget before scanning for the OTP code input. DOM
- * parsing is sufficient (the OTP input is typically present from the
- * moment the screen renders).
- */
+/** OTP-FILL prelude ceiling (ms). */
 export const OTP_FILL_PRELUDE_TIMEOUT_MS = 6_000;
 
 /** OTP trigger / fill post-action settle ceiling — TIMING cut from 10000. */
@@ -42,9 +32,8 @@ export const OTP_ERROR_PROBE_TIMEOUT_MS = 2000;
 export const OTP_RETRIEVER_SETTLE_MS = 500;
 
 /**
- * OTP user entry budget — single test case may extend per options.
- * Imported via re-export from `OtpFillPhaseActions.ts` so the
- * existing `Tests/Unit/.../OtpPollerPipelineTimeoutAlignment.test.ts`
- * cross-validation continues to pass without renaming.
+ * OTP user entry budget (ms) the sms-otp pre-hook applies when the credentials
+ * carry no `otpTimeoutMs`. The real-bank test poller (`E2eReal/OtpPoller.ts`)
+ * mirrors it so it never gives up before the flow does.
  */
 export const DEFAULT_OTP_TIMEOUT_MS = 180_000;

@@ -258,6 +258,50 @@ describe('per-request recovery — a throwing shape callback', () => {
   });
 });
 
+/**
+ * A shape whose balance body check throws on every answer.
+ * @returns The shape.
+ */
+function throwingCheckShape(): IApiDirectScrapeShape<unknown, unknown> {
+  /**
+   * Throw instead of checking the body.
+   * @returns Never.
+   */
+  function checkThatThrows(): Procedure<Record<string, unknown>> {
+    throw new ScraperError('check exploded');
+  }
+  return { ...BOOT_SHAPE, checkBodyByOperation: { balance: checkThatThrows } };
+}
+
+const CHECK_THREW = 'shape checkBodyByOperation threw: ScraperError';
+
+describe('recovery — a throwing body check is a typed failure', () => {
+  it.each([
+    { name: 'a warm per-request session', isWarm: true, isWholeScrape: false, recoveries: 1 },
+    { name: 'a cold per-request session', isWarm: false, isWholeScrape: false, recoveries: 0 },
+    { name: 'a warm whole-scrape session', isWarm: true, isWholeScrape: true, recoveries: 0 },
+    { name: 'a cold whole-scrape session', isWarm: false, isWholeScrape: true, recoveries: 0 },
+  ])('[WSR-1] recovers $recoveries time(s) on $name', async row => {
+    const router = routerWith('balance', OK_ANSWERS.balance, OK_ANSWERS.balance);
+    const { isWarm, isWholeScrape } = row;
+    const handle = makeRecoveryBus({ router, isWarm, isWholeScrape });
+    const shape = throwingCheckShape();
+    await scrapeOver(handle.bus, shape);
+    expect(handle.recoverSession).toHaveBeenCalledTimes(row.recoveries);
+  });
+
+  it('[WSR-2] reports the callback and error class once recovery is spent', async () => {
+    const router = routerWith('balance', OK_ANSWERS.balance, OK_ANSWERS.balance);
+    const handle = makeRecoveryBus({ router, isWarm: true, isWholeScrape: false });
+    const shape = throwingCheckShape();
+    const result = await scrapeOver(handle.bus, shape);
+    const reported = JSON.stringify(result);
+    expect(result).toMatchObject({ success: false });
+    expect(reported).toContain(CHECK_THREW);
+    expect(reported).not.toContain('check exploded');
+  });
+});
+
 describe('per-request recovery — the warm-session rule is unchanged', () => {
   it('a cold session does not recover from a 401', async () => {
     const router = routerWith('balance', UNAUTHORIZED);

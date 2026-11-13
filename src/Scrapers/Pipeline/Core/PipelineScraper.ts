@@ -1,6 +1,6 @@
 /**
- * PipelineScraper — IScraper adapter that delegates to executePipeline.
- * Stub: delegates to executePipeline (itself a stub) until Step 2.
+ * PipelineScraper — IScraper adapter that builds a bank's pipeline from the
+ * scraper options, runs it with executePipeline and returns the legacy result.
  */
 
 import { EventEmitter } from 'node:events';

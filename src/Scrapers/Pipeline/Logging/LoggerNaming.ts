@@ -35,8 +35,8 @@ function basenameFromUrl(metaUrl: string): UrlBasename {
  * Derive the logger name from `import.meta.url`. The caller passes
  * `import.meta.url` (a `file:///...` URL); we extract the basename,
  * drop the extension, and kebab-case PascalCase. So
- * `file:///.../Mediator/Elements/ActionExecutors.ts` becomes
- * `action-executors`. No manual logger name strings anywhere.
+ * `file:///.../Mediator/Timing/TimingActions.ts` becomes
+ * `timing-actions`. No manual logger name strings anywhere.
  * @param metaUrl - The caller's `import.meta.url`.
  * @returns Kebab-cased module name.
  */

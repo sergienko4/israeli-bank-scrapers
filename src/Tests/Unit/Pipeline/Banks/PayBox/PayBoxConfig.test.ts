@@ -14,7 +14,7 @@
  * Uses dynamic imports for `Registry/Config/*` per the project's
  * test architectural rule (Pipeline tests don't statically import
  * from Registry/Config — same pattern as
- * `WaveOBranchGaps.test.ts:PipelineBankConfig guard`).
+ * `PipelineBankConfigSeeder.test.ts`).
  */
 
 import type { IApiDirectCallConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';

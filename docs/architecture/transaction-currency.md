@@ -28,6 +28,11 @@ contract:
 3. `originalCurrency` — on Amex/Isracard DigitalV3 this is a **numeric enum**
 4. `currencyCode`, `movementCurrency`
 
+The `bancs*` aliases come first because matching is alias-first: a record flattened by
+[`BancsNormalizer.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/Scrape/Bancs/BancsNormalizer.ts)
+resolves to its computed flat field. No other bank's record carries a `bancs*` key, so
+for them the alias fails to match and resolution falls through to the rest of the list.
+
 DigitalV3 (`GetTransactionsList`) rows carry both `originalCurrencyIso` and a
 sibling `originalCurrency`. Before
 [#614](https://github.com/sergienko4/israeli-bank-scrapers/issues/614) the

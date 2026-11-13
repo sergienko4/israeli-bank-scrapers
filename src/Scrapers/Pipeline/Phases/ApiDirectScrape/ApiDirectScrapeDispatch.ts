@@ -36,6 +36,7 @@ import type {
   ScrapeOperation,
   VarsMap,
 } from './IApiDirectScrapeShape.js';
+import { guardAnswerCallback } from './ShapeGuard.js';
 
 /** Args bundle for {@link dispatchStep} — keeps params ≤3. */
 export interface IDispatchArgs {
@@ -107,15 +108,17 @@ function isPostArray(vars: ApiPostData): vars is readonly JsonValue[] {
  * Run the shape's body check on a successful response; a failed response,
  * or a shape with no check, passes through unchanged.
  * @param response - The call's result.
+ * @param name - The check's identity in a failure it is converted to.
  * @param checkBody - The shape's check, when it declares one.
  * @returns The response, or the check's failure.
  */
 export function applyBodyCheck(
   response: Procedure<ApiBody>,
+  name: string,
   checkBody?: BodyCheck,
 ): Procedure<ApiBody> {
   if (!isOk(response) || checkBody === undefined) return response;
-  return checkBody(response.value);
+  return guardAnswerCallback(name, () => checkBody(response.value));
 }
 
 /**
@@ -130,8 +133,8 @@ export function applyBodyChecks(
   checkBody?: BodyCheck,
   operationCheck?: BodyCheck,
 ): Procedure<ApiBody> {
-  const selected = applyBodyCheck(response, operationCheck);
-  return applyBodyCheck(selected, checkBody);
+  const selected = applyBodyCheck(response, 'checkBodyByOperation', operationCheck);
+  return applyBodyCheck(selected, 'checkBody', checkBody);
 }
 
 /**

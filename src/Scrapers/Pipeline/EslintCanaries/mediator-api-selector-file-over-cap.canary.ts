@@ -5,7 +5,7 @@
  */
 
 // Canary: Phase 2 lockdown per-file size guard - asserts max-lines: 150
-// (skipBlankLines + skipComments) fires on Mediator/Api + Mediator/ApiDirectCall + Mediator/Selector cluster files.
+// (skipBlankLines + skipComments) fires on Mediator/Api + Mediator/ApiDirectCall cluster files.
 // Phase 2 split the big phase-action files into co-located <=150-LoC
 // helpers (commit phase-2b-strict). This canary + the eslint.config.mjs
 // override block guarantees no future commit can re-blob the cluster.

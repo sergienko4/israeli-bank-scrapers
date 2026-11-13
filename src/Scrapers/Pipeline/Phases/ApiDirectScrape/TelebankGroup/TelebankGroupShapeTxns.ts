@@ -6,8 +6,7 @@
  * unchanged. Split from TelebankGroupShapeHelpers.ts to respect the 150-LOC
  * ceiling.
  *
- * The `/Date` path + query params mirror the in-repo authoritative URL
- * builder (Mediator/Network/EndpointState `assembleTxnUrl`).
+ * The `/Date` path and query flags are built by `txnsUrl` below.
  */
 
 import { bankMomentOfInstant } from '../../../Mediator/Scrape/BankCalendar.js';

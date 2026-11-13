@@ -3,8 +3,8 @@
  *
  * `ScraperOptions.startDate` is a required field meaning "give me transactions
  * from this date onwards", yet no bank on the ApiDirectScrape path applied it.
- * The legacy filter ({@link filterAfterStart}) still exists but nothing reaches
- * it — every registered bank routes through `withApiDirect`, which
+ * The old filter (`filterAfterStart`, since removed) was unreachable here —
+ * every registered bank routes through `withApiDirect`, which
  * short-circuits the builder straight to
  * the ApiDirectScrape phase. Callers therefore received whatever the provider
  * happened to return.
@@ -25,8 +25,8 @@
  * `processedDate` would be identical there and inconsistent elsewhere.
  *
  * <p>Fails open on a row with no usable date — see {@link isUndated}. This is
- * why the legacy `filterAfterStart` is deliberately **not** reused: its
- * `NaN >= startMs` comparison drops such rows silently.
+ * why the old `filterAfterStart` (since removed) was deliberately **not** reused:
+ * its `NaN >= startMs` comparison dropped such rows silently.
  *
  * <p>Compares **calendar days**, not instants, because the two sides arrive in
  * different calendars. A provider's date-only value ('2026-02-20') is parsed
@@ -130,9 +130,9 @@ function isUndated(ms: number): boolean {
 /**
  * Decide whether one row survives the window.
  *
- * <p>Fails **open**: a row with no usable date is kept. The legacy
- * `filterAfterStart` compares `NaN >= startMs`, which is always false, so an
- * unparseable row is dropped without trace. That is the same silent-loss defect
+ * <p>Fails **open**: a row with no usable date is kept. The old
+ * `filterAfterStart` (since removed) compared `NaN >= startMs`, which is always
+ * false, so an unparseable row was dropped without trace. That is the same silent-loss defect
  * this module was written to stop — a row we cannot classify has not been
  * *proven* out of window, and deleting unclassifiable data is strictly worse
  * than returning it. The mapper-reject counter already watches for rows arriving

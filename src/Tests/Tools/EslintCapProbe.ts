@@ -7,12 +7,10 @@
  * deviations in `CapOverrides.ts`. A deleted grandfather-then-tighten block
  * therefore fails by name instead of silently relaxing shipped code.
  *
- * <p>Auditing per FILE rather than per directory is load-bearing. Several
- * blocks scope a cap to a single filename beside a differently-capped
- * directory — `Phases/Base/BasePhase.ts`, `Strategy/Scrape/ScrapeExecutor.ts`,
- * `Strategy/Scrape/ScrapeDataActions.ts` and
- * `Mediator/Init/NavigationTransportProbe.ts`. A one-probe-per-directory walk
- * cannot see those, so deleting such a scope stayed green.
+ * <p>Auditing per FILE rather than per directory is load-bearing. A block can
+ * scope a cap to a single filename beside a differently-capped directory. A
+ * one-probe-per-directory walk cannot see that, so deleting such a scope stayed
+ * green.
  *
  * <p>Single-file resolution lives in `CapResolution.ts`; the table's own
  * self-consistency checks live in `CapTableValidation.ts`.

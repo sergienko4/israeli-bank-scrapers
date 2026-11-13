@@ -7,12 +7,12 @@
 // Canary: Phase 2b lockdown per-function size guard — asserts the
 // §14b.1 full three-rule lock (`max-statements: 10` +
 // `max-lines-per-function: 10` + `max-lines: 150`) fires on
-// Mediator/Api/, Mediator/ApiDirectCall/ and Mediator/Selector/
-// sub-modules. Phase 2b extracted 74 over-cap functions across 15
-// files in these three clusters down to ≤10 statement/LoC bodies
+// Mediator/Api/ and Mediator/ApiDirectCall/ sub-modules. Phase 2b
+// extracted 74 over-cap functions across 15 files in the three clusters
+// it covered (Selector/ has since been removed) down to ≤10 statement/LoC bodies
 // (commit `3533ed97`); this canary + the eslint.config.mjs §14b.1
 // override block guarantees no regression can reintroduce a
-// >10-statement / >10-LoC function in any of the three clusters.
+// >10-statement / >10-LoC function in either remaining cluster.
 // The single function below contains 25 statements (above the 10
 // ceiling) so verify.sh confirms the rule fires.
 

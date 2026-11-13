@@ -37,6 +37,12 @@ checklist.
 - Runs as its own Jest project (`jest.policy.config.cjs`) and is excluded from
   `test:unit`, so a product test run does not carry the CI-policy suite.
 - `test:pipeline` still selects these files, which is how CI covers them.
+- `src/Tests/Unit/Tools/JestProjectPartition.test.ts` (run by `test:unit`) pins
+  the split between the two projects: no suite sits in both, every tracked test
+  is selected unless a reviewed live or serial exclusion covers it, and the
+  projects share the same transform, module resolution, setup file and time
+  zone. Add a new test directory to the reviewed exclusions in that file only
+  when its suites must never run unattended.
 
 ### Pipeline + coverage (`test:pipeline`)
 

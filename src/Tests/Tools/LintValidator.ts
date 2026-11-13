@@ -775,17 +775,17 @@ function ruleFifteenIssues(code: string): IIssue[] {
  * and only their CALL sites:
  *
  *  - Declarations are skipped. `ElementWaitAction.ts` and
- *    `ElementsInteractions.ts` define these helpers inside the Pipeline tree;
+ *    `ElementsInteractions.ts` defined these helpers inside the Pipeline tree;
  *    flagging a definition would make the rule unsatisfiable.
  *  - Import/export lines are skipped by construction: the pattern requires an
  *    opening paren, and `import { clickButton } from …` never has one. The
- *    helpers stay exported because callers outside the Elements zone — legacy
- *    scrapers included — import them by name. Ignoring legacy is the ruling;
+ *    helpers stayed exported because callers outside the Elements zone — legacy
+ *    scrapers included — imported them by name. Ignoring legacy is the ruling;
  *    breaking it is not.
  *  - Raw DOM APIs (`querySelector`, `waitForSelector`, `pageEvalAll`) are NOT
- *    covered. Inside Pipeline they appear only in parsing/extraction code and
+ *    covered. Inside Pipeline they appeared only in parsing/extraction code and
  *    in these helpers' own implementations — the documented exception. Banning
- *    them would flag eleven compliant files and force an allowlist.
+ *    them would have flagged eleven compliant files and forced an allowlist.
  *  - The `css` candidate kind is NOT flagged, but not because those selectors
  *    are metadata-derived — `WELL_KNOWN_LOGIN_SELECTORS` is a table of
  *    developer-authored literals (`'#username'`, `'#password'`). It is not

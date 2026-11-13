@@ -22,12 +22,12 @@ import { fetchOtpFromTelegram } from './TelegramOtpFetcher.js';
 const POLL_INTERVAL_MS = 1000;
 /**
  * Default OTP poll timeout — aligned to the pipeline OTP watchdog
- * (`DEFAULT_OTP_TIMEOUT_MS = 180_000` in `OtpFillPhaseActions.ts`).
+ * (`DEFAULT_OTP_TIMEOUT_MS = 180_000` in `Mediator/Timing/OtpTimingConfig.ts`).
  * The test poller MUST NOT cut off before the pipeline does, otherwise
  * a code arriving in the [old_test_120s, pipeline_180s] window would
  * surface as `OTP poll timeout` even though the pipeline would still
  * have accepted it. The 2026-05-07 Beinleumi run reproduced exactly
- * this race; see `OtpPollerPipelineTimeoutAlignment.test.ts`.
+ * this race.
  */
 const DEFAULT_POLL_TIMEOUT_MS = 180_000;
 
@@ -64,7 +64,7 @@ interface ICreateOtpPollerArgs {
 }
 
 // Telegram tier inherits the full poller budget (DEFAULT_POLL_TIMEOUT_MS
-// = 180 s, aligned to OtpFillPhaseActions.DEFAULT_OTP_TIMEOUT_MS). The
+// = 180 s, aligned to OtpTimingConfig.DEFAULT_OTP_TIMEOUT_MS). The
 // budget flows via the `timeoutMs` param of `tryTelegramTier`. There is
 // NO separate Telegram fetch timeout: a smaller budget would silently
 // drop OTPs that arrive late (SMS dispatch + forwarder hop + reply can

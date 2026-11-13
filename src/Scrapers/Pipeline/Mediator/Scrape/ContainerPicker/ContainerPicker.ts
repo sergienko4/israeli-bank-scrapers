@@ -74,9 +74,8 @@ function mapOne(raw: ApiRecord): ITransaction | false {
  *
  * <p>Unwraps the WCF `Broker.svc` envelope first
  * ({@link unwrapWcfEnvelope}) so fresh per-account fetches — which
- * `fetchPost` returns verbatim as `{ ProcessRequestResult, jsonResp }`
- * without the {@link "../../Network/Indexing/ResponseParser.js"}
- * capture-time unwrap — descend into the real container. Idempotent +
+ * `fetchPost` returns verbatim as `{ ProcessRequestResult, jsonResp }` —
+ * descend into the real container. Idempotent +
  * default-deny: already-unwrapped / non-envelope bodies pass through
  * unchanged, so every other bank is unaffected.
  *
