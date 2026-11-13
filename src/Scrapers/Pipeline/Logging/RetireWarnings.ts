@@ -23,6 +23,10 @@ const WORKER_TERMINATED_MESSAGE = 'the worker thread exited';
 export interface IRetirementState {
   isSettled: boolean;
   isTerminating: boolean;
+  /** Set once the worker closed after a graceful end request. */
+  isWorkerEnded?: boolean;
+  /** Set when the worker reported a real error, so its teardown cannot be trusted. */
+  hasWorkerFailed?: boolean;
   timer?: ReturnType<typeof globalThis.setTimeout>;
 }
 
@@ -48,13 +52,15 @@ export function handleTerminateRejection(rawError: Error): true {
 /**
  * Build the `'error'` listener guarding a retiring `ThreadStream`.
  * @param state - Mutable per-retirement lifecycle state.
- * @returns Listener suppressing stale-write/expected-exit noise while warning on real errors.
+ * @returns Listener suppressing stale-write/expected-exit noise while warning on real errors,
+ * which it also records on `state` so a later close is not mistaken for a clean end.
  */
 export function makeRetiredErrorListener(state: IRetirementState): (rawError: Error) => boolean {
   return (rawError: Error): boolean => {
     const error = toError(rawError);
     if (STALE_WORKER_MESSAGES.has(error.message)) return false;
     if (state.isTerminating && error.message === WORKER_TERMINATED_MESSAGE) return false;
+    state.hasWorkerFailed = true;
     return emitRetiredDrainWarning(error.message);
   };
 }

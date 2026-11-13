@@ -42,6 +42,18 @@ function settleClosedLease(lease: IFileLease): DidCloseLease {
 }
 
 /**
+ * Record a lease closed after the worker's graceful end already closed its
+ * descriptor. The number is not touched: once the worker closed it, the kernel is
+ * free to hand it to another file, and no `fstat` attribute can tell the two apart.
+ * @param lease - Owned file lease (or `false` when terminal-only).
+ * @returns Branded false: no `fs.close` was scheduled.
+ */
+export function markLeaseClosedByWorker(lease: IFileLease | false): DidCloseLease {
+  if (lease) lease.isClosed = true;
+  return false as DidCloseLease;
+}
+
+/**
  * Build the `fs.close` completion callback marking `lease.isClosed`.
  * @param lease - Owned file lease being closed.
  * @param onCloseError - Error reporter for unexpected `fs.close` errors.

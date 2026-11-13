@@ -24,20 +24,22 @@ interface IPhaseStep {
 }
 
 /**
- * Run one phase, remembering the context it started from so the executor can
- * dispose resources the context owns even when the phase throws.
+ * Run one phase and, when it succeeds, remember the context it produced so the
+ * executor disposes whatever the final phase installed. A phase that throws
+ * leaves the last good context in place.
  * @param tracker - Context tracker.
  * @param ctx - Current context.
  * @param index - Phase index.
  * @returns Phase result Procedure.
  */
-function runPhase(
+async function runPhase(
   tracker: IContextTracker,
   ctx: IPipelineContext,
   index: number,
 ): Promise<Procedure<IPipelineContext>> {
-  tracker.lastCtx = ctx;
-  return tracker.phases[index].run(ctx);
+  const result = await tracker.phases[index].run(ctx);
+  if (isOk(result)) tracker.lastCtx = result.value;
+  return result;
 }
 
 /**
