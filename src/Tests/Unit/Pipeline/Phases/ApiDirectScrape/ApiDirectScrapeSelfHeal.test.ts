@@ -1,6 +1,6 @@
 /**
  * Unit tests for the direct-API warm-session self-heal wrapper
- * ({@link ../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeActions!buildGenericHeadlessScrape}).
+ * ({@link ../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeActions!buildGenericApiDirectScrape}).
  *
  * A cached "warm" long-term token is only an optimization: when a warm scrape
  * yields a suspicious outcome (hard failure OR degraded balance — the server

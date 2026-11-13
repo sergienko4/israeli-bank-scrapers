@@ -54,8 +54,8 @@ const COLD_CARRY = withoutSlot(CARRY, 'did');
 
 describe('Beinleumi api-direct login config — wiring', () => {
   it('passes the build-time validator with its headless block', async () => {
-    const { call, headless } = await loadModule();
-    const result = validateApiDirectConfig({ call, transport: headless });
+    const { call, transport } = await loadModule();
+    const result = validateApiDirectConfig({ call, transport });
     expect(result).toEqual({ success: true, value: true });
   });
 
@@ -75,8 +75,8 @@ describe('Beinleumi api-direct login config — wiring', () => {
   });
 
   it('names each call on the online origin', async () => {
-    const { headless } = await loadModule();
-    expect(headless.paths).toEqual({
+    const { transport } = await loadModule();
+    expect(transport.paths).toEqual({
       'auth.encryptionKey': `${TRANSMIT}/key_exchange`,
       'auth.login': `${TRANSMIT}/login`,
       'auth.assert': `${TRANSMIT}/assert`,
@@ -84,15 +84,15 @@ describe('Beinleumi api-direct login config — wiring', () => {
       'auth.bootstrap': `${ORIGIN}/MatafRestApiService/rest/authSSO/authSSO`,
       'identity.sessionToken': `${ORIGIN}/appsng/bff-portal-shell/api/v1/autorization/authorize`,
     });
-    expect(headless).toMatchObject({ identityBase: `${ORIGIN}/`, graphql: `${ORIGIN}/` });
+    expect(transport).toMatchObject({ identityBase: `${ORIGIN}/`, graphql: `${ORIGIN}/` });
   });
 
   it('runs over native fetch in one cookie session, refusing redirects and non-200 success', async () => {
-    const { headless } = await loadModule();
-    const policy = headless.statusPolicy ?? {};
+    const { transport } = await loadModule();
+    const policy = transport.statusPolicy ?? {};
     const refused = Object.keys(policy).map(Number);
     const isEachFail = Object.values(policy).every(action => action === 'fail');
-    expect(headless).toMatchObject({
+    expect(transport).toMatchObject({
       nativeFetch: true,
       sessionCookies: true,
       redirectPolicy: 'reject',
@@ -102,7 +102,7 @@ describe('Beinleumi api-direct login config — wiring', () => {
     const nonOk = Array.from({ length: 99 }, (_unused, index) => 201 + index);
     expect(refused).toEqual(nonOk);
     expect(isEachFail).toBe(true);
-    expect(headless.cookieDomains).toBeUndefined();
+    expect(transport.cookieDomains).toBeUndefined();
   });
 
   it('remembers the device the bank names, bound to the user, with no warm start', async () => {

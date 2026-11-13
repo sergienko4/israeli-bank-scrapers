@@ -12,7 +12,7 @@ import { jest } from '@jest/globals';
 
 import { CompanyTypes } from '../../../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js';
-import { createHeadlessApiMediator } from '../../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
+import { createNativeApiMediator } from '../../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import type {
   IApiDirectCallConfig,
   IStepConfig,
@@ -172,7 +172,7 @@ function fakeJar(cookies: Readonly<Record<string, string>>, urls: string[]): ICo
  * @returns The run's cookie-session port.
  */
 function realJarWithRawCookie(path: string): ICookieSession {
-  const bus = createHeadlessApiMediator({
+  const bus = createNativeApiMediator({
     bankHint: HINT,
     identityBaseUrl: 'https://bank.example/',
     graphqlUrl: 'https://bank.example/graphql',

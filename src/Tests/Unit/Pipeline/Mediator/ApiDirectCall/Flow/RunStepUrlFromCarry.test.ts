@@ -9,7 +9,7 @@
  */
 
 import { CompanyTypes } from '../../../../../../Definitions.js';
-import { createHeadlessApiMediator } from '../../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
+import { createNativeApiMediator } from '../../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import type {
   IApiDirectCallConfig,
   IGetStep,
@@ -111,7 +111,7 @@ function tokenAnswer(): Response {
  * @returns The bus.
  */
 function jarBus(): ITokenBus {
-  return createHeadlessApiMediator({
+  return createNativeApiMediator({
     bankHint: HINT,
     identityBaseUrl: `${WK_ORIGIN}/`,
     graphqlUrl: `${WK_ORIGIN}/graphql`,

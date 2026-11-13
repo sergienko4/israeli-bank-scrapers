@@ -15,7 +15,7 @@ import { jest } from '@jest/globals';
 
 import { MIZRAHI_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Mizrahi/scrape/MizrahiShape.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
-import { buildGenericHeadlessScrape } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeActions.js';
+import { buildGenericApiDirectScrape } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeActions.js';
 import type { ApiBody } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
@@ -42,7 +42,7 @@ interface IScrapeWindow {
 }
 
 /** What the generic API-direct scrape resolves to. */
-type MizrahiScrapeRun = ReturnType<ReturnType<typeof buildGenericHeadlessScrape>>;
+type MizrahiScrapeRun = ReturnType<ReturnType<typeof buildGenericApiDirectScrape>>;
 
 /**
  * Read one committed Mode B response body.
@@ -102,7 +102,7 @@ function ctxOf(bus: IApiMediator, window: IScrapeWindow): IActionContext {
  */
 export function scrapeOver(bus: IApiMediator, window: IScrapeWindow): MizrahiScrapeRun {
   const ctx = ctxOf(bus, window);
-  const scrape = buildGenericHeadlessScrape(MIZRAHI_SHAPE);
+  const scrape = buildGenericApiDirectScrape(MIZRAHI_SHAPE);
   return scrape(ctx);
 }
 

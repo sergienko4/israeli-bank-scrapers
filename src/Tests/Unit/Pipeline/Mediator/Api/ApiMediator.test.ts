@@ -17,7 +17,7 @@ import {
 } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.hmacHeaders.js';
 import {
   createApiMediator,
-  createHeadlessApiMediator,
+  createNativeApiMediator,
   type IApiMediator,
 } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import {
@@ -505,9 +505,9 @@ describe('ApiMediator/reuseContract', () => {
   });
 });
 
-describe('ApiMediator/createHeadlessApiMediator', () => {
-  it('OZ-AM-03 — native createHeadlessApiMediator leaves dispose undefined', () => {
-    const mediator = createHeadlessApiMediator({
+describe('ApiMediator/createNativeApiMediator', () => {
+  it('OZ-AM-03 — native createNativeApiMediator leaves dispose undefined', () => {
+    const mediator = createNativeApiMediator({
       bankHint: HINT,
       identityBaseUrl: 'https://id.example/v1/',
       graphqlUrl: 'https://gql.example/graphql',
@@ -519,7 +519,7 @@ describe('ApiMediator/createHeadlessApiMediator', () => {
     ['without cookie domains', { sessionCookies: true }, false],
     ['with cookie domains', { sessionCookies: true, cookieDomains: ['id.example'] }, true],
   ])('UT-CS-06 — native mediator cookie session %s', (_label, flags, isExposed) => {
-    const mediator = createHeadlessApiMediator({
+    const mediator = createNativeApiMediator({
       bankHint: HINT,
       identityBaseUrl: 'https://id.example/v1/',
       graphqlUrl: 'https://gql.example/graphql',
@@ -575,7 +575,7 @@ const POLICY_CALLS = [
  * @returns The mediator under test.
  */
 function buildPolicyMediator(options: INativeFetchOptions = {}): IApiMediator {
-  return createHeadlessApiMediator({
+  return createNativeApiMediator({
     bankHint: HINT,
     identityBaseUrl: 'https://id.example/v1/',
     graphqlUrl: 'https://gql.example/graphql',
@@ -662,7 +662,7 @@ describe('ApiMediator — redirect policy', () => {
       return Promise.resolve(redirect);
     }
     globalThis.fetch = answerRedirect;
-    const mediator = createHeadlessApiMediator({
+    const mediator = createNativeApiMediator({
       bankHint: HINT,
       identityBaseUrl: 'https://id.example/v1/',
       graphqlUrl: 'https://gql.example/graphql',
@@ -683,7 +683,7 @@ describe('ApiMediator — redirect policy', () => {
       return Promise.resolve(partial);
     }
     globalThis.fetch = answerPartial;
-    const mediator = createHeadlessApiMediator({
+    const mediator = createNativeApiMediator({
       bankHint: HINT,
       identityBaseUrl: 'https://id.example/v1/',
       graphqlUrl: 'https://gql.example/graphql',
@@ -708,7 +708,7 @@ describe('ApiMediator — redirect policy', () => {
     async ({ call }) => {
       const response = new Response(null, { status: 204 });
       jest.spyOn(globalThis, 'fetch').mockResolvedValue(response);
-      const mediator = createHeadlessApiMediator({
+      const mediator = createNativeApiMediator({
         bankHint: HINT,
         identityBaseUrl: 'https://id.example/v1/',
         graphqlUrl: 'https://gql.example/graphql',
@@ -727,7 +727,7 @@ describe('ApiMediator — redirect policy', () => {
       .mockRejectedValue(new Error('unexpected fetch'))
       .mockResolvedValueOnce(empty)
       .mockResolvedValueOnce(malformed);
-    const mediator = createHeadlessApiMediator({
+    const mediator = createNativeApiMediator({
       bankHint: HINT,
       identityBaseUrl: 'https://id.example/v1/',
       graphqlUrl: 'https://gql.example/graphql',

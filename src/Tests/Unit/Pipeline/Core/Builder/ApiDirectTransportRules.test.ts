@@ -22,10 +22,10 @@ import type {
 } from '../../../../../Scrapers/Pipeline/Types/Domain/FetchPolicy.js';
 
 /** The bank's transport block when it has one. */
-type HeadlessBlock = Exclude<IApiDirectRuleInput['transport'], false>;
+type TransportBlock = Exclude<IApiDirectRuleInput['transport'], false>;
 
 const ORIGIN = 'https://session.example';
-const BANK: HeadlessBlock = {
+const BANK: TransportBlock = {
   identityBase: ORIGIN,
   graphql: `${ORIGIN}/graphql`,
   paths: {},
@@ -65,7 +65,7 @@ const LOGON: IStepConfig = {
  * @param redirectPolicy - Bank default.
  * @returns Transport block.
  */
-function bankWith(redirectPolicy: RedirectPolicy): HeadlessBlock {
+function bankWith(redirectPolicy: RedirectPolicy): TransportBlock {
   return { ...BANK, redirectPolicy };
 }
 
@@ -76,14 +76,14 @@ const BANK_MANUAL = bankWith(MANUAL);
 /**
  * Rule input running the given steps beside the given transport block.
  * @param steps - Login steps.
- * @param headless - Bank transport block, or false when it has none.
+ * @param transportConfig - Bank transport block, or false when it has none.
  * @returns Rule input.
  */
 function runOf(
   steps: readonly IStepConfig[],
-  headless: IApiDirectRuleInput['transport'],
+  transportConfig: IApiDirectRuleInput['transport'],
 ): IApiDirectRuleInput {
-  return { call: { flow: 'sms-otp', envelope: {}, steps }, transport: headless };
+  return { call: { flow: 'sms-otp', envelope: {}, steps }, transport: transportConfig };
 }
 
 /**

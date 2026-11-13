@@ -4,14 +4,14 @@
  * (the warm-start canary loads configs that way).
  */
 
-import { buildRingApiDirectCall, buildRingHeadless } from './PipelineBankConfigRing.js';
+import { buildRingApiDirectCall, buildRingTransport } from './PipelineBankConfigRing.js';
 import { ISRACARD_RING } from './PipelineBankConfigRingConstants.js';
 
 /** Isracard login config — passed to `.withApiDirect(...)`. */
 const ISRACARD_API_DIRECT_CALL = buildRingApiDirectCall(ISRACARD_RING);
 
 /** Isracard transport endpoints. */
-const ISRACARD_TRANSPORT = buildRingHeadless(ISRACARD_RING);
+const ISRACARD_TRANSPORT = buildRingTransport(ISRACARD_RING);
 
 export default ISRACARD_API_DIRECT_CALL;
 export { ISRACARD_API_DIRECT_CALL, ISRACARD_TRANSPORT };

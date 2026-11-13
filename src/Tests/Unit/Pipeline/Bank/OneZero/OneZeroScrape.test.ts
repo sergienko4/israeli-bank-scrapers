@@ -6,7 +6,7 @@
  */
 
 import { ONE_ZERO_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/OneZero/scrape/OneZeroShape.js';
-import { buildGenericHeadlessScrape } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeActions.js';
+import { buildGenericApiDirectScrape } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeActions.js';
 import { none } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
@@ -24,7 +24,7 @@ import {
   synMovement,
 } from './OneZeroScrapeTestHelpers.js';
 
-const ONE_ZERO_API_SCRAPE = buildGenericHeadlessScrape(ONE_ZERO_SHAPE);
+const ONE_ZERO_API_SCRAPE = buildGenericApiDirectScrape(ONE_ZERO_SHAPE);
 
 describe('ONE_ZERO_API_SCRAPE — guards', () => {
   it('missing mediator → fail with "ApiMediator missing"', async () => {

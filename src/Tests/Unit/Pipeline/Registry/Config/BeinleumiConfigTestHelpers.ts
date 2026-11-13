@@ -21,12 +21,12 @@ const CONFIG_MODULE =
   '../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigBeinleumi.js';
 
 /** The bank's transport block, as the build-time validator reads it. */
-type HeadlessBlock = Exclude<IApiDirectRuleInput['transport'], false>;
+type TransportBlock = Exclude<IApiDirectRuleInput['transport'], false>;
 
 /** The Beinleumi login config and its transport block. */
 interface IBeinleumiModule {
   readonly call: IApiDirectCallConfig;
-  readonly headless: HeadlessBlock;
+  readonly transport: TransportBlock;
 }
 
 /** A slot map, as carry holds it. */
@@ -82,8 +82,8 @@ const ENVELOPE_HEADERS = [
 async function loadModule(): Promise<IBeinleumiModule> {
   const loaded = (await import(CONFIG_MODULE)) as Record<string, unknown>;
   const call = loaded.default as IApiDirectCallConfig;
-  const headless = loaded.BEINLEUMI_TRANSPORT as HeadlessBlock;
-  return { call, headless };
+  const transport = loaded.BEINLEUMI_TRANSPORT as TransportBlock;
+  return { call, transport };
 }
 
 /**

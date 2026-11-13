@@ -4,7 +4,7 @@
 
 import { CompanyTypes } from '../../../../../Definitions.js';
 import { validateApiDirectConfig } from '../../../../../Scrapers/Pipeline/Core/Builder/Validation/ApiDirectConfigRules.js';
-import { createHeadlessApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
+import { createNativeApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import type {
   IApiDirectCallConfig,
   IDerivedCarry,
@@ -170,7 +170,7 @@ function portalConfig(module: IPortalModule): IApiDirectCallConfig {
  * @returns The validated flow.
  */
 function preparePortal(module: IPortalModule, config: IApiDirectCallConfig): IApiDirectCallConfig {
-  const headless = {
+  const transportConfig = {
     identityBase: ORIGIN,
     graphql: `${ORIGIN}/`,
     paths: module.LEUMI_PORTAL_PATHS,
@@ -180,7 +180,7 @@ function preparePortal(module: IPortalModule, config: IApiDirectCallConfig): IAp
     redirectPolicy: 'reject' as const,
     statusPolicy: module.LEUMI_STATUS_POLICY,
   };
-  const validation = validateApiDirectConfig({ call: config, transport: headless });
+  const validation = validateApiDirectConfig({ call: config, transport: transportConfig });
   if (!validation.success) throw new TypeError(validation.errorMessage);
   resetWkRegistryForTest();
   registerWkUrl('auth.verify', CompanyTypes.Leumi, `${ORIGIN}/synthetic-token`);
@@ -209,7 +209,7 @@ async function runPortal(options: IPeerOptions = {}): Promise<{
   preparePortal(module, config);
   const { fake, token } = makePortalPeer(options);
   globalThis.fetch = fake.fetchImpl as typeof globalThis.fetch;
-  const bus = createHeadlessApiMediator({
+  const bus = createNativeApiMediator({
     bankHint: CompanyTypes.Leumi,
     identityBaseUrl: ORIGIN,
     graphqlUrl: `${ORIGIN}/`,

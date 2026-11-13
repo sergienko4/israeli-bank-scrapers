@@ -4,7 +4,7 @@
  */
 
 import { CompanyTypes } from '../../../../../Definitions.js';
-import { createHeadlessApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
+import { createNativeApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import {
   registerWkQuery,
   resetWkRegistryForTest as resetWkQueriesForTest,
@@ -40,7 +40,7 @@ describe('ApiMediator — bank media types (N61)', () => {
 
   it('runs a native mediator under the bank media types', async () => {
     globalThis.fetch = answerPlain;
-    const mediator = createHeadlessApiMediator({
+    const mediator = createNativeApiMediator({
       bankHint: HINT,
       identityBaseUrl: 'https://id.example/v1/',
       graphqlUrl: 'https://gql.example/graphql',
@@ -53,7 +53,7 @@ describe('ApiMediator — bank media types (N61)', () => {
 
   it('applies the same bank media type to GraphQL answers', async () => {
     globalThis.fetch = answerPlain;
-    const mediator = createHeadlessApiMediator({
+    const mediator = createNativeApiMediator({
       bankHint: HINT,
       identityBaseUrl: 'https://id.example/v1/',
       graphqlUrl: 'https://gql.example/graphql',

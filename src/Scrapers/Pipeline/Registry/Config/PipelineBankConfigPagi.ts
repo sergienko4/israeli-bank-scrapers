@@ -5,7 +5,7 @@
  */
 
 import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
-import { buildFibiApiDirectCall, buildFibiHeadless } from './PipelineBankConfigFibiFamily.js';
+import { buildFibiApiDirectCall, buildFibiTransport } from './PipelineBankConfigFibiFamily.js';
 import type { IFibiBrand } from './PipelineBankConfigFibiFamilyConstants.js';
 import type { ITransportConfig } from './PipelineBankConfigTypes.js';
 
@@ -19,7 +19,7 @@ const PAGI_BRAND: IFibiBrand = {
 
 const PAGI_API_DIRECT_CALL: IApiDirectCallConfig = buildFibiApiDirectCall(PAGI_BRAND);
 
-const PAGI_TRANSPORT: ITransportConfig = buildFibiHeadless(PAGI_BRAND);
+const PAGI_TRANSPORT: ITransportConfig = buildFibiTransport(PAGI_BRAND);
 
 export default PAGI_API_DIRECT_CALL;
 export { PAGI_API_DIRECT_CALL, PAGI_TRANSPORT };

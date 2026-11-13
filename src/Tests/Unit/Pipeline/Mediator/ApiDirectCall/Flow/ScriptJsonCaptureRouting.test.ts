@@ -30,7 +30,7 @@ const BASE: IGetStep = {
   extractsToCarry: {},
   deriveCarry: [{ into: 'copiedSession', parts: ['carry.session'] }],
 };
-const HEADLESS = {
+const TRANSPORT = {
   identityBase: ORIGIN,
   graphql: `${ORIGIN}/graphql`,
   paths: {},
@@ -66,7 +66,7 @@ describe('serialized JSON step capture', () => {
   it('validates, captures and derives the root value on the real step path', async () => {
     const step = stepWith(CAPTURE);
     const config = configFor(step);
-    const valid = validateApiDirectConfig({ transport: HEADLESS, call: config });
+    const valid = validateApiDirectConfig({ transport: TRANSPORT, call: config });
     expect(valid).toMatchObject({ success: true });
     registerWkUrl('auth.bind', CompanyTypes.OneZero, `${ORIGIN}/landing`);
     const json = JSON.stringify({ SessionID: SESSION });
@@ -89,7 +89,7 @@ describe('serialized JSON step capture', () => {
     ['non-flat pattern', { pattern: '^(a+)+$' }],
   ])('refuses %s at build time', (_name, change) => {
     const step = stepWith({ ...CAPTURE, ...change });
-    const result = validateApiDirectConfig({ transport: HEADLESS, call: configFor(step) });
+    const result = validateApiDirectConfig({ transport: TRANSPORT, call: configFor(step) });
     expect(result).toMatchObject({
       success: false,
       errorMessage: 'steps.structuredCapture: invalid capture',
@@ -106,7 +106,7 @@ describe('serialized JSON step capture', () => {
       extractsToCarry: {},
     };
     const call = { ...configFor(first), steps: [first, next] };
-    const result = validateApiDirectConfig({ transport: HEADLESS, call });
+    const result = validateApiDirectConfig({ transport: TRANSPORT, call });
     expect(result).toMatchObject({
       success: false,
       errorMessage: 'steps.urlFromCarry: slot needs an earlier url rule',

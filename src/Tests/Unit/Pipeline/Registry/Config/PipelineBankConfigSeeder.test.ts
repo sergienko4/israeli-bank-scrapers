@@ -27,7 +27,7 @@ const SEEDER =
 type BankConfig = (typeof PIPELINE_BANK_CONFIG)[CompanyTypes];
 
 /** One bank's transport `paths` map. */
-type HeadlessPaths = NonNullable<NonNullable<BankConfig>['transport']>['paths'];
+type TransportPaths = NonNullable<NonNullable<BankConfig>['transport']>['paths'];
 
 /** One URL the seeder must register: [group, bank, url]. */
 type SeededUrl = readonly [WKUrlGroup, CompanyTypes, string];
@@ -38,7 +38,7 @@ type SeededUrl = readonly [WKUrlGroup, CompanyTypes, string];
  * @param paths - That bank's transport `paths` map.
  * @returns The path URLs the seeder must register.
  */
-function expectedPathUrls(bankId: CompanyTypes, paths: HeadlessPaths): SeededUrl[] {
+function expectedPathUrls(bankId: CompanyTypes, paths: TransportPaths): SeededUrl[] {
   return Object.entries(paths).flatMap(([key, url]): SeededUrl[] =>
     url ? [[key as WKUrlGroup, bankId, url]] : [],
   );
@@ -51,11 +51,11 @@ function expectedPathUrls(bankId: CompanyTypes, paths: HeadlessPaths): SeededUrl
  * @returns The URLs the seeder must register for the bank.
  */
 function expectedUrlsFor(bankId: CompanyTypes, config: BankConfig): SeededUrl[] {
-  const headless = config?.transport;
-  if (!headless) return [];
-  const pathUrls = expectedPathUrls(bankId, headless.paths);
-  const identity: SeededUrl = ['identityBase', bankId, headless.identityBase];
-  const graphql: SeededUrl = ['graphql', bankId, headless.graphql];
+  const transportConfig = config?.transport;
+  if (!transportConfig) return [];
+  const pathUrls = expectedPathUrls(bankId, transportConfig.paths);
+  const identity: SeededUrl = ['identityBase', bankId, transportConfig.identityBase];
+  const graphql: SeededUrl = ['graphql', bankId, transportConfig.graphql];
   return [identity, graphql, ...pathUrls];
 }
 
@@ -95,11 +95,11 @@ describe('PipelineBankConfigSeeder', () => {
     const bank = CompanyTypes.Leumi;
     const config = PIPELINE_BANK_CONFIG[bank];
     if (config === undefined) throw new TypeError('missing registry');
-    const { transport: headless, ...withoutHeadless } = config;
-    expect(headless).toBeDefined();
+    const { transport: transportConfig, ...withoutTransport } = config;
+    expect(transportConfig).toBeDefined();
     resetWkRegistryForTest();
     try {
-      SEEDER.seedWkFromPipelineConfig({ ...PIPELINE_BANK_CONFIG, [bank]: withoutHeadless });
+      SEEDER.seedWkFromPipelineConfig({ ...PIPELINE_BANK_CONFIG, [bank]: withoutTransport });
       const result = resolveWkUrl('identityBase', bank);
       const isResolved = isOk(result);
       expect(isResolved).toBe(false);

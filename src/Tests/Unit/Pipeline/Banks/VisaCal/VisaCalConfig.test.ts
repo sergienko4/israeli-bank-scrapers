@@ -44,7 +44,7 @@ async function loadCall(): Promise<IApiDirectCallConfig> {
  * Load the VisaCal transport block.
  * @returns The transport block.
  */
-async function loadHeadless(): Promise<ITransportConfig> {
+async function loadTransport(): Promise<ITransportConfig> {
   const path = `${CONFIG_DIR}PipelineBankConfigVisaCalTransport.js`;
   const mod = (await import(path)) as IDefaultModule<ITransportConfig>;
   return mod.default;
@@ -53,8 +53,8 @@ async function loadHeadless(): Promise<ITransportConfig> {
 describe('VisaCal API-direct call config', () => {
   it('passes the build-time validator with its headless block', async () => {
     const call = await loadCall();
-    const headless = await loadHeadless();
-    const result = validateApiDirectConfig({ call, transport: headless });
+    const transportConfig = await loadTransport();
+    const result = validateApiDirectConfig({ call, transport: transportConfig });
     expect(result).toEqual({ success: true, value: true });
   });
 
@@ -99,19 +99,19 @@ describe('VisaCal API-direct call config', () => {
   });
 
   it('runs over native fetch with both login paths seeded', async () => {
-    const headless = await loadHeadless();
-    expect(headless.nativeFetch).toBe(true);
-    const paths = Object.keys(headless.paths);
+    const transportConfig = await loadTransport();
+    expect(transportConfig.nativeFetch).toBe(true);
+    const paths = Object.keys(transportConfig.paths);
     const sorted = paths.sort();
     expect(sorted).toEqual(['auth.login', 'auth.resume']);
   });
 
   it('is registered on that headless block', async () => {
-    const headless = await loadHeadless();
+    const transportConfig = await loadTransport();
     const { resolvePipelineBankConfig } =
       await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
     const entry = resolvePipelineBankConfig(CompanyTypes.VisaCal);
-    const isWired = entry !== false && entry.transport === headless;
+    const isWired = entry !== false && entry.transport === transportConfig;
     expect(isWired).toBe(true);
   });
 });

@@ -28,12 +28,12 @@ import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 const CONFIG_MODULE = '../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigYahav.js';
 
 /** The bank's transport block, as the build-time validator reads it. */
-type HeadlessBlock = Exclude<IApiDirectRuleInput['transport'], false>;
+type TransportBlock = Exclude<IApiDirectRuleInput['transport'], false>;
 
 /** The Yahav login config and its transport block. */
 interface IYahavModule {
   readonly call: IApiDirectCallConfig;
-  readonly headless: HeadlessBlock;
+  readonly transportConfig: TransportBlock;
 }
 
 const ORIGIN = 'https://mobile.yahav.co.il';
@@ -89,8 +89,8 @@ const TOKEN_FORM = {
 async function loadModule(): Promise<IYahavModule> {
   const loaded = (await import(CONFIG_MODULE)) as Record<string, unknown>;
   const call = loaded.default as IApiDirectCallConfig;
-  const headless = loaded.YAHAV_TRANSPORT as HeadlessBlock;
-  return { call, headless };
+  const transportConfig = loaded.YAHAV_TRANSPORT as TransportBlock;
+  return { call, transportConfig };
 }
 
 /**
@@ -148,20 +148,20 @@ function isAccepted(
 
 describe('Yahav native login config — wiring', () => {
   it('passes the build-time validator with its headless block', async () => {
-    const { call, headless } = await loadModule();
-    const result = validateApiDirectConfig({ call, transport: headless });
+    const { call, transportConfig } = await loadModule();
+    const result = validateApiDirectConfig({ call, transport: transportConfig });
     expect(result).toEqual({ success: true, value: true });
   });
 
   it('initializes, registers, then takes a token, each on its own URL', async () => {
-    const { call, headless } = await loadModule();
+    const { call, transportConfig } = await loadModule();
     const named = call.steps.map(step => [step.name, step.urlTag]);
     expect(named).toEqual([
       ['prime', 'auth.prime'],
       ['register', 'auth.bind'],
       ['logon', 'auth.logon'],
     ]);
-    expect(headless.paths).toEqual({
+    expect(transportConfig.paths).toEqual({
       'auth.prime': `${ORIGIN}/connect/client/initialize`,
       'auth.bind': `${ORIGIN}/connect/device/register`,
       'auth.logon': `${ORIGIN}/auth/oauth/v2/token`,
@@ -169,19 +169,19 @@ describe('Yahav native login config — wiring', () => {
   });
 
   it('presents the device certificate only to the token call, on the mobile origin', async () => {
-    const { call, headless } = await loadModule();
+    const { call, transportConfig } = await loadModule();
     const certified = call.steps.filter(step => step.clientCert !== undefined);
     const logon = stepNamed(call, 'logon');
     expect(certified).toEqual([logon]);
     expect(logon.clientCert).toEqual({ key: 'carry.certKeyPem', cert: 'carry.certPem' });
-    expect(headless.clientCert).toEqual({ mode: 'dynamic', origin: ORIGIN });
-    expect(headless.nativeFetch).toBeUndefined();
-    expect(headless.requiresClientCert).toBeUndefined();
+    expect(transportConfig.clientCert).toEqual({ mode: 'dynamic', origin: ORIGIN });
+    expect(transportConfig.nativeFetch).toBeUndefined();
+    expect(transportConfig.requiresClientCert).toBeUndefined();
   });
 
   it('keeps a cookie session on the bank domain', async () => {
-    const { headless } = await loadModule();
-    expect(headless).toMatchObject({ sessionCookies: true, cookieDomains: ['yahav.co.il'] });
+    const { transportConfig } = await loadModule();
+    expect(transportConfig).toMatchObject({ sessionCookies: true, cookieDomains: ['yahav.co.il'] });
   });
 });
 

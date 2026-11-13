@@ -34,7 +34,7 @@ function seedOnePath(bankHint: CompanyTypes, key: string, url?: string): DidSeed
  * @param transport - Transport URLs block.
  * @returns True once all entries are written.
  */
-function seedWkFromHeadless(bankHint: CompanyTypes, transport: ITransportConfig): DidSeed {
+function seedWkFromTransport(bankHint: CompanyTypes, transport: ITransportConfig): DidSeed {
   registerWkUrl('identityBase', bankHint, transport.identityBase);
   registerWkUrl('graphql', bankHint, transport.graphql);
   for (const [key, url] of Object.entries(transport.paths)) seedOnePath(bankHint, key, url);
@@ -54,7 +54,7 @@ function seedOneBank(
 ): DidSeed {
   const transport = registry[bankId]?.transport;
   if (!transport) return false as DidSeed;
-  return seedWkFromHeadless(bankId, transport);
+  return seedWkFromTransport(bankId, transport);
 }
 
 /**

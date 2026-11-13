@@ -61,9 +61,9 @@ describe('PipelineContextFactory — headless mediator wiring', () => {
     const bank = CompanyTypes.Leumi;
     const original = registry.PIPELINE_BANK_CONFIG[bank];
     if (original === undefined) throw new TypeError('missing bank configuration');
-    const { transport: headless, ...withoutHeadless } = original;
-    expect(headless).toBeDefined();
-    registry.PIPELINE_BANK_CONFIG[bank] = withoutHeadless;
+    const { transport: transportConfig, ...withoutTransport } = original;
+    expect(transportConfig).toBeDefined();
+    registry.PIPELINE_BANK_CONFIG[bank] = withoutTransport;
     try {
       const descriptor = makeDescriptor(bank);
       const ctx = buildInitialContext(descriptor, { id: 'syn', password: 'syn' });

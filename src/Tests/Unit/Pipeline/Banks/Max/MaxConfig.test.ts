@@ -28,7 +28,7 @@ type ITransportConfig = Exclude<IApiDirectRuleInput['transport'], false>;
 /** Max's login config and transport block. */
 interface IMaxModule {
   readonly call: IApiDirectCallConfig;
-  readonly headless: ITransportConfig;
+  readonly transportConfig: ITransportConfig;
 }
 
 const ORIGIN = 'https://www.max.co.il';
@@ -42,14 +42,14 @@ async function loadMax(): Promise<IMaxModule> {
   const path = `${CONFIG_DIR}PipelineBankConfigMax.js`;
   const loaded = (await import(path)) as Record<string, unknown>;
   const call = loaded.default as IApiDirectCallConfig;
-  const headless = loaded.MAX_TRANSPORT as ITransportConfig;
-  return { call, headless };
+  const transportConfig = loaded.MAX_TRANSPORT as ITransportConfig;
+  return { call, transportConfig };
 }
 
 describe('Max API-direct call config', () => {
   it('passes the build-time validator with its headless block', async () => {
-    const { call, headless } = await loadMax();
-    const result = validateApiDirectConfig({ call, transport: headless });
+    const { call, transportConfig } = await loadMax();
+    const result = validateApiDirectConfig({ call, transport: transportConfig });
     expect(result).toEqual({ success: true, value: true });
   });
 
@@ -106,21 +106,21 @@ describe('Max API-direct call config', () => {
   });
 
   it('runs over native fetch, with the session on cookies rather than a header', async () => {
-    const { call, headless } = await loadMax();
+    const { call, transportConfig } = await loadMax();
     expect(call.authScheme).toBe('none');
-    expect(headless).toMatchObject({ nativeFetch: true, sessionCookies: true });
-    expect(headless.paths).toEqual({
+    expect(transportConfig).toMatchObject({ nativeFetch: true, sessionCookies: true });
+    expect(transportConfig.paths).toEqual({
       'auth.prime': `${ORIGIN}/api/registered/clientcontext`,
       'auth.login': `${ORIGIN}/api/login/login`,
     });
   });
 
   it('is registered on that headless block', async () => {
-    const { headless } = await loadMax();
+    const { transportConfig } = await loadMax();
     const { resolvePipelineBankConfig } =
       await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
     const entry = resolvePipelineBankConfig(CompanyTypes.Max);
-    const isWired = entry !== false && entry.transport === headless;
+    const isWired = entry !== false && entry.transport === transportConfig;
     expect(isWired).toBe(true);
   });
 });

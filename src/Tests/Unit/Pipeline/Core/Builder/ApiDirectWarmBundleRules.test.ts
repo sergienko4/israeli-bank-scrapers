@@ -19,17 +19,17 @@ import type {
 } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 
 /** The bank's transport block as the rules read it. */
-type HeadlessBlock = IApiDirectRuleInput['transport'];
+type TransportBlock = IApiDirectRuleInput['transport'];
 
 /** A transport block with a cookie-domain session, as a jar-keeping bundle needs. */
 const DOMAINS = {
   sessionCookies: true,
   nativeFetch: true,
   cookieDomains: ['bank.example'],
-} as unknown as HeadlessBlock;
+} as unknown as TransportBlock;
 
 /** A session without cookie domains. */
-const SESSION_ONLY = { sessionCookies: true } as unknown as HeadlessBlock;
+const SESSION_ONLY = { sessionCookies: true } as unknown as TransportBlock;
 
 /** The step that fills the kept slots: one extract, two generator outputs. */
 const REGISTER: IStepConfig = {
@@ -77,7 +77,7 @@ type BundleFields = Partial<
 /** What a rule input varies. */
 interface IBundleCase {
   readonly fields?: BundleFields;
-  readonly headless?: HeadlessBlock;
+  readonly transportConfig?: TransportBlock;
   readonly steps?: readonly IStepConfig[];
 }
 
@@ -102,7 +102,7 @@ function bundleWarm(bundleCase: IBundleCase = {}): IApiDirectRuleInput {
   } as const;
   const steps = bundleCase.steps ?? [REGISTER, LOGON];
   const call: IApiDirectCallConfig = { flow: 'sms-otp', envelope: {}, steps, warmStart };
-  return { call, transport: bundleCase.headless ?? DOMAINS };
+  return { call, transport: bundleCase.transportConfig ?? DOMAINS };
 }
 
 /** A rule input and the failure text it must produce. */
@@ -124,8 +124,8 @@ const BROKEN: readonly BrokenCase[] = [
     bundleWarm({ fields: { slots: ['clientId', 'otp'] } }),
     SLOTS_FILLED_MSG,
   ],
-  ['the jar without a headless block', bundleWarm({ headless: false }), COOKIES_MSG],
-  ['the jar without cookie domains', bundleWarm({ headless: SESSION_ONLY }), COOKIES_MSG],
+  ['the jar without a headless block', bundleWarm({ transportConfig: false }), COOKIES_MSG],
+  ['the jar without cookie domains', bundleWarm({ transportConfig: SESSION_ONLY }), COOKIES_MSG],
   ['a blank provider', bundleWarm({ fields: { provider: ' ' } }), PROVIDER_MSG],
   ['a zero ceiling', bundleWarm({ fields: { maxTokenChars: 0 } }), MAX_TOKEN_MSG],
   [
@@ -149,7 +149,10 @@ const SOUND: readonly SoundCase[] = [
     'an ecdh-key public slot',
     bundleWarm({ fields: { slots: ['ecdhPublic'] }, steps: [ECDH_STEP, LOGON] }),
   ],
-  ['no jar and no headless block', bundleWarm({ fields: { cookies: false }, headless: false })],
+  [
+    'no jar and no headless block',
+    bundleWarm({ fields: { cookies: false }, transportConfig: false }),
+  ],
   ['the lowest ceiling', bundleWarm({ fields: { maxTokenChars: 1 } })],
 ];
 

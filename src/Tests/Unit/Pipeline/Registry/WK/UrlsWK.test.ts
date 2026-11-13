@@ -241,7 +241,7 @@ function thisDir(): string {
 }
 
 /** A bank's transport block as the seeder reads it. */
-type HeadlessBlock = Exclude<IApiDirectRuleInput['transport'], false>;
+type TransportBlock = Exclude<IApiDirectRuleInput['transport'], false>;
 
 const SESSION_ORIGIN = 'https://session.example';
 const BOOTSTRAP_URL = `${SESSION_ORIGIN}/bootstrap`;
@@ -254,7 +254,7 @@ const OTP_INIT_URL = `${SESSION_ORIGIN}/otp-init`;
 const OTP_VERIFY_URL = `${SESSION_ORIGIN}/otp-verify`;
 
 /** Every session-transport auth path a transport block can name. */
-const SESSION_PATHS: HeadlessBlock['paths'] = {
+const SESSION_PATHS: TransportBlock['paths'] = {
   'auth.bootstrap': BOOTSTRAP_URL,
   'auth.landing': LANDING_URL,
   'auth.logon': LOGON_URL,
@@ -286,8 +286,12 @@ async function seedSessionBank(): Promise<void> {
   const seeder =
     await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigSeeder.js');
   const graphql = `${SESSION_ORIGIN}/graphql`;
-  const headless: HeadlessBlock = { identityBase: SESSION_ORIGIN, graphql, paths: SESSION_PATHS };
-  const config = { urls: { base: SESSION_ORIGIN }, transport: headless } as const;
+  const transportConfig: TransportBlock = {
+    identityBase: SESSION_ORIGIN,
+    graphql,
+    paths: SESSION_PATHS,
+  };
+  const config = { urls: { base: SESSION_ORIGIN }, transport: transportConfig } as const;
   seeder.seedWkFromPipelineConfig({ [HINT]: config });
 }
 

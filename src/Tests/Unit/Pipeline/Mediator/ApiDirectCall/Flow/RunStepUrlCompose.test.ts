@@ -46,7 +46,7 @@ const NEXT: IGetStep = {
   extractsToCarry: {},
 };
 const CONFIG: IApiDirectCallConfig = { flow: 'sms-otp', envelope: {}, steps: [FIRST, NEXT] };
-const HEADLESS = {
+const TRANSPORT = {
   identityBase: ORIGIN,
   graphql: `${ORIGIN}/graphql`,
   paths: {},
@@ -130,7 +130,7 @@ describe('checked URL composition', () => {
     const extra = url.searchParams.get('extra');
     const tracking = url.searchParams.getAll('tracking');
     const identity = url.searchParams.getAll('userId');
-    const validation = validateApiDirectConfig({ call: CONFIG, transport: HEADLESS });
+    const validation = validateApiDirectConfig({ call: CONFIG, transport: TRANSPORT });
     expect(url.pathname).toBe('/SSO');
     expect(sector).toBe('Override');
     expect(extra).toBe('keep');
@@ -240,7 +240,7 @@ describe('checked URL composition', () => {
   ] as const)('rejects %s at build time', (_label, derived) => {
     const first = { ...FIRST, deriveCarry: [derived] };
     const call: IApiDirectCallConfig = { ...CONFIG, steps: [first, NEXT] };
-    const result = validateApiDirectConfig({ call, transport: HEADLESS });
+    const result = validateApiDirectConfig({ call, transport: TRANSPORT });
     expect(result).toMatchObject({
       success: false,
       errorMessage: 'derive.op.url-compose: invalid composition',

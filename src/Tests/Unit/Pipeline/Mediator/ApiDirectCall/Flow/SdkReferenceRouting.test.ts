@@ -72,16 +72,16 @@ describe('SDK reference routing', () => {
   });
 
   it('admits checked SDK carry and refuses a duplicate output slot', () => {
-    const headless = {
+    const transportConfig = {
       identityBase: ORIGIN,
       graphql: `${ORIGIN}/graphql`,
       paths: {},
       nativeFetch: true,
     };
-    const valid = validateApiDirectConfig({ transport: headless, call: CONFIG });
+    const valid = validateApiDirectConfig({ transport: transportConfig, call: CONFIG });
     const conflicting = { ...STEP, extractsToCarry: { sdkUrl: '/text' } };
     const invalid = validateApiDirectConfig({
-      transport: headless,
+      transport: transportConfig,
       call: { ...CONFIG, steps: [conflicting, NEXT] },
     });
     expect(valid).toMatchObject({ success: true });
@@ -89,7 +89,7 @@ describe('SDK reference routing', () => {
   });
 
   it('refuses malformed capture fields without exposing their values', () => {
-    const headless = {
+    const transportConfig = {
       identityBase: ORIGIN,
       graphql: `${ORIGIN}/graphql`,
       paths: {},
@@ -111,7 +111,7 @@ describe('SDK reference routing', () => {
       Reflect.set(capture, field, value);
       const step = { ...STEP, structuredCapture: capture };
       const result = validateApiDirectConfig({
-        transport: headless,
+        transport: transportConfig,
         call: { ...CONFIG, steps: [step, NEXT] },
       });
       expect(result).toMatchObject({
@@ -122,7 +122,7 @@ describe('SDK reference routing', () => {
     const step = { ...STEP };
     Reflect.set(step, 'structuredCapture', null);
     const result = validateApiDirectConfig({
-      transport: headless,
+      transport: transportConfig,
       call: { ...CONFIG, steps: [step] },
     });
     expect(result).toMatchObject({
@@ -132,7 +132,7 @@ describe('SDK reference routing', () => {
   });
 
   it('refuses an SDK capture on a JSON response before issuing a request', () => {
-    const headless = {
+    const transportConfig = {
       identityBase: ORIGIN,
       graphql: `${ORIGIN}/graphql`,
       paths: {},
@@ -140,7 +140,7 @@ describe('SDK reference routing', () => {
     };
     const step: IGetStep = { ...STEP, response: 'json' };
     const result = validateApiDirectConfig({
-      transport: headless,
+      transport: transportConfig,
       call: { ...CONFIG, steps: [step] },
     });
     expect(result).toMatchObject({
@@ -150,7 +150,7 @@ describe('SDK reference routing', () => {
   });
 
   it('rejects capture collisions with generators and classifier case captures', () => {
-    const headless = {
+    const transportConfig = {
       identityBase: ORIGIN,
       graphql: `${ORIGIN}/graphql`,
       paths: {},
@@ -170,7 +170,7 @@ describe('SDK reference routing', () => {
     for (const change of changes) {
       const step = { ...STEP, ...change };
       const result = validateApiDirectConfig({
-        transport: headless,
+        transport: transportConfig,
         call: { ...CONFIG, steps: [step, NEXT] },
       });
       expect(result).toMatchObject({

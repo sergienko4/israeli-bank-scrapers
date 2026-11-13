@@ -329,7 +329,7 @@ describe('cookie-jar warm start through the strategy', () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = fake.fetchImpl as typeof globalThis.fetch;
     try {
-      const bus = MEDIATOR.createHeadlessApiMediator({
+      const bus = MEDIATOR.createNativeApiMediator({
         bankHint: CompanyTypes.OneZero,
         identityBaseUrl: 'https://example.test',
         graphqlUrl: 'https://example.test/graphql',

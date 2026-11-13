@@ -5,10 +5,7 @@
  * `.factory`, `.factories`.
  */
 
-export {
-  createHeadlessApiMediator,
-  createMtlsHeadlessApiMediator,
-} from './ApiMediator.factories.js';
+export { createMtlsApiMediator, createNativeApiMediator } from './ApiMediator.factories.js';
 export { createApiMediator } from './ApiMediator.factory.js';
 export type {
   IApiMediator,

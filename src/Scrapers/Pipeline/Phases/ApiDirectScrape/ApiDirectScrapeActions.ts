@@ -190,7 +190,7 @@ async function runScrapeWithRecovery<TAcct, TCursor>(
  * @param shape - Bank-supplied shape declaration (data only).
  * @returns Scrape function consumed by the Pipeline descriptor.
  */
-export function buildGenericHeadlessScrape<TAcct, TCursor>(
+export function buildGenericApiDirectScrape<TAcct, TCursor>(
   shape: IApiDirectScrapeShape<TAcct, TCursor>,
 ): (ctx: IActionContext) => Promise<Procedure<ApiDirectScrapeResult>> {
   return async (ctx): Promise<Procedure<ApiDirectScrapeResult>> => {
@@ -200,4 +200,4 @@ export function buildGenericHeadlessScrape<TAcct, TCursor>(
   };
 }
 
-export default buildGenericHeadlessScrape;
+export default buildGenericApiDirectScrape;
