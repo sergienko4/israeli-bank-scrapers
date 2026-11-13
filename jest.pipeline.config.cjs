@@ -2,6 +2,12 @@
 // Mirrors jest.config.js with a narrowed collectCoverageFrom so the
 // coverage gate measures the Pipeline folder only. Shell-independent.
 
+// Pin the zone before workers start: they inherit it at startup and a test
+// cannot reassign `TZ` itself. Asia/Jerusalem is the zone every supported bank
+// reports in, and the DST-fold suites need it to fold. Same pin as
+// `jest.config.js` and `jest.policy.config.cjs`.
+process.env.TZ = 'Asia/Jerusalem';
+
 module.exports = {
   preset: 'ts-jest/presets/default-esm',
   clearMocks: true,

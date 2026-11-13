@@ -35,6 +35,11 @@
 #   2. The failure is not the logger's. Dying because a devDependency cannot be
 #      resolved happens before any network call, which makes it look like the
 #      bank is unreachable.
+#   3. The pino/thread-stream graph the consumer resolved still matches the
+#      private `kImpl` layout that worker retirement (RetireWorkerEnd.ts) writes
+#      into: pino inside the range the packed manifest declares, the supported
+#      thread-stream major, the same shared-state offsets, and a live stream that
+#      still carries the `kImpl` record. Offline and deterministic; no bank.
 #
 # NO BANK IS CONTACTED. The smoke replaces fetch with a synthetic 503 response,
 # making the native Leumi run hermetic and independent of the bank's status.
@@ -127,6 +132,107 @@ tar -xzf "${TARBALL}" -C "${PKG_DIR}" --strip-components=1
 cp "${REPO_ROOT}/.github/scripts/ci/consumer-smoke.cjs" ./smoke.cjs
 cp "${REPO_ROOT}/.github/scripts/ci/consumer-smoke.mjs" ./smoke.mjs
 
+# Worker retirement writes ThreadStream's private `kImpl` shared-state protocol
+# (fixed word offsets), which is not a public contract. This probe asks the graph
+# the packed package actually resolved whether that layout is still there; it
+# reads the installed packages only and never touches the network. Its constants
+# mirror RetireWorkerEnd.ts, and ConsumerRuntime.test.ts fails when they drift.
+cat > ./layout-probe.cjs <<'LAYOUT_PROBE'
+'use strict';
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { createRequire } = require('node:module');
+
+const WRITE_INDEX = 4;
+const READ_INDEX = 8;
+const IMPL_SYMBOL = 'kImpl';
+// Raising this is a deliberate decision: re-verify the layout against the new major first.
+const SUPPORTED_THREAD_STREAM_MAJOR = 4;
+
+function check(isOk, message) {
+  if (!isOk) throw new Error(message);
+}
+
+function readJson(file) {
+  return JSON.parse(fs.readFileSync(file, 'utf8'));
+}
+
+function satisfiesCaret(version, range) {
+  const want = /^\^(\d+)\.(\d+)\.(\d+)$/.exec(range);
+  check(want !== null, `unsupported pino range "${range}"; teach this probe the new form`);
+  const have = version.split('-')[0].split('.').map(Number);
+  const [major, minor, patch] = want.slice(1).map(Number);
+  return have[0] === major && (have[1] > minor || (have[1] === minor && have[2] >= patch));
+}
+
+function findImpl(stream) {
+  const symbols = Object.getOwnPropertySymbols(stream);
+  const symbol = symbols.find(candidate => candidate.description === IMPL_SYMBOL);
+  check(symbol !== undefined, `thread-stream carries no ${IMPL_SYMBOL} state record`);
+  return stream[symbol];
+}
+
+function checkImplShape(impl) {
+  const hasState = impl.state instanceof Int32Array && impl.state.length > READ_INDEX;
+  check(hasState, `${IMPL_SYMBOL}.state is not an Int32Array covering READ_INDEX`);
+  const hasFlags = typeof impl.flushing === 'boolean' && typeof impl.ending === 'boolean';
+  check(hasFlags && typeof impl.buf === 'string', `${IMPL_SYMBOL} lacks flushing/ending/buf`);
+}
+
+function resolveGraph(packageDir) {
+  const manifest = path.resolve(packageDir, 'package.json');
+  const fromPackage = createRequire(manifest);
+  const range = readJson(manifest).dependencies.pino;
+  const pinoManifest = fromPackage.resolve('pino/package.json');
+  const threadManifest = createRequire(pinoManifest).resolve('thread-stream/package.json');
+  const pinoVersion = readJson(pinoManifest).version;
+  const threadVersion = readJson(threadManifest).version;
+  return { fromPackage, range, pinoVersion, threadManifest, threadVersion };
+}
+
+function checkVersions(graph) {
+  const { range, pinoVersion, threadVersion } = graph;
+  check(satisfiesCaret(pinoVersion, range), `pino ${pinoVersion} is outside the packed range ${range}`);
+  const major = Number(threadVersion.split('.')[0]);
+  const message = `thread-stream ${threadVersion} is outside the supported major ${SUPPORTED_THREAD_STREAM_MAJOR}`;
+  check(major === SUPPORTED_THREAD_STREAM_MAJOR, message);
+}
+
+function checkIndexes(graph) {
+  const indexesFile = path.join(path.dirname(graph.threadManifest), 'lib', 'indexes.js');
+  const indexes = require(indexesFile);
+  const isSame = indexes.WRITE_INDEX === WRITE_INDEX && indexes.READ_INDEX === READ_INDEX;
+  check(isSame, `thread-stream offsets ${indexes.WRITE_INDEX}/${indexes.READ_INDEX} moved from ${WRITE_INDEX}/${READ_INDEX}`);
+}
+
+function checkLiveStream(graph) {
+  const pino = graph.fromPackage('pino');
+  const stream = pino.transport({ target: 'pino/file', options: { destination: os.devNull } });
+  stream.on('error', error => {
+    console.log(`FAIL: ${error.message}`);
+    process.exitCode = 1;
+  });
+  try {
+    checkImplShape(findImpl(stream));
+  } finally {
+    stream.end();
+  }
+}
+
+try {
+  const graph = resolveGraph(process.argv[2] || process.cwd());
+  checkVersions(graph);
+  checkIndexes(graph);
+  checkLiveStream(graph);
+  const supported = `range ${graph.range}, supported thread-stream major ${SUPPORTED_THREAD_STREAM_MAJOR}`;
+  console.log(`ok - pino ${graph.pinoVersion}, thread-stream ${graph.threadVersion} (${supported}); ${IMPL_SYMBOL} layout intact`);
+} catch (error) {
+  console.log(`FAIL: ${error.message}`);
+  process.exitCode = 1;
+}
+LAYOUT_PROBE
+
 # `pino-pretty` must be absent, or the gate proves nothing: the transport
 # would resolve and the defect would stay hidden exactly as it does in CI.
 if [ -d "node_modules/pino-pretty" ]; then
@@ -218,6 +324,31 @@ run_environment() {
   echo "    ${output}"
   return 0
 }
+
+# Assert the dependency graph the packed package resolved still matches the
+# private `kImpl` layout worker retirement writes into.
+#
+# $1 - directory of the installed package whose manifest and resolution to use
+#
+# Returns 0 always; a mismatch marks the run failed, like the other assertions.
+assert_dependency_layout() {
+  local package_dir="$1"
+  echo "==> Worker-retirement dependency layout (as resolved from the packed package)"
+  local output
+  local status=0
+  output="$("$CONSUMER_NODE" ./layout-probe.cjs "${package_dir}" 2>&1)" || status=$?
+  if [ "${status}" -ne 0 ]; then
+    echo "    FAIL: the installed pino/thread-stream no longer match the private layout"
+    echo "          worker retirement writes into (RetireWorkerEnd.ts)."
+    echo "          ${output}"
+    FAILED=1
+    return 0
+  fi
+  echo "    ${output}"
+  return 0
+}
+
+assert_dependency_layout "${PKG_DIR}"
 
 # The default state of a consumer's application: none of these are set.
 # This is the environment no CI job can reproduce. PRETTY_LOGS is unset

@@ -16,9 +16,13 @@ import * as path from 'node:path';
 import { jest } from '@jest/globals';
 import pino, { type Logger } from 'pino';
 
+import ScraperError from '../../../../Scrapers/Base/ScraperError.js';
 import { type IFileLease } from '../../../../Scrapers/Pipeline/Logging/FileLease.js';
 import { closeFileLeaseAsync } from '../../../../Scrapers/Pipeline/Logging/FileLeaseClose.js';
-import type { IPinoStreamCandidate } from '../../../../Scrapers/Pipeline/Logging/RetireTransport.js';
+import {
+  type IPinoStreamCandidate,
+  scheduleStreamClose,
+} from '../../../../Scrapers/Pipeline/Logging/RetireTransport.js';
 import {
   requestWorkerEnd,
   type WorkerEndOutcome,
@@ -658,6 +662,236 @@ describe('closeFileLeaseAsync — shared descriptor ownership', () => {
       fs.closeSync(reused);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+/** Short watchdog (ms) bounding a fallback whose lease bytes never arrive. */
+const SHORT_WATCHDOG_MS = 50;
+
+/** Bytes a lease claims were written but that never reach the file. */
+const MISSING_BYTES = 64;
+
+/** Flush callback retirement hands a fallback stream. */
+type FlushCallback = (flushError?: Error) => boolean;
+
+/** Fake fallback stream whose `flush` acknowledgement the spec triggers by hand. */
+interface IFlushProbe {
+  readonly stream: IPinoStreamCandidate;
+  readonly terminateCalls: () => number;
+  readonly acknowledge: FlushCallback;
+}
+
+/** One `kImpl` shape retirement must refuse rather than write the end marker into. */
+interface IUnsupportedLayout {
+  readonly id: string;
+  readonly name: string;
+  readonly impl: object | false;
+  readonly watched: ArrayLike<number> | false;
+}
+
+/**
+ * Yield one `setImmediate` turn; anything queued earlier has already run.
+ * @returns Always true.
+ */
+function yieldImmediate(): Promise<true> {
+  return new Promise<true>(resolve => {
+    setImmediate(resolve, true);
+  });
+}
+
+/**
+ * Record `process.emitWarning` calls instead of writing them to stderr.
+ * @returns Recorded warnings plus the restore hook.
+ */
+function captureWarnings(): { readonly warnings: string[]; readonly restore: () => true } {
+  const warnings: string[] = [];
+  /**
+   * Record one emitted warning.
+   * @param warning - Warning message or Error.
+   * @returns Always true.
+   */
+  const record: typeof process.emitWarning = (warning): true => {
+    const text = String(warning);
+    warnings.push(text);
+    return true;
+  };
+  const spy = jest.spyOn(process, 'emitWarning').mockImplementation(record);
+  /**
+   * Restore the real `process.emitWarning`.
+   * @returns Always true.
+   */
+  const restore = (): true => {
+    spy.mockRestore();
+    return true;
+  };
+  return { warnings, restore };
+}
+
+/**
+ * Build a fake fallback stream: no private end signal, hand-driven flush.
+ * @returns Probe exposing the candidate, flush hooks, and termination count.
+ */
+function makeFlushProbe(): IFlushProbe {
+  const counter = makeTerminationCounter();
+  let pending: FlushCallback | false = false;
+  const stream: IPinoStreamCandidate = {
+    closed: false,
+    destroyed: false,
+    /**
+     * Hold the callback retirement passed to `flush`.
+     * @param cb - Flush completion callback.
+     * @returns Dummy stream object.
+     */
+    flush: (cb): object => {
+      pending = cb;
+      return {};
+    },
+    worker: { terminate: counter.terminate },
+  };
+  /**
+   * Fire the held flush callback.
+   * @param flushError - Optional flush failure.
+   * @returns True when a callback was held and ran.
+   */
+  const acknowledge: FlushCallback = (flushError): boolean =>
+    pending === false ? false : pending(flushError);
+  return { stream, terminateCalls: counter.count, acknowledge };
+}
+
+/**
+ * Build the unsupported `kImpl` layouts the fallback must tolerate.
+ * @returns One row per layout, each with fresh state arrays.
+ */
+function makeUnsupportedLayouts(): readonly IUnsupportedLayout[] {
+  const renamed = new Int32Array(32);
+  const short = new Int32Array(READ_INDEX);
+  const bytes = new Uint8Array(128);
+  const flags = { ending: false, flushing: false, buf: '' };
+  const moved = { sab: renamed, isEnding: false, isFlushing: false, pending: '' };
+  return [
+    { id: 'RTC-8a', name: 'no kImpl symbol', impl: false, watched: false },
+    { id: 'RTC-8b', name: 'an empty kImpl record', impl: {}, watched: false },
+    { id: 'RTC-8c', name: 'renamed state fields', impl: moved, watched: renamed },
+    {
+      id: 'RTC-8d',
+      name: 'a state too short for READ_INDEX',
+      impl: { ...flags, state: short },
+      watched: short,
+    },
+    {
+      id: 'RTC-8e',
+      name: 'a non-Int32Array state',
+      impl: { ...flags, state: bytes },
+      watched: bytes,
+    },
+  ];
+}
+
+/** Every unsupported `kImpl` layout, built once so each row owns its state arrays. */
+const UNSUPPORTED_LAYOUTS = makeUnsupportedLayouts();
+
+/**
+ * Unsupported private layout: what the fallback does and what it can prove.
+ *
+ * `requestWorkerEnd` only trusts a `kImpl` record whose SHAPE matches
+ * `ThreadStream` (Int32Array state longer than READ_INDEX, boolean flags, string
+ * buf). Anything else reports `unsupported`, and retirement then NEVER stores the
+ * end marker. It waits for `flush()` (the worker consumed the ring buffer), then
+ * for the owned lease (`fstat` size reaches the counted bytes), then calls
+ * `worker.terminate()`. The real-worker variant is RTC-3 in
+ * RetireTransportCompat.test.ts.
+ *
+ * - CAN be proven drained: `pino/file` destinations on an owned lease, because the
+ *   main thread counts the serialized bytes and polls the shared descriptor.
+ * - CANNOT be proven drained: `pino-pretty` or multistream targets and any
+ *   lease-less destination. The flush acknowledgement only says the worker copied
+ *   the bytes, so terminating can drop output still buffered inside those
+ *   destinations. The watchdog bounds a lease that never reaches its target.
+ *
+ * Known limit: the guard checks shape, not meaning. A future layout with the same
+ * field names and types but moved offsets is not detected at runtime, which is why
+ * the pinned graph, RTC-2 and the packed-consumer probe verify the offsets instead.
+ */
+describe('unsupported thread-stream layout fallback', () => {
+  it.each(UNSUPPORTED_LAYOUTS)(
+    '[$id] $name falls back to flush then terminate and never writes shared state',
+    async (row): Promise<void> => {
+      const probe = makeFlushProbe();
+      const implSymbol = Symbol('kImpl');
+      if (row.impl) Object.defineProperty(probe.stream, implSymbol, { value: row.impl });
+      const outcome = requestWorkerEnd(probe.stream);
+      expect(outcome).toBe('unsupported');
+      scheduleStreamClose(probe.stream, CLOSE_WAIT_MS);
+      await yieldImmediate();
+      const beforeAck = probe.terminateCalls();
+      expect(beforeAck).toBe(0);
+      probe.acknowledge();
+      const afterAck = probe.terminateCalls();
+      expect(afterAck).toBe(1);
+      const words = row.watched ? Array.from(row.watched) : [];
+      const isUntouched = words.every((word): boolean => word === 0);
+      expect(isUntouched).toBe(true);
+    },
+  );
+
+  it('[RTC-9] an owned lease holds the fallback until the counted bytes are on disk, else the watchdog fires', async () => {
+    const { dir, lease } = makeOwnedLease();
+    lease.targetBytes += MISSING_BYTES;
+    const recorder = captureWarnings();
+    const probe = makeFlushProbe();
+    try {
+      scheduleStreamClose(probe.stream, SHORT_WATCHDOG_MS, lease);
+      await yieldImmediate();
+      probe.acknowledge();
+      // A lease-less fallback terminates synchronously here (RTC-10); a lease must wait.
+      const afterAck = probe.terminateCalls();
+      expect(afterAck).toBe(0);
+      const hasTerminated = await waitUntil((): boolean => probe.terminateCalls() > 0);
+      expect(hasTerminated).toBe(true);
+      const hasTimeout = recorder.warnings.some(msg => msg.includes('worker drain timed out'));
+      expect(hasTimeout).toBe(true);
+      const isClosed = await waitUntil((): boolean => lease.isClosed);
+      expect(isClosed).toBe(true);
+      expect((): fs.Stats => fs.fstatSync(lease.fd)).toThrow(/EBADF/u);
+    } finally {
+      recorder.restore();
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('[RTC-10] without an owned lease the fallback settles on the flush acknowledgement alone', async () => {
+    const recorder = captureWarnings();
+    const probe = makeFlushProbe();
+    try {
+      scheduleStreamClose(probe.stream, CLOSE_WAIT_MS);
+      await yieldImmediate();
+      const beforeAck = probe.terminateCalls();
+      expect(beforeAck).toBe(0);
+      probe.acknowledge();
+      // Nothing proves the destinations drained; the acknowledgement is the only evidence.
+      const afterAck = probe.terminateCalls();
+      expect(afterAck).toBe(1);
+      expect(recorder.warnings).toEqual([]);
+    } finally {
+      recorder.restore();
+    }
+  });
+
+  it('[RTC-11] a failed fallback flush is reported out-of-band and the worker is still terminated', async () => {
+    const recorder = captureWarnings();
+    const probe = makeFlushProbe();
+    try {
+      scheduleStreamClose(probe.stream, CLOSE_WAIT_MS);
+      await yieldImmediate();
+      const flushError = new ScraperError('flush rejected');
+      probe.acknowledge(flushError);
+      const afterAck = probe.terminateCalls();
+      expect(afterAck).toBe(1);
+      const reported = ['superseded log transport failed while draining: flush rejected'];
+      expect(recorder.warnings).toEqual(reported);
+    } finally {
+      recorder.restore();
     }
   });
 });

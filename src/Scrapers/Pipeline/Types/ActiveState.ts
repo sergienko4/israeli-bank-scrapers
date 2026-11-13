@@ -1,16 +1,16 @@
 /**
- * Global pipeline state — active phase + stage.
- * Zero dependencies — safe to import from ANY module (no circular risk).
+ * Active pipeline phase + stage.
+ * Depends only on the run scope — safe to import from ANY module (no circular risk).
  * Set by BasePhase.run() via mediator. Read by any LOG call via getters.
  *
- * Residual concurrency boundary: unlike `Logging/BankContext` (which stores
- * `bank` in `AsyncLocalStorage` per `executePipeline` run), `activePhase` and
- * `activeStage` remain process-global module variables. Sequential scrapes in
- * one process are isolated, whereas concurrent scrapes in the same process
- * share these `phase` / `stage` labels until a future async-local migration.
+ * Inside an `executePipeline` run the labels live in that run's scope, so
+ * overlapping executions each report their own. Outside a run — log lines
+ * emitted before one starts, or a phase driven directly by a unit test — they
+ * fall back to the process-global variables below.
  */
 
 import type { Brand } from './Brand.js';
+import { currentRunScope } from './RunScope.js';
 
 /** Active phase name — branded for Rule #15. */
 type ActivePhaseName = Brand<string, 'ActivePhaseName'>;
@@ -28,6 +28,8 @@ let activeStage: StageLabel = 'PRE';
  * @returns Phase name string.
  */
 function getActivePhase(): ActivePhaseName {
+  const scope = currentRunScope();
+  if (scope) return scope.phase as ActivePhaseName;
   return activePhase as ActivePhaseName;
 }
 
@@ -37,7 +39,9 @@ function getActivePhase(): ActivePhaseName {
  * @returns True after setting.
  */
 function setActivePhase(name: string): true {
-  activePhase = name;
+  const scope = currentRunScope();
+  if (scope) scope.phase = name;
+  else activePhase = name;
   return true;
 }
 
@@ -46,6 +50,8 @@ function setActivePhase(name: string): true {
  * @returns Stage name (PRE, ACTION, POST, FINAL).
  */
 function getActiveStage(): StageLabel {
+  const scope = currentRunScope();
+  if (scope) return scope.stage as StageLabel;
   return activeStage;
 }
 
@@ -55,7 +61,9 @@ function getActiveStage(): StageLabel {
  * @returns True after setting.
  */
 function setActiveStage(name: StageLabel): true {
-  activeStage = name;
+  const scope = currentRunScope();
+  if (scope) scope.stage = name;
+  else activeStage = name;
   return true;
 }
 

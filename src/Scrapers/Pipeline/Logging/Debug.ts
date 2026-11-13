@@ -1,7 +1,7 @@
 /**
  * Public logger API for the pipeline — `getDebug(import.meta.url)` and
  * `getDebugByName(name)` build deferred-resolve pino children that pick
- * up the bank's file destination after `setActiveBank` fires.
+ * up the running execution's file destination once its run scope is open.
  *
  * This file is the cluster's outward facade; sibling files
  * ({@link ./BankContext.ts}, {@link ./RootLogger.ts},
@@ -22,8 +22,8 @@ export type ScraperLogger = Logger;
  * Build a deferred-resolve child logger for a module. Capturing
  * `const LOG = getDebug(import.meta.url)` at module-load is safe: no
  * pino instance is built until the first method access on `LOG`. By
- * then `executePipeline` has called `setActiveBank` and `getLogFile()`
- * returns a real path, so the lazy root logger gets the file transport.
+ * then `executePipeline` has opened the run's scope and `getLogFile()`
+ * returns that run's real path, so the lazy root logger gets the file transport.
  *
  * Architectural Force: callers MUST pass `import.meta.url`. The logger
  * name is derived from the source filename — no manual name strings.

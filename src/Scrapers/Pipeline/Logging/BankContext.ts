@@ -1,75 +1,62 @@
 /**
- * Bank-scoped async-local-storage for log line context injection.
+ * Per-execution log context injection.
  *
- * Owns the per-run `bank` / `phase` / `stage` / `runId` ambient context
- * that pino's mixin hook merges into every emitted line. Extracted from
- * the legacy `Types/Debug.ts` blob during Phase 12c so the
- * logging cluster lives at `Pipeline/Logging/` instead of being hidden
- * under `Pipeline/Types/`.
+ * Merges the ambient `bank` / `phase` / `stage` / `runId` context into every
+ * line pino emits. All four come from the run scope that
+ * {@link runWithBankContext} opens for one `executePipeline` call, so two
+ * overlapping executions each stamp their own lines. Outside a scope the
+ * phase, stage and runId fall back to the process-global state their owners
+ * keep for that purpose, and `bank` is absent.
  */
-
-import { AsyncLocalStorage } from 'node:async_hooks';
 
 import { getActivePhase, getActiveStage } from '../Types/ActiveState.js';
+import { currentRunScope, openRunScope } from '../Types/RunScope.js';
 import { getActiveRunId } from '../Types/TraceConfig.js';
 
-/** Bank context shape for async-local storage. */
-interface IBankContext {
-  readonly [key: string]: string;
-  bank: string;
-}
-
 /**
- * Create the async-local store for bank context.
- * Uses Reflect.construct to avoid the no-restricted-syntax rule on `new X()`.
- * @returns A typed AsyncLocalStorage instance.
+ * The `bank` field of the running execution's scope.
+ * @returns `{ bank }` inside a scope, an empty record outside every one.
  */
-function createBankStore(): AsyncLocalStorage<IBankContext> {
-  return Reflect.construct(AsyncLocalStorage, []) as AsyncLocalStorage<IBankContext>;
+function bankField(): Record<string, string> {
+  const scope = currentRunScope();
+  return scope ? { bank: scope.bank } : {};
 }
-
-/** Async-local store for per-request bank context injected into every log line. */
-const BANK_CONTEXT = createBankStore();
 
 /**
  * Pino mixin: injects ambient context onto every log line so callers
  * never have to attach `bank` / `phase` / `stage` / `runId` manually.
  *
  * Fields:
- *   - `bank` / extra fields — read from the AsyncLocalStorage scope
- *     established by {@link runWithBankContext} in `PipelineExecutor`.
- *   - `phase` — current pipeline phase from process-global `ActiveState`
- *     (concurrent scrapes in one process still share `phase` / `stage`).
- *   - `stage` — 4-stage protocol (PRE / ACTION / POST / FINAL) from
- *     process-global `ActiveState`.
- *   - `runId` — per-bank-run stamp (`DD-MM-YYYY_HHMMSScc`), reset when
- *     `setActiveBank` switches banks; SAME value the trace artefact folder is
- *     named with on disk, so a log line can be deterministically joined to its
- *     `network/` siblings even after logs are aggregated off-host.
- *     Omitted from the mixin object when empty (pre-`setActiveBank`
- *     log lines) so it never appears as `runId:""` noise.
+ *   - `bank` — the bank of the scope established by {@link runWithBankContext}
+ *     in `PipelineExecutor`; absent outside one.
+ *   - `phase` — the scope's current pipeline phase.
+ *   - `stage` — the scope's 4-stage protocol position (PRE / ACTION / POST / FINAL).
+ *   - `runId` — the scope's own run stamp (`DD-MM-YYYY_HHMMSScc`), allocated once
+ *     per execution; SAME value the trace artefact folder is named with on disk,
+ *     so a log line can be deterministically joined to its `network/` siblings
+ *     even after logs are aggregated off-host. Omitted from the mixin object when
+ *     empty (log lines before any bank is known) so it never appears as `runId:""`.
  *
  * @returns Mixin fields to merge onto every log entry.
  */
 export function getBankMixin(): Record<string, string> {
-  const bank = BANK_CONTEXT.getStore() ?? {};
   const runId = getActiveRunId();
-  return {
-    ...bank,
-    phase: getActivePhase(),
-    stage: getActiveStage(),
-    ...(runId.length > 0 ? { runId } : {}),
-  };
+  const fields: Record<string, string> = { ...bankField() };
+  fields.phase = getActivePhase();
+  fields.stage = getActiveStage();
+  if (runId.length > 0) fields.runId = runId;
+  return fields;
 }
 
 /**
- * Run a function with bank context injected into all pino log lines.
+ * Run a function inside a fresh run scope: its own bank, phase, stage and run
+ * identity, injected into every pino log line the function emits.
  * @param bank - The bank identifier (companyId).
- * @param fn - The async function to execute within the bank context.
+ * @param fn - The function to execute within the scope.
  * @returns The result of the function.
  */
 export function runWithBankContext<T>(bank: string, fn: () => T): T {
-  return BANK_CONTEXT.run({ bank }, fn);
+  return openRunScope(bank, fn);
 }
 
 /**

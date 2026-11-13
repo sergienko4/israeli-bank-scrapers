@@ -3,9 +3,9 @@
  *
  * Capturing `const LOG = getDebug(import.meta.url)` at module-load is
  * safe: no pino instance is built until the first method access on
- * `LOG`. By then `executePipeline` has called `setActiveBank` and
- * `getLogFile()` returns a real path, so the lazy root logger gets the
- * file transport.
+ * `LOG`. By then `executePipeline` has opened the run's scope and
+ * `getLogFile()` returns that run's real path, so the lazy root logger gets
+ * the file transport.
  *
  * Extracted from the legacy `Types/Debug.ts` blob during
  * Phase 12c.
@@ -34,7 +34,7 @@ type LoggerProperty = Logger[keyof Logger];
 /**
  * Lazy-resolve handler for the JS Proxy used by `getDebug`. On first
  * property access, builds the real pino child (which by then has the
- * file transport wired in via setActiveBank) and forwards every method
+ * file transport of the running execution's destination) and forwards every method
  * call there. Exported so callers wiring custom diagnostics into the
  * same proxy shape can re-use the type instead of re-deriving it.
  */

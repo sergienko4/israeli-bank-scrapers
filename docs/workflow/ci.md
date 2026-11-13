@@ -256,7 +256,12 @@ the account's concurrent-job limit.
   before the synthetic-request marker is printed. No request is sent to the
   bank. The check
   requires both the synthetic-request marker and the expected failure, rather
-  than accepting any settled result.
+  than accepting any settled result. The install also runs an offline layout
+  probe against the graph the packed package resolved: pino inside the range the
+  packed manifest declares, the supported `thread-stream` major, the same
+  shared-state offsets, and a live stream that still carries the private `kImpl`
+  record that worker retirement writes into. A moved layout fails the install
+  instead of surfacing as a hung or lossy log shutdown.
 - **Time limits.** Each step keeps its old job's limit: 10 minutes for each
   build step, 15 for the E2E factory tests, 20 for the consumer install and
   30 for each memory step. The job limit is the longest chain,

@@ -5,7 +5,7 @@
  * a {@link ./ChildLoggerProxy.ts | child proxy}; that "deferred-resolve"
  * shape lets pipeline code capture a `LOG` constant at module-load
  * without resolving the file destination too early — file transport
- * only resolves after `executePipeline` has called `setActiveBank`.
+ * only resolves once `executePipeline` has opened the run's scope.
  *
  * Extracted from the legacy `Types/Debug.ts` blob during
  * Phase 12c.
@@ -17,14 +17,18 @@ import type { Brand } from '../Types/Brand.js';
 import { SENSITIVE_PATHS } from '../Types/DebugConfig.js';
 import { toError } from '../Types/ErrorUtils.js';
 import { createCensorFn } from '../Types/PiiRedactor.js';
-import { getLogFile } from '../Types/TraceConfig.js';
+import { currentRunScope, noteRunLogFile } from '../Types/RunScope.js';
+import { closeActiveRunTrace, getLogFile } from '../Types/TraceConfig.js';
 import { getBankMixin } from './BankContext.js';
 import {
   type IFileLease,
   type ILeasedLoggerResult,
   instantiateLeasedFileLogger,
 } from './FileLease.js';
-import { retireSupersededLogger } from './RetireTransport.js';
+import { generationFor, leaseFor, retireRunSlot, slotFor } from './LoggerSlots.js';
+
+/** Whether a finished run owned a file destination that was retired (Rule #15). */
+type DidRetireRunLogger = Brand<boolean, 'DidRetireRunLogger'>;
 
 /** Brand for the root-logger generation counter (Rule #15). */
 type RootLoggerGeneration = Brand<number, 'RootLoggerGeneration'>;
@@ -77,7 +81,7 @@ type PinoCensorFn = Extract<PinoRedactOptions, { censor?: unknown }>['censor'];
 
 /**
  * Build a single file-only transport (used in production runs once
- * `setActiveBank` has resolved a real destination).
+ * the execution's scope has resolved a real destination).
  * @param destination - Resolved log file path or owned file descriptor.
  * @returns Pino file-transport config.
  */
@@ -119,24 +123,6 @@ export function buildTransport(
   return buildDualTransport(logFile);
 }
 
-/** Cached root pino instance — built lazily on first log call so file
- *  destination is resolved AFTER setActiveBank has fired in the orchestrator. */
-let rootLoggerCache: Logger | false = false;
-
-/** Owned file-descriptor lease paired with {@link rootLoggerCache} when file-backed. */
-let rootLeaseCache: IFileLease | false = false;
-
-/** The `getLogFile()` value {@link rootLoggerCache} was built for. `false`
- *  means "never built"; `''` is a legitimate key — it is the terminal-only
- *  logger used off-trace and before `setActiveBank` fires. Keying on the
- *  destination is what lets the cache hold in the `''` case while still
- *  rebuilding once (and only once) when a real file path appears. */
-let rootLoggerKey: string | false = false;
-
-/** Incremented on every root rebuild so child proxies can invalidate their
- *  memoised children without holding a reference to the superseded root. */
-let rootGeneration = 0;
-
 /**
  * Build the pino redact config from the single-source-of-truth censor.
  * @returns Pino redact options.
@@ -160,7 +146,7 @@ function buildCommonOptions(): Pick<pino.LoggerOptions, 'redact' | 'mixin'> {
  * Sets `level: 'silent'` instead of omitting the transport field — without
  * this branch pino v10 falls back to its default destination (STDOUT),
  * emitting unintended log noise in CI / production runs that fire before
- * `setActiveBank` resolves a real log file. Closes CR PR #337 finding 2.
+ * the execution's scope resolves a real log file. Closes CR PR #337 finding 2.
  *
  * Exported only so the unit test can pin the silent-level contract without
  * having to mutate `process.env.CI` mid-test.
@@ -349,62 +335,55 @@ function buildRootInstance(logFile: string): ILeasedLoggerResult {
 }
 
 /**
- * Replace the cached root logger with one bound to `logFile`, flushing and
- * draining-to-close any superseded worker transport so repeated bank switches
- * in a long-lived process never accumulate `thread-stream` workers or open
- * `pipeline.log` file descriptors.
- * @param logFile - Resolved log file path (empty string for terminal-only).
- * @returns The freshly built root logger.
- */
-function rebuildRootLogger(logFile: string): Logger {
-  const previous = { logger: rootLoggerCache, lease: rootLeaseCache };
-  const built = buildRootInstance(logFile);
-  rootLoggerCache = built.logger;
-  rootLeaseCache = built.lease;
-  rootLoggerKey = logFile;
-  rootGeneration += 1;
-  retireSupersededLogger(previous.logger, previous.lease);
-  return rootLoggerCache;
-}
-
-/**
- * Expose the active root file-descriptor lease for unit-test cleanup assertions.
+ * Expose the active destination's file-descriptor lease for unit-test cleanup assertions.
  * @internal
  * @returns Active file lease when file-backed, else `false`.
  */
 export function getActiveRootFileLeaseForTest(): IFileLease | false {
-  return rootLeaseCache;
+  const logFile = getLogFile();
+  return leaseFor(logFile);
 }
 
 /**
- * Build (or return cached) root logger. Deferred so getLogFile() runs
- * after `executePipeline` has registered the active bank — only then can
- * TraceConfig produce a real `<RUNS_ROOT>/pipeline/<bank>/<stamp>/pipeline.log`
- * destination.
+ * The root logger for the caller's destination, built on first use.
  *
- * The cache is keyed on the resolved destination rather than gated on it.
- * Gating meant that off-trace runs — where `getLogFile()` returns `''`
- * permanently — cached nothing and rebuilt a pino instance on *every*
- * property access. With `PRETTY_LOGS` enabled each rebuild started a
- * `pino-pretty` `thread-stream` worker that nothing ever closed: one `LOG.info(...)`
- * costs 23 property reads (pino reads its internal symbols off `this`),
- * so a single log statement leaked 23 worker threads and ~92 MB of
- * `SharedArrayBuffer`. Keying holds a single logger while the destination is
- * unchanged, and {@link rebuildRootLogger} drains and closes the superseded
- * worker transport whenever `setActiveBank` switches to a new run folder.
+ * <p>One logger per resolved destination: inside an execution that is the
+ * execution's own `pipeline.log`, outside every execution it is the ambient one.
+ * The cache is keyed on the destination rather than gated on it, so off-trace
+ * runs — where `getLogFile()` returns `''` — hold one terminal-only logger
+ * instead of rebuilding a pino instance (and, with `PRETTY_LOGS`, a worker) on
+ * every property access. A destination is retired by the run that owns it, or,
+ * ambiently, when the process moves to a new run folder.
  * @returns Root pino instance.
  */
 export function getRootLogger(): Logger {
   const logFile = getLogFile();
-  if (rootLoggerCache && rootLoggerKey === logFile) return rootLoggerCache;
-  return rebuildRootLogger(logFile);
+  const scope = currentRunScope();
+  if (scope) noteRunLogFile(scope.trace, logFile);
+  return slotFor({ logFile, isScoped: scope !== false, build: buildRootInstance }).logger;
 }
 
 /**
- * Current root-logger generation. Child proxies memoise against this so a
- * cached child is dropped exactly when the root it came from is replaced.
- * @returns Monotonic counter, incremented on every root rebuild.
+ * Current generation of the caller's destination. Child proxies memoise against
+ * this so a cached child is dropped exactly when the logger it came from is replaced.
+ * @returns Changes exactly when this destination's root logger is rebuilt.
  */
 export function getRootLoggerGeneration(): RootLoggerGeneration {
-  return rootGeneration as RootLoggerGeneration;
+  const logFile = getLogFile();
+  return generationFor(logFile) as RootLoggerGeneration;
+}
+
+/**
+ * End the running execution's logging: close its trace so a late callback cannot
+ * reopen the run's files, then retire only the destination that run recorded.
+ * The destination is read from the run, not re-resolved, so this runs in the
+ * executor's `finally` without touching the file system or depending on whether
+ * capture is still switched on.
+ * @returns True when the run owned a file destination that was retired.
+ */
+export function retireRunLogger(): DidRetireRunLogger {
+  const scope = currentRunScope();
+  closeActiveRunTrace();
+  const logFile = scope === false ? false : scope.trace.logFile;
+  return retireRunSlot(logFile) as DidRetireRunLogger;
 }
