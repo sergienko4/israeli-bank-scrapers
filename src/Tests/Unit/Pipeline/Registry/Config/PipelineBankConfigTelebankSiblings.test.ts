@@ -18,12 +18,12 @@ import { validateApiDirectConfig } from '../../../../../Scrapers/Pipeline/Core/B
 import type { IApiDirectCallConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 
 /** The bank's transport block, as the build-time validator reads it. */
-type HeadlessBlock = Exclude<IApiDirectRuleInput['transport'], false>;
+type TransportBlock = Exclude<IApiDirectRuleInput['transport'], false>;
 
 /** A group bank's login config and its transport block. */
 interface ILoadedConfig {
   readonly call: IApiDirectCallConfig;
-  readonly headless: HeadlessBlock;
+  readonly transportConfig: TransportBlock;
 }
 
 /** One brand token: Discount's, Mercantile's, and how often Discount's appears. */
@@ -50,18 +50,18 @@ const SWAPS: readonly ISwap[] = [
  * Load a group bank's config module as JSON text; the config is pure data,
  * so nothing is dropped.
  * @param module - The config module's file name.
- * @param headlessExport - The name its transport block is exported under.
+ * @param transportExport - The name its transport block is exported under.
  * @returns The login config and transport block, and their text.
  */
 async function loadConfig(
   module: string,
-  headlessExport: string,
+  transportExport: string,
 ): Promise<ILoadedConfig & { readonly text: string }> {
   const loaded = (await import(`${CONFIG_DIR}${module}`)) as Record<string, unknown>;
   const call = loaded.default as IApiDirectCallConfig;
-  const headless = loaded[headlessExport] as HeadlessBlock;
-  const text = JSON.stringify({ call, headless });
-  return { call, headless, text };
+  const transportConfig = loaded[transportExport] as TransportBlock;
+  const text = JSON.stringify({ call, transportConfig });
+  return { call, transportConfig, text };
 }
 
 /**
@@ -99,16 +99,16 @@ describe('Mercantile api-direct login config (Telebank group)', () => {
   });
 
   it('passes the build-time validator with its headless block', async () => {
-    const { call, headless } = await loadConfig(
+    const { call, transportConfig } = await loadConfig(
       'PipelineBankConfigMercantile.js',
       'MERCANTILE_TRANSPORT',
     );
-    const result = validateApiDirectConfig({ call, transport: headless });
+    const result = validateApiDirectConfig({ call, transport: transportConfig });
     expect(result).toEqual({ success: true, value: true });
   });
 
   it('registers its website as an api-direct account bank on that block', async () => {
-    const { headless } = await loadConfig(
+    const { transportConfig } = await loadConfig(
       'PipelineBankConfigMercantile.js',
       'MERCANTILE_TRANSPORT',
     );
@@ -117,7 +117,7 @@ describe('Mercantile api-direct login config (Telebank group)', () => {
       unknown
     >;
     const entries = registry.PIPELINE_BANK_CONFIG as Record<string, unknown>;
-    const expected = { urls: { base: 'https://www.mercantile.co.il' }, transport: headless };
+    const expected = { urls: { base: 'https://www.mercantile.co.il' }, transport: transportConfig };
     expect(entries[CompanyTypes.Mercantile]).toEqual(expected);
   });
 });

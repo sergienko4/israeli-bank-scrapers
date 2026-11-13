@@ -1,5 +1,5 @@
 /**
- * Unit tests for the shared GenericHeadlessScrape driver.
+ * Unit tests for the shared GenericApiDirectScrape driver.
  * Exercises guard + happy + failure-propagation branches using a
  * synthetic shape (zero bank-name coupling in the test itself).
  */
@@ -8,7 +8,7 @@ import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
-import { buildGenericHeadlessScrape } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeActions.js';
+import { buildGenericApiDirectScrape } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeActions.js';
 import type { IApiDirectScrapeShape } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { IPage } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/Pagination.js';
 import type { IScrapeState } from '../../../../../Scrapers/Pipeline/Types/Domain/ScrapeState.js';
@@ -165,10 +165,10 @@ function ctxOf(bus: IApiMediator): IActionContext {
   return { ...withBus, windowEnd: none() };
 }
 
-describe('buildGenericHeadlessScrape', () => {
+describe('buildGenericApiDirectScrape', () => {
   it('fails with "ApiMediator missing" when the slot is empty', async () => {
     const shape = makeShape();
-    const scrape = buildGenericHeadlessScrape(shape);
+    const scrape = buildGenericApiDirectScrape(shape);
     const base = makeMockContext({ apiMediator: none() });
     const result = await scrape(base);
     expect(result.success).toBe(false);
@@ -178,7 +178,7 @@ describe('buildGenericHeadlessScrape', () => {
   it('no accounts → empty scrape, no balance/txn calls', async () => {
     const bus = makeRouterBus({ customer: [succeed({ accts: [] })] });
     const shape = makeShape();
-    const scrape = buildGenericHeadlessScrape(shape);
+    const scrape = buildGenericApiDirectScrape(shape);
     const ctx = ctxOf(bus);
     const result = await scrape(ctx);
     assertOk(result);
@@ -194,7 +194,7 @@ describe('buildGenericHeadlessScrape', () => {
       transactions: [succeed({ items: [], nextCursor: false })],
     });
     const shape = makeShape();
-    const scrape = buildGenericHeadlessScrape(shape);
+    const scrape = buildGenericApiDirectScrape(shape);
     const ctx = ctxOf(bus);
     const result = await scrape(ctx);
     assertOk(result);
@@ -208,7 +208,7 @@ describe('buildGenericHeadlessScrape', () => {
   it('customer fail short-circuits', async () => {
     const bus = makeRouterBus({ customer: [fail(ScraperErrorTypes.Generic, 'cust bad')] });
     const shape = makeShape();
-    const scrape = buildGenericHeadlessScrape(shape);
+    const scrape = buildGenericApiDirectScrape(shape);
     const ctx = ctxOf(bus);
     const result = await scrape(ctx);
     expect(result.success).toBe(false);
@@ -231,7 +231,7 @@ describe('buildGenericHeadlessScrape', () => {
         stop: stopAfterOne,
       },
     };
-    const scrape = buildGenericHeadlessScrape(shape);
+    const scrape = buildGenericApiDirectScrape(shape);
     const ctx = ctxOf(bus);
     const result = await scrape(ctx);
     expect(result.success).toBe(true);
@@ -244,7 +244,7 @@ describe('buildGenericHeadlessScrape', () => {
       balance: [fail(ScraperErrorTypes.Generic, 'bal bad')],
     });
     const shape = makeShape();
-    const scrape = buildGenericHeadlessScrape(shape);
+    const scrape = buildGenericApiDirectScrape(shape);
     const ctx = ctxOf(bus);
     const first = await scrape(ctx);
     expect(first.success).toBe(false);
@@ -259,7 +259,7 @@ describe('buildGenericHeadlessScrape', () => {
       ...base,
       balance: { ...base.balance, fallbackOnFail: 0 },
     };
-    const scrape2 = buildGenericHeadlessScrape(shape2);
+    const scrape2 = buildGenericApiDirectScrape(shape2);
     const ctx2 = ctxOf(bus2);
     const result2 = await scrape2(ctx2);
     assertOk(result2);
@@ -279,7 +279,7 @@ describe('buildGenericHeadlessScrape', () => {
  * than the twelve-ask ceiling: both set the same fact, and the short path
  * keeps the stub queue readable.
  */
-describe('buildGenericHeadlessScrape reports window completeness', () => {
+describe('buildGenericApiDirectScrape reports window completeness', () => {
   /** A row dated long after the mock context's 2024-01-01 start. */
   const lateRow = { date: '2026-07-15' };
 
@@ -293,7 +293,7 @@ describe('buildGenericHeadlessScrape reports window completeness', () => {
    */
   async function stateFrom(bus: IApiMediator): Promise<IScrapeState> {
     const shape = makeShape();
-    const scrape = buildGenericHeadlessScrape(shape);
+    const scrape = buildGenericApiDirectScrape(shape);
     const ctx = ctxOf(bus);
     const result = await scrape(ctx);
     assertOk(result);

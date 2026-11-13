@@ -23,7 +23,7 @@ const APP_UA = /^ONEZEROIL\//;
  * Read OneZero's transport block from the bank registry.
  * @returns The transport block, or false when OneZero has none.
  */
-async function oneZeroHeadless(): Promise<object | false> {
+async function oneZeroTransport(): Promise<object | false> {
   const registry =
     await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
   const config = registry.resolvePipelineBankConfig(CompanyTypes.OneZero);
@@ -43,14 +43,17 @@ async function identityUserAgent(): Promise<string> {
 
 describe('OneZero headless config — Cloudflare WAF identity', () => {
   it('declares the client certificate and the Android TLS profile', async () => {
-    const headless = await oneZeroHeadless();
-    expect(headless).toMatchObject({ requiresClientCert: true, tlsProfile: 'android-11-okhttp' });
+    const transportConfig = await oneZeroTransport();
+    expect(transportConfig).toMatchObject({
+      requiresClientCert: true,
+      tlsProfile: 'android-11-okhttp',
+    });
   });
 
   it('sends the app User-Agent on the identity login steps and on GraphQL alike', async () => {
     const userAgent = await identityUserAgent();
     expect(userAgent).toMatch(APP_UA);
-    const headless = await oneZeroHeadless();
-    expect(headless).toMatchObject({ graphqlHeaders: { 'User-Agent': userAgent } });
+    const transportConfig = await oneZeroTransport();
+    expect(transportConfig).toMatchObject({ graphqlHeaders: { 'User-Agent': userAgent } });
   });
 });

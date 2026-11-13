@@ -14,23 +14,23 @@ import {
 import type { IStepConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 
 /** The bank's transport block when it has one. */
-type HeadlessBlock = Exclude<IApiDirectRuleInput['transport'], false>;
+type TransportBlock = Exclude<IApiDirectRuleInput['transport'], false>;
 
 const HOST = 'https://native.example';
-const PLAIN: HeadlessBlock = { identityBase: HOST, graphql: `${HOST}/graphql`, paths: {} };
-const NATIVE: HeadlessBlock = { ...PLAIN, nativeFetch: true };
-const JAR: HeadlessBlock = { ...NATIVE, sessionCookies: true };
-const DYNAMIC_TLS: HeadlessBlock = {
+const PLAIN: TransportBlock = { identityBase: HOST, graphql: `${HOST}/graphql`, paths: {} };
+const NATIVE: TransportBlock = { ...PLAIN, nativeFetch: true };
+const JAR: TransportBlock = { ...NATIVE, sessionCookies: true };
+const DYNAMIC_TLS: TransportBlock = {
   ...PLAIN,
   clientCert: { mode: 'dynamic', origin: HOST },
 };
-const DYNAMIC_JAR: HeadlessBlock = {
+const DYNAMIC_JAR: TransportBlock = {
   ...DYNAMIC_TLS,
   sessionCookies: true,
   cookieDomains: ['native.example'],
 };
-const PROFILE: HeadlessBlock = { ...PLAIN, tlsProfile: 'android-11-okhttp' };
-const REGISTERED: HeadlessBlock = { ...PLAIN, requiresClientCert: true };
+const PROFILE: TransportBlock = { ...PLAIN, tlsProfile: 'android-11-okhttp' };
+const REGISTERED: TransportBlock = { ...PLAIN, requiresClientCert: true };
 
 const CALL: IStepConfig = {
   name: 'landing',
@@ -80,14 +80,14 @@ function carrying(header: string): IStepConfig {
 /**
  * Rule input running the given steps beside the given transport block.
  * @param steps - Login steps.
- * @param headless - Bank transport block, or false when it has none.
+ * @param transportConfig - Bank transport block, or false when it has none.
  * @returns Rule input.
  */
 function runOf(
   steps: readonly IStepConfig[],
-  headless: IApiDirectRuleInput['transport'],
+  transportConfig: IApiDirectRuleInput['transport'],
 ): IApiDirectRuleInput {
-  return { call: { flow: 'sms-otp', envelope: {}, steps }, transport: headless };
+  return { call: { flow: 'sms-otp', envelope: {}, steps }, transport: transportConfig };
 }
 
 /**
@@ -116,7 +116,7 @@ const NODE_OFF = 'not allowed without nativeFetch or node:https';
 const HEADER_MSG = 'headerExtractsToCarry.header: must be an HTTP header name';
 const NO_DOMAIN_JAR = 'steps.setCookies: not allowed without transport.cookieDomains';
 const COOKIE_NAME_MSG = 'steps.setCookies: each name must be an HTTP token';
-const DOMAIN_JAR: HeadlessBlock = { ...JAR, cookieDomains: ['native.example'] };
+const DOMAIN_JAR: TransportBlock = { ...JAR, cookieDomains: ['native.example'] };
 const SETTING_G3 = setting('G3CmE');
 const MEDIA_MSG = 'mediaType: must be a lower-case type/subtype';
 const MEDIA_KIND_MSG = 'transport.mediaTypes: keys must be response kinds';
@@ -305,7 +305,7 @@ interface ISoundCase {
   readonly input: IApiDirectRuleInput;
 }
 
-const EVERY_FIELD: HeadlessBlock = {
+const EVERY_FIELD: TransportBlock = {
   ...JAR,
   cookieDomains: ['native.example'],
   redirectPolicy: 'reject',
@@ -324,7 +324,7 @@ const NODE_STEPS = [PAGE, MARKED, TYPED, STRICT, FORM, carrying('x-id'), setting
  * @param transport - The block selecting node:https.
  * @returns The block with a session jar on the test domain.
  */
-function withDomainJar(transport: HeadlessBlock): HeadlessBlock {
+function withDomainJar(transport: TransportBlock): TransportBlock {
   return { ...transport, sessionCookies: true, cookieDomains: ['native.example'] };
 }
 

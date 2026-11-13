@@ -76,8 +76,8 @@ describe('API-direct response integrity rules', () => {
 
   it('refuses a policy for a non-native bank', () => {
     const configured = input({ maxBytes: 32 }, { maxBytes: 16 });
-    const headless = { ...BANK, nativeFetch: false, responseIntegrity: { maxBytes: 32 } };
-    const result = validateApiDirectConfig({ ...configured, transport: headless });
+    const transportConfig = { ...BANK, nativeFetch: false, responseIntegrity: { maxBytes: 32 } };
+    const result = validateApiDirectConfig({ ...configured, transport: transportConfig });
     expect(result).toMatchObject({ success: false });
   });
 });

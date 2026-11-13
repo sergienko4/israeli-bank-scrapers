@@ -17,7 +17,7 @@ import { validateApiDirectConfig } from '../../../../../Scrapers/Pipeline/Core/B
 import type { IApiDirectCallConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 
 /** The bank's transport block, as the build-time validator reads it. */
-type HeadlessBlock = Exclude<IApiDirectRuleInput['transport'], false>;
+type TransportBlock = Exclude<IApiDirectRuleInput['transport'], false>;
 
 /** The values a group bank's login config names. */
 interface IBrandLiterals {
@@ -34,14 +34,14 @@ interface IGroupBank {
   readonly companyId: CompanyTypes;
   readonly site: string;
   readonly module: string;
-  readonly headlessExport: string;
+  readonly transportExport: string;
   readonly brand: IBrandLiterals;
 }
 
 /** A group bank's login config and its transport block. */
 interface ILoadedConfig {
   readonly call: IApiDirectCallConfig;
-  readonly headless: HeadlessBlock;
+  readonly transportConfig: TransportBlock;
 }
 
 const CONFIG_DIR = '../../../../../Scrapers/Pipeline/Registry/Config/';
@@ -50,7 +50,7 @@ const BEINLEUMI: IGroupBank = {
   companyId: CompanyTypes.Beinleumi,
   site: 'https://www.fibi.co.il',
   module: 'PipelineBankConfigBeinleumi.js',
-  headlessExport: 'BEINLEUMI_TRANSPORT',
+  transportExport: 'BEINLEUMI_TRANSPORT',
   brand: {
     host: 'online.fibi.co.il',
     portalId: 'FIBIPORTAL',
@@ -65,7 +65,7 @@ const SIBLINGS: readonly IGroupBank[] = [
     companyId: CompanyTypes.Massad,
     site: 'https://www.bankmassad.co.il',
     module: 'PipelineBankConfigMassad.js',
-    headlessExport: 'MASSAD_TRANSPORT',
+    transportExport: 'MASSAD_TRANSPORT',
     brand: {
       host: 'online.bankmassad.co.il',
       portalId: 'MASADPRTAL',
@@ -78,7 +78,7 @@ const SIBLINGS: readonly IGroupBank[] = [
     companyId: CompanyTypes.OtsarHahayal,
     site: 'https://www.bankotsar.co.il',
     module: 'PipelineBankConfigOtsarHahayal.js',
-    headlessExport: 'OTSAR_HAHAYAL_TRANSPORT',
+    transportExport: 'OTSAR_HAHAYAL_TRANSPORT',
     brand: {
       host: 'online.bankotsar.co.il',
       portalId: 'OTSARPRTAL',
@@ -91,7 +91,7 @@ const SIBLINGS: readonly IGroupBank[] = [
     companyId: CompanyTypes.Pagi,
     site: 'https://www.pagi.co.il',
     module: 'PipelineBankConfigPagi.js',
-    headlessExport: 'PAGI_TRANSPORT',
+    transportExport: 'PAGI_TRANSPORT',
     brand: {
       host: 'online.pagi.co.il',
       portalId: 'PAGIPORTAL',
@@ -119,8 +119,8 @@ const SWAP_ORDER: readonly (keyof IBrandLiterals)[] = [
 async function loadConfig(bank: IGroupBank): Promise<ILoadedConfig> {
   const loaded = (await import(`${CONFIG_DIR}${bank.module}`)) as Record<string, unknown>;
   const call = loaded.default as IApiDirectCallConfig;
-  const headless = loaded[bank.headlessExport] as HeadlessBlock;
-  return { call, headless };
+  const transportConfig = loaded[bank.transportExport] as TransportBlock;
+  return { call, transportConfig };
 }
 
 /**
@@ -166,19 +166,19 @@ describe.each(SIBLINGS)('$companyId api-direct login config (Beinleumi group)', 
   });
 
   it('passes the build-time validator with its headless block', async () => {
-    const { call, headless } = await loadConfig(sibling);
-    const result = validateApiDirectConfig({ call, transport: headless });
+    const { call, transportConfig } = await loadConfig(sibling);
+    const result = validateApiDirectConfig({ call, transport: transportConfig });
     expect(result).toEqual({ success: true, value: true });
   });
 
   it('registers its website as an api-direct account bank on that block', async () => {
-    const { headless } = await loadConfig(sibling);
+    const { transportConfig } = await loadConfig(sibling);
     const registry = (await import(`${CONFIG_DIR}PipelineBankConfig.js`)) as Record<
       string,
       unknown
     >;
     const entries = registry.PIPELINE_BANK_CONFIG as Record<string, unknown>;
-    const expected = { urls: { base: sibling.site }, transport: headless };
+    const expected = { urls: { base: sibling.site }, transport: transportConfig };
     expect(entries[sibling.companyId]).toEqual(expected);
   });
 });

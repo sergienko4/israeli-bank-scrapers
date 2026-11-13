@@ -4,7 +4,7 @@
 
 import { CompanyTypes } from '../../../../../Definitions.js';
 import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
-import { createMtlsHeadlessApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
+import { createMtlsApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import { GraphQLFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/GraphQLFetchStrategy.js';
 import { MtlsFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsFetchStrategy.js';
 import { NativeFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/NativeFetchStrategy.js';
@@ -45,6 +45,6 @@ describe('unsupported response integrity', () => {
       graphqlUrl: ORIGIN,
       responseIntegrity: { maxBytes: 8 },
     };
-    expect(() => createMtlsHeadlessApiMediator(args)).toThrow('response integrity unsupported');
+    expect(() => createMtlsApiMediator(args)).toThrow('response integrity unsupported');
   });
 });

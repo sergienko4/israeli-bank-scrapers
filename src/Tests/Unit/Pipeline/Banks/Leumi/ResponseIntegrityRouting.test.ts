@@ -35,14 +35,14 @@ const ACCOUNT_BODY = {
  * @returns The native mediator.
  */
 function mediator(): IApiMediator {
-  const headless = {
+  const transport = {
     identityBase: ORIGIN,
     graphql: `${ORIGIN}/graphql`,
     paths: {},
     nativeFetch: true,
     responseIntegrity: { maxBytes: 32 },
   };
-  const wiring = toApiWiring(headless);
+  const wiring = toApiWiring(transport);
   return selectApiMediator(CompanyTypes.Leumi, wiring);
 }
 

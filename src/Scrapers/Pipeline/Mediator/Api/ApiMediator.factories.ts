@@ -111,7 +111,7 @@ function buildGraphQL(args: IApiMediatorArgs): GraphQLFetchStrategy {
  * @param args - Mediator args bundle.
  * @returns Strategy pair.
  */
-function buildHeadlessStrategies(args: IApiMediatorArgs): IApiMediatorStrategies {
+function buildFetchStrategies(args: IApiMediatorArgs): IApiMediatorStrategies {
   const constructArgs: NativeConstructorArgs = [args.identityBaseUrl, nativePolicies(args)];
   const fetch = Reflect.construct(NativeFetchStrategy, constructArgs);
   return { fetch, gql: buildGraphQL(args) };
@@ -149,8 +149,8 @@ function assembleNodeMediator(
  * @param args - Bank hint + URLs + optional staticAuth header.
  * @returns A fully-wired IApiMediator instance.
  */
-function createHeadlessApiMediator(args: IApiMediatorArgs): IApiMediator {
-  const strategies = buildHeadlessStrategies(args);
+function createNativeApiMediator(args: IApiMediatorArgs): IApiMediator {
+  const strategies = buildFetchStrategies(args);
   return assembleNodeMediator(args, strategies);
 }
 
@@ -190,7 +190,7 @@ function attachClientCert(
  * @param args - Bank hint + URLs + transport requirements + optional staticAuth.
  * @returns A fully-wired IApiMediator using the node:https transport.
  */
-function createMtlsHeadlessApiMediator(args: INodeTlsMediatorArgs): IApiMediator {
+function createMtlsApiMediator(args: INodeTlsMediatorArgs): IApiMediator {
   assertNoUnsupportedIntegrity(args);
   const transport = buildTransportSource(args);
   const strategies = buildMtlsStrategies(args, transport.source);
@@ -198,4 +198,4 @@ function createMtlsHeadlessApiMediator(args: INodeTlsMediatorArgs): IApiMediator
   return attachClientCert(mediator, transport.control);
 }
 
-export { createHeadlessApiMediator, createMtlsHeadlessApiMediator };
+export { createMtlsApiMediator, createNativeApiMediator };

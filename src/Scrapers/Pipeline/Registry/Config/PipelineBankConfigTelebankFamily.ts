@@ -91,7 +91,7 @@ function buildTelebankApiDirectCall(brand: ITelebankBrand): IApiDirectCallConfig
  * @param brand - Telebank brand.
  * @returns The transport block.
  */
-function buildTelebankHeadless(brand: ITelebankBrand): ITransportConfig {
+function buildTelebankTransport(brand: ITelebankBrand): ITransportConfig {
   const base = `${TELEBANK_ORIGIN}/`;
   const paths = {
     'auth.prime': telebankLoginPage(brand),
@@ -103,4 +103,4 @@ function buildTelebankHeadless(brand: ITelebankBrand): ITransportConfig {
   return { identityBase: base, graphql: base, paths, ...TELEBANK_WIRE };
 }
 
-export { buildTelebankApiDirectCall, buildTelebankHeadless };
+export { buildTelebankApiDirectCall, buildTelebankTransport };

@@ -162,6 +162,8 @@ Each api-direct bank declares its own `IApiDirectScrapeShape`:
 
 The shape interface (`balanceVars`, `balanceExtract`, `txnVars`, `txnExtract`) is uniform; only the per-bank closures differ.
 
+Every shape goes through one factory, `buildGenericApiDirectScrape`, which turns it into the phase's scrape function. The phase builders `createApiDirectScrapePhase` and `buildApiDirectScrapePhase` call it, so no bank brings its own scrape loop.
+
 ## Shared family shapes — one contract, several brands
 
 Some banks are not independent institutions but **brands of one bank running one portal**. The four First-International brands (Beinleumi, Massad, Pagi, OtsarHahayal) all serve the same Mataf/`appsng` BFF: the same `userData` identity GET, the same `accountType` lookup, the same `balances/{type}` path, the same single full-window `POST .../transactions/list` envelope. Only the origin differs.
@@ -195,7 +197,7 @@ Isracard and Amex are two issuers on one mobile app API: each runs its own ring 
 | Balance      | `RingShapeBalance.ts` | `balanceVars` asks the same call for the card's next statement month: `nextDebitMonth` picks next month once today is past the card's payment day. `nextDebitOf` returns that month's total as a `RingNextDebit`, or 0 when the month has no vouchers. `balanceIsAbsent` publishes no balance when the card has no payment day or the month's vouchers carry no finite total.                                                                                                                                       |
 | Reply check  | `RingShape.ts`        | `checkRingBody` is the shape's `BodyCheck`. Every ring reply carries the bank's verdict inside an HTTP 200 — `Header.Status` on the `service` endpoint, `isSuccess` on GatewayV2 — and a reply the bank did not confirm fails its call with a fixed message, so a refusal never reads as an empty card list or month. An expired session (`Header.Status -2`) fails the same way, and the warm run's recover-once re-login runs. GatewayV2 reports an expired session as an HTTP 500, which already fails the call. |
 
-The login side is config, not code. `buildRingSteps` (warm path from `RING_WARM_STEP_INDEX`), `buildRingBodies` (an `IRingBodies` per company code), `buildRingApiDirectCall` and `buildRingHeadless` turn a brand's ring constants into its registry entries — `ISRACARD_API_DIRECT_CALL` and `ISRACARD_TRANSPORT` for Isracard, `AMEX_API_DIRECT_CALL` and `AMEX_TRANSPORT` for Amex.
+The login side is config, not code. `buildRingSteps` (warm path from `RING_WARM_STEP_INDEX`), `buildRingBodies` (an `IRingBodies` per company code), `buildRingApiDirectCall` and `buildRingTransport` turn a brand's ring constants into its registry entries — `ISRACARD_API_DIRECT_CALL` and `ISRACARD_TRANSPORT` for Isracard, `AMEX_API_DIRECT_CALL` and `AMEX_TRANSPORT` for Amex.
 
 ## Shared card-issuer cursor — one calendar walk, four issuers
 

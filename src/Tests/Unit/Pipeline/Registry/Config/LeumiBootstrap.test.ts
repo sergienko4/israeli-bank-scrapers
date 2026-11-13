@@ -4,7 +4,7 @@
 
 import { CompanyTypes } from '../../../../../Definitions.js';
 import { validateApiDirectConfig } from '../../../../../Scrapers/Pipeline/Core/Builder/Validation/ApiDirectConfigRules.js';
-import { createHeadlessApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
+import { createNativeApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import type {
   IApiDirectCallConfig,
   IGetStep,
@@ -39,7 +39,7 @@ let config: IApiDirectCallConfig;
  * @returns Native token bus.
  */
 function busOf(): ITokenBus {
-  return createHeadlessApiMediator({
+  return createNativeApiMediator({
     bankHint: HINT,
     identityBaseUrl: ORIGIN,
     graphqlUrl: `${ORIGIN}/`,
@@ -96,7 +96,7 @@ describe('Leumi fresh bootstrap', () => {
   });
 
   it('passes the real API-direct builder checks', () => {
-    const headless = {
+    const transportConfig = {
       identityBase: ORIGIN,
       graphql: `${ORIGIN}/`,
       paths,
@@ -105,7 +105,7 @@ describe('Leumi fresh bootstrap', () => {
       cookieDomains: ['bankleumi.co.il'],
       redirectPolicy: 'reject' as const,
     };
-    const result = validateApiDirectConfig({ call: config, transport: headless });
+    const result = validateApiDirectConfig({ call: config, transport: transportConfig });
     expect(result).toEqual({ success: true, value: true });
   });
 

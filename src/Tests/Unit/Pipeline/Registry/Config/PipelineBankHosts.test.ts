@@ -90,7 +90,7 @@ async function allDeclaredHosts(): Promise<string[]> {
  * @param manifest - The declared extra hosts.
  * @returns `bank:host` labels for every cold host; empty when none.
  */
-async function coldHeadlessHosts(
+async function coldTransportHosts(
   companyId: CompanyTypes,
   manifest: ExtraHostsByBank,
 ): Promise<string[]> {
@@ -144,7 +144,7 @@ describe('PipelineBankHosts — CI DNS warm-up manifest (T-DNS)', () => {
 
   it("T-DNS-6: declares every host a bank's headless block calls", async () => {
     const manifest = await loadHosts();
-    const pending = Object.values(CompanyTypes).map(id => coldHeadlessHosts(id, manifest));
+    const pending = Object.values(CompanyTypes).map(id => coldTransportHosts(id, manifest));
     const perBank = await Promise.all(pending);
     const cold = perBank.flat();
     expect(cold).toEqual([]);
@@ -156,7 +156,7 @@ describe('PipelineBankHosts — CI DNS warm-up manifest (T-DNS)', () => {
       const manifest = await loadHosts();
       const remaining = (manifest[companyId] ?? []).filter(entry => entry !== host);
       const missing = { ...manifest, [companyId]: remaining };
-      const cold = await coldHeadlessHosts(companyId, missing);
+      const cold = await coldTransportHosts(companyId, missing);
       expect(cold).toContain(`${companyId}:${host}`);
     },
   );

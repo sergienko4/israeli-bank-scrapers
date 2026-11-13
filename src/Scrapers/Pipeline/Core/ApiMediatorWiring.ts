@@ -11,8 +11,8 @@
 
 import type { CompanyTypes } from '../../../Definitions.js';
 import {
-  createHeadlessApiMediator,
-  createMtlsHeadlessApiMediator,
+  createMtlsApiMediator,
+  createNativeApiMediator,
   type IApiMediator,
 } from '../Mediator/Api/ApiMediator.js';
 import { resolvePipelineBankConfig } from '../Registry/Config/PipelineBankConfig.js';
@@ -20,11 +20,11 @@ import type { ITransportConfig } from '../Registry/Config/PipelineBankConfigType
 import type { Option } from '../Types/Option.js';
 import { none, some } from '../Types/Option.js';
 import type { IApiWiring, IWiringFlags, TransportKind } from './ApiWiringTypes.js';
-import { assertSingleTransport, pickTransportKind } from './HeadlessTransportRules.js';
 import type { IPipelineDescriptor } from './PipelineDescriptor.js';
+import { assertSingleTransport, pickTransportKind } from './TransportRules.js';
 
 /** Arg bundle accepted by every API-mediator factory (the node:https superset). */
-type TMediatorArgs = Parameters<typeof createMtlsHeadlessApiMediator>[0];
+type TMediatorArgs = Parameters<typeof createMtlsApiMediator>[0];
 
 /** Identity-transport slice of the mediator args. */
 type TIdentityArgs = Pick<TMediatorArgs, 'bankHint' | 'identityBaseUrl'>;
@@ -139,8 +139,8 @@ function buildMediatorArgsForWiring(companyId: CompanyTypes, wiring: IApiWiring)
 
 /** Mediator factory per transport kind. */
 const MEDIATOR_FACTORIES: Readonly<Record<TransportKind, (args: TMediatorArgs) => IApiMediator>> = {
-  'node-tls': createMtlsHeadlessApiMediator,
-  native: createHeadlessApiMediator,
+  'node-tls': createMtlsApiMediator,
+  native: createNativeApiMediator,
 };
 
 /**

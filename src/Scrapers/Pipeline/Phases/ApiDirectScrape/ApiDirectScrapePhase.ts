@@ -21,7 +21,7 @@ import type {
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
 import { BasePhase } from '../Base/BasePhase.js';
-import { buildGenericHeadlessScrape } from './ApiDirectScrapeActions.js';
+import { buildGenericApiDirectScrape } from './ApiDirectScrapeActions.js';
 import type { ApiDirectScrapeFn } from './ApiDirectScrapeTypes.js';
 import type {
   IApiDirectScrapeGuardSummary,
@@ -205,7 +205,7 @@ function commitIfKnownBalance(
 function createApiDirectScrapePhase<TAcct, TCursor>(
   shape: IApiDirectScrapeShape<TAcct, TCursor>,
 ): ApiDirectScrapeFn {
-  return buildGenericHeadlessScrape(shape);
+  return buildGenericApiDirectScrape(shape);
 }
 
 /**
@@ -219,7 +219,7 @@ function createApiDirectScrapePhase<TAcct, TCursor>(
 function buildApiDirectScrapePhase<TAcct, TCursor>(
   shape: IApiDirectScrapeShape<TAcct, TCursor>,
 ): ApiDirectScrapePhase {
-  const fn = buildGenericHeadlessScrape(shape);
+  const fn = buildGenericApiDirectScrape(shape);
   const guard = withZeroAccountsFloor(shape.resultGuard);
   return Reflect.construct(ApiDirectScrapePhase, [fn, guard]);
 }

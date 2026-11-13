@@ -8,7 +8,7 @@ import { CompanyTypes } from '../../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import { validateApiDirectConfig } from '../../../../../Scrapers/Pipeline/Core/Builder/Validation/ApiDirectConfigRules.js';
 import {
-  createHeadlessApiMediator,
+  createNativeApiMediator,
   type IApiMediator,
 } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import type {
@@ -292,7 +292,7 @@ async function run(
     ],
   };
   globalThis.fetch = peer.fetch as typeof globalThis.fetch;
-  const bus = createHeadlessApiMediator({
+  const bus = createNativeApiMediator({
     bankHint: HINT,
     identityBaseUrl: ORIGIN,
     graphqlUrl: `${ORIGIN}/`,
@@ -313,19 +313,19 @@ async function runThroughPortal(peer: IPeer): Promise<{
   result: Procedure<IFlowResult>;
   bus: IApiMediator;
 }> {
-  const { config, headless } = await portalSetup();
+  const { config, transportConfig } = await portalSetup();
   globalThis.fetch = peer.fetch as typeof globalThis.fetch;
-  const bus = createHeadlessApiMediator({
+  const bus = createNativeApiMediator({
     bankHint: HINT,
     identityBaseUrl: ORIGIN,
     graphqlUrl: `${ORIGIN}/`,
     sessionCookies: true,
-    cookieDomains: headless.cookieDomains,
-    redirectPolicy: headless.redirectPolicy,
-    statusPolicy: headless.statusPolicy,
-    mediaTypes: headless.mediaTypes,
+    cookieDomains: transportConfig.cookieDomains,
+    redirectPolicy: transportConfig.redirectPolicy,
+    statusPolicy: transportConfig.statusPolicy,
+    mediaTypes: transportConfig.mediaTypes,
     strictUtf8: true,
-    responseIntegrity: headless.responseIntegrity,
+    responseIntegrity: transportConfig.responseIntegrity,
   });
   const result = await runSmsOtpFlow({
     config,
@@ -344,7 +344,7 @@ async function runThroughPortal(peer: IPeer): Promise<{
  */
 async function portalSetup(): Promise<{
   config: IApiDirectCallConfig;
-  headless: ILeumiModule['LEUMI_TRANSPORT'];
+  transportConfig: ILeumiModule['LEUMI_TRANSPORT'];
 }> {
   const transmit = (await import(MODULE)) as ITransmitModule;
   const portal = (await import(PORTAL_MODULE)) as IPortalModule;
@@ -354,10 +354,10 @@ async function portalSetup(): Promise<{
   for (const [tag, url] of Object.entries(paths)) {
     registerWkUrl(tag as keyof typeof paths, HINT, url);
   }
-  const { LEUMI_API_DIRECT_CALL: config, LEUMI_TRANSPORT: headless } = assembled;
-  const valid = validateApiDirectConfig({ call: config, transport: headless });
+  const { LEUMI_API_DIRECT_CALL: config, LEUMI_TRANSPORT: transportConfig } = assembled;
+  const valid = validateApiDirectConfig({ call: config, transport: transportConfig });
   if (!valid.success) throw new TypeError(valid.errorMessage);
-  return { config, headless };
+  return { config, transportConfig };
 }
 
 describe('Leumi encrypted flow with a synthetic peer', () => {

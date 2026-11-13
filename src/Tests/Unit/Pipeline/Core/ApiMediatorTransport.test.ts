@@ -64,8 +64,8 @@ jest.unstable_mockModule(
 );
 
 jest.unstable_mockModule('../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js', () => ({
-  createMtlsHeadlessApiMediator: CREATE_NODE_TLS,
-  createHeadlessApiMediator: CREATE_NATIVE,
+  createMtlsApiMediator: CREATE_NODE_TLS,
+  createNativeApiMediator: CREATE_NATIVE,
 }));
 
 const WIRING = await import('../../../../Scrapers/Pipeline/Core/ApiMediatorWiring.js');
@@ -88,7 +88,7 @@ const MISSING_FLAGS: readonly (readonly [string, ITransportFlags])[] = [
  * @param flags - Transport flags of the bank's transport block.
  * @returns True once the config mock is set.
  */
-function mockHeadless(flags: ITransportFlags): boolean {
+function mockTransport(flags: ITransportFlags): boolean {
   RESOLVE_CONFIG.mockReturnValue({ transport: { ...BASE_TRANSPORT, ...flags } });
   return true;
 }
@@ -99,7 +99,7 @@ function mockHeadless(flags: ITransportFlags): boolean {
  * @returns True once the resolver has run.
  */
 function resolveWith(flags: ITransportFlags): boolean {
-  mockHeadless(flags);
+  mockTransport(flags);
   const options = { companyId: CompanyTypes.OneZero } as unknown as ScraperOptions;
   const descriptor: IPipelineDescriptor = { options, phases: [] };
   WIRING.resolveApiMediator(descriptor);
@@ -271,7 +271,7 @@ describe('resolveTransportKind — agrees with the wired factory', () => {
   });
 
   it.each(CONFLICTING_FLAGS)('rejects %s before returning a kind', (_label, flags) => {
-    mockHeadless(flags);
+    mockTransport(flags);
     /**
      * Resolve the kind for the conflicting config.
      * @returns Never; the resolver throws.
@@ -281,7 +281,7 @@ describe('resolveTransportKind — agrees with the wired factory', () => {
   });
 
   it.each(MISSING_FLAGS)('rejects %s before returning a kind', (_label, flags) => {
-    mockHeadless(flags);
+    mockTransport(flags);
     /**
      * Resolve the kind for the transport-less config.
      * @returns Never; the resolver throws.

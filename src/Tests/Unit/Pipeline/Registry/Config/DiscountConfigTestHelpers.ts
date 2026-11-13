@@ -23,12 +23,12 @@ const CONFIG_MODULE =
   '../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigDiscount.js';
 
 /** The bank's transport block, as the build-time validator reads it. */
-type HeadlessBlock = Exclude<IApiDirectRuleInput['transport'], false>;
+type TransportBlock = Exclude<IApiDirectRuleInput['transport'], false>;
 
 /** The Discount login config and its transport block. */
 interface IDiscountModule {
   readonly call: IApiDirectCallConfig;
-  readonly headless: HeadlessBlock;
+  readonly transport: TransportBlock;
 }
 
 /** A slot map, as carry holds it. */
@@ -53,8 +53,8 @@ const CARRY = { uid: UID, uidMd5: UID_MD5, rsaKey: 'syn-key', mi6: UID_MD5 } as 
 async function loadModule(): Promise<IDiscountModule> {
   const loaded = (await import(CONFIG_MODULE)) as Record<string, unknown>;
   const call = loaded.default as IApiDirectCallConfig;
-  const headless = loaded.DISCOUNT_TRANSPORT as HeadlessBlock;
-  return { call, headless };
+  const transport = loaded.DISCOUNT_TRANSPORT as TransportBlock;
+  return { call, transport };
 }
 
 /**

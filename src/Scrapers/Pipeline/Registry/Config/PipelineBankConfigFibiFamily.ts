@@ -120,10 +120,10 @@ function fibiPaths(brand: IFibiBrand): ITransportConfig['paths'] {
  * @param brand - FIBI-family brand.
  * @returns The transport block.
  */
-function buildFibiHeadless(brand: IFibiBrand): ITransportConfig {
+function buildFibiTransport(brand: IFibiBrand): ITransportConfig {
   const base = `${brand.origin}/`;
   const paths = fibiPaths(brand);
   return { identityBase: base, graphql: base, paths, ...FIBI_WIRE };
 }
 
-export { buildFibiApiDirectCall, buildFibiHeadless };
+export { buildFibiApiDirectCall, buildFibiTransport };

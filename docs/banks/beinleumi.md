@@ -35,20 +35,20 @@ browser and no portal page read. Every call runs on the bank's online origin.
 (`Registry/Config/PipelineBankConfigBeinleumi.ts`) are the FIBI-family login
 built for one `IFibiBrand` record: the origin, the servlet's `bankId`, the
 Transmit app id, the bank number and the device-memory provider.
-`buildFibiApiDirectCall` and `buildFibiHeadless`
+`buildFibiApiDirectCall` and `buildFibiTransport`
 (`Registry/Config/PipelineBankConfigFibiFamily.ts`) build both from the brand,
 so a sibling bank of the family differs by its brand alone.
 
-| Step             | Call                                     | Sends                                                                       | Keeps                                                                                                     |
-| ---------------- | ---------------------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `encryptionKey`  | `POST` the key exchange                  | a fresh `secp256k1` public key                                              | the envelope key and session                                                                              |
-| `login`          | `POST` the login                         | the user id and the brand's bank number, sealed                             | the session id; the login must offer the password method alone                                            |
-| `assertPassword` | `POST` the assertion                     | the password, sealed                                                        | the login token, or the one SMS target the bank offers                                                    |
-| `otpInit`        | `POST` the assertion                     | a request to send the code                                                  | the code's format; runs only when the code is yet to be sent                                              |
-| `assertOtp`      | `POST` the assertion                     | the code from `otpCodeRetriever`, 4–10 digits of the length the bank stated | the login token; runs only when the bank asked for a code                                                 |
-| `logon`          | `POST` the entry form (`fibiServletUrl`) | the static form fields, the user and the token as `passwordEnc`             | —                                                                                                         |
-| `bootstrap`      | `POST` the SSO bootstrap                 | `{TPPName: 'shell'}`                                                        | the SSO code                                                                                              |
-| `sessionToken`   | `GET` the authorization, with the code   | —                                                                           | the `authorization` header the scrape sends                                                               |
+| Step             | Call                                     | Sends                                                                       | Keeps                                                          |
+| ---------------- | ---------------------------------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `encryptionKey`  | `POST` the key exchange                  | a fresh `secp256k1` public key                                              | the envelope key and session                                   |
+| `login`          | `POST` the login                         | the user id and the brand's bank number, sealed                             | the session id; the login must offer the password method alone |
+| `assertPassword` | `POST` the assertion                     | the password, sealed                                                        | the login token, or the one SMS target the bank offers         |
+| `otpInit`        | `POST` the assertion                     | a request to send the code                                                  | the code's format; runs only when the code is yet to be sent   |
+| `assertOtp`      | `POST` the assertion                     | the code from `otpCodeRetriever`, 4–10 digits of the length the bank stated | the login token; runs only when the bank asked for a code      |
+| `logon`          | `POST` the entry form (`fibiServletUrl`) | the static form fields, the user and the token as `passwordEnc`             | —                                                              |
+| `bootstrap`      | `POST` the SSO bootstrap                 | `{TPPName: 'shell'}`                                                        | the SSO code                                                   |
+| `sessionToken`   | `GET` the authorization, with the code   | —                                                                           | the `authorization` header the scrape sends                    |
 
 `fibiOpeningSteps`, `fibiAssertSteps`, `fibiLogonStep` and `fibiSsoSteps`
 build these rows; the sealed request bodies are `fibiLoginBody`,

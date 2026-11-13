@@ -6,7 +6,7 @@
  */
 
 import { ONE_ZERO_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/OneZero/scrape/OneZeroShape.js';
-import { buildGenericHeadlessScrape } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeActions.js';
+import { buildGenericApiDirectScrape } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeActions.js';
 import { succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { assertHas, assertOk } from '../../../../Helpers/AssertProcedure.js';
 import {
@@ -21,7 +21,7 @@ import {
   synMovement,
 } from './OneZeroScrapeTestHelpers.js';
 
-const ONE_ZERO_API_SCRAPE = buildGenericHeadlessScrape(ONE_ZERO_SHAPE);
+const ONE_ZERO_API_SCRAPE = buildGenericApiDirectScrape(ONE_ZERO_SHAPE);
 
 describe('ONE_ZERO_API_SCRAPE — failure + edge branches', () => {
   it('customer query fails → propagates fail without fetching movements', async () => {

@@ -4,7 +4,7 @@
  */
 
 import { CompanyTypes } from '../../../../../Definitions.js';
-import { createHeadlessApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
+import { createNativeApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import {
   registerWkQuery,
   resetWkRegistryForTest as resetWkQueriesForTest,
@@ -42,7 +42,7 @@ describe('ApiMediator — strict UTF-8 bank', () => {
 
   it('runs a native mediator under the bank strict UTF-8 decoding', async () => {
     globalThis.fetch = answerLatin1;
-    const mediator = createHeadlessApiMediator({
+    const mediator = createNativeApiMediator({
       bankHint: HINT,
       identityBaseUrl: 'https://id.example/v1/',
       graphqlUrl: 'https://gql.example/graphql',
@@ -55,7 +55,7 @@ describe('ApiMediator — strict UTF-8 bank', () => {
 
   it('applies the same bank strict UTF-8 decoding to GraphQL answers', async () => {
     globalThis.fetch = answerLatin1;
-    const mediator = createHeadlessApiMediator({
+    const mediator = createNativeApiMediator({
       bankHint: HINT,
       identityBaseUrl: 'https://id.example/v1/',
       graphqlUrl: 'https://gql.example/graphql',

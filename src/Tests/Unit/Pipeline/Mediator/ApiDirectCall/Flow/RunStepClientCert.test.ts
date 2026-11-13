@@ -8,7 +8,7 @@
 
 import { CompanyTypes } from '../../../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js';
-import { createMtlsHeadlessApiMediator } from '../../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
+import { createMtlsApiMediator } from '../../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import type { INodeTlsMediatorArgs } from '../../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.transport.types.js';
 import type {
   IApiDirectCallConfig,
@@ -90,7 +90,7 @@ describe('step client certificate', () => {
 
   it('installs the pair before the step request and keeps it for later steps', async () => {
     const presented = recordPresented();
-    const bus = createMtlsHeadlessApiMediator(DYNAMIC_ARGS);
+    const bus = createMtlsApiMediator(DYNAMIC_ARGS);
     const scope = scopeWith(DEVICE.keyPem, DEVICE.certPem);
     const first = await runRegister(bus, scope);
     const nextScope = first.success ? first.value : scope;
@@ -102,7 +102,7 @@ describe('step client certificate', () => {
 
   it('fails unsupported on a bus without the certificate port, sending nothing', async () => {
     const presented = recordPresented();
-    const bus = createMtlsHeadlessApiMediator(BASE_ARGS);
+    const bus = createMtlsApiMediator(BASE_ARGS);
     const scope = scopeWith(DEVICE.keyPem, DEVICE.certPem);
     const result = await runRegister(bus, scope);
     expect(result).toMatchObject({
@@ -120,7 +120,7 @@ describe('step client certificate', () => {
     ['garbage PEM', 'not a key', 'not a cert'],
   ])('fails invalid for %s, sending nothing', async (_label, key, cert) => {
     const presented = recordPresented();
-    const bus = createMtlsHeadlessApiMediator(DYNAMIC_ARGS);
+    const bus = createMtlsApiMediator(DYNAMIC_ARGS);
     const scope = scopeWith(key, cert);
     const result = await runRegister(bus, scope);
     expect(result).toMatchObject({
@@ -133,7 +133,7 @@ describe('step client certificate', () => {
 
   it('a refused pair keeps the certificate installed by an earlier step', async () => {
     const presented = recordPresented();
-    const bus = createMtlsHeadlessApiMediator(DYNAMIC_ARGS);
+    const bus = createMtlsApiMediator(DYNAMIC_ARGS);
     const deviceScope = scopeWith(DEVICE.keyPem, DEVICE.certPem);
     const refusedScope = scopeWith(OTHER.keyPem, DEVICE.certPem);
     await runRegister(bus, deviceScope);

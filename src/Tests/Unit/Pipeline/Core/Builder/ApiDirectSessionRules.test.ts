@@ -21,7 +21,7 @@ const SLOT_MSG = 'sessionCarry: each slot must name a step extract';
 const HANDOFF_MSG = 'cookieHandoff: isolate not allowed without transport.cookieDomains';
 
 /** The bank's transport block, as the rules read it. */
-type Headless = IApiDirectRuleInput['transport'];
+type Transport = IApiDirectRuleInput['transport'];
 
 const NATIVE = {
   identityBase: 'https://bank.example',
@@ -31,7 +31,7 @@ const NATIVE = {
 };
 
 /** The native block with a domain jar. */
-const JARRED: Headless = {
+const JARRED: Transport = {
   ...NATIVE,
   sessionCookies: true,
   cookieDomains: ['bank.example'],
@@ -47,7 +47,7 @@ const REGISTER: IStepConfig = {
 };
 
 /** The native block refusing redirects, as a manual redirect needs. */
-const REJECTING: Headless = { ...NATIVE, redirectPolicy: 'reject' };
+const REJECTING: Transport = { ...NATIVE, redirectPolicy: 'reject' };
 
 /** A GET whose final URL, checked by its manual redirect, lands in the carry. */
 const LANDING: IGetStep = {
@@ -124,25 +124,25 @@ describe('validateApiDirectConfig — sessionCarry', () => {
 
 /**
  * Validate a one-step flow with the given transport block and hand-off.
- * @param headless - Transport block.
+ * @param transportConfig - Transport block.
  * @param cookieHandoff - Hand-off under test; omitted for the default.
  * @returns Build-rule verdict.
  */
 function validateHandoff(
-  headless: Headless,
+  transportConfig: Transport,
   cookieHandoff?: CookieHandoff,
 ): ReturnType<typeof validateApiDirectConfig> {
   const call = { flow: 'sms-otp', envelope: {}, steps: [REGISTER], cookieHandoff } as const;
-  return validateApiDirectConfig({ call, transport: headless });
+  return validateApiDirectConfig({ call, transport: transportConfig });
 }
 
 describe('validateApiDirectConfig — cookieHandoff', () => {
-  it.each<[string, Headless, CookieHandoff | undefined]>([
+  it.each<[string, Transport, CookieHandoff | undefined]>([
     ['isolate with a domain jar', JARRED, 'isolate'],
     ['shared without one', NATIVE, 'shared'],
     ['the default without one', NATIVE, undefined],
-  ])('%s passes', (_label, headless, cookieHandoff) => {
-    const result = validateHandoff(headless, cookieHandoff);
+  ])('%s passes', (_label, transportConfig, cookieHandoff) => {
+    const result = validateHandoff(transportConfig, cookieHandoff);
     expect(result).toEqual({ success: true, value: true });
   });
 

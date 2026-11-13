@@ -5,7 +5,7 @@
  * collapse into a config array iteration. CodeRabbit flagged this
  * pattern in `LoginFormActionsBranches.test.ts`,
  * `LoginPhaseActionsBranches.test.ts`, and
- * `PipelineContextFactoryHeadless.test.ts` on PR #257. This file
+ * `PipelineContextFactoryTransport.test.ts` on PR #257. This file
  * deliberately defines two identical helpers so verify.sh confirms
  * the guardrail fires.
  *

@@ -52,8 +52,8 @@ const APP_CONTEXT = {
 
 describe('Discount api-direct login config — wiring', () => {
   it('passes the build-time validator with its headless block', async () => {
-    const { call, headless } = await loadModule();
-    const result = validateApiDirectConfig({ call, transport: headless });
+    const { call, transport } = await loadModule();
+    const result = validateApiDirectConfig({ call, transport });
     expect(result).toEqual({ success: true, value: true });
   });
 
@@ -69,25 +69,25 @@ describe('Discount api-direct login config — wiring', () => {
   });
 
   it('names each call on the telebank origin', async () => {
-    const { headless } = await loadModule();
-    expect(headless.paths).toEqual({
+    const { transport } = await loadModule();
+    expect(transport.paths).toEqual({
       'auth.prime': LOGIN_PAGE,
       'auth.encryptionKey': `${ORIGIN}/Lobby/gatewayAPI/verification/getInfo`,
       'auth.logon': `${ORIGIN}/Lobby/gatewayAPI/login`,
       'auth.landing': `${ORIGIN}/apollo/retail3`,
     });
-    expect(headless).toMatchObject({ identityBase: `${ORIGIN}/`, graphql: `${ORIGIN}/` });
+    expect(transport).toMatchObject({ identityBase: `${ORIGIN}/`, graphql: `${ORIGIN}/` });
   });
 
   it('runs over native fetch in one telebank cookie jar, refusing undeclared redirects', async () => {
-    const { headless } = await loadModule();
-    expect(headless).toMatchObject({
+    const { transport } = await loadModule();
+    expect(transport).toMatchObject({
       nativeFetch: true,
       sessionCookies: true,
       cookieDomains: ['telebank.co.il'],
       redirectPolicy: 'reject',
     });
-    expect(headless.statusPolicy).toBeUndefined();
+    expect(transport.statusPolicy).toBeUndefined();
   });
 
   it('logs in cold under no auth scheme, keeping the bank text out', async () => {

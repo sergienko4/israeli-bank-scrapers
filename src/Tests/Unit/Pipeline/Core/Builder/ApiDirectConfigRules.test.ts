@@ -25,10 +25,10 @@ import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure
 import { makeMockOptions } from '../../Infrastructure/MockFactories.js';
 
 /** The bank's transport block as the rules read it. */
-type HeadlessBlock = IApiDirectRuleInput['transport'];
+type TransportBlock = IApiDirectRuleInput['transport'];
 
-const JAR_ON = { sessionCookies: true } as unknown as HeadlessBlock;
-const JAR_OFF = { sessionCookies: false } as unknown as HeadlessBlock;
+const JAR_ON = { sessionCookies: true } as unknown as TransportBlock;
+const JAR_OFF = { sessionCookies: false } as unknown as TransportBlock;
 
 const STEP: IStepConfig = {
   name: 'bind',
@@ -102,7 +102,7 @@ const JAR_DOMAINS = {
   sessionCookies: true,
   nativeFetch: true,
   cookieDomains: ['bank.example'],
-} as unknown as HeadlessBlock;
+} as unknown as TransportBlock;
 
 /** The cookie-jar binding fields a test may blank. */
 type JarBinding = Partial<Pick<ICookieJarWarmStart, 'provider' | 'accountField'>>;
@@ -110,13 +110,13 @@ type JarBinding = Partial<Pick<ICookieJarWarmStart, 'provider' | 'accountField'>
 /**
  * A config warm-started from a cookie jar with the given ceiling.
  * @param maxTokenChars - Token ceiling.
- * @param headless - Transport block beside the call.
+ * @param transportConfig - Transport block beside the call.
  * @param binding - Binding fields to set on top.
  * @returns Rule input.
  */
 function cookieJarWarm(
   maxTokenChars: number,
-  headless = JAR_DOMAINS,
+  transportConfig = JAR_DOMAINS,
   binding: JarBinding = {},
 ): IApiDirectRuleInput {
   const warmStart = {
@@ -129,7 +129,7 @@ function cookieJarWarm(
     maxTokenChars,
     ...binding,
   } as const;
-  return { call: makeCall({ warmStart, steps: [STEP, STEP] }), transport: headless };
+  return { call: makeCall({ warmStart, steps: [STEP, STEP] }), transport: transportConfig };
 }
 
 /**

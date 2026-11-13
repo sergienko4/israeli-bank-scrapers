@@ -62,7 +62,7 @@ function buildRingApiDirectCall(ring: IRingConstants): IApiDirectCallConfig {
  * @param ring - Issuer constants.
  * @returns Transport endpoints.
  */
-function buildRingHeadless(ring: IRingConstants): ITransportConfig {
+function buildRingTransport(ring: IRingConstants): ITransportConfig {
   const identityBase = `${ring.base}/`;
   const paths = { 'auth.service': `${ring.base}/service` };
   // The ring has no GraphQL; graphql mirrors identityBase to satisfy the type.
@@ -71,4 +71,4 @@ function buildRingHeadless(ring: IRingConstants): ITransportConfig {
   return { identityBase, graphql, paths, nativeFetch: true, sessionCookies: true };
 }
 
-export { buildRingApiDirectCall, buildRingHeadless };
+export { buildRingApiDirectCall, buildRingTransport };

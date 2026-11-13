@@ -6,7 +6,7 @@
 import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import {
   buildTelebankApiDirectCall,
-  buildTelebankHeadless,
+  buildTelebankTransport,
 } from './PipelineBankConfigTelebankFamily.js';
 import type { ITelebankBrand } from './PipelineBankConfigTelebankFamilyConstants.js';
 import type { ITransportConfig } from './PipelineBankConfigTypes.js';
@@ -21,7 +21,7 @@ const DISCOUNT_BRAND: ITelebankBrand = {
 
 const DISCOUNT_API_DIRECT_CALL: IApiDirectCallConfig = buildTelebankApiDirectCall(DISCOUNT_BRAND);
 
-const DISCOUNT_TRANSPORT: ITransportConfig = buildTelebankHeadless(DISCOUNT_BRAND);
+const DISCOUNT_TRANSPORT: ITransportConfig = buildTelebankTransport(DISCOUNT_BRAND);
 
 export default DISCOUNT_API_DIRECT_CALL;
 export { DISCOUNT_API_DIRECT_CALL, DISCOUNT_TRANSPORT };

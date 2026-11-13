@@ -5,7 +5,7 @@
  */
 
 import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
-import { buildFibiApiDirectCall, buildFibiHeadless } from './PipelineBankConfigFibiFamily.js';
+import { buildFibiApiDirectCall, buildFibiTransport } from './PipelineBankConfigFibiFamily.js';
 import type { IFibiBrand } from './PipelineBankConfigFibiFamilyConstants.js';
 import type { ITransportConfig } from './PipelineBankConfigTypes.js';
 
@@ -20,7 +20,7 @@ const OTSAR_HAHAYAL_BRAND: IFibiBrand = {
 const OTSAR_HAHAYAL_API_DIRECT_CALL: IApiDirectCallConfig =
   buildFibiApiDirectCall(OTSAR_HAHAYAL_BRAND);
 
-const OTSAR_HAHAYAL_TRANSPORT: ITransportConfig = buildFibiHeadless(OTSAR_HAHAYAL_BRAND);
+const OTSAR_HAHAYAL_TRANSPORT: ITransportConfig = buildFibiTransport(OTSAR_HAHAYAL_BRAND);
 
 export default OTSAR_HAHAYAL_API_DIRECT_CALL;
 export { OTSAR_HAHAYAL_API_DIRECT_CALL, OTSAR_HAHAYAL_TRANSPORT };

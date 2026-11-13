@@ -37,7 +37,7 @@ type ITransportConfig = Exclude<IApiDirectRuleInput['transport'], false>;
 interface IRingIssuer {
   readonly bank: string;
   readonly module: string;
-  readonly headlessExport: string;
+  readonly transportExport: string;
   readonly origin: string;
   readonly applicationId: string;
   readonly isrdomain: string;
@@ -48,7 +48,7 @@ const ISSUERS: readonly IRingIssuer[] = [
   {
     bank: 'Isracard',
     module: 'PipelineBankConfigIsracard.js',
-    headlessExport: 'ISRACARD_TRANSPORT',
+    transportExport: 'ISRACARD_TRANSPORT',
     origin: 'https://ring.isracard.co.il',
     applicationId: 'mi',
     isrdomain: 'isracard',
@@ -57,7 +57,7 @@ const ISSUERS: readonly IRingIssuer[] = [
   {
     bank: 'Amex',
     module: 'PipelineBankConfigAmex.js',
-    headlessExport: 'AMEX_TRANSPORT',
+    transportExport: 'AMEX_TRANSPORT',
     origin: 'https://ring.americanexpress.co.il',
     applicationId: 'ma',
     isrdomain: 'amex',
@@ -68,7 +68,7 @@ const ISSUERS: readonly IRingIssuer[] = [
 /** An issuer's login config and transport block. */
 interface IRingModule {
   readonly call: IApiDirectCallConfig;
-  readonly headless: ITransportConfig;
+  readonly transportConfig: ITransportConfig;
 }
 
 const CREDS = { id: '012345678', card6Digits: '123456', password: 'pw' } as const;
@@ -180,8 +180,8 @@ const EXPECTED_SERVICES = [
 async function loadModule(issuer: IRingIssuer): Promise<IRingModule> {
   const loaded = (await import(`${CONFIG_DIR}${issuer.module}`)) as Record<string, unknown>;
   const call = loaded.default as IApiDirectCallConfig;
-  const headless = loaded[issuer.headlessExport] as ITransportConfig;
-  return { call, headless };
+  const transportConfig = loaded[issuer.transportExport] as ITransportConfig;
+  return { call, transportConfig };
 }
 
 /**
@@ -198,8 +198,8 @@ function hydrateFixed(template: JsonValueTemplate, config: IApiDirectCallConfig)
 
 describe.each(ISSUERS)('ring login config — $bank', issuer => {
   it('passes the build-time validator with its headless block', async () => {
-    const { call, headless } = await loadModule(issuer);
-    const result = validateApiDirectConfig({ call, transport: headless });
+    const { call, transportConfig } = await loadModule(issuer);
+    const result = validateApiDirectConfig({ call, transport: transportConfig });
     expect(result).toEqual({ success: true, value: true });
   });
 
@@ -269,9 +269,9 @@ describe.each(ISSUERS)('ring login config — $bank', issuer => {
   });
 
   it('runs over native fetch, with the session on cookies rather than a header', async () => {
-    const { call, headless } = await loadModule(issuer);
+    const { call, transportConfig } = await loadModule(issuer);
     expect(call.authScheme).toBe('none');
-    expect(headless).toMatchObject({ nativeFetch: true, sessionCookies: true });
-    expect(headless.paths).toEqual({ 'auth.service': `${issuer.origin}/service` });
+    expect(transportConfig).toMatchObject({ nativeFetch: true, sessionCookies: true });
+    expect(transportConfig.paths).toEqual({ 'auth.service': `${issuer.origin}/service` });
   });
 });

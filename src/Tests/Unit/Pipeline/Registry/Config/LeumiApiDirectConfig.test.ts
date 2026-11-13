@@ -11,29 +11,29 @@ import { assertOk } from '../../../../Helpers/AssertProcedure.js';
 
 const MODULE = '../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigLeumi.js';
 const REGISTRY = '../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js';
-type IHeadless = Exclude<Parameters<typeof validateApiDirectConfig>[0]['transport'], false>;
+type ITransport = Exclude<Parameters<typeof validateApiDirectConfig>[0]['transport'], false>;
 
 interface ILeumiModule {
   readonly LEUMI_API_DIRECT_CALL: IApiDirectCallConfig;
-  readonly LEUMI_TRANSPORT: IHeadless;
+  readonly LEUMI_TRANSPORT: ITransport;
 }
 
 interface IRegistryModule {
   readonly resolvePipelineBankConfig: (
     company: CompanyTypes,
-  ) => { readonly transport?: IHeadless } | false;
+  ) => { readonly transport?: ITransport } | false;
 }
 
 describe('Leumi native candidate configuration', () => {
   it('builds one bounded, private native flow and activates its registry config', async () => {
-    const { LEUMI_API_DIRECT_CALL: call, LEUMI_TRANSPORT: headless } = (await import(
+    const { LEUMI_API_DIRECT_CALL: call, LEUMI_TRANSPORT: transportConfig } = (await import(
       MODULE
     )) as ILeumiModule;
-    const validation = validateApiDirectConfig({ call, transport: headless });
+    const validation = validateApiDirectConfig({ call, transport: transportConfig });
     expect(validation).toEqual({ success: true, value: true });
     expect(call.sessionCarry).toEqual(['sessionToken']);
     expect(call.omitBankText).toBe(true);
-    expect(headless).toMatchObject({
+    expect(transportConfig).toMatchObject({
       nativeFetch: true,
       sessionCookies: true,
       redirectPolicy: 'reject',
@@ -43,7 +43,7 @@ describe('Leumi native candidate configuration', () => {
     });
     const registry = (await import(REGISTRY)) as IRegistryModule;
     const active = registry.resolvePipelineBankConfig(CompanyTypes.Leumi);
-    expect(active).toMatchObject({ transport: headless });
+    expect(active).toMatchObject({ transport: transportConfig });
   });
 
   it('selects the native descriptor from the production pipeline registry', () => {

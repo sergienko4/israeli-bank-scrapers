@@ -12,15 +12,15 @@ import {
 import type { IStepConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 
 /** The bank's transport block when it has one. */
-type HeadlessBlock = Exclude<IApiDirectRuleInput['transport'], false>;
+type TransportBlock = Exclude<IApiDirectRuleInput['transport'], false>;
 
 const STEP_MSG = 'steps.clientCert: not allowed without transport.clientCert';
 const ORIGIN_MSG = 'transport.clientCert.origin: must be an exact https origin';
 const REGISTERED_MSG = 'transport.clientCert: not allowed with transport.requiresClientCert';
 
 const HOST = 'https://bank.example';
-const PLAIN: HeadlessBlock = { identityBase: HOST, graphql: `${HOST}/graphql`, paths: {} };
-const DYNAMIC: HeadlessBlock = { ...PLAIN, clientCert: { mode: 'dynamic', origin: HOST } };
+const PLAIN: TransportBlock = { identityBase: HOST, graphql: `${HOST}/graphql`, paths: {} };
+const DYNAMIC: TransportBlock = { ...PLAIN, clientCert: { mode: 'dynamic', origin: HOST } };
 
 const CALL: IStepConfig = {
   name: 'register',
@@ -37,11 +37,11 @@ const INSTALLING: IStepConfig = {
 /**
  * Rule input whose one login step is the given step.
  * @param step - The login step.
- * @param headless - The bank's transport block, or false.
+ * @param transportConfig - The bank's transport block, or false.
  * @returns Rule input.
  */
-function runOf(step: IStepConfig, headless: HeadlessBlock | false): IApiDirectRuleInput {
-  return { call: { flow: 'sms-otp', envelope: {}, steps: [step] }, transport: headless };
+function runOf(step: IStepConfig, transportConfig: TransportBlock | false): IApiDirectRuleInput {
+  return { call: { flow: 'sms-otp', envelope: {}, steps: [step] }, transport: transportConfig };
 }
 
 /**
@@ -49,7 +49,7 @@ function runOf(step: IStepConfig, headless: HeadlessBlock | false): IApiDirectRu
  * @param origin - Declared origin.
  * @returns Transport block.
  */
-function presentingTo(origin: string): HeadlessBlock {
+function presentingTo(origin: string): TransportBlock {
   return { ...PLAIN, clientCert: { mode: 'dynamic', origin } };
 }
 
@@ -75,11 +75,11 @@ function resumeOf(step: IStepConfig): IApiDirectRuleInput {
 }
 
 describe('validateApiDirectConfig — dynamic client certificate', () => {
-  it.each<[string, HeadlessBlock | false]>([
+  it.each<[string, TransportBlock | false]>([
     ['no headless block', false],
     ['a headless block without clientCert', PLAIN],
-  ])('a step clientCert with %s fails the build', (_label, headless) => {
-    const input = runOf(INSTALLING, headless);
+  ])('a step clientCert with %s fails the build', (_label, transportConfig) => {
+    const input = runOf(INSTALLING, transportConfig);
     const result = validateApiDirectConfig(input);
     expect(result).toMatchObject({
       success: false,
@@ -113,22 +113,22 @@ describe('validateApiDirectConfig — dynamic client certificate', () => {
     'bank.example',
     '',
   ])('origin %j fails the build', origin => {
-    const headless = presentingTo(origin);
-    const input = runOf(CALL, headless);
+    const transportConfig = presentingTo(origin);
+    const input = runOf(CALL, transportConfig);
     const result = validateApiDirectConfig(input);
     expect(result).toMatchObject({ success: false, errorMessage: ORIGIN_MSG });
   });
 
   it('an origin with an explicit non-default port passes', () => {
-    const headless = presentingTo('https://bank.example:8443');
-    const input = runOf(CALL, headless);
+    const transportConfig = presentingTo('https://bank.example:8443');
+    const input = runOf(CALL, transportConfig);
     const result = validateApiDirectConfig(input);
     expect(result).toEqual({ success: true, value: true });
   });
 
   it('a dynamic block with a registered certificate fails the build', () => {
-    const headless: HeadlessBlock = { ...DYNAMIC, requiresClientCert: true };
-    const input = runOf(CALL, headless);
+    const transportConfig: TransportBlock = { ...DYNAMIC, requiresClientCert: true };
+    const input = runOf(CALL, transportConfig);
     const result = validateApiDirectConfig(input);
     expect(result).toMatchObject({ success: false, errorMessage: REGISTERED_MSG });
   });
