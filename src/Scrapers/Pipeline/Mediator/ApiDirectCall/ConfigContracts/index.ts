@@ -16,6 +16,7 @@
 export * from './ApiDirectCallConfig.js';
 export * from './CarryTypes.js';
 export * from './ClassifyTypes.js';
+export * from './DeviceIdentityTypes.js';
 export * from './EnvelopeTypes.js';
 export * from './ExtractRuleTypes.js';
 export * from './FailureTypes.js';

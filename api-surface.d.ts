@@ -359,7 +359,7 @@ interface IAuthFlowInfo {
  * <p>One documented opt-out exists: a step declaring
  * `preHook.reuse: 'per-step'` acquires afresh, so a retriever CAN be called
  * again within the same flow. That is reserved for a bank that genuinely
- * delivers a distinct secret per step; no bank declares it today.
+ * delivers a distinct secret per step (Hapoalim's device step-up).
  *
  * <p>It IS called again for a genuinely new code when a login is retried after
  * the bank rejects the previous one.
@@ -372,6 +372,7 @@ type ScraperCredentials = {
     password: string;
     otpCodeRetriever?: (phoneHint: string) => Promise<string>;
     otpLongTermToken?: string;
+    deviceSignature?: string;
 } | {
     username: string;
     password: string;

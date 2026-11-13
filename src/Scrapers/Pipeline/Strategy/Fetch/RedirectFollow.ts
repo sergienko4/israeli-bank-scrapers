@@ -15,42 +15,20 @@
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
-import type { Brand } from '../../Types/Brand.js';
-import type { IManualRedirect, IUrlRule, RedirectPolicy } from '../../Types/Domain/FetchPolicy.js';
+import type { IManualRedirect, IUrlRule } from '../../Types/Domain/FetchPolicy.js';
 import { REDIRECT_REFUSED_REASON } from '../../Types/Domain/FetchPolicy.js';
 import type { Option } from '../../Types/Option.js';
 import { none, some } from '../../Types/Option.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
-import type {
-  FetchInvoke,
-  HttpVerb,
-  IFetchInvokePolicy,
-  ISessionHeaders,
-  OnSetCookie,
-} from './FetchStrategy.js';
+import type { HttpVerb, IFetchInvokePolicy, ISessionHeaders } from './FetchStrategy.js';
+import { sendAccept } from './RedirectAccept.js';
 import { droppedOnHop, followedAfter, hopHeaders, postStatusesOf } from './RedirectHopRules.js';
+import type { IRedirectRun, IRunEnd } from './RedirectShared.js';
+import { answeredUrl, emitSetCookies, isRedirectStatus } from './RedirectShared.js';
 import { cancelResponseBody } from './ResponseBody.js';
 import { safeUrlForLog } from './SafeUrlForLog.js';
 import { matchesAnyUrlRule } from './UrlRule.js';
-
-type SetCookieEmitCount = Brand<number, 'SetCookieEmitCount'>;
-
-/** One request, its transport seam and the redirect policy it runs under. */
-interface IRedirectRun extends IFetchInvokePolicy {
-  readonly url: string;
-  readonly init: RequestInit;
-  readonly invoke: FetchInvoke;
-  readonly policy: RedirectPolicy;
-  readonly onSetCookie?: OnSetCookie;
-  readonly sessionHeadersFor?: (url: string) => Procedure<ISessionHeaders>;
-}
-
-/** The response that ended a run and the URL its Set-Cookie lines belong to. */
-interface IRunEnd {
-  readonly response: Response;
-  readonly responseUrl: string;
-}
 
 /** One request of a manual run and the hops still allowed after it. */
 interface IHop {
@@ -75,45 +53,6 @@ type Sender = (run: IRedirectRun) => Promise<Procedure<IRunEnd>>;
 
 /** Session headers of a run without a session: no Cookie header on any hop. */
 const NO_SESSION: ISessionHeaders = { owned: ['cookie'], values: {} };
-
-/**
- * Whether a status is a redirect.
- * @param status - HTTP status.
- * @returns True for any 3xx.
- */
-function isRedirectStatus(status: number): boolean {
-  return status >= 300 && status < 400;
-}
-
-/**
- * The URL a response's cookies belong to: its own, else the request's.
- * @param response - The response.
- * @param requestUrl - The URL that was requested.
- * @returns The answering URL.
- */
-function answeredUrl(response: Response, requestUrl: string): string {
-  if (response.url === '') return requestUrl;
-  return response.url;
-}
-
-/**
- * Hand a response's raw Set-Cookie lines (Node 18+ `getSetCookie`, which
- * keeps multi-value headers apart) to the hook, when there is one.
- * @param response - Raw fetch Response.
- * @param responseUrl - URL the lines are filed under.
- * @param hook - Optional caller-supplied callback.
- * @returns Number of lines emitted (0 with no hook or no cookies).
- */
-function emitSetCookies(
-  response: Response,
-  responseUrl: string,
-  hook?: OnSetCookie,
-): SetCookieEmitCount {
-  const list = response.headers.getSetCookie();
-  if (!hook || list.length === 0) return 0 as SetCookieEmitCount;
-  hook(list, responseUrl);
-  return list.length as SetCookieEmitCount;
-}
 
 /**
  * Refuse a redirect without naming the refused target.
@@ -156,9 +95,10 @@ async function sendReject(run: IRedirectRun): Promise<Procedure<IRunEnd>> {
 }
 
 /** Sender per fixed policy. */
-const FIXED_SENDERS: Readonly<Record<'follow' | 'reject', Sender>> = {
+const FIXED_SENDERS: Readonly<Record<'follow' | 'reject' | 'accept', Sender>> = {
   follow: sendFollow,
   reject: sendReject,
+  accept: sendAccept,
 };
 
 /**
@@ -271,5 +211,6 @@ function sendUnderPolicy(run: IRedirectRun): Promise<Procedure<IRunEnd>> {
 }
 
 export default sendUnderPolicy;
-export type { IRedirectRun, IRunEnd };
-export { emitSetCookies, isRedirectStatus, sendUnderPolicy };
+export type { IRedirectRun, IRunEnd } from './RedirectShared.js';
+export { sendUnderPolicy };
+export { answeredUrl } from './RedirectShared.js';

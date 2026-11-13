@@ -42,6 +42,13 @@ interface ICreateOtpPollerArgs {
   /** Optional custom timeout (ms) — defaults to 120s. */
   readonly timeoutMs?: number;
   /**
+   * Optional per-step acquisition. Defaults to `false`: the first code is
+   * memoised for the whole scrape, as banks that submit one code several
+   * times expect. Set `true` for a bank whose step-up issues a distinct code
+   * (Hapoalim `reuse: 'per-step'`), so each callback polls for a new message.
+   */
+  readonly perStep?: boolean;
+  /**
    * Optional digits-extraction regex used against the user's reply
    * text in the Telegram tier. When set AND `TELEGRAM_BOT_TOKEN` +
    * `TELEGRAM_CHAT_ID` env vars are populated AND `bankName` is set,
@@ -304,7 +311,7 @@ function createOtpPoller(args: ICreateOtpPollerArgs): (hint?: string) => Promise
   // every subsequent call within the same scrape.
   let cachedCode = '';
   return async (hint?: string): Promise<string> => {
-    if (cachedCode.length > 0) {
+    if (!args.perStep && cachedCode.length > 0) {
       log.info({ phoneHint: hint ?? '' }, 'OTP cache hit — reusing prior retriever value');
       return cachedCode;
     }
@@ -376,11 +383,14 @@ const DIGITS_ONLY_REGEX = /(\d{4,8})/;
  *   (e.g. "Beinleumi"). Becomes the env-var prefix (uppercased)
  *   and the poll-file basename (lowercased).
  * @param log - Pino-shaped logger.
+ * @param perStep - Re-acquire a fresh code per callback (a distinct
+ *   step-up secret); defaults to the one-code-per-scrape cache.
  * @returns OTP retriever (`(hint?) => Promise<string>`).
  */
 function createBankOtpPoller(
   bankName: string,
   log: ScraperLogger,
+  perStep = false,
 ): (hint?: string) => Promise<string> {
   const upper = bankName.toUpperCase();
   const lower = bankName.toLowerCase();
@@ -390,6 +400,7 @@ function createBankOtpPoller(
     log,
     bankName,
     bankRegex: DIGITS_ONLY_REGEX,
+    perStep,
   });
 }
 

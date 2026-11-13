@@ -3,10 +3,11 @@
  * Extracted from PipelineBuilderHelpers.ts to respect max-lines.
  */
 
-import type { ScraperOptions } from '../../../Base/Interface.js';
+import type { ScraperCredentials, ScraperOptions } from '../../../Base/Interface.js';
 import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { IApiDirectScrapeShape } from '../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { Brand } from '../../Types/Brand.js';
+import type { Procedure } from '../../Types/Procedure.js';
 import type { IBuilderFields } from './PipelineBuilderValidation.js';
 
 /** Bank-supplied shape literal — variance erased at the builder boundary. */
@@ -24,6 +25,7 @@ interface IBuilderState {
   error: string;
   apiDirectScrape: AnyApiDirectScrapeShape | false;
   apiDirectConfig: IApiDirectCallConfig | false;
+  enrichCredentials?: (credentials: ScraperCredentials) => Procedure<ScraperCredentials>;
 }
 
 /** Default values for an empty builder state — split to keep the factory ≤ 15 LOC. */

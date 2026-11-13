@@ -4,7 +4,7 @@
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
-import type { ScraperOptions } from '../../../Base/Interface.js';
+import type { ScraperCredentials, ScraperOptions } from '../../../Base/Interface.js';
 import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { IApiDirectScrapeShape } from '../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import { resolvePipelineBankConfig } from '../../Registry/Config/PipelineBankConfig.js';
@@ -26,6 +26,7 @@ interface IBuilderFields {
   readonly error: string;
   readonly apiDirectScrape: IApiDirectScrapeShape<unknown, unknown> | false;
   readonly apiDirectConfig: IApiDirectCallConfig | false;
+  readonly enrichCredentials?: (credentials: ScraperCredentials) => Procedure<ScraperCredentials>;
 }
 
 /**

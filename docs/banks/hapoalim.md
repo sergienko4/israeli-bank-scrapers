@@ -1,13 +1,13 @@
 # Bank Hapoalim
 
-|                |                                                                                                                                                                      |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CompanyTypes` | `Hapoalim`                                                                                                                                                           |
-| Engine         | **API-direct** (no browser)                                                                                                                                          |
-| Credentials    | `userCode`, `password`, plus an `otpCodeRetriever` callback; optional `otpLongTermToken` ([warm start](#warm-start))                                                 |
-| OTP            | **Conditional**: an SMS code, only when the bank asks for one                                                                                                        |
-| Phase chain    | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md)                                                                |
-| Source         | [`Banks/Hapoalim/HapoalimPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Hapoalim/HapoalimPipeline.ts) |
+|                |                                                                                                                                                                                                        |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `CompanyTypes` | `Hapoalim`                                                                                                                                                                                             |
+| Engine         | **API-direct** (no browser)                                                                                                                                                                            |
+| Credentials    | `userCode`, `password`, plus an `otpCodeRetriever` callback; optional `otpLongTermToken` ([warm start](#warm-start)) and `deviceSignature` (a per-user override; the library derives one when omitted) |
+| OTP            | **Conditional**: an SMS code, only when the bank asks for one                                                                                                                                          |
+| Phase chain    | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md)                                                                                                  |
+| Source         | [`Banks/Hapoalim/HapoalimPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Hapoalim/HapoalimPipeline.ts)                                   |
 
 ## Quick example
 
@@ -28,76 +28,138 @@ The retriever may also be passed in the credentials, beside `userCode` and
 `password`. Either way it receives the masked phone number the bank texted and
 must answer the five-digit code.
 
+The library derives the user's device identity at runtime: it takes the
+carry-bundle token's `deviceSeed` (or a fresh random seed when no token has
+been stored yet), derives `HMAC-SHA256(deviceSeed, userCode)`, and builds the
+RiskMinder signature from the host profile and that seed. The device value is
+**never stored**. The seed lives inside `otpLongTermToken`; no separate file is
+needed. The first run has no token, so it spends two SMS — the login code and
+the device step-up — and returns a token carrying the seed. The same user with
+the same token always derives the same device; another user's token derives a
+different one. The token's cookie part may rotate, but its seed slot is
+re-emitted unchanged; if the token is lost, the user gets a fresh seed and
+re-enrols with two SMS. A caller that already has a captured `rmDeviceID` JSON
+may pass it as `deviceSignature`; that override wins over the derivation.
+
 ## Login
 
-Hapoalim logs in over its login page's own API, with no browser. Every call
-runs on one origin, `HAPOALIM_ORIGIN` (`login.bankhapoalim.co.il`).
+Hapoalim logs in over its mobile app edge, with no browser. Every call
+runs on one origin, `HAPOALIM_ORIGIN` (`iphone.bankhapoalim.co.il`).
 `HAPOALIM_API_DIRECT_CALL` (`Registry/Config/PipelineBankConfigHapoalim.ts`)
-runs the seven steps of `HAPOALIM_STEPS`
+runs the nine steps of `HAPOALIM_STEPS`
 (`Registry/Config/PipelineBankConfigHapoalimSteps.ts`):
 
-| Step            | Endpoint                                       | Sends                                                                                       | Returns                                                                                                |
-| --------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `bootstrap`     | `GET /ng-portals/auth/he/`                     | —                                                                                           | the login page (`HAPOALIM_LOGIN_PAGE`) and its cookies; a page without the app's context fails the run |
-| `encryptionKey` | `GET /ng-portals/auth/serial-number`           | —                                                                                           | `encryptionKey`, the hex RSA modulus; the step wraps it into the `G3CmE` value                         |
-| `identify`      | `POST /authenticate/init`                      | `IDENTIFY_FORM`: the user code and the bank's organization id, with `G3CmE` set as a cookie | `result`                                                                                               |
-| `verify`        | `POST /authenticate/verify`                    | `VERIFY_FORM`: the password, sealed into `credentials`                                      | `state`: `LOGONOTP` when an SMS is needed, `LANDPAGE` when not                                         |
-| `otpInit`       | `POST /authenticate/logonotp/init`             | `OTP_INIT_FORM`: asks for the SMS                                                           | the masked phone number, passed to the retriever                                                       |
-| `otpVerify`     | `POST /authenticate/logonotp/verify`           | `OTP_VERIFY_FORM`: the code, the login state and flow, and the CSRF cookie                  | `state`: `LANDPAGE`                                                                                    |
-| `landing`       | `GET /ServerServices/landing-page?action=init` | —                                                                                           | the portal's `pageId`                                                                                  |
+| Step           | Endpoint                             | Sends                                                           | Returns                                                                                            |
+| -------------- | ------------------------------------ | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `identify`     | `GET /authenticate/init`             | `?appId=…&mobile=ca`                                            | the WAF handshake cookies; a 302 is accepted as the answer                                         |
+| `verify`       | `POST /authenticate/verify`          | the password in `credentials`, and `mfp` = the device signature | `state`: `LOGONOTP` when an SMS is needed, `LANDPAGE` when not; `result.deviceID`; `result.reason` |
+| `otpInit`      | `POST /authenticate/logonotp/init`   | asks for the SMS                                                | the masked phone number, passed to the retriever                                                   |
+| `otpVerify`    | `POST /authenticate/logonotp/verify` | the code, the flow and state, and the CSRF cookie               | `state`: `LANDPAGE`                                                                                |
+| `step1`        | `GET /ServerServices/step1-mobile`   | the app device parameters                                       | the device registration cookie                                                                     |
+| `arcotid`      | `POST /arcotid/download`             | `IMPDEVREG` / `FINISH`                                          | a 302 to the step-up on a new device                                                               |
+| `stepupInit`   | `POST /stepup/otp/init`              | `IMPDEVREG` / `STEPUPOTP`                                       | the masked phone for the second SMS                                                                |
+| `stepupVerify` | `POST /stepup/otp/verify`            | the second code                                                 | `state`: `FINISH`                                                                                  |
+| `arcotidAfter` | `POST /arcotid/download`             | `IMPDEVREG` / `FINISH`                                          | `result.arcotID`                                                                                   |
 
-The forms post URL-encoded fields in the order the bank's own client sends
-them (`Registry/Config/PipelineBankConfigHapoalimForms.ts`). The password never
-leaves in clear: `verify` seals it the way the login page does, with the
-modulus `encryptionKey` returned and the fixed parameters in
-`HAPOALIM_SEAL_PARAMS`. The two SMS steps run only when `verify` answered
-`LOGONOTP`; when the bank answers `LANDPAGE`, the retriever is never called.
-`otpVerify` waits for the code, refuses one that is not five digits, and
-needs the `csrfcookie` cookie and the `flow` value `verify` returned.
+The app edge is `iphone.bankhapoalim.co.il`; every call carries `appId`,
+the app version headers and the **Base64** of the user's RiskMinder signature
+as `mfp` (derived at runtime, or the caller's `deviceSignature` override;
+the app stores the raw JSON and wraps it on every CA call). The password
+travels in clear in `credentials` (the app's own CA contract; there is no
+portal RSA seal).
+
+A **registered device** answers `verify` with `LANDPAGE`, and the retriever is
+never called. A **new device** answers `LOGONOTP` (`reason=newDevice`): the
+login SMS runs first, then `step1`, `arcotid`, the **second** step-up SMS
+(`stepupInit`/`stepupVerify`) and the Arcot download. A brand-new device
+therefore asks for two codes; a registered one asks for none (or one when the
+session itself needs a fresh login). The step-up hook uses `reuse: 'per-step'`
+so the second code is a distinct acquisition.
 
 `verify` and `otpVerify` read the reply's `state` regardless of case. `LOCKED`
 and `DISABLED` fail the run as `ACCOUNT_BLOCKED`, and `REISSUE` as
 `CHANGE_PASSWORD`. Any other `verify` state fails as `GENERIC`
 (`verify outcome unmapped`), and any other `otpVerify` state as `INVALID_OTP`.
 A reply carrying any pointer in `HAPOALIM_ERRORS` (`error`, `Error`,
-`errors`) fails its step as `GENERIC` (`<step> bank error`). A `target` the
-bank points at must be one of the portal pages in `HAPOALIM_TARGETS`. The
-config sets `omitBankText`, so no failure message carries the bank's own
-text or a foreign URL.
+`errors`) fails its step as `GENERIC` (`<step> bank error`). `step1` reads
+text, so it refuses a body carrying an app error key (`step1 capture bankError
+present`) while an empty success body passes. A `target` the bank points at
+must be on the app edge in `HAPOALIM_TARGETS`. The config sets `omitBankText`,
+so no failure message carries the bank's own text or a foreign URL.
 
-Every call carries `HAPOALIM_STATIC_HEADERS`: a JSON accept, the library's user
-agent and the login page as referer. The page load swaps the accept for
-`HAPOALIM_DOCUMENT_HEADERS`. Every POST adds `HAPOALIM_POST_HEADERS`: the
-origin, and the `XSRF-TOKEN` cookie echoed as `x-xsrf-token`.
-`literalHeaders` (`Registry/Config/PipelineBankConfigLiteralHeaders.ts`,
-shared with Mizrahi) turns these fixed maps into step headers.
+Every call carries `HAPOALIM_STATIC_HEADERS`: the app identity and version set
+(`x-bnhp-app-version`, `client-version-nbr`, `x-app-name`, `x-platform-type`,
+`x-client-type`, `mobile: ca`), the app user agent and a JSON accept; each
+login step adds a fresh `x-b3-traceid`. The OTP verify posts the decoded
+`csrfcookie` as `csrffield`, and a data POST adds the `XSRF-TOKEN` cookie
+echoed as `x-xsrf-token`.
 
 The session is cookies, not an auth header. `HAPOALIM_TRANSPORT` maps each step
 to its path, selects Node's own `fetch` (`nativeFetch`) and keeps one cookie jar
 for `bankhapoalim.co.il` (`sessionCookies`, `cookieDomains`). No browser
 starts, and browser options passed to `createScraper` are no longer supported; see the
-[migration notes](../configuration.md#removed-browser-options). Any
-redirect fails the run (`redirectPolicy: 'reject'`), so a redirected `verify`
-never replays the sealed password.
+[migration notes](../configuration.md#removed-browser-options). Any redirect
+fails the run (`redirectPolicy: 'reject'`) except the two handshakes that
+accept one: `identify` takes the WAF self-redirect as its answer, and `arcotid`
+takes the new-device step-up redirect, each filing the redirect's cookies
+(`redirect: 'accept'`).
 
 ## Warm start
 
 A run that signs in returns its session as `result.persistentOtpToken`: a
-`v1.` token holding the session cookies, bound to the user code. Pass it back
-as `otpLongTermToken` and the next run starts at `landing`
-(`HAPOALIM_RESUME_STEP_INDEX`), with no login call and no SMS. The token is a
-live session: store it as a secret.
+`v1.` carry bundle holding the session cookies and the per-user `deviceSeed`,
+bound to the user code. Pass it back as `otpLongTermToken` and the next run
+starts at `step1-mobile` (`HAPOALIM_RESUME_STEP_INDEX`), with no login call and
+no SMS. The device identity is derived from the seed inside the token, so the
+caller stores only the token; the token holds a live session, so store it as a
+secret.
 
-The cookies carry no readable expiry, so the bank's answer to `landing` is the
-check (`validation: 'bank-call'`). A refused session falls back to one cold
-login that sends none of the stored cookies and texts one SMS, so `userCode`,
+The cookies carry no readable expiry, so the bank's answer to `step1-mobile`
+is the check (`validation: 'bank-call'`). A refused session falls back to one
+cold login that sends none of the stored cookies and reuses the same seed.
+That login's SMS count depends on the device: none on a registered device
+(`LANDPAGE`) and two on a new one (login, then device step-up).
+`otpCodeRetriever` is called only when the bank asks for a code, so `userCode`,
 `password` and the retriever stay required. A token for another user code,
 from another bank, longer than `MAX_ACCESS_TOKEN_CHARS` or of the wrong shape
 is skipped for a cold login; the log names the reason, never the token.
 
-A warm session lost mid-scrape signs in cold once and scrapes again, like any
-API-direct bank. That login is the run's only SMS. A cold run that loses its
-session mid-scrape fails, and the next run logs in again.
+A warm session lost mid-scrape resumes `step1-mobile` once without SMS and
+retries the scrape; a persistent rejection then ends the run. A cold run that
+loses its session mid-scrape fails, and the next run logs in again.
+
+### Device-bound login (zero SMS, no expiry window)
+
+The app also carries a **RiskMinder device signature** that the bank accepts
+as a known device. Sent as the `mfp` form field on `authenticate/verify`, it
+turns the login straight into `LANDPAGE` once that device is enrolled — no
+`LOGONOTP`, no SMS — and it is not tied to the 10–15 minute session cookie.
+
+- Source on a live app install:
+  `shared_prefs/com.ca.mobile.riskminder.RmDeviceID.xml`, key `rmDeviceID`
+  (about 1,942 characters, a JSON device signature). The app stores the raw
+  JSON and sends **Base64** of it on every CA call; this library does the same.
+- The library **derives the identity itself** at runtime from the host's
+  facts (host name, platform, CPU, memory, locale, time zone and the first
+  non-internal IPv4 interface) and `HMAC-SHA256(deviceSeed, userCode)` in the
+  RiskMinder schema. The device value is never written to disk.
+- `deviceSeed` is a random per-user slot inside `otpLongTermToken`; the token
+  also carries the session cookies, and its cookie part may rotate while the
+  seed slot stays. The same user with the same token keeps the same device;
+  another user's token has a different seed. If the token is lost, a fresh
+  seed and two SMS are required. A caller with an already-captured `rmDeviceID`
+  JSON may pass it as `deviceSignature`; the override wins over the derivation.
+- `authenticate/init` also returns a per-auth `guid` and challenge; that GUID
+  is for the CSR/biometric registration, not the device id. The server-issued
+  `deviceID` (`kdi`) arrives on `authenticate/verify` for a new device and is
+  replayed as `deviceid` on the Arcot/step-up calls.
+
+A brand-new identity still costs two SMS: the login code, then the
+`IMPDEVREG` step-up that enrols it. After enrolment, the same identity lands
+with no SMS. The generated value is a schema-compatible host fingerprint built
+from the host profile and a token seed, not a global constant or a public
+user-code derivation: the bank withholds `deviceID` for a value it cannot
+parse as a RiskMinder signature.
 
 ## Known quirks
 

@@ -39,6 +39,7 @@ import type {
 } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import {
   HAPOALIM_API,
+  HAPOALIM_APP_ID,
   HAPOALIM_POST_HEADERS,
   HAPOALIM_STATIC_HEADERS,
   HAPOALIM_TXNS_CONTENT_TYPE,
@@ -126,7 +127,7 @@ function endOf(ctx: IActionContext): string {
  * @returns Encoded query string, without the leading `?`.
  */
 function txnsQuery(acct: IHapoalimAcct, endDate: string, ctx: IActionContext): string {
-  const paging = `numItemsPerPage=${TXN_PAGE_SIZE}&sortCode=1`;
+  const paging = `appId=${HAPOALIM_APP_ID}&numItemsPerPage=${TXN_PAGE_SIZE}&sortCode=1`;
   const range = `retrievalEndDate=${endDate}&retrievalStartDate=${startOf(ctx)}`;
   return `${paging}&${range}&accountId=${acct.composite}&lang=he`;
 }

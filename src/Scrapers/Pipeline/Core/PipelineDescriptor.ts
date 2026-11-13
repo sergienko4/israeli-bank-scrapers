@@ -3,7 +3,7 @@
  * Contains the ordered list of phases to execute.
  */
 
-import type { ScraperOptions } from '../../Base/Interface.js';
+import type { ScraperCredentials, ScraperOptions } from '../../Base/Interface.js';
 import type { BasePhase } from '../Phases/Base/BasePhase.js';
 import type { Procedure } from '../Types/Procedure.js';
 
@@ -11,6 +11,12 @@ import type { Procedure } from '../Types/Procedure.js';
 interface IPipelineDescriptor {
   readonly options: ScraperOptions;
   readonly phases: readonly BasePhase[];
+  /**
+   * Optional bank hook that fills credentials it can derive itself — a
+   * device signature generated per host, for example. Runs once per scrape
+   * before any phase, and a failure stops the run before a request.
+   */
+  readonly enrichCredentials?: (credentials: ScraperCredentials) => Procedure<ScraperCredentials>;
 }
 
 /**

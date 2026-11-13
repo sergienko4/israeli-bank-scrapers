@@ -47,6 +47,7 @@ export const INVALID_CREDS_DISCOUNT = {
 export const INVALID_CREDS_HAPOALIM = {
   userCode: 'fixt-i-2e3f4a5b',
   password: 'fixt-i-6c7d8e9f',
+  deviceSignature: 'fixture-device-signature',
 } as const;
 
 /**

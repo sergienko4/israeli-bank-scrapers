@@ -1,5 +1,5 @@
 /**
- * Hapoalim stored tokens a warm run must refuse — a real cold-run session
+ * Hapoalim stored tokens a warm run must refuse — a real cold-run bundle
  * re-bound to another account or provider, and tokens that do not open.
  * Built with the production codec and the bank's own warm-start config, so
  * only the binding or the shape is wrong.
@@ -8,13 +8,13 @@
  */
 
 import ScraperError from '../../../Scrapers/Base/ScraperError.js';
-import type { ICookieJarWarmStart } from '../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
+import type { ICarryBundleWarmStart } from '../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import {
-  decodeWarmJar,
-  encodeWarmJar,
-  WARM_JAR_REJECTIONS,
-} from '../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmCookieJar.js';
-import { cookieJarWarmOf } from '../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmStartKind.js';
+  decodeWarmBundle,
+  encodeWarmBundle,
+  WARM_BUNDLE_REJECTIONS,
+} from '../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmCarryBundle.js';
+import { carryBundleWarmOf } from '../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmStartKind.js';
 import { HAPOALIM_API_DIRECT_CALL } from '../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigHapoalim.js';
 import { isOk } from '../../../Scrapers/Pipeline/Types/Procedure.js';
 import { HAPOALIM_MOCK_CREDS } from './HapoalimMockData.js';
@@ -35,27 +35,36 @@ export interface IStaleToken {
 }
 
 /**
- * Hapoalim's cookie-jar warm start.
+ * Hapoalim's carry-bundle warm start.
  * @returns The warm-start config.
  */
-function hapoalimWarm(): ICookieJarWarmStart {
-  const warm = cookieJarWarmOf(HAPOALIM_API_DIRECT_CALL);
-  if (warm === false) throw new ScraperError('Hapoalim has no cookie-jar warm start');
+function hapoalimWarm(): ICarryBundleWarmStart {
+  const warm = carryBundleWarmOf(HAPOALIM_API_DIRECT_CALL);
+  if (warm === false) throw new ScraperError('Hapoalim has no carry-bundle warm start');
   return warm;
 }
 
 /**
- * Re-bind a cold run's session to another owner.
+ * Re-bind a cold run's bundle to another owner.
  * @param coldToken - The token a cold run published.
  * @param owner - The owner the new token claims.
- * @returns The same cookies under the new owner.
+ * @returns The same seed and cookies under the new owner.
  */
 function reboundToken(coldToken: string, owner: Partial<ITokenOwner>): string {
   const warm = hapoalimWarm();
   const own = { provider: warm.provider, account: HAPOALIM_MOCK_CREDS.userCode };
-  const jar = decodeWarmJar(coldToken, { ...own, maxChars: warm.maxTokenChars });
-  if (!isOk(jar)) throw new ScraperError(jar.errorMessage);
-  const rebound = encodeWarmJar({ ...own, ...owner }, jar.value);
+  const target = { ...own, ...owner };
+  const expected = {
+    provider: own.provider,
+    accounts: [own.account],
+    slots: warm.slots,
+    hasCookies: warm.cookies,
+    maxChars: warm.maxTokenChars,
+  };
+  const bundle = decodeWarmBundle(coldToken, expected);
+  if (!isOk(bundle)) throw new ScraperError(bundle.errorMessage);
+  const identity = { provider: target.provider, accounts: [target.account] };
+  const rebound = encodeWarmBundle(identity, bundle.value);
   if (!isOk(rebound)) throw new ScraperError(rebound.errorMessage);
   return rebound.value;
 }
@@ -70,25 +79,25 @@ function oversizeToken(): string {
 }
 
 /**
- * The line a refused jar logs.
+ * The line a refused bundle logs.
  * @param reason - The codec's rejection text.
  * @returns The skip line.
  */
-function jarSkipOf(reason: string): string {
+function bundleSkipOf(reason: string): string {
   return `warm start skipped: ${reason}`;
 }
 
 /**
  * At the 16384-char ceiling the shared seed check drops an oversize token
- * before the jar codec reads it.
+ * before the bundle codec reads it.
  */
 const MALFORMED_SEED_LINE = 'Stored warm token is malformed';
 
-/** A `v1` token whose JSON body is no cookie jar. */
+/** A `v1` token whose JSON body is no carry bundle. */
 const SCHEMALESS_TOKEN = `v1.${Buffer.from('{"p":1}').toString('base64url')}`;
 
 /**
- * The cold session, claimed by another user code.
+ * The cold bundle, claimed by another user code.
  * @param coldToken - The token a cold run published.
  * @returns The re-bound token.
  */
@@ -97,7 +106,7 @@ function otherAccountToken(coldToken: string): string {
 }
 
 /**
- * The cold session, claimed by another bank.
+ * The cold bundle, claimed by another bank.
  * @param coldToken - The token a cold run published.
  * @returns The re-bound token.
  */
@@ -114,7 +123,7 @@ function unversionedToken(): string {
 }
 
 /**
- * A `v1` token whose JSON body is no cookie jar.
+ * A `v1` token whose JSON body is no carry bundle.
  * @returns The token.
  */
 function schemalessToken(): string {
@@ -125,23 +134,23 @@ function schemalessToken(): string {
 export const STALE_TOKENS: readonly IStaleToken[] = [
   {
     label: 'another account',
-    logged: jarSkipOf(WARM_JAR_REJECTIONS.account),
+    logged: bundleSkipOf(WARM_BUNDLE_REJECTIONS.account),
     build: otherAccountToken,
   },
   {
     label: 'another provider',
-    logged: jarSkipOf(WARM_JAR_REJECTIONS.provider),
+    logged: bundleSkipOf(WARM_BUNDLE_REJECTIONS.provider),
     build: otherProviderToken,
   },
   { label: 'an oversize token', logged: MALFORMED_SEED_LINE, build: oversizeToken },
   {
     label: 'a non-v1 token',
-    logged: jarSkipOf(WARM_JAR_REJECTIONS.prefix),
+    logged: bundleSkipOf(WARM_BUNDLE_REJECTIONS.prefix),
     build: unversionedToken,
   },
   {
-    label: 'a body that is no jar',
-    logged: jarSkipOf(WARM_JAR_REJECTIONS.schema),
+    label: 'a body that is no bundle',
+    logged: bundleSkipOf(WARM_BUNDLE_REJECTIONS.schema),
     build: schemalessToken,
   },
 ];

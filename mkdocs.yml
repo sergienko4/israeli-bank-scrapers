@@ -142,6 +142,7 @@ nav:
       - Pipeline architecture: architecture/pipeline.md
       - Layer separation: architecture/layers.md
       - Config Contracts (api-direct-call): architecture/config-contracts.md
+      - Device identity: architecture/device-identity.md
       - JSON algebra: architecture/json-algebra.md
       - Transaction sign: architecture/transaction-sign.md
       - Transaction currency: architecture/transaction-currency.md

@@ -20,6 +20,7 @@ import {
   HAPOALIM_MOCK_START_DATE,
   HAPOALIM_OPEN_ACCOUNTS,
   HP_OTP,
+  HP_STEPUP_OTP,
 } from './HapoalimMockData.js';
 
 /** What one run sent, received and asked the caller for. */
@@ -33,31 +34,31 @@ export interface IHapoalimRun {
 }
 
 /**
- * Credential overrides, the code the SMS retriever answers (false: none), and
- * where the run hands it: the credentials (default) or the scraper options.
+ * Credential overrides, the codes the SMS retriever answers (false: none),
+ * and where the run hands them: the credentials (default) or the scraper
+ * options. A list answers the prompts in order, so a two-prompt run can
+ * prove it does not reuse the first code.
  */
 export interface IRunSetup {
   readonly creds?: Readonly<Record<string, string>>;
-  readonly otp?: string | false;
+  readonly otp?: string | readonly string[] | false;
   readonly retrieverIn?: 'creds' | 'options';
 }
 
 /** The SMS retriever, or nothing when the run supplies none. */
 type RetrieverSlot = Readonly<{ otpCodeRetriever?: (hint: string) => Promise<string> }>;
 
+/** The default codes: the login OTP, then the device step-up OTP. */
+const DEFAULT_CODES: readonly string[] = [HP_OTP, HP_STEPUP_OTP];
+
 /** Login up to the password check. */
-export const VERIFY_TRAIL = [
-  'GET /ng-portals/auth/he/',
-  'GET /ng-portals/auth/serial-number',
-  'POST /authenticate/init',
-  'POST /authenticate/verify',
-];
+export const VERIFY_TRAIL = ['GET /authenticate/init', 'POST /authenticate/verify'];
 
 /** The SMS challenge. */
 export const OTP_TRAIL = ['POST /authenticate/logonotp/init', 'POST /authenticate/logonotp/verify'];
 
-/** The portal init, and the accounts list. */
-export const LANDING_TRAIL = ['GET /ServerServices/landing-page'];
+/** The device registration, and the accounts list. */
+export const LANDING_TRAIL = ['GET /ServerServices/step1-mobile'];
 export const ACCOUNTS_TRAIL = ['GET /ServerServices/general/accounts'];
 
 /** One open account's balance, then its first movements page. */
@@ -104,20 +105,23 @@ function isDataCall(call: IRecordedCall): boolean {
 
 /**
  * The SMS retriever the run supplies.
- * @param setup - The retriever's code (false: none).
+ * @param setup - The retriever's codes (false: none).
  * @param hints - Receives each retriever call's hint.
  * @returns The retriever slot, empty when the run supplies none.
  */
 function retrieverOf(setup: IRunSetup, hints: string[]): RetrieverSlot {
   if (setup.otp === false) return {};
-  const code = setup.otp ?? HP_OTP;
+  const codes = typeof setup.otp === 'string' ? [setup.otp] : (setup.otp ?? DEFAULT_CODES);
+  let prompt = 0;
   /**
-   * The SMS retriever: records the hint, answers the run's code.
+   * The SMS retriever: records the hint, answers the next code in order.
    * @param hint - The masked phone the bank reported.
    * @returns The code.
    */
   const otpCodeRetriever = (hint: string): Promise<string> => {
     hints.push(hint);
+    const code = codes.at(prompt) ?? codes.at(-1) ?? HP_OTP;
+    prompt += 1;
     return Promise.resolve(code);
   };
   return { otpCodeRetriever };

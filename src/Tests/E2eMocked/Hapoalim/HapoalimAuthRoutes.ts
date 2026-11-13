@@ -1,101 +1,109 @@
 /**
- * Hapoalim mock login routes — the seven auth steps, counted as `identity`.
+ * Hapoalim mock app login routes — the CA verify, the SMS challenge and the
+ * device registration. The app edge only; there is no portal shell, seal or
+ * landing page.
  *
  * Rule #18: every value here is SYNTHETIC. No real PII.
  *
- *   GET  /ng-portals/auth/he/             → login shell; XSRF-TOKEN + a session cookie
- *   GET  /ng-portals/auth/serial-number   → `encryptionKey`, the seal modulus
- *   POST /authenticate/init               form; needs the `G3CmE` cookie → `result`
- *   POST /authenticate/verify             form; sealed password → `state`, `csrfcookie`
- *   POST /authenticate/logonotp/init      form → masked phone
- *   POST /authenticate/logonotp/verify    form; lower-case flow/state, decoded csrffield
- *   GET  /ServerServices/landing-page     needs the auth cookie → numeric `pageId`
- *
- * Every POST needs the form content type, both bootstrap cookies and the
- * decoded XSRF echo; a request the bank would reject answers 400 here too.
+ *   POST /authenticate/verify             plain password + device signature
+ *   POST /authenticate/logonotp/init      masked phone
+ *   POST /authenticate/logonotp/verify    the code; opens the session
+ *   GET  /ServerServices/step1-mobile     needs the session; registers the device
  */
 
 import type { JsonUnknown, JsonUnknownRecord } from '../../../Scrapers/Pipeline/Types/JsonValue.js';
-import { openSeal } from '../../Helpers/SealOpener.js';
 import type { IRecordedCall } from '../Helpers/FetchMockKit.js';
 import { errorReply, parseForm } from '../Helpers/FetchMockKit.js';
-import { bodiless, hasCookies, json, reply } from '../Helpers/MockReplies.js';
+import { bodiless, hasCookies, json } from '../Helpers/MockReplies.js';
 import type { HapoalimFault, IMockRun, Route } from './HapoalimFaults.js';
 import { authCookieOf, HP_BANK_NOTICE } from './HapoalimFaults.js';
 import {
   HAPOALIM_MOCK_CREDS,
-  HP_AUTH_COOKIE,
-  HP_BOOT_COOKIE,
+  HP_APP_ID,
   HP_CSRF_COOKIE,
   HP_CSRF_DECODED,
-  HP_G3CME,
-  HP_G3CME_COOKIE,
-  HP_KEY,
+  HP_DEVICE_ID,
   HP_ORGANIZATION,
   HP_ORIGIN,
   HP_OTP,
-  HP_PAGE_ID,
   HP_PHONE,
   HP_REFUSED_COOKIE,
-  HP_TARGET,
-  HP_XSRF_COOKIE,
-  HP_XSRF_DECODED,
+  HP_STEP1_COOKIE,
+  HP_STEPUP_OTP,
 } from './HapoalimMockData.js';
 
 type Form = Readonly<Record<string, string>>;
 type Replies = Readonly<Partial<Record<HapoalimFault, JsonUnknownRecord>>>;
 
-/** The step-0 path, where network faults strike. */
-export const HP_BOOTSTRAP_PATH = '/ng-portals/auth/he/';
-
 /** Where a redirect on verify would replay the credentials. */
 export const HP_VERIFY_REPLAY_URL = `${HP_ORIGIN}/authenticate/verify?replay=1`;
 
-/** A foreign landing target verify may point at. */
-export const HP_FOREIGN_TARGET = 'https://www.example.com/ng-portals/rb/he';
+/** The first login call, where transport faults strike. */
+export const HP_FIRST_PATH = '/authenticate/init';
 
 const FORM_TYPE = 'application/x-www-form-urlencoded';
 const SCOPE = '; Path=/; Secure';
-const HTML = { 'content-type': 'text/html;charset=UTF-8' };
-const SHELL = '<html><body><script>bnhpApp.ngContext = {};</script>SYNTHETIC</body></html>';
-const BANK_ERRORS = [{ message: HP_BANK_NOTICE }];
 const USER_CODE = HAPOALIM_MOCK_CREDS.userCode;
+const PASSWORD = HAPOALIM_MOCK_CREDS.password;
 
-const INIT_FORM: Form = {
-  identifier: USER_CODE,
-  organization: HP_ORGANIZATION,
-  mfp: '',
-  deviceId: 'null',
-};
-
-/** verify's form, less the sealed `credentials`. */
+/** Every verify field except `credentials` and `mfp`, which are checked apart. */
 const VERIFY_FORM: Form = {
-  ...{ identifier: USER_CODE, organization: HP_ORGANIZATION, mfp: '', deviceid: 'null' },
-  ...{ executionTime: '', userID: USER_CODE, authType: 'VERSAFE', G3CmE: HP_G3CME, bsd: '' },
+  organization: HP_ORGANIZATION,
+  identifier: USER_CODE,
+  authType: '',
+  flow: 'authenticate',
+  state: 'LOGON',
+  generatedDeviceID: '',
+  openBanking: 'false',
+  logintype: '',
+  threadId: '',
+  whatsapp: 'false',
+  whatsappIndicator: '',
+  maliciousActive: 'false',
+  deviceid: '',
 };
 
+/** Every otp-init field except `mfp`. */
 const OTP_INIT_FORM: Form = {
-  ...{ otpchannel: 'sms', flow: 'authenticate', state: 'logonotp' },
-  ...{ mfp: '', deviceId: 'null' },
+  otpchannel: 'sms',
+  flow: 'authenticate',
+  state: 'logonotp',
+  appId: HP_APP_ID,
+  target: '',
 };
 
-/** otp verify's form, less the `otp` itself. */
+/** Every otp-verify field except `otp` and `mfp`. */
 const OTP_VERIFY_FORM: Form = {
-  ...{ state: 'logonotp', flow: 'authenticate', csrffield: HP_CSRF_DECODED },
-  ...{ mfp: '', deviceId: 'null' },
+  appId: HP_APP_ID,
+  csrffield: HP_CSRF_DECODED,
+  flow: 'authenticate',
+  state: 'logonotp',
 };
 
-const PENDING_OTP: JsonUnknownRecord = { state: 'LogonOTP', flow: 'Authenticate' };
+const PENDING_OTP: JsonUnknownRecord = {
+  flow: 'AUTHENTICATE',
+  state: 'LogonOTP',
+  result: { deviceID: HP_DEVICE_ID, reason: 'None' },
+};
+
+/** A new device: verify reports `newDevice`, so the step-up runs. */
+const NEW_DEVICE_OTP: JsonUnknownRecord = {
+  ...PENDING_OTP,
+  result: { deviceID: HP_DEVICE_ID, reason: 'newDevice' },
+};
 
 const VERIFY_REPLY: Replies = {
-  landpage: { state: 'landpage', target: HP_TARGET },
+  newDevice: NEW_DEVICE_OTP,
+  landpage: {
+    flow: 'AUTHENTICATE',
+    state: 'landpage',
+    result: { deviceID: HP_DEVICE_ID, reason: 'None' },
+  },
   locked: { state: 'Locked' },
   reissue: { state: 'reissue' },
   unknownState: { state: 'SYN-unknown' },
-  foreignTarget: { ...PENDING_OTP, target: HP_FOREIGN_TARGET },
-  targetNumber: { ...PENDING_OTP, target: 7 },
-  noFlow: { state: 'LogonOTP' },
-  verifyErrors: { ...PENDING_OTP, errors: BANK_ERRORS },
+  noFlow: { state: 'LogonOTP', result: { deviceID: HP_DEVICE_ID } },
+  verifyErrors: { ...PENDING_OTP, error: { errCode: '9.9', errDesc: 'SYNTHETIC' } },
 };
 
 /** The `csrfcookie` pairs verify sets under each fault; the default sets one. */
@@ -110,8 +118,6 @@ const REDIRECT_STATUS: Readonly<Partial<Record<HapoalimFault, number>>> = {
   verify307: 307,
 };
 
-const INIT_REPLY: Replies = { initResultString: { result: 'SYN-result' }, initResultMissing: {} };
-
 const OTP_INIT_STATE: Readonly<Partial<Record<HapoalimFault, JsonUnknown>>> = {
   otpInitStateOther: 'other',
   otpInitStateObject: { syn: 'state' },
@@ -121,12 +127,7 @@ const OTP_INIT_STATE: Readonly<Partial<Record<HapoalimFault, JsonUnknown>>> = {
 const OTP_VERIFY_REPLY: Replies = {
   otpVerifyLocked: { state: 'Locked' },
   otpVerifyReissue: { state: 'reissue' },
-  otpVerifyErrors: { state: 'landpage', errors: BANK_ERRORS },
-};
-
-const LANDING_REPLY: Replies = {
-  pageIdBad: { pageId: 'SYN-page' },
-  landingErrors: { pageId: HP_PAGE_ID, errors: BANK_ERRORS },
+  otpVerifyErrors: { state: 'landpage', error: { errCode: '9.9', errDesc: 'SYNTHETIC' } },
 };
 
 /**
@@ -139,92 +140,28 @@ function scoped(pair: string): string {
 }
 
 /**
- * Whether a POST carries what every bank POST needs.
+ * Whether a call is a form POST whose named fields all match.
  * @param call - The recorded request.
- * @returns True for a form POST with both bootstrap cookies and the XSRF echo.
+ * @param expected - Field values the bank requires.
+ * @returns True when the content type and every listed field match.
  */
-function isGuardedPost(call: IRecordedCall): boolean {
+function hasFields(call: IRecordedCall, expected: Form): boolean {
   const isForm = (call.headers.get('content-type') ?? '').startsWith(FORM_TYPE);
-  const isEcho = call.headers.get('x-xsrf-token') === HP_XSRF_DECODED;
-  return isForm && isEcho && hasCookies(call, [HP_XSRF_COOKIE, HP_BOOT_COOKIE]);
-}
-
-/**
- * Whether a form holds exactly the expected fields.
- * @param sent - The parsed form.
- * @param expected - Field values the bank requires.
- * @returns True when no field is missing, extra or different.
- */
-function isExactForm(sent: Form, expected: Form): boolean {
-  const names = Object.keys(expected);
-  const isSameSize = Object.keys(sent).length === names.length;
-  return isSameSize && names.every(name => sent[name] === expected[name]);
-}
-
-/**
- * Whether a call is a guarded POST with exactly the expected form.
- * @param call - The recorded request.
- * @param expected - Field values the bank requires.
- * @returns True when the bank would accept the request.
- */
-function isFormCall(call: IRecordedCall, expected: Form): boolean {
+  if (!isForm) return false;
   const sent = parseForm(call.body);
-  return isGuardedPost(call) && isExactForm(sent, expected);
+  return Object.entries(expected).every(([name, value]) => sent[name] === value);
 }
 
 /**
- * Whether sealed credentials open to the synthetic password.
- * @param sealed - The posted `credentials`.
- * @returns True when the RSA blocks decrypt and the tail un-XORs to it.
- */
-function opensToPassword(sealed: string): boolean {
-  try {
-    return openSeal(sealed, HP_KEY).source === HAPOALIM_MOCK_CREDS.password;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * bootstrap — the login shell, setting XSRF-TOKEN and a session cookie.
- * @returns The page.
- */
-function routeBootstrap(): Response {
-  const setCookies = [HP_XSRF_COOKIE, HP_BOOT_COOKIE].map(scoped);
-  return reply(200, SHELL, { headers: HTML, setCookies });
-}
-
-/**
- * serial-number — the seal modulus.
+ * Whether verify carries the password and a device signature.
  * @param call - The recorded request.
- * @returns The key, or 403 without the session cookie.
- */
-function routeSerial(call: IRecordedCall): Response {
-  if (!hasCookies(call, [HP_BOOT_COOKIE])) return errorReply(403);
-  return json({ encryptionKey: HP_KEY.modulusHex });
-}
-
-/**
- * init — identifies the user; needs the client-set `G3CmE` cookie.
- * @param call - The recorded request.
- * @param run - The run's fault.
- * @returns The `result` object.
- */
-function routeInit(call: IRecordedCall, run: IMockRun): Response {
-  const isG3Set = hasCookies(call, [HP_G3CME_COOKIE]);
-  if (!isG3Set || !isFormCall(call, INIT_FORM)) return errorReply(400);
-  return json(INIT_REPLY[run.fault] ?? { result: { syn: 'init' } });
-}
-
-/**
- * Whether verify carries the cookie, the exact form and a password that opens.
- * @param call - The recorded request.
- * @returns True when the bank would accept the request.
+ * @returns True when the bank would accept the password check.
  */
 function isVerifyRequest(call: IRecordedCall): boolean {
-  const { credentials = '', ...rest } = parseForm(call.body);
-  const isShaped = isGuardedPost(call) && isExactForm(rest, VERIFY_FORM);
-  return isShaped && hasCookies(call, [HP_G3CME_COOKIE]) && opensToPassword(credentials);
+  const sent = parseForm(call.body);
+  const mfp = sent.mfp as string | undefined;
+  const hasSignature = mfp !== undefined && mfp !== '';
+  return hasFields(call, VERIFY_FORM) && sent.credentials === PASSWORD && hasSignature;
 }
 
 /**
@@ -234,12 +171,20 @@ function isVerifyRequest(call: IRecordedCall): boolean {
  */
 function verifyCookiesOf(fault: HapoalimFault): readonly string[] {
   const csrf = CSRF_COOKIES[fault] ?? [HP_CSRF_COOKIE];
-  const auth = fault === 'landpage' ? [HP_AUTH_COOKIE] : [];
+  const auth = fault === 'landpage' ? [authCookieOf({ fault })] : [];
   return [...csrf, ...auth].map(scoped);
 }
 
 /**
- * verify — checks the sealed password; pending OTP unless a fault says otherwise.
+ * identify — the WAF warm-up; the synthetic edge answers 200 directly.
+ * @returns An empty 200.
+ */
+function routeInit(): Response {
+  return bodiless(200);
+}
+
+/**
+ * verify — checks the password + signature; pending OTP unless a fault says otherwise.
  * @param call - The recorded request.
  * @param run - The run's fault.
  * @returns The state, or a redirect under a redirect fault.
@@ -249,8 +194,7 @@ function routeVerify(call: IRecordedCall, run: IMockRun): Response {
   if (status !== undefined)
     return bodiless(status, { headers: { location: HP_VERIFY_REPLAY_URL } });
   if (!isVerifyRequest(call)) return errorReply(400);
-  const setCookies = verifyCookiesOf(run.fault);
-  return json(VERIFY_REPLY[run.fault] ?? PENDING_OTP, { setCookies });
+  return json(VERIFY_REPLY[run.fault] ?? PENDING_OTP, { setCookies: verifyCookiesOf(run.fault) });
 }
 
 /**
@@ -260,9 +204,11 @@ function routeVerify(call: IRecordedCall, run: IMockRun): Response {
  * @returns The phone and the pending state.
  */
 function routeOtpInit(call: IRecordedCall, run: IMockRun): Response {
-  if (!isFormCall(call, OTP_INIT_FORM)) return errorReply(400);
+  const sent = parseForm(call.body);
+  const mfp = sent.mfp as string | undefined;
+  if (!hasFields(call, OTP_INIT_FORM) || mfp === undefined || mfp === '') return errorReply(400);
   const state = OTP_INIT_STATE[run.fault] ?? 'logonotp';
-  return json({ result: { phone: HP_PHONE }, state });
+  return json({ flow: 'AUTHENTICATE', result: { phone: HP_PHONE }, state });
 }
 
 /**
@@ -272,36 +218,88 @@ function routeOtpInit(call: IRecordedCall, run: IMockRun): Response {
  * @returns `landpage` with the auth cookie, or a refusal.
  */
 function routeOtpVerify(call: IRecordedCall, run: IMockRun): Response {
-  const { otp = '', ...rest } = parseForm(call.body);
-  if (!isGuardedPost(call) || !isExactForm(rest, OTP_VERIFY_FORM)) return errorReply(400);
+  const sent = parseForm(call.body);
+  if (!hasFields(call, OTP_VERIFY_FORM)) return errorReply(400);
   const forced = OTP_VERIFY_REPLY[run.fault];
   if (forced !== undefined) return json(forced);
-  if (otp !== HP_OTP) return json({ state: 'LogonOTP' });
-  const authCookie = authCookieOf(run);
-  const setCookies = [scoped(authCookie)];
-  return json({ state: 'landpage', target: HP_TARGET }, { setCookies });
+  if (sent.otp !== HP_OTP) return json({ state: 'LogonOTP' });
+  const session = authCookieOf(run);
+  const cookie = scoped(session);
+  return json({ flow: 'AUTHENTICATE', state: 'landpage' }, { setCookies: [cookie] });
+}
+
+/** The cookie the step-up sets, which tells Arcot the device is validated. */
+const ARCOT_COOKIE = 'ARCOT-REG=syn-hp-arcot';
+
+/**
+ * arcotid — the first call challenges a new device, the retry returns the id.
+ * @param call - The recorded request.
+ * @returns 302 to the step-up, or the Arcot id once validated.
+ */
+function routeArcot(call: IRecordedCall): Response {
+  if (!hasCookies(call, [ARCOT_COOKIE])) {
+    const location = `${HP_ORIGIN}/stepup/otp/init`;
+    return bodiless(302, { headers: { location } });
+  }
+  return json({ flow: 'IMPDEVREG', state: 'FINISH', result: { arcotID: 'SYN-ARCOT' } });
 }
 
 /**
- * landing — the portal init that proves the session.
+ * stepup otp init — sends the second SMS.
+ * @param call - The recorded request.
+ * @returns The masked phone and the pending step-up state.
+ */
+function routeStepupInit(call: IRecordedCall): Response {
+  const sent = parseForm(call.body);
+  const isStepup = sent.flow === 'IMPDEVREG' && sent.state === 'STEPUPOTP';
+  if (!hasFields(call, { flow: 'IMPDEVREG', state: 'STEPUPOTP' }) || !isStepup)
+    return errorReply(400);
+  return json({ flow: 'IMPDEVREG', state: 'STEPUPOTP', result: { phone: HP_PHONE } });
+}
+
+/**
+ * stepup otp verify — accepts the code and marks the device validated.
+ * @param call - The recorded request.
+ * @returns `FINISH` with the Arcot cookie.
+ */
+function routeStepupVerify(call: IRecordedCall): Response {
+  const sent = parseForm(call.body);
+  const isStepup = sent.flow === 'IMPDEVREG' && sent.state === 'STEPUPOTP';
+  if (!hasFields(call, { flow: 'IMPDEVREG', state: 'STEPUPOTP', target: 'sms' }) || !isStepup)
+    return errorReply(400);
+  if (sent.otp !== HP_STEPUP_OTP) return json({ state: 'STEPUPOTP' });
+  const cookie = scoped(ARCOT_COOKIE);
+  return json({ flow: 'IMPDEVREG', state: 'FINISH' }, { setCookies: [cookie] });
+}
+
+/**
+ * step1 — the device registration that proves the session.
  * @param call - The recorded request.
  * @param run - The run's fault.
- * @returns The page model, or 401 with a refusal cookie without the run's session.
+ * @returns 200 with the registration cookie, an app error body, or 401
+ *   without the run's session.
  */
-function routeLanding(call: IRecordedCall, run: IMockRun): Response {
-  const refusal = { setCookies: [scoped(HP_REFUSED_COOKIE)] };
-  if (!hasCookies(call, [authCookieOf(run)])) return bodiless(401, refusal);
-  if (new URL(call.url).search !== '?action=init') return errorReply(400);
-  return json(LANDING_REPLY[run.fault] ?? { pageId: HP_PAGE_ID });
+function routeStep1(call: IRecordedCall, run: IMockRun): Response {
+  const session = authCookieOf(run);
+  if (!hasCookies(call, [session])) {
+    const refused = scoped(HP_REFUSED_COOKIE);
+    return bodiless(401, { setCookies: [refused] });
+  }
+  if (run.fault === 'step1Errors') {
+    return json({ error: { errCode: '9.9', errDesc: HP_BANK_NOTICE } });
+  }
+  const registered = scoped(HP_STEP1_COOKIE);
+  return bodiless(200, { setCookies: [registered] });
 }
 
 /** Login routes keyed `<METHOD> <path>`. */
 export const AUTH_ROUTES: Readonly<Record<string, Route>> = {
-  [`GET ${HP_BOOTSTRAP_PATH}`]: routeBootstrap,
-  'GET /ng-portals/auth/serial-number': routeSerial,
-  'POST /authenticate/init': routeInit,
+  'GET /authenticate/init': routeInit,
   'POST /authenticate/verify': routeVerify,
   'POST /authenticate/logonotp/init': routeOtpInit,
   'POST /authenticate/logonotp/verify': routeOtpVerify,
-  'GET /ServerServices/landing-page': routeLanding,
+  'GET /ServerServices/step1-mobile': routeStep1,
+  'POST /arcotid/download': routeArcot,
+  'POST /stepup/otp/init': routeStepupInit,
+  'POST /stepup/otp/verify': routeStepupVerify,
 };

@@ -42,9 +42,11 @@ interface IManualRedirect {
 
 /**
  * `follow` lets fetch follow redirects (the default); `reject` fails on any
- * 3xx; an {@link IManualRedirect} follows only allowed hops.
+ * 3xx; `accept` returns a 3xx as the step's answer while still filing its
+ * cookies (a WAF handshake); an {@link IManualRedirect} follows only allowed
+ * hops.
  */
-type RedirectPolicy = 'follow' | 'reject' | IManualRedirect;
+type RedirectPolicy = 'follow' | 'reject' | 'accept' | IManualRedirect;
 
 /**
  * `json` parses the body (the default); `document` reads it as text and
@@ -134,6 +136,11 @@ interface IResponseReading {
   readonly mediaType?: string;
   readonly strictUtf8?: boolean;
   readonly responseIntegrity?: IResponseIntegrity;
+  /**
+   * Keep a manual 3xx body so the `accept` policy can return it as the step's
+   * answer and have its integrity checked, instead of releasing it unread.
+   */
+  readonly keepRedirectBody?: boolean;
   /**
    * Account ids the caller explicitly identified for this call. The URL
    * sanitizer masks each one literally, so an id whose shape carries no

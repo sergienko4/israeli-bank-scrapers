@@ -280,4 +280,24 @@ describe('createOtpPoller — Telegram tier', () => {
     await expect(pending).rejects.toThrow(/Telegram OTP tier exhausted/);
     expect(MOCK_TELEGRAM).toHaveBeenCalledTimes(1);
   });
+
+  it('TP-9 memoises the code by default across callbacks', async () => {
+    stageCiEnv();
+    MOCK_TELEGRAM.mockResolvedValueOnce('FIRST').mockResolvedValueOnce('SECOND');
+    const args = buildFullArgs();
+    const retrieve = CREATE_OTP_POLLER(args);
+    expect(await retrieve()).toBe('FIRST');
+    expect(await retrieve()).toBe('FIRST');
+    expect(MOCK_TELEGRAM).toHaveBeenCalledTimes(1);
+  });
+
+  it('TP-10 re-acquires a fresh code per callback with perStep', async () => {
+    stageCiEnv();
+    MOCK_TELEGRAM.mockResolvedValueOnce('FIRST').mockResolvedValueOnce('SECOND');
+    const args = buildFullArgs();
+    const retrieve = CREATE_OTP_POLLER({ ...args, perStep: true });
+    expect(await retrieve()).toBe('FIRST');
+    expect(await retrieve()).toBe('SECOND');
+    expect(MOCK_TELEGRAM).toHaveBeenCalledTimes(2);
+  });
 });

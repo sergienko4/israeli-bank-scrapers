@@ -278,6 +278,93 @@ describe('capped NativeFetchStrategy', () => {
     expect(signalOf(mock.mock.calls[0][1]).aborted).toBe(true);
   });
 
+  it('keeps and checks an accepted redirect body', async () => {
+    installFetchMock(() =>
+      Promise.resolve(
+        new Response('accepted-body', { status: 302, headers: { location: ITEMS_URL } }),
+      ),
+    );
+    const opts = { extraHeaders: {}, redirect: 'accept' as const, responseKind: 'text' as const };
+    const result = await capped.fetchGet<{ text: string }>(ITEMS_URL, opts);
+    expect(result).toEqual({ success: true, value: { text: 'accepted-body' } });
+  });
+
+  it('applies response integrity to an accepted redirect body', async () => {
+    installFetchMock(() =>
+      Promise.resolve(new Response('too-large', { status: 302, headers: { location: ITEMS_URL } })),
+    );
+    const opts = {
+      extraHeaders: {},
+      redirect: 'accept' as const,
+      responseKind: 'text' as const,
+      responseIntegrity: { maxBytes: 4 },
+    };
+    const result = await capped.fetchGet(ITEMS_URL, opts);
+    expect(result).toMatchObject({ success: false, errorType: ScraperErrorTypes.Generic });
+    expect(!isOk(result) && result.errorMessage).toContain('response exceeds integrity byte limit');
+  });
+
+  it('applies the SHA-256 digest to an accepted redirect body', async () => {
+    installFetchMock(() =>
+      Promise.resolve(
+        new Response('fingerprinted', { status: 302, headers: { location: ITEMS_URL } }),
+      ),
+    );
+    const opts = {
+      extraHeaders: {},
+      redirect: 'accept' as const,
+      responseKind: 'text' as const,
+      responseIntegrity: { maxBytes: 100, sha256: '0'.repeat(64) },
+    };
+    const result = await capped.fetchGet(ITEMS_URL, opts);
+    expect(result).toMatchObject({ success: false, errorType: ScraperErrorTypes.Generic });
+    expect(!isOk(result) && result.errorMessage).toBe('response integrity digest mismatch');
+  });
+
+  it('classifies a Cloudflare challenge before rebuilding an accepted redirect', async () => {
+    const broken = new ReadableStream<Uint8Array>({
+      /**
+       * Fail the stream before a reader can consume it.
+       * @param controller - Stream controller.
+       * @returns True once the failure is installed.
+       */
+      start(controller): boolean {
+        controller.error(new Error('ECONNRESET'));
+        return true;
+      },
+    });
+    const headers = { location: ITEMS_URL, 'cf-mitigated': 'challenge' };
+    installFetchMock(() => Promise.resolve(new Response(broken, { status: 302, headers })));
+    const opts = {
+      extraHeaders: {},
+      redirect: 'accept' as const,
+      responseKind: 'text' as const,
+      responseIntegrity: { maxBytes: 100 },
+    };
+    const result = await capped.fetchGet(ITEMS_URL, opts);
+    expect(result).toMatchObject({ success: false, errorType: ScraperErrorTypes.WafBlocked });
+  });
+
+  it("files an accepted redirect's cookies once through the dispatcher", async () => {
+    installFetchMock(() =>
+      Promise.resolve(
+        new Response('ok', {
+          status: 302,
+          headers: { location: ITEMS_URL, 'set-cookie': 'a=1' },
+        }),
+      ),
+    );
+    const onSetCookie = jest.fn<number, [readonly string[], string?]>(() => 1);
+    const opts = {
+      extraHeaders: {},
+      redirect: 'accept' as const,
+      responseKind: 'text' as const,
+      onSetCookie,
+    };
+    await capped.fetchGet(ITEMS_URL, opts);
+    expect(onSetCookie).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps the inherited network-error message for other rejections', async () => {
     installFetchMock(() => Promise.reject(new Error('ECONNRESET')));
     const result = await strategy.fetchGet(ITEMS_URL, { extraHeaders: {} });

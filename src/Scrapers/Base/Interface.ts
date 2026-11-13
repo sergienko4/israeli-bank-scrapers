@@ -32,7 +32,7 @@ export interface IAuthFlowInfo {
  * <p>One documented opt-out exists: a step declaring
  * `preHook.reuse: 'per-step'` acquires afresh, so a retriever CAN be called
  * again within the same flow. That is reserved for a bank that genuinely
- * delivers a distinct secret per step; no bank declares it today.
+ * delivers a distinct secret per step (Hapoalim's device step-up).
  *
  * <p>It IS called again for a genuinely new code when a login is retried after
  * the bank rejects the previous one.
@@ -45,7 +45,8 @@ export type ScraperCredentials =
       password: string;
       otpCodeRetriever?: (phoneHint: string) => Promise<string>;
       otpLongTermToken?: string;
-    } // Hapoalim: the SMS code when the bank asks; a stored session skips the login steps
+      deviceSignature?: string;
+    } // Hapoalim: the SMS code when the bank asks; a stored session skips the login steps; deviceSignature overrides the per-user identity derived from the seed in otpLongTermToken
   | { username: string; password: string }
   | { username: string; password: string; otpLongTermToken?: string } // VisaCal: a stored login hash skips the password step
   | { username: string; password: string; id: string } // Max: second-login flow with ID (ת.ז.)

@@ -12,7 +12,7 @@ import { isOk, succeed } from '../../Types/Procedure.js';
 import { hasCloudflareChallengeHeader } from './HttpFailureClassifier.js';
 import { isMediaTypeMismatch } from './MediaTypeCheck.js';
 import { isApiSuccess } from './NativeFetchDispatch.js';
-import { isRedirectStatus } from './RedirectFollow.js';
+import { isRedirectStatus } from './RedirectShared.js';
 import { verifyResponseIntegrity } from './ResponseIntegrityReader.js';
 import { statusActionFor } from './StatusPolicy.js';
 
@@ -38,14 +38,25 @@ function isBoundedChallenge(response: Response, reading: IResponseReading): bool
 }
 
 /**
+ * Whether a manual 3xx body can be released unread: no policy keeps it.
+ * @param response - Received headers and status.
+ * @param request - This call's wire redirect mode and response-reading policy.
+ * @returns True when the body is not needed.
+ */
+function releasesRedirectBody(response: Response, request: ICappedRequest): boolean {
+  if (request.init.redirect !== 'manual' || !isRedirectStatus(response.status)) return false;
+  return request.reading.keepRedirectBody !== true;
+}
+
+/**
  * Whether the WAF classifier or response reader still needs the body.
  * @param response - Received headers and status.
  * @param request - This call's wire redirect mode and response-reading policy.
- * @returns False for redirects, status decisions or media-type refusals from headers.
+ * @returns False for status decisions or media-type refusals from headers.
  */
 function needsBody(response: Response, request: ICappedRequest): boolean {
-  const { init, reading } = request;
-  if (init.redirect === 'manual' && isRedirectStatus(response.status)) return false;
+  const { reading } = request;
+  if (releasesRedirectBody(response, request)) return false;
   if (isBoundedChallenge(response, reading)) return false;
   const action = statusActionFor({ response, reading });
   if (!isApiSuccess(response)) return !(action.has && action.value === 'rate-limit');
@@ -77,6 +88,24 @@ async function readUnbounded(response: Response): Promise<Procedure<Response>> {
 }
 
 /**
+ * The integrity policy a response is checked against: the full policy for an
+ * answer body (2xx, or a 3xx kept by `accept`), byte cap only for a failure.
+ * @param response - Response whose headers have passed policy checks.
+ * @param reading - The call's immutable reading policy.
+ * @param policy - The validated byte and digest policy.
+ * @returns The policy to apply.
+ */
+function appliedIntegrity(
+  response: Response,
+  reading: IResponseReading,
+  policy: IResponseIntegrity,
+): IResponseIntegrity {
+  if (isApiSuccess(response)) return policy;
+  const isKept = reading.keepRedirectBody === true && isRedirectStatus(response.status);
+  return isKept ? policy : { maxBytes: policy.maxBytes };
+}
+
+/**
  * Verifies successful bytes and bounds failures for their normal classification.
  * @param response - Response whose headers have passed policy checks.
  * @param controller - Request-local abort controller.
@@ -88,8 +117,7 @@ async function checkBoundedBody(
   controller: AbortController,
   policy: IResponseIntegrity,
 ): Promise<Procedure<Response>> {
-  const applied = isApiSuccess(response) ? policy : { maxBytes: policy.maxBytes };
-  const checked = await verifyResponseIntegrity(response, applied, controller);
+  const checked = await verifyResponseIntegrity(response, policy, controller);
   return isOk(checked) ? succeed(response) : checked;
 }
 
@@ -107,7 +135,8 @@ async function readWithinCap(
 ): Promise<Procedure<Response>> {
   const policy = reading.responseIntegrity;
   if (policy === undefined) return readUnbounded(response);
-  return checkBoundedBody(response, controller, policy);
+  const applied = appliedIntegrity(response, reading, policy);
+  return checkBoundedBody(response, controller, applied);
 }
 
 /**

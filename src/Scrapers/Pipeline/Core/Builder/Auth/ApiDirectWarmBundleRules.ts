@@ -2,14 +2,15 @@
  * Carry-bundle warm-start rules for an api-direct call config. The
  * bundle binds to at least one named creds field, keeps at least one slot,
  * and every kept slot must be one a login step fills — a body or header
- * extract, or a carry-generator output — or the export could never succeed.
- * Keeping the jar needs a cookie-domain session to restore it into. The
- * provider and ceiling rules are shared with the cookie jar and run before
- * these, in `../Validation/ApiDirectConfigRules.ts`.
+ * extract, a carry-generator output, or a `seedCarryFromCreds` field — or the
+ * export could never succeed. Keeping the jar needs a cookie-domain session to
+ * restore it into. The provider and ceiling rules are shared with the cookie
+ * jar and run before these, in `../Validation/ApiDirectConfigRules.ts`.
  */
 
 import type {
   CarryGeneratorKind,
+  IApiDirectCallConfig,
   ICarryBundleWarmStart,
   ICarryGenerator,
   IEcdhKeyGenerator,
@@ -133,14 +134,28 @@ function isFilledBy(step: IStepConfig, slot: string): boolean {
 }
 
 /**
- * Whether the bundle keeps a slot no login step fills.
+ * Credential fields `seedCarryFromCreds` fills before the first step.
+ * @param call - Bank api-direct call config.
+ * @returns Every named seed field.
+ */
+function seededFields(call: IApiDirectCallConfig): readonly string[] {
+  return (call.seedCarryFromCreds ?? []).map((entry): string =>
+    typeof entry === 'string' ? entry : entry.field,
+  );
+}
+
+/**
+ * Whether the bundle keeps a slot neither a login step nor a creds seed fills.
  * @param bundle - Carry-bundle warm start.
  * @param input - Rule input.
  * @returns True when some kept slot is never written.
  */
 function hasUnfilledSlot(bundle: ICarryBundleWarmStart, input: IApiDirectRuleInput): boolean {
   const steps = input.call.steps;
-  return bundle.slots.some((slot): boolean => !steps.some(step => isFilledBy(step, slot)));
+  const seeded = seededFields(input.call);
+  return bundle.slots.some(
+    (slot): boolean => !seeded.includes(slot) && !steps.some(step => isFilledBy(step, slot)),
+  );
 }
 
 /**
@@ -197,7 +212,7 @@ const API_DIRECT_WARM_BUNDLE_RULES: readonly IApiDirectRule[] = [
   },
   { message: 'warmStart.slots: must not be empty', isBroken: isBundleSlotless },
   {
-    message: 'warmStart.slots: each slot must be filled by a login step',
+    message: 'warmStart.slots: each slot must be filled by a step or a creds seed',
     isBroken: isBundleSlotUnfilled,
   },
   {

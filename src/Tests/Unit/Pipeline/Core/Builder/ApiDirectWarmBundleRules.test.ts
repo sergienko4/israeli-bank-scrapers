@@ -110,7 +110,7 @@ type BrokenCase = readonly [string, IApiDirectRuleInput, string];
 
 const ACCOUNTS_MSG = 'warmStart.accountFields: must name a creds field, none blank';
 const SLOTS_EMPTY_MSG = 'warmStart.slots: must not be empty';
-const SLOTS_FILLED_MSG = 'warmStart.slots: each slot must be filled by a login step';
+const SLOTS_FILLED_MSG = 'warmStart.slots: each slot must be filled by a step or a creds seed';
 const COOKIES_MSG = 'warmStart.cookies: not allowed without transport.cookieDomains';
 const PROVIDER_MSG = 'warmStart.provider: must not be blank';
 const MAX_TOKEN_MSG = 'warmStart.maxTokenChars: must be an integer from 1 to 16384';

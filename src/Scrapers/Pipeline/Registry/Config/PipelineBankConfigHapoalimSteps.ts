@@ -1,101 +1,58 @@
 /**
- * Hapoalim login steps: load the login page, read the RSA key, identify the
- * user, verify the sealed password, run the SMS OTP when asked, and land on
- * the portal. Each step refuses any reply that names an error.
+ * Hapoalim app login steps: identify the user on the CA edge, verify the
+ * password with the captured device signature, run the SMS OTP when the
+ * bank asks, then register the device on `step1-mobile`. The JSON steps
+ * refuse a reply whose `error` object is non-empty; `step1` reads text, so
+ * it guards on an error key in its body instead.
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
-import type {
-  IStepConfig,
-  IStepOutcome,
-} from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
-import {
-  HAPOALIM_DOCUMENT_HEADERS,
-  HAPOALIM_ERRORS,
-  HAPOALIM_POST_HEADERS,
-  HAPOALIM_SEAL_PARAMS,
-  HAPOALIM_TARGETS,
-} from './PipelineBankConfigHapoalimConstants.js';
-import {
-  IDENTIFY_FORM,
-  OTP_INIT_FORM,
-  OTP_VERIFY_FORM,
-  VERIFY_FORM,
-} from './PipelineBankConfigHapoalimForms.js';
-import { literalHeaders } from './PipelineBankConfigLiteralHeaders.js';
-
-const DOCUMENT_HEADERS = literalHeaders(HAPOALIM_DOCUMENT_HEADERS);
-const POST_HEADERS = literalHeaders(HAPOALIM_POST_HEADERS);
-
-/** The states that refuse the login, whatever their case. */
-const REFUSED_STATES: IStepOutcome['failureMap'] = {
-  locked: ScraperErrorTypes.AccountBlocked,
-  disabled: ScraperErrorTypes.AccountBlocked,
-  reissue: ScraperErrorTypes.ChangePassword,
-};
+import type { IStepConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
+import { HAPOALIM_ERRORS, HAPOALIM_TARGETS } from './PipelineBankConfigHapoalimConstants.js';
+import { HAPOALIM_DEVICE_STEPS } from './PipelineBankConfigHapoalimDeviceSteps.js';
+import { OTP_INIT_FORM, OTP_VERIFY_FORM, VERIFY_FORM } from './PipelineBankConfigHapoalimForms.js';
+import { AUTH_HEADERS, REFUSED_STATES } from './PipelineBankConfigHapoalimStepShared.js';
 
 /** The OTP steps run only when the password step asked for one. */
 const OTP_PENDING = { carry: 'state', oneOf: ['logonotp'] } as const;
 
-/** A portal page the bank points at, checked against the known targets. */
+/** Only the app edge may be the redirect target. */
 const TARGET_RULE = { url: HAPOALIM_TARGETS } as const;
 
-/** The `G3CmE` cookie: the bank's wrapper around the RSA modulus. */
-const G3CME_RULE = {
-  into: 'g3cme',
-  parts: ['config.secrets.wrapPrefix', 'carry.modulus', 'config.secrets.wrapSuffix'],
-} as const;
-
-const BOOTSTRAP_STEP: IStepConfig = {
-  name: 'bootstrap',
-  urlTag: 'auth.bootstrap',
-  method: 'GET',
-  response: 'document',
-  documentMarker: 'bnhpApp.ngContext',
-  headers: DOCUMENT_HEADERS,
-  extractsToCarry: {},
-};
-
-const ENCRYPTION_KEY_STEP: IStepConfig = {
-  name: 'encryptionKey',
-  urlTag: 'auth.encryptionKey',
-  method: 'GET',
-  extractsToCarry: { modulus: '/encryptionKey' },
-  extractRules: { modulus: { type: 'string', pattern: '^[0-9a-fA-F]+$' } },
-  deriveCarry: [G3CME_RULE],
-};
-
+/**
+ * WAF warm-up before the password check. A GET to the CA edge answers a
+ * self-redirect with the Incapsula cookies; accepting that answer keeps the
+ * cookies for `verify`. The body is not inspected.
+ */
 const IDENTIFY_STEP: IStepConfig = {
   name: 'identify',
   urlTag: 'auth.identify',
-  encoding: 'form',
-  body: { shape: IDENTIFY_FORM },
-  headers: POST_HEADERS,
-  setCookies: { G3CmE: 'carry.g3cme' },
-  failIfPresent: HAPOALIM_ERRORS,
-  extractsToCarry: { result: '/result' },
-  extractRules: { result: { type: 'object' } },
+  method: 'GET',
+  headers: AUTH_HEADERS,
+  response: 'text',
+  maxTextChars: 8192,
+  redirect: 'accept',
+  extractsToCarry: {},
 };
 
+/** Sends the password with the device signature; asks for an OTP or lands. */
 const VERIFY_STEP: IStepConfig = {
   name: 'verify',
   urlTag: 'auth.verify',
-  encoding: 'form',
+  encoding: 'form-utf8',
   body: { shape: VERIFY_FORM },
-  headers: POST_HEADERS,
-  seal: {
-    kind: 'rsa-pkcs1-block-xor',
-    sourceRef: 'creds.password',
-    modulusRef: 'carry.modulus',
-    writeTo: '/credentials',
-    params: HAPOALIM_SEAL_PARAMS,
-  },
+  headers: AUTH_HEADERS,
   failIfPresent: HAPOALIM_ERRORS,
   extractsToCarry: { state: '/state' },
-  optionalExtractsToCarry: { flow: { pointer: '/flow' }, target: { pointer: '/target' } },
+  optionalExtractsToCarry: {
+    kdi: { pointer: '/result/deviceID' },
+    newDevice: { pointer: '/result/reason' },
+    target: { pointer: '/target' },
+  },
   extractRules: {
     state: { transform: 'lower' },
-    flow: { transform: 'lower', oneOf: ['authenticate'] },
+    kdi: { type: 'string', pattern: '^.{1,2048}$' },
+    newDevice: { transform: 'lower' },
     target: TARGET_RULE,
   },
   outcome: {
@@ -107,12 +64,13 @@ const VERIFY_STEP: IStepConfig = {
   },
 };
 
+/** Asks the bank to text the code; the masked phone reaches the retriever. */
 const OTP_INIT_STEP: IStepConfig = {
   name: 'otpInit',
   urlTag: 'auth.otpInit',
-  encoding: 'form',
+  encoding: 'form-utf8',
   body: { shape: OTP_INIT_FORM },
-  headers: POST_HEADERS,
+  headers: AUTH_HEADERS,
   runIf: OTP_PENDING,
   failIfPresent: HAPOALIM_ERRORS,
   extractsToCarry: { phone: '/result/phone' },
@@ -123,19 +81,20 @@ const OTP_INIT_STEP: IStepConfig = {
   },
 };
 
+/** Sends the code; success is the landing state. */
 const OTP_VERIFY_STEP: IStepConfig = {
   name: 'otpVerify',
   urlTag: 'auth.otpVerify',
-  encoding: 'form',
+  encoding: 'form-utf8',
   body: { shape: OTP_VERIFY_FORM },
-  headers: POST_HEADERS,
+  headers: AUTH_HEADERS,
   runIf: OTP_PENDING,
   failIfPresent: HAPOALIM_ERRORS,
   preHook: {
     awaitCredsField: 'otpCodeRetriever',
     intoCarryField: 'otp',
     hintFrom: 'carry.phone',
-    requires: ['cookie.csrfcookie', 'carry.flow'],
+    requires: ['cookie.csrfcookie'],
     valuePattern: String.raw`^\d{5}$`,
   },
   extractsToCarry: {},
@@ -150,28 +109,34 @@ const OTP_VERIFY_STEP: IStepConfig = {
   },
 };
 
-const LANDING_STEP: IStepConfig = {
-  name: 'landing',
-  urlTag: 'auth.landing',
+/**
+ * Registers the device on the app edge; a valid warm session lands here.
+ *
+ * <p>The answer is read as text, so `failIfPresent` cannot see a JSON
+ * `error` key. An `absent` text capture refuses it instead, while an empty
+ * success body passes.</p>
+ */
+const STEP1_STEP: IStepConfig = {
+  name: 'step1',
+  urlTag: 'auth.step1',
   method: 'GET',
-  failIfPresent: HAPOALIM_ERRORS,
-  extractsToCarry: { pageId: '/pageId' },
-  extractRules: { pageId: { pattern: String.raw`^\d{1,4}$` } },
+  response: 'text',
+  textCaptures: { bankError: { pattern: String.raw`"[Ee]rrors?"\s*:`, group: 0, absent: true } },
+  extractsToCarry: {},
 };
 
-/** The login steps in order; the landing step is the warm-start resume point. */
+/** The login steps in order; `step1` is the warm-start resume point. */
 const HAPOALIM_STEPS: readonly IStepConfig[] = [
-  BOOTSTRAP_STEP,
-  ENCRYPTION_KEY_STEP,
   IDENTIFY_STEP,
   VERIFY_STEP,
   OTP_INIT_STEP,
   OTP_VERIFY_STEP,
-  LANDING_STEP,
+  STEP1_STEP,
+  ...HAPOALIM_DEVICE_STEPS,
 ];
 
-/** Where a warm start resumes: the landing step, whose call checks the stored session. */
-const HAPOALIM_RESUME_STEP_INDEX = HAPOALIM_STEPS.indexOf(LANDING_STEP);
+/** Where a warm start resumes: the device registration call, which checks the session. */
+const HAPOALIM_RESUME_STEP_INDEX = HAPOALIM_STEPS.indexOf(STEP1_STEP);
 
 export default HAPOALIM_STEPS;
 export { HAPOALIM_RESUME_STEP_INDEX, HAPOALIM_STEPS };

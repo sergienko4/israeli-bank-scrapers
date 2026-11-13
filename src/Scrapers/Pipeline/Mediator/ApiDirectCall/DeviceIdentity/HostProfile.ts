@@ -1,0 +1,125 @@
+/**
+ * Host device profile — the real host facts a signature format may use. It is
+ * an adapter, so formats and tests never call `node:os` themselves.
+ */
+
+import os from 'node:os';
+
+import type { IDeviceNetwork, IDeviceProfile } from './DeviceIdentityTypes.js';
+
+/** Neutral user agent the generated signature carries. */
+const NODE_USER_AGENT = 'Dalvik 2.1.0 (Linux; U; Android 14; node)';
+
+/** The profile fields that are not network facts. */
+type IHostFacts = Omit<IDeviceProfile, 'network'>;
+
+/** Loopback defaults when the host has no non-internal IPv4 interface. */
+const DEFAULT_NETWORK: IDeviceNetwork = {
+  ipAddress: '127.0.0.1',
+  netmaskAddress: '255.0.0.0',
+  macAddress: '00:00:00:00:00:00',
+  gatewayAddress: '127.0.0.1',
+  broadcastAddress: '127.255.255.255',
+};
+
+/**
+ * The first non-internal IPv4 interface.
+ * @returns The interface, or false when none exists.
+ */
+function firstIpv4(): os.NetworkInterfaceInfo | false {
+  const interfaces = os.networkInterfaces();
+  const all = Object.values(interfaces).flatMap(list => list ?? []);
+  return all.find(item => item.family === 'IPv4' && !item.internal) ?? false;
+}
+
+/**
+ * The first three octets of an IPv4 address.
+ * @param address - Dotted IPv4 address.
+ * @returns The `/24` network prefix.
+ */
+function prefixOf(address: string): string {
+  const parts = address.split('.').map(Number);
+  return `${String(parts[0])}.${String(parts[1])}.${String(parts[2])}`;
+}
+
+/**
+ * Map one IPv4 interface into the signature's network facts.
+ * @param item - The host interface.
+ * @returns Its address, netmask, MAC and derived gateway/broadcast.
+ */
+function networkFrom(item: os.NetworkInterfaceInfo): IDeviceNetwork {
+  const prefix = prefixOf(item.address);
+  return {
+    ipAddress: item.address,
+    netmaskAddress: item.netmask,
+    macAddress: item.mac,
+    gatewayAddress: `${prefix}.1`,
+    broadcastAddress: `${prefix}.255`,
+  };
+}
+
+/**
+ * The host's network facts, or loopback defaults.
+ * @returns The network block.
+ */
+function networkOf(): IDeviceNetwork {
+  const item = firstIpv4();
+  return item === false ? DEFAULT_NETWORK : networkFrom(item);
+}
+
+/**
+ * Machine identity facts from the CPU list.
+ * @param cpus - `os.cpus()`.
+ * @returns Host name, platform, architecture and CPU facts.
+ */
+function machineIdentityOf(
+  cpus: os.CpuInfo[],
+): Pick<IHostFacts, 'hostName' | 'platform' | 'arch' | 'cpuModel' | 'cpuCount'> {
+  const host = { hostName: os.hostname(), platform: process.platform, arch: os.arch() };
+  const cpu = { cpuModel: cpus[0]?.model ?? os.arch(), cpuCount: cpus.length };
+  return { ...host, ...cpu };
+}
+
+/**
+ * Machine memory fact.
+ * @returns Total memory in bytes.
+ */
+function machineMemoryOf(): Pick<IHostFacts, 'totalMemory'> {
+  return { totalMemory: os.totalmem() };
+}
+
+/**
+ * Machine facts from the CPU list.
+ * @param cpus - `os.cpus()`.
+ * @returns Host name, platform, architecture, CPU and memory facts.
+ */
+function machineOf(
+  cpus: os.CpuInfo[],
+): Pick<IHostFacts, 'hostName' | 'platform' | 'arch' | 'cpuModel' | 'cpuCount' | 'totalMemory'> {
+  const identity = machineIdentityOf(cpus);
+  const memory = machineMemoryOf();
+  return { ...identity, ...memory };
+}
+
+/**
+ * Locale facts from the resolved options.
+ * @param resolved - `Intl.DateTimeFormat().resolvedOptions()`.
+ * @returns Locale, time zone and the neutral user agent.
+ */
+function localeOf(
+  resolved: Intl.ResolvedDateTimeFormatOptions,
+): Pick<IHostFacts, 'locale' | 'timeZone' | 'userAgent'> {
+  return { locale: resolved.locale, timeZone: resolved.timeZone, userAgent: NODE_USER_AGENT };
+}
+
+/**
+ * Read the host facts once per enrichment.
+ * @returns Immutable host profile.
+ */
+function readHostProfile(): IDeviceProfile {
+  const cpus = os.cpus();
+  const resolved = Intl.DateTimeFormat().resolvedOptions();
+  return { ...machineOf(cpus), ...localeOf(resolved), network: networkOf() };
+}
+
+export default readHostProfile;
