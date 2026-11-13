@@ -52,7 +52,7 @@ const REJECTED_KEYS: readonly IRejectedKey[] = [
   { key: '../../../evil', why: 'a key that climbs out of the cache directory', wouldEscape: true },
   { key: '../onezero', why: 'a key carrying a single parent segment', wouldEscape: true },
   { key: '/etc/onezero', why: 'an absolute path posing as a key', wouldEscape: false },
-  { key: 'hapoalim', why: 'a bank that is not supported', wouldEscape: false },
+  { key: 'beinleumi', why: 'a bank that is not supported', wouldEscape: false },
   { key: '', why: 'the empty string', wouldEscape: false },
 ];
 

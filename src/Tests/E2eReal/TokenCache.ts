@@ -31,7 +31,7 @@ import type { ScraperLogger } from '../../Scrapers/Pipeline/Logging/Debug.js';
 import { replaceAtomically } from './AtomicReplace.js';
 
 /** Supported bank keys — matches the BankPlugin taxonomy. */
-const BANK_KEYS = ['onezero', 'pepper', 'paybox'] as const;
+const BANK_KEYS = ['onezero', 'pepper', 'paybox', 'hapoalim'] as const;
 
 /** Supported bank keys — derived from BANK_KEYS so the two cannot drift. */
 type BankKey = (typeof BANK_KEYS)[number];
