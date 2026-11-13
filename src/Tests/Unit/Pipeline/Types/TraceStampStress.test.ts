@@ -51,11 +51,6 @@ interface ICaseResult extends ICase {
   readonly invariants: IInvariants;
   readonly bytesPerStamp: number;
 }
-/** Bisection window: `good` resolved the fold chain, `bad` overflowed. */
-interface IBounds {
-  readonly good: number;
-  readonly bad: number;
-}
 /** Outcome of the timed loop. */
 interface ITimedRun {
   readonly thrown: string;
@@ -64,10 +59,6 @@ interface ITimedRun {
 /** Growth-curve point: a cell with timing and heap only. */
 interface ICurvePoint extends ICase {
   readonly measured: IMeasured;
-}
-/** Deepest resolving chain window plus whether a failed instant stays failed. */
-interface IChainProbe extends IBounds {
-  readonly retryOverflows: boolean;
 }
 
 /** Stamp format `DD-MM-YYYY_HHMMSScc`. */
@@ -94,11 +85,8 @@ const SUMMER_START_MS = Date.UTC(2026, 5, 15, 10, 0, 0);
 /** Israel DST ends the last Sunday of October: local 01:00-02:00 happens twice. */
 const FOLD_FIRST_PASS_MS = Date.UTC(2026, 9, 24, 22, 0, 0);
 const FOLD_SECOND_PASS_MS = Date.UTC(2026, 9, 24, 23, 0, 0);
-const CHAIN_FLOOR_DEPTH = 1_000;
-const CHAIN_CEILING_DEPTH = 100_000;
-const CHAIN_TOLERANCE = 250;
-/** Repeat-hour instant clear of the longest colliding run (ceiling + 100 slots). */
-const RECOVERY_INSTANT_MS = FOLD_SECOND_PASS_MS + (CHAIN_CEILING_DEPTH + 100) * CENTISECOND_MS;
+/** A fold chain far beyond the depth at which the old recursive claim overflowed (~7k). */
+const CHAIN_DEPTH = 100_000;
 
 /*
  * Budgets. Baseline host: Intel i7-7660U (2 cores / 4 threads), Node 26.12.0, darwin x64,
@@ -145,7 +133,6 @@ const HEAP_GROWTH_FLOOR_MB = 0.5;
 
 const BASELINE = new Map<string, ICaseResult>();
 const CURVES: ICurvePoint[] = [];
-let chainProbe: IChainProbe = { good: 0, bad: 0, retryOverflows: false };
 let collectMs = 0;
 
 /**
@@ -546,63 +533,6 @@ function curvePoint(test: ICase): ICurvePoint {
 }
 
 /**
- * Issue `depth` same-instant stamps in the first fold hour.
- * @param depth - Colliding run length to seed.
- * @returns True once seeded.
- */
-function seedFoldStamps(depth: number): boolean {
-  resetRunStampState();
-  for (let index = 0; index < depth; index++) nextRunStamp(FOLD_FIRST_PASS_MS);
-  return true;
-}
-
-/**
- * Request a repeat-hour stamp and report whether it overflowed the stack.
- * @returns True when a RangeError is thrown.
- */
-function foldCallOverflows(): boolean {
-  try {
-    nextRunStamp(FOLD_SECOND_PASS_MS);
-    return false;
-  } catch (error) {
-    return errorName(error) === 'RangeError';
-  }
-}
-
-/**
- * Whether the repeat-hour request overflows after `depth` seeded collisions.
- * @param depth - Colliding run length to seed.
- * @returns True when a RangeError is thrown.
- */
-function chainOverflows(depth: number): boolean {
-  seedFoldStamps(depth);
-  return foldCallOverflows();
-}
-
-/**
- * Halve the bisection window.
- * @param bounds - Current window.
- * @returns The narrowed window.
- */
-function bisectStep(bounds: IBounds): IBounds {
-  const mid = Math.floor((bounds.good + bounds.bad) / 2);
-  const isOverflow = chainOverflows(mid);
-  return isOverflow ? { good: bounds.good, bad: mid } : { good: mid, bad: bounds.bad };
-}
-
-/**
- * Bisect the deepest fold-collision chain that still resolves.
- * @returns Final window around the stack-depth limit plus the retry outcome.
- */
-function probeChainLimit(): IChainProbe {
-  let bounds: IBounds = { good: CHAIN_FLOOR_DEPTH, bad: CHAIN_CEILING_DEPTH };
-  while (bounds.bad - bounds.good > CHAIN_TOLERANCE) bounds = bisectStep(bounds);
-  const hasOverflowed = chainOverflows(bounds.bad);
-  const didRetryOverflow = hasOverflowed && foldCallOverflows();
-  return { ...bounds, retryOverflows: didRetryOverflow };
-}
-
-/**
  * Host description recorded beside the numbers.
  * @returns Node, OS, CPU and zone details.
  */
@@ -715,7 +645,7 @@ function runCurves(): boolean {
 }
 
 /**
- * Run the matrix, the curves and the chain-limit probe.
+ * Run the matrix and the curves.
  * @returns True once the baseline is populated.
  */
 function collectBaseline(): boolean {
@@ -723,7 +653,6 @@ function collectBaseline(): boolean {
   warmUp();
   runMatrix();
   runCurves();
-  chainProbe = probeChainLimit();
   resetRunStampState();
   const endedAt = process.hrtime.bigint();
   collectMs = Number(endedAt - startedAt) / NS_PER_MS;
@@ -744,37 +673,9 @@ function writeSummary(): boolean {
     collectMs: round3(collectMs),
     cases,
     curves,
-    chainProbe,
   };
   process.stdout.write(`TRACE_STAMP_BASELINE ${JSON.stringify(summary)}\n`);
   return true;
-}
-
-/**
- * Whether a scenario name is anything but the fold chain.
- * @param name - Scenario name.
- * @returns True for every scenario except `dst-fold-chain`.
- */
-function isBoundedName(name: ScenarioName): boolean {
-  return name !== 'dst-fold-chain';
-}
-
-/**
- * Whether a cell is the fold-chain scenario.
- * @param test - The (scenario, size) cell.
- * @returns True for `dst-fold-chain`.
- */
-function isChain(test: ICase): boolean {
-  return test.scenario === 'dst-fold-chain';
-}
-
-/**
- * Whether a cell can never build a collision chain deeper than one.
- * @param test - The (scenario, size) cell.
- * @returns True for every scenario except `dst-fold-chain`.
- */
-function isBounded(test: ICase): boolean {
-  return !isChain(test);
 }
 
 /**
@@ -789,18 +690,18 @@ function sizeBounds(scenario: ScenarioName): readonly [ICaseResult, ICaseResult]
 }
 
 /**
- * Stamp the recovery instant is expected to yield after a fold chain.
- * @returns Expected stamp for an instant clear of the colliding run.
+ * Issue `depth` same-instant stamps in the first fold hour, so the repeat hour
+ * starts against a colliding run of that length.
+ * @param depth - Colliding run length to seed.
+ * @returns True once seeded.
  */
-function expectedRecoveryStamp(): string {
-  const recoveryAt = new Date(RECOVERY_INSTANT_MS);
-  return formatRunStamp(recoveryAt);
+function seedFoldStamps(depth: number): boolean {
+  resetRunStampState();
+  for (let index = 0; index < depth; index++) nextRunStamp(FOLD_FIRST_PASS_MS);
+  return true;
 }
 
 const MATRIX = buildMatrix();
-const BOUNDED = MATRIX.filter(isBounded);
-const CHAINS = MATRIX.filter(isChain);
-const BOUNDED_SCENARIOS = SCENARIOS.filter(isBoundedName);
 
 describe('TraceStamp stress baseline', () => {
   beforeAll(() => {
@@ -819,7 +720,7 @@ describe('TraceStamp stress baseline', () => {
     expect(secondPass).toBe(1);
   });
 
-  it.each(BOUNDED)('[TSS-1] $scenario @ $size issues every stamp without RangeError', test => {
+  it.each(MATRIX)('[TSS-1] $scenario @ $size issues every stamp without RangeError', test => {
     const { invariants } = resultFor(test);
     expect(invariants.thrown).toBe('');
     expect(invariants.issued).toBe(test.size);
@@ -836,13 +737,6 @@ describe('TraceStamp stress baseline', () => {
     expect(invariants.mismatches).toBe(0);
   });
 
-  it.each(CHAINS)('[TSS-4] $scenario @ $size resolves or fails closed on RangeError', test => {
-    const { invariants } = resultFor(test);
-    const issuedBeforeFailure = invariants.thrown === '' ? test.size : test.size / 2;
-    expect(['', 'RangeError']).toContain(invariants.thrown);
-    expect(invariants.issued).toBe(issuedBeforeFailure);
-  });
-
   it.each(MATRIX)('[TSS-5] $scenario @ $size stays within the time budgets', test => {
     const { measured } = resultFor(test);
     expect(measured.wallMs).toBeLessThan(WALL_MS_BUDGET[test.size]);
@@ -857,13 +751,13 @@ describe('TraceStamp stress baseline', () => {
     expect(observedBytes).toBeLessThan(HEAP_BYTES_PER_STAMP_BUDGET);
   });
 
-  it.each(BOUNDED_SCENARIOS)('[TSS-7] %s per-call p50 stays flat across a 10x step', name => {
+  it.each(SCENARIOS)('[TSS-7] %s per-call p50 stays flat across a 10x step', name => {
     const [small, large] = sizeBounds(name);
     const growth = large.measured.p50Us / small.measured.p50Us;
     expect(growth).toBeLessThan(P50_GROWTH_BUDGET);
   });
 
-  it.each(BOUNDED_SCENARIOS)('[TSS-8] %s retained heap grows linearly across a 10x step', name => {
+  it.each(SCENARIOS)('[TSS-8] %s retained heap grows linearly across a 10x step', name => {
     const [small, large] = sizeBounds(name);
     const hasGc = typeof global.gc === 'function';
     const denominator = Math.max(small.measured.heapMb, HEAP_GROWTH_FLOOR_MB);
@@ -871,18 +765,11 @@ describe('TraceStamp stress baseline', () => {
     expect(growth).toBeLessThan(HEAP_GROWTH_BUDGET);
   });
 
-  it('[TSS-9] a fold chain of the floor depth resolves and the probe window is ordered', () => {
-    const isOverflow = chainOverflows(CHAIN_FLOOR_DEPTH);
-    expect(isOverflow).toBe(false);
-    expect(chainProbe.good).toBeGreaterThanOrEqual(CHAIN_FLOOR_DEPTH);
-    expect(chainProbe.good).toBeLessThan(chainProbe.bad);
-  });
-
-  it('[TSS-10] after an over-deep chain a later instant still mints the exact next stamp', () => {
-    seedFoldStamps(CHAIN_CEILING_DEPTH);
-    foldCallOverflows();
-    const stamp = nextRunStamp(RECOVERY_INSTANT_MS);
-    const expected = expectedRecoveryStamp();
+  it('[TSS-9] a repeat-hour request after a chain far deeper than the old ceiling gets the exact next slot', () => {
+    seedFoldStamps(CHAIN_DEPTH);
+    const stamp = nextRunStamp(FOLD_SECOND_PASS_MS);
+    const nextFreeAt = new Date(FOLD_SECOND_PASS_MS + CHAIN_DEPTH * CENTISECOND_MS);
+    const expected = formatRunStamp(nextFreeAt);
     resetRunStampState();
     expect(stamp).toBe(expected);
   });

@@ -14,7 +14,7 @@ import pino, { type Logger } from 'pino';
 import type { Brand } from '../Types/Brand.js';
 import { toError } from '../Types/ErrorUtils.js';
 import { awaitLeaseFlush, type IFileLease, type ILeaseFlushWait } from './FileLease.js';
-import { closeFileLeaseAsync } from './FileLeaseClose.js';
+import { closeFileLeaseAsync, markLeaseClosedByWorker } from './FileLeaseClose.js';
 import {
   emitRetiredDrainWarning,
   handleTerminateRejection,
@@ -56,10 +56,24 @@ interface IRetirementCtx {
 }
 
 /**
- * Terminate an open retired worker thread and close any owned file descriptor
- * only after the worker thread has exited. A graceful end closes the shared
- * descriptor inside the worker, so {@link closeFileLeaseAsync} treats an
- * already-closed descriptor as settled instead of closing it twice.
+ * Release the lease once the worker is gone. After a graceful end the worker has
+ * closed the shared descriptor, so it is only recorded as closed; closing the
+ * number again could close another file's descriptor that now reuses it. Any
+ * other exit, including a close that follows a worker error, cannot say whether
+ * the worker closed it, so the lease is closed only while `fstat` still shows
+ * the file it opened.
+ * @param ctx - Retirement stream, file lease, and lifecycle state.
+ * @returns True when `fs.close` was scheduled, else false.
+ */
+function releaseLease(ctx: IRetirementCtx): boolean {
+  const { isWorkerEnded, hasWorkerFailed } = ctx.state;
+  if (isWorkerEnded && !hasWorkerFailed) return markLeaseClosedByWorker(ctx.lease);
+  return closeFileLeaseAsync(ctx.lease, emitRetiredDrainWarning);
+}
+
+/**
+ * Terminate an open retired worker thread and release any owned file descriptor
+ * only after the worker thread has exited (see {@link releaseLease}).
  * @param ctx - Retirement stream, optional file lease, and lifecycle state.
  * @returns True when termination was initiated, false when already closed.
  */
@@ -68,7 +82,7 @@ function terminateStreamWorker(ctx: IRetirementCtx): boolean {
    * Release `ctx.lease` asynchronously after worker teardown settles.
    * @returns True when `fs.close` was scheduled, else false.
    */
-  const release = (): boolean => closeFileLeaseAsync(ctx.lease, emitRetiredDrainWarning);
+  const release = (): boolean => releaseLease(ctx);
   if (ctx.stream.closed) return release();
   ctx.state.isTerminating = true;
   ctx.stream.unref?.();
@@ -155,6 +169,19 @@ function retryGracefulEnd(ctx: IRetirementCtx): true {
 }
 
 /**
+ * Settle retirement after the worker closed following a graceful end request.
+ * A close that arrives after another path already settled (an error, the
+ * watchdog) says nothing about the descriptor, so it is not marked as ended.
+ * @param ctx - Retirement stream, file lease, and lifecycle state.
+ * @returns True when worker termination was initiated, else false.
+ */
+function finalizeGracefulEnd(ctx: IRetirementCtx): boolean {
+  if (ctx.state.isSettled) return false;
+  ctx.state.isWorkerEnded = true;
+  return finalizeStreamRetirement(ctx);
+}
+
+/**
  * Ask the worker to end its destinations once every queued record has reached
  * it, retrying while the main-thread buffer or ring buffer still holds bytes,
  * and settle once the worker has flushed and closed every destination.
@@ -166,7 +193,7 @@ function beginGracefulEnd(ctx: IRetirementCtx): boolean {
   const outcome = requestWorkerEnd(ctx.stream);
   if (outcome === 'busy') return retryGracefulEnd(ctx);
   if (outcome === 'unsupported') return awaitFlushFallback(ctx);
-  ctx.stream.once?.('close', (): boolean => finalizeStreamRetirement(ctx));
+  ctx.stream.once?.('close', (): boolean => finalizeGracefulEnd(ctx));
   return true;
 }
 

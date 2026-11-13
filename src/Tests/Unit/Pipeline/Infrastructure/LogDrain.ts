@@ -20,16 +20,26 @@ function pause(): Promise<true> {
 }
 
 /**
+ * Poll until a condition holds, or the deadline passes.
+ * @param isDone - The condition.
+ * @param deadlineMs - Epoch-ms deadline.
+ * @returns True once the condition held.
+ */
+async function awaitCondition(isDone: () => boolean, deadlineMs: number): Promise<boolean> {
+  if (isDone()) return true;
+  if (Date.now() >= deadlineMs) return false;
+  await pause();
+  return awaitCondition(isDone, deadlineMs);
+}
+
+/**
  * Poll until a descriptor lease has been closed, or the deadline passes.
  * @param lease - The lease to watch.
  * @param deadlineMs - Epoch-ms deadline.
  * @returns True once the lease is closed.
  */
-async function awaitLeaseClosed(lease: IFileLease, deadlineMs: number): Promise<boolean> {
-  if (lease.isClosed) return true;
-  if (Date.now() >= deadlineMs) return false;
-  await pause();
-  return awaitLeaseClosed(lease, deadlineMs);
+function awaitLeaseClosed(lease: IFileLease, deadlineMs: number): Promise<boolean> {
+  return awaitCondition((): boolean => lease.isClosed, deadlineMs);
 }
 
-export { awaitLeaseClosed, pause };
+export { awaitCondition, awaitLeaseClosed, pause };

@@ -89,18 +89,45 @@ function formatRunStamp(d: Date): RunStampStr {
 }
 
 /**
+ * Format the stamp of one quantized epoch-ms slot.
+ * @param slotMs - Quantized epoch-ms slot.
+ * @returns The slot's formatted stamp.
+ */
+function stampAtSlot(slotMs: number): RunStampStr {
+  const slotDate = new Date(slotMs);
+  return formatRunStamp(slotDate);
+}
+
+/**
+ * The first slot at or after `slotMs` whose formatted stamp is unused. A loop
+ * rather than recursion: a DST fall-back fold can make thousands of consecutive
+ * slots collide with stamps already issued, which a recursive walk would turn
+ * into a stack overflow.
+ * @param slotMs - Candidate quantized epoch-ms slot.
+ * @returns The first slot whose stamp has not been issued.
+ */
+function firstUnusedSlot(slotMs: number): number {
+  let freeSlotMs = slotMs;
+  let candidate = stampAtSlot(freeSlotMs);
+  while (ISSUED_STAMPS.has(candidate)) {
+    freeSlotMs += CENTISECOND_MS;
+    candidate = stampAtSlot(freeSlotMs);
+  }
+  return freeSlotMs;
+}
+
+/**
  * Advance `slotMs` in 10 ms steps until its formatted local stamp is unused,
  * then record both the slot and the formatted stamp.
  * @param slotMs - Candidate quantized epoch-ms slot.
  * @returns Unique formatted run stamp.
  */
 function claimUniqueStamp(slotMs: number): RunStampStr {
-  const stampDateValue = new Date(slotMs);
-  const candidate = formatRunStamp(stampDateValue);
-  if (ISSUED_STAMPS.has(candidate)) return claimUniqueStamp(slotMs + CENTISECOND_MS);
-  lastStampSlotMs = slotMs;
-  ISSUED_STAMPS.add(candidate);
-  return candidate;
+  const freeSlotMs = firstUnusedSlot(slotMs);
+  const stamp = stampAtSlot(freeSlotMs);
+  lastStampSlotMs = freeSlotMs;
+  ISSUED_STAMPS.add(stamp);
+  return stamp;
 }
 
 /**

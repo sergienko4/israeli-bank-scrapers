@@ -139,10 +139,10 @@ describe('PipelineExecutor — disposal failure never changes the outcome', () =
     expect(dispose).toHaveBeenCalledTimes(1);
   });
 
-  it("[CLN-7] records today's limit: a mediator installed by the last phase is not disposed", async () => {
+  it('[CLN-7] disposes a mediator installed by the last phase, exactly once', async () => {
     const dispose = resolvingDispose();
     const result = await run([mediatorPhase(dispose)]);
     expect(result.success).toBe(true);
-    expect(dispose).not.toHaveBeenCalled();
+    expect(dispose).toHaveBeenCalledTimes(1);
   });
 });
