@@ -9,7 +9,7 @@
  */
 
 import { ScraperErrorTypes } from '../../../Scrapers/Base/ErrorTypes.js';
-import { HP_FOREIGN_TARGET, HP_VERIFY_REPLAY_URL } from './HapoalimAuthRoutes.js';
+import { HP_VERIFY_REPLAY_URL } from './HapoalimAuthRoutes.js';
 import type { HapoalimFault } from './HapoalimFaults.js';
 import { HP_BANK_NOTICE } from './HapoalimFaults.js';
 import {
@@ -62,53 +62,13 @@ const VERIFY_REFUSALS: readonly IRefusal[] = [
     message: 'verify bank error',
     trail: VERIFY_TRAIL,
   },
-  {
-    fault: 'foreignTarget',
-    errorType: ScraperErrorTypes.Generic,
-    message: 'verify extract target invalid',
-    trail: VERIFY_TRAIL,
-  },
-  {
-    fault: 'targetNumber',
-    errorType: ScraperErrorTypes.Generic,
-    message: 'verify extract target invalid',
-    trail: VERIFY_TRAIL,
-  },
-];
-
-/** Invalid answers before or after the SMS step, and where each stops the run. */
-const ANSWER_REFUSALS: readonly IRefusal[] = [
-  {
-    fault: 'initResultString',
-    errorType: ScraperErrorTypes.Generic,
-    message: 'identify extract result invalid',
-    trail: VERIFY_TRAIL.slice(0, 3),
-  },
-  {
-    fault: 'initResultMissing',
-    errorType: ScraperErrorTypes.Generic,
-    message: 'envelope selector miss: result at /result',
-    trail: VERIFY_TRAIL.slice(0, 3),
-  },
-  {
-    fault: 'pageIdBad',
-    errorType: ScraperErrorTypes.Generic,
-    message: 'landing extract pageId invalid',
-    trail: SIGNED_IN_TRAIL,
-  },
-  {
-    fault: 'landingErrors',
-    errorType: ScraperErrorTypes.Generic,
-    message: 'landing bank error',
-    trail: SIGNED_IN_TRAIL,
-  },
 ];
 
 /** Step-0 faults and the failure each must surface, with no response text. */
 const STEP_ZERO_FAULTS: readonly (readonly [HapoalimFault, ScraperErrorTypes, string])[] = [
-  ['http500', ScraperErrorTypes.Generic, 'bootstrap HTTP 500'],
-  ['reject', ScraperErrorTypes.Generic, 'bootstrap GENERIC'],
-  ['timeout', ScraperErrorTypes.Timeout, 'bootstrap TIMEOUT'],
+  ['http500', ScraperErrorTypes.Generic, 'identify HTTP 500'],
+  ['reject', ScraperErrorTypes.Generic, 'identify GENERIC'],
+  ['timeout', ScraperErrorTypes.Timeout, 'identify TIMEOUT'],
 ];
 
 /**
@@ -164,15 +124,6 @@ describe('Hapoalim browserless login', () => {
 
   it.each(VERIFY_REFUSALS)('fails a verify $fault before any SMS', async refusal => {
     await expectRefused(refusal);
-  });
-
-  it.each(ANSWER_REFUSALS)('fails an invalid $fault answer', async refusal => {
-    await expectRefused(refusal);
-  });
-
-  it('never names a foreign landing target in the failure', async () => {
-    const run = await runHapoalim('foreignTarget');
-    expect(run.result.errorMessage).not.toContain(new URL(HP_FOREIGN_TARGET).host);
   });
 
   it.each(['verify302', 'verify307'] as const)(

@@ -19,8 +19,8 @@ interface IRsaKeyGenerator {
   readonly spkiSha256HexInto?: string;
 }
 
-/** A CSR subject attribute: organization, domain component, unit, common name. */
-type CsrSubjectAttr = 'O' | 'DC' | 'OU' | 'CN';
+/** A CSR subject attribute: organization, domain component, unit, common name, user id, country, locality, state. */
+type CsrSubjectAttr = 'O' | 'DC' | 'OU' | 'CN' | 'UID' | 'C' | 'L' | 'ST';
 
 /** One subject RDN; its value hydrates like a body value and must be text. */
 interface ICsrSubjectEntry {

@@ -96,6 +96,7 @@ interface IReduceSeedCtx {
   readonly entry: SeedSourceEntry;
   readonly creds: Creds;
   readonly carry: CarryMut;
+  readonly secrets: Readonly<Record<string, string>>;
 }
 
 /** Bundle for `reduceDerivedPart` — one part RefToken + eval context. */

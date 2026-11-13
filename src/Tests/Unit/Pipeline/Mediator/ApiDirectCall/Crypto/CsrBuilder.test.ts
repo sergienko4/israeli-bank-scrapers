@@ -16,7 +16,7 @@ import {
   csrSubjectDer,
   type ICsrSubjectValue,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/CsrSubject.js';
-import { childrenOf, csrPartsOf, type ITlv, openTestCsr } from '../../../../../Helpers/TestCsr.js';
+import { childrenOf, csrPartsOf, type ITlv, openTestCsr, readTlv } from '../../../../../Helpers/TestCsr.js';
 
 /** Subject goldens: O, DC, OU, CN DER from the reference CSR builder. */
 const SUBJECT_GOLDENS = {
@@ -160,5 +160,142 @@ describe('buildCsr (N25b)', () => {
     const subject = subjectOf('Bank Yahav', 'מחשב');
     const csr = buildCsr({ keyPem, subject });
     expect(csr).toBe(false);
+  });
+});
+
+describe('buildCsr — extended subject and profile', () => {
+  let keyPem = '';
+  let publicKey: KeyObject;
+
+  beforeAll((): void => {
+    const pair = generateKeyPairSync('rsa', { modulusLength: 2048 });
+    keyPem = pair.privateKey.export({ type: 'pkcs8', format: 'pem' });
+    publicKey = pair.publicKey;
+  });
+
+  /** The subject an app-registration CSR sends, in wire order. */
+  const appSubject: readonly ICsrSubjectValue[] = [
+    { attr: 'UID', value: 'guid-0123456789' },
+    { attr: 'CN', value: 'device-0123456789' },
+    { attr: 'C', value: 'IL' },
+    { attr: 'ST', value: 'Tel Aviv' },
+    { attr: 'L', value: 'TA' },
+    { attr: 'O', value: 'Bank Hapoalim' },
+  ];
+
+  /** Expected subject OID body hex and text, in wire order. */
+  const expectedSubject: readonly (readonly [string, string])[] = [
+    ['0992268993f22c640101', 'guid-0123456789'],
+    ['550403', 'device-0123456789'],
+    ['550406', 'IL'],
+    ['550408', 'Tel Aviv'],
+    ['550407', 'TA'],
+    ['55040a', 'Bank Hapoalim'],
+  ];
+
+  /**
+   * Build the extended-profile request.
+   * @returns Base64-of-PEM request.
+   */
+  function extendedCsr(): string {
+    const csr = buildCsr({
+      keyPem,
+      subject: appSubject,
+      signature: 'sha256',
+      wireForm: 'base64-pem',
+      extensions: [{ oid: '2.5.29.19', critical: true, valueHex: '30030101ff' }],
+    });
+    if (csr === false) throw new TypeError('csr refused');
+    return csr;
+  }
+
+  /**
+   * The PEM text an extended CSR carries.
+   * @returns Decoded PEM text.
+   */
+  function pemText(): string {
+    const csr = extendedCsr();
+    const bytes = Buffer.from(csr, 'base64');
+    return bytes.toString('utf8');
+  }
+
+  /**
+   * The DER bytes the PEM text carries.
+   * @returns Request DER.
+   */
+  function derOfPem(): Buffer {
+    const body = pemText()
+      .replace('-----BEGIN CERTIFICATE REQUEST-----', '')
+      .replace('-----END CERTIFICATE REQUEST-----', '')
+      .replaceAll('\n', '')
+      .trim();
+    return Buffer.from(body, 'base64');
+  }
+
+  it('keeps the UID, CN, C, ST, L, O subject order and their string types', () => {
+    const der = derOfPem();
+    const outer = readTlv(der, 0);
+    const [info] = childrenOf(outer.body);
+    const [, subject] = childrenOf(info.body);
+    const rdns = childrenOf(subject.body);
+    expect(rdns).toHaveLength(expectedSubject.length);
+    const actual = rdns.map((rdn): readonly [string, string] => {
+      const [pair] = childrenOf(rdn.body);
+      const [oid, value] = childrenOf(pair.body);
+      return [oid.body.toString('hex'), value.body.toString('utf8')];
+    });
+    expect(actual).toEqual(expectedSubject);
+  });
+
+  it('signs SHA256withRSA and carries one critical extensionRequest extension', () => {
+    const der = derOfPem();
+    const outer = readTlv(der, 0);
+    const [info, algorithm, signature] = childrenOf(outer.body);
+    const algorithmHex = algorithm.whole.toString('hex');
+    expect(algorithmHex).toBe('300d06092a864886f70d01010b0500');
+    const [, , , attributes] = childrenOf(info.body);
+    expect(attributes.tag).toBe(0xa0);
+    const [attribute] = childrenOf(attributes.body);
+    const [type, values] = childrenOf(attribute.body);
+    const typeHex = type.body.toString('hex');
+    expect(typeHex).toBe('2a864886f70d01090e');
+    const [extensions] = childrenOf(values.body);
+    const [extension] = childrenOf(extensions.body);
+    const [extOid, critical, extValue] = childrenOf(extension.body);
+    const extOidHex = extOid.body.toString('hex');
+    const criticalHex = critical.whole.toString('hex');
+    const extValueHex = extValue.body.toString('hex');
+    expect(extOidHex).toBe('551d13');
+    expect(criticalHex).toBe('0101ff');
+    expect(extValueHex).toBe('30030101ff');
+    const signed = signature.body.subarray(1);
+    const isValid = verify('RSA-SHA256', info.whole, publicKey, signed);
+    expect(isValid).toBe(true);
+  });
+
+  it('wraps the DER as PEM before the outer Base64', () => {
+    const text = pemText();
+    const hasHeader = text.startsWith('-----BEGIN CERTIFICATE REQUEST-----\n');
+    const hasFooter = text.endsWith('-----END CERTIFICATE REQUEST-----\n');
+    expect(hasHeader).toBe(true);
+    expect(hasFooter).toBe(true);
+    const lines = text.trimEnd().split('\n');
+    const isShort = lines.slice(1, -1).every(line => line.length <= 64);
+    expect(isShort).toBe(true);
+  });
+
+  it('refuses a malformed extension OID or value', () => {
+    const badOid = buildCsr({
+      keyPem,
+      subject: appSubject,
+      extensions: [{ oid: 'not.an.oid', critical: true, valueHex: '30030101ff' }],
+    });
+    expect(badOid).toBe(false);
+    const badValue = buildCsr({
+      keyPem,
+      subject: appSubject,
+      extensions: [{ oid: '2.5.29.19', critical: true, valueHex: '0g0' }],
+    });
+    expect(badValue).toBe(false);
   });
 });

@@ -22,13 +22,13 @@ import { HP_BANK_NOTICE } from './HapoalimFaults.js';
 import {
   HAPOALIM_MOCK_CREDS,
   HP_AUTH_COOKIE,
-  HP_BOOT_COOKIE,
   HP_CSRF_DECODED,
   HP_CSRF_RAW,
   HP_FRESH_AUTH_COOKIE,
   HP_OTP,
   HP_PHONE,
   HP_REFUSED_COOKIE,
+  HP_STEP1_COOKIE,
   HP_XSRF_DECODED,
   HP_XSRF_RAW,
 } from './HapoalimMockData.js';
@@ -87,7 +87,7 @@ const SECRETS: readonly string[] = [
   HP_XSRF_DECODED,
   HP_CSRF_RAW,
   HP_CSRF_DECODED,
-  cookieValueOf(HP_BOOT_COOKIE),
+  cookieValueOf(HP_STEP1_COOKIE),
   cookieValueOf(HP_AUTH_COOKIE),
   cookieValueOf(HP_FRESH_AUTH_COOKIE),
   cookieValueOf(HP_REFUSED_COOKIE),
@@ -119,7 +119,7 @@ describe('Hapoalim browserless logs', () => {
     LOG_LINES.length = 0;
   });
 
-  it.each(['none', 'expire401', 'verifyErrors', 'otpVerifyErrors', 'landingErrors'] as const)(
+  it.each(['none', 'expire401', 'verifyErrors', 'otpVerifyErrors'] as const)(
     'logs no secret on a %s run',
     async fault => {
       await HAPOALIM_RUN.runHapoalim(fault);

@@ -24,12 +24,19 @@ interface IDerText {
 /** Picks the string type for one attribute; false when the text cannot be one. */
 type TextEncoder = (value: string) => IDerText | false;
 
-/** OID bodies: O 2.5.4.10, OU 2.5.4.11, CN 2.5.4.3, DC 0.9.2342.19200300.100.1.25. */
+/**
+ * OID bodies: O 2.5.4.10, OU 2.5.4.11, CN 2.5.4.3, DC 0.9.2342.19200300.100.1.25,
+ * UID 0.9.2342.19200300.100.1.1, C 2.5.4.6, L 2.5.4.7, ST 2.5.4.8.
+ */
 const SUBJECT_OIDS: Readonly<Record<CsrSubjectAttr, string>> = {
   O: '55040a',
   OU: '55040b',
   CN: '550403',
   DC: '0992268993f22c640119',
+  UID: '0992268993f22c640101',
+  C: '550406',
+  L: '550407',
+  ST: '550408',
 };
 
 /** The PrintableString alphabet. */
@@ -64,6 +71,10 @@ const TEXT_ENCODERS: Readonly<Record<CsrSubjectAttr, TextEncoder>> = {
   OU: directoryText,
   CN: directoryText,
   DC: ia5Text,
+  UID: directoryText,
+  C: directoryText,
+  L: directoryText,
+  ST: directoryText,
 };
 
 /**

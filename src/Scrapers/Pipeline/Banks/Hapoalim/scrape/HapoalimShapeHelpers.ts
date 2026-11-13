@@ -18,7 +18,10 @@ import type {
   IExtractAccountsArgs,
   VarsMap,
 } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
-import { HAPOALIM_API } from '../../../Registry/Config/PipelineBankConfigHapoalimConstants.js';
+import {
+  HAPOALIM_API,
+  HAPOALIM_APP_ID,
+} from '../../../Registry/Config/PipelineBankConfigHapoalimConstants.js';
 import { literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import type { Brand } from '../../../Types/Brand.js';
 
@@ -101,7 +104,7 @@ export function balanceExtract(body: ApiBody): AccountBalance {
  * @returns Literal ServerServices accounts URL.
  */
 export function customerUrl(): WKUrlOrLiteral {
-  return literalUrl(`${HAPOALIM_API}/general/accounts?lang=he`);
+  return literalUrl(`${HAPOALIM_API}/general/accounts?appId=${HAPOALIM_APP_ID}&lang=he`);
 }
 
 /**
@@ -111,7 +114,9 @@ export function customerUrl(): WKUrlOrLiteral {
  */
 export function balanceUrl(acct: IHapoalimAcct): WKUrlOrLiteral {
   const path = `${HAPOALIM_API}/current-account/composite/balanceAndCreditLimit`;
-  return literalUrl(`${path}?partyCurrentAccount=${acct.composite}&lang=he`);
+  return literalUrl(
+    `${path}?appId=${HAPOALIM_APP_ID}&partyCurrentAccount=${acct.composite}&lang=he`,
+  );
 }
 
 /**

@@ -66,26 +66,7 @@ type CookieHandoff = 'shared' | 'isolate';
 type AuthRecovery = 'per-request' | 'whole-scrape';
 
 /** Step identifiers in the sms-otp flow. */
-type StepName =
-  | 'bind'
-  | 'login'
-  | 'assertPassword'
-  | 'assertOtp'
-  | 'getIdToken'
-  | 'sessionToken'
-  | 'prime'
-  | 'validate'
-  | 'deviceKey'
-  | 'register'
-  | 'resume'
-  | 'bootstrap'
-  | 'landing'
-  | 'logon'
-  | 'encryptionKey'
-  | 'identify'
-  | 'verify'
-  | 'otpInit'
-  | 'otpVerify';
+import type { StepName } from './StepNames.js';
 
 /**
  * How a step's HTTP 2xx body says whether the step worked. The code at
@@ -296,5 +277,4 @@ export type {
   IStepConfig,
   IStepOutcome,
   StepMethod,
-  StepName,
 };

@@ -1,6 +1,6 @@
 /**
- * Hapoalim synthetic data — credentials, the seal key, cookies, accounts and
- * movements the mocked bank serves.
+ * Hapoalim synthetic data — credentials, app constants, cookies, accounts and
+ * movements the mocked bank serves. The mock speaks the app edge only.
  *
  * Rule #18: every value here is SYNTHETIC. No real PII.
  */
@@ -8,10 +8,21 @@
 import moment from 'moment';
 
 import type { JsonUnknownRecord } from '../../../Scrapers/Pipeline/Types/JsonValue.js';
-import { makeSealKey } from '../../Helpers/SealOpener.js';
 
-/** The bank's one origin: login, landing and data. */
-export const HP_ORIGIN = 'https://login.bankhapoalim.co.il';
+/** The bank's app origin: login, device registration and data. */
+export const HP_ORIGIN = 'https://iphone.bankhapoalim.co.il';
+
+/** App id every app call carries. */
+export const HP_APP_ID = 'bankApp3Generation';
+
+/** App version the calls advertise. */
+export const HP_APP_VERSION = '44.3.0';
+
+/** Synthetic device signature; the mock only requires a non-empty `mfp`. */
+export const HP_DEVICE_SIGNATURE = 'SYNTHETIC-DEVICE-SIGNATURE';
+
+/** The server-issued device id verify reports. */
+export const HP_DEVICE_ID = 'syn-hp-kdi-41c2';
 
 /** The code the synthetic SMS carries. */
 export const HP_OTP = '24680';
@@ -19,19 +30,13 @@ export const HP_OTP = '24680';
 /** The masked phone otp init reports, passed to the retriever as its hint. */
 export const HP_PHONE = 'SYN-***-4321';
 
-/** Synthetic credentials; the password exercises the seal's percent-encoding. */
+/** Synthetic credentials. */
 export const HAPOALIM_MOCK_CREDS = Object.freeze({
   userCode: 'syn-hp-user',
-  password: 'syn-Pass!7 é',
+  password: 'syn-Pass!7',
 });
 
-/** The synthetic RSA key whose modulus serial-number serves. */
-export const HP_KEY = makeSealKey();
-
-/** The `G3CmE` value the client must set as a cookie and post. */
-export const HP_G3CME = `3ba782e1967c24a2${HP_KEY.modulusHex}3ba782e1`;
-
-/** The organization code init and verify post. */
+/** The organization code the app calls carry. */
 export const HP_ORGANIZATION = '106402333';
 
 /** XSRF cookie as set (percent-encoded) and as the header must echo it. */
@@ -42,24 +47,19 @@ export const HP_XSRF_DECODED = 'syn+hp/xsrf';
 export const HP_CSRF_RAW = 'syn%2Bhp%2Fcsrf';
 export const HP_CSRF_DECODED = 'syn+hp/csrf';
 
-/** Cookie pairs the bank sets, and the one the client sets itself. */
+/** Cookie pairs the bank sets. */
 export const HP_XSRF_COOKIE = `XSRF-TOKEN=${HP_XSRF_RAW}`;
-export const HP_BOOT_COOKIE = 'JSESSIONID=syn-hp-boot';
-export const HP_G3CME_COOKIE = `G3CmE=${HP_G3CME}`;
 export const HP_CSRF_COOKIE = `csrfcookie=${HP_CSRF_RAW}`;
 export const HP_AUTH_COOKIE = 'SMSESSION=syn-hp-auth-7d2e';
+
+/** The device registration cookie `step1-mobile` sets. */
+export const HP_STEP1_COOKIE = 'lbmobilerestprd=syn-hp-1';
 
 /** The session the bank opens once a stored one has expired. */
 export const HP_FRESH_AUTH_COOKIE = 'SMSESSION=syn-hp-auth-9c41';
 
 /** The cookie the bank sets when it refuses a session. */
 export const HP_REFUSED_COOKIE = 'SYN-REFUSED=syn-hp-refused-5b';
-
-/** The landing page id, sent as a number. */
-export const HP_PAGE_ID = 412;
-
-/** The portal page verify points at. */
-export const HP_TARGET = `${HP_ORIGIN}/ng-portals/rb/he`;
 
 /** One synthetic account and what the bank holds for it. */
 export interface ISynAccount {

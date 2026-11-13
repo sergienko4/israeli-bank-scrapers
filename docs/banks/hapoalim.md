@@ -36,24 +36,30 @@ runs on one origin, `HAPOALIM_ORIGIN` (`login.bankhapoalim.co.il`).
 runs the seven steps of `HAPOALIM_STEPS`
 (`Registry/Config/PipelineBankConfigHapoalimSteps.ts`):
 
-| Step            | Endpoint                                       | Sends                                                                                       | Returns                                                                                                |
-| --------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `bootstrap`     | `GET /ng-portals/auth/he/`                     | —                                                                                           | the login page (`HAPOALIM_LOGIN_PAGE`) and its cookies; a page without the app's context fails the run |
-| `encryptionKey` | `GET /ng-portals/auth/serial-number`           | —                                                                                           | `encryptionKey`, the hex RSA modulus; the step wraps it into the `G3CmE` value                         |
-| `identify`      | `POST /authenticate/init`                      | `IDENTIFY_FORM`: the user code and the bank's organization id, with `G3CmE` set as a cookie | `result`                                                                                               |
-| `verify`        | `POST /authenticate/verify`                    | `VERIFY_FORM`: the password, sealed into `credentials`                                      | `state`: `LOGONOTP` when an SMS is needed, `LANDPAGE` when not                                         |
-| `otpInit`       | `POST /authenticate/logonotp/init`             | `OTP_INIT_FORM`: asks for the SMS                                                           | the masked phone number, passed to the retriever                                                       |
-| `otpVerify`     | `POST /authenticate/logonotp/verify`           | `OTP_VERIFY_FORM`: the code, the login state and flow, and the CSRF cookie                  | `state`: `LANDPAGE`                                                                                    |
-| `landing`       | `GET /ServerServices/landing-page?action=init` | —                                                                                           | the portal's `pageId`                                                                                  |
+| Step           | Endpoint                              | Sends                                                          | Returns                                                       |
+| -------------- | ------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------- |
+| `identify`     | `GET /authenticate/init`              | `?appId=…&mobile=ca`                                           | the WAF handshake cookies; a 302 is accepted as the answer    |
+| `verify`       | `POST /authenticate/verify`           | the password in `credentials`, and `mfp` = the device signature | `state`: `LOGONOTP` when an SMS is needed, `LANDPAGE` when not; `result.deviceID`; `result.reason` |
+| `otpInit`      | `POST /authenticate/logonotp/init`    | asks for the SMS                                               | the masked phone number, passed to the retriever              |
+| `otpVerify`    | `POST /authenticate/logonotp/verify`  | the code, the flow and state, and the CSRF cookie              | `state`: `LANDPAGE`                                           |
+| `step1`        | `GET /ServerServices/step1-mobile`    | the app device parameters                                      | the device registration cookie                                |
+| `arcotid`      | `POST /arcotid/download`              | `IMPDEVREG` / `FINISH`                                         | a 302 to the step-up on a new device                          |
+| `stepupInit`   | `POST /stepup/otp/init`               | `IMPDEVREG` / `STEPUPOTP`                                      | the masked phone for the second SMS                           |
+| `stepupVerify` | `POST /stepup/otp/verify`             | the second code                                               | `state`: `FINISH`                                             |
+| `arcotidAfter` | `POST /arcotid/download`              | `IMPDEVREG` / `FINISH`                                         | `result.arcotID`                                              |
 
-The forms post URL-encoded fields in the order the bank's own client sends
-them (`Registry/Config/PipelineBankConfigHapoalimForms.ts`). The password never
-leaves in clear: `verify` seals it the way the login page does, with the
-modulus `encryptionKey` returned and the fixed parameters in
-`HAPOALIM_SEAL_PARAMS`. The two SMS steps run only when `verify` answered
-`LOGONOTP`; when the bank answers `LANDPAGE`, the retriever is never called.
-`otpVerify` waits for the code, refuses one that is not five digits, and
-needs the `csrfcookie` cookie and the `flow` value `verify` returned.
+The app edge is `iphone.bankhapoalim.co.il`; every call carries `appId`,
+the app version headers and the captured RiskMinder **device signature** as
+`mfp`. The password travels in clear in `credentials` (the app's own CA
+contract; there is no portal RSA seal).
+
+A **registered device** answers `verify` with `LANDPAGE`, and the retriever is
+never called. A **new device** answers `LOGONOTP` (`reason=newDevice`): the
+login SMS runs first, then `step1`, `arcotid`, the **second** step-up SMS
+(`stepupInit`/`stepupVerify`) and the Arcot download. A brand-new device
+therefore asks for two codes; a registered one asks for none (or one when the
+session itself needs a fresh login). The step-up hook uses `reuse: 'per-step'`
+so the second code is a distinct acquisition.
 
 `verify` and `otpVerify` read the reply's `state` regardless of case. `LOCKED`
 and `DISABLED` fail the run as `ACCOUNT_BLOCKED`, and `REISSUE` as
@@ -98,6 +104,24 @@ is skipped for a cold login; the log names the reason, never the token.
 A warm session lost mid-scrape signs in cold once and scrapes again, like any
 API-direct bank. That login is the run's only SMS. A cold run that loses its
 session mid-scrape fails, and the next run logs in again.
+
+### Device-bound login (zero SMS, no expiry window)
+
+The app also carries a **RiskMinder device signature** that the bank accepts
+as a known device. Sent as the `mfp` form field on `authenticate/verify`, it
+turns the login straight into `LANDPAGE` — no `LOGONOTP`, no SMS — and it is
+not tied to the 10–15 minute session cookie.
+
+- Source on a live app install:
+  `shared_prefs/com.ca.mobile.riskminder.RmDeviceID.xml`, key `rmDeviceID`
+  (about 1,942 characters, a JSON device signature).
+- Send it as `mfp`; `authType` may be `TOUCHID` or empty.
+- It is a device/account credential: store it like a refresh token (0600),
+  never in the repo. Re-enrolling a device yields a new value.
+
+This is the app's own real attestation captured from the device, not a
+synthesised value. Two SMS on a brand-new device are expected (new-device
+login, then `IMPDEVREG` device validation); with the signature there are none.
 
 ## Known quirks
 

@@ -15,7 +15,6 @@
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
-import type { Brand } from '../../Types/Brand.js';
 import type { IManualRedirect, IUrlRule, RedirectPolicy } from '../../Types/Domain/FetchPolicy.js';
 import { REDIRECT_REFUSED_REASON } from '../../Types/Domain/FetchPolicy.js';
 import type { Option } from '../../Types/Option.js';
@@ -29,12 +28,12 @@ import type {
   ISessionHeaders,
   OnSetCookie,
 } from './FetchStrategy.js';
+import { sendAccept } from './RedirectAccept.js';
 import { droppedOnHop, followedAfter, hopHeaders, postStatusesOf } from './RedirectHopRules.js';
+import { answeredUrl, emitSetCookies, isRedirectStatus } from './RedirectShared.js';
 import { cancelResponseBody } from './ResponseBody.js';
 import { safeUrlForLog } from './SafeUrlForLog.js';
 import { matchesAnyUrlRule } from './UrlRule.js';
-
-type SetCookieEmitCount = Brand<number, 'SetCookieEmitCount'>;
 
 /** One request, its transport seam and the redirect policy it runs under. */
 interface IRedirectRun extends IFetchInvokePolicy {
@@ -77,45 +76,6 @@ type Sender = (run: IRedirectRun) => Promise<Procedure<IRunEnd>>;
 const NO_SESSION: ISessionHeaders = { owned: ['cookie'], values: {} };
 
 /**
- * Whether a status is a redirect.
- * @param status - HTTP status.
- * @returns True for any 3xx.
- */
-function isRedirectStatus(status: number): boolean {
-  return status >= 300 && status < 400;
-}
-
-/**
- * The URL a response's cookies belong to: its own, else the request's.
- * @param response - The response.
- * @param requestUrl - The URL that was requested.
- * @returns The answering URL.
- */
-function answeredUrl(response: Response, requestUrl: string): string {
-  if (response.url === '') return requestUrl;
-  return response.url;
-}
-
-/**
- * Hand a response's raw Set-Cookie lines (Node 18+ `getSetCookie`, which
- * keeps multi-value headers apart) to the hook, when there is one.
- * @param response - Raw fetch Response.
- * @param responseUrl - URL the lines are filed under.
- * @param hook - Optional caller-supplied callback.
- * @returns Number of lines emitted (0 with no hook or no cookies).
- */
-function emitSetCookies(
-  response: Response,
-  responseUrl: string,
-  hook?: OnSetCookie,
-): SetCookieEmitCount {
-  const list = response.headers.getSetCookie();
-  if (!hook || list.length === 0) return 0 as SetCookieEmitCount;
-  hook(list, responseUrl);
-  return list.length as SetCookieEmitCount;
-}
-
-/**
  * Refuse a redirect without naming the refused target.
  * @param run - The run.
  * @param status - Fixed-policy refusal status; manual refusals omit it.
@@ -156,9 +116,10 @@ async function sendReject(run: IRedirectRun): Promise<Procedure<IRunEnd>> {
 }
 
 /** Sender per fixed policy. */
-const FIXED_SENDERS: Readonly<Record<'follow' | 'reject', Sender>> = {
+const FIXED_SENDERS: Readonly<Record<'follow' | 'reject' | 'accept', Sender>> = {
   follow: sendFollow,
   reject: sendReject,
+  accept: sendAccept,
 };
 
 /**
@@ -272,4 +233,5 @@ function sendUnderPolicy(run: IRedirectRun): Promise<Procedure<IRunEnd>> {
 
 export default sendUnderPolicy;
 export type { IRedirectRun, IRunEnd };
-export { emitSetCookies, isRedirectStatus, sendUnderPolicy };
+export { sendUnderPolicy };
+export { answeredUrl } from './RedirectShared.js';

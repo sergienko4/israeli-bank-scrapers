@@ -139,6 +139,23 @@ const OTP_REFUSALS: readonly IOtpRefusal[] = [
 ];
 
 describe('Hapoalim browserless SMS step', () => {
+  it('asks twice on a new device: login OTP then the device step-up', async () => {
+    const run = await runHapoalim('newDevice');
+    expect(run.result.success).toBe(true);
+    expect(run.hints).toEqual([HP_PHONE, HP_PHONE]);
+    expect(run.trail).toContain('POST /stepup/otp/init');
+    expect(run.trail).toContain('POST /stepup/otp/verify');
+    expect(run.trail).toContain('POST /arcotid/download');
+  });
+
+  it('asks once on a registered device and skips the step-up', async () => {
+    const run = await runHapoalim();
+    expect(run.result.success).toBe(true);
+    expect(run.hints).toEqual([HP_PHONE]);
+    expect(run.trail).not.toContain('POST /stepup/otp/init');
+    expect(run.trail).not.toContain('POST /arcotid/download');
+  });
+
   it.each(OTP_REFUSALS)('fails $name', async refusal => {
     const run = await runHapoalim(refusal.fault, refusal.setup);
     expect(run.result.success).toBe(false);

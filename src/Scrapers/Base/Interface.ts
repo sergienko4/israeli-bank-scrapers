@@ -45,7 +45,8 @@ export type ScraperCredentials =
       password: string;
       otpCodeRetriever?: (phoneHint: string) => Promise<string>;
       otpLongTermToken?: string;
-    } // Hapoalim: the SMS code when the bank asks; a stored session skips the login steps
+      deviceSignature?: string;
+    } // Hapoalim: the SMS code when the bank asks; a stored session skips the login steps; deviceSignature overrides the shipped app device signature
   | { username: string; password: string }
   | { username: string; password: string; otpLongTermToken?: string } // VisaCal: a stored login hash skips the password step
   | { username: string; password: string; id: string } // Max: second-login flow with ID (ת.ז.)

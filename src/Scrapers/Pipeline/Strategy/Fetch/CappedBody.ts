@@ -12,7 +12,7 @@ import { isOk, succeed } from '../../Types/Procedure.js';
 import { hasCloudflareChallengeHeader } from './HttpFailureClassifier.js';
 import { isMediaTypeMismatch } from './MediaTypeCheck.js';
 import { isApiSuccess } from './NativeFetchDispatch.js';
-import { isRedirectStatus } from './RedirectFollow.js';
+import { isRedirectStatus } from './RedirectShared.js';
 import { verifyResponseIntegrity } from './ResponseIntegrityReader.js';
 import { statusActionFor } from './StatusPolicy.js';
 

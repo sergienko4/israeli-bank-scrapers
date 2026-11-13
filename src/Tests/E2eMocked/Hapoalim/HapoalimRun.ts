@@ -46,18 +46,13 @@ export interface IRunSetup {
 type RetrieverSlot = Readonly<{ otpCodeRetriever?: (hint: string) => Promise<string> }>;
 
 /** Login up to the password check. */
-export const VERIFY_TRAIL = [
-  'GET /ng-portals/auth/he/',
-  'GET /ng-portals/auth/serial-number',
-  'POST /authenticate/init',
-  'POST /authenticate/verify',
-];
+export const VERIFY_TRAIL = ['GET /authenticate/init', 'POST /authenticate/verify'];
 
 /** The SMS challenge. */
 export const OTP_TRAIL = ['POST /authenticate/logonotp/init', 'POST /authenticate/logonotp/verify'];
 
-/** The portal init, and the accounts list. */
-export const LANDING_TRAIL = ['GET /ServerServices/landing-page'];
+/** The device registration, and the accounts list. */
+export const LANDING_TRAIL = ['GET /ServerServices/step1-mobile'];
 export const ACCOUNTS_TRAIL = ['GET /ServerServices/general/accounts'];
 
 /** One open account's balance, then its first movements page. */

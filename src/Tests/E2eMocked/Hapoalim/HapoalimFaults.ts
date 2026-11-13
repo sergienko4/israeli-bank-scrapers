@@ -1,5 +1,5 @@
 /**
- * Hapoalim mock faults — every way the synthetic bank misbehaves, and the
+ * Hapoalim mock faults — every way the synthetic app bank misbehaves, and the
  * per-run state its routes share.
  *
  * Rule #18: every value here is SYNTHETIC. No real PII.
@@ -11,21 +11,18 @@ import { HP_AUTH_COOKIE, HP_FRESH_AUTH_COOKIE } from './HapoalimMockData.js';
 /** A verify answer other than the default `LogonOTP`. */
 export type VerifyFault =
   | 'landpage'
+  | 'newDevice'
   | 'locked'
   | 'reissue'
   | 'unknownState'
-  | 'foreignTarget'
-  | 'targetNumber'
   | 'noFlow'
   | 'verifyErrors';
 
 /** A `csrfcookie` verify sets other than the default. */
 export type CsrfFault = 'noCsrf' | 'csrfBadEscape' | 'csrfLong';
 
-/** An init or otp-init answer other than the default. */
+/** An otp-init answer other than the default `logonotp`. */
 export type ChallengeFault =
-  | 'initResultString'
-  | 'initResultMissing'
   | 'otpInitStateOther'
   | 'otpInitStateObject'
   | 'otpInitStateNumber';
@@ -34,19 +31,17 @@ export type ChallengeFault =
 export type OtpVerifyFault = 'otpVerifyLocked' | 'otpVerifyReissue' | 'otpVerifyErrors';
 
 /**
- * A landing or data answer other than the default. `sessionExpired`: the bank
+ * A step1 or data answer other than the default. `sessionExpired`: the bank
  * opens and accepts only a fresh session, so a stored one is refused.
  */
 export type DataFault =
-  | 'pageIdBad'
-  | 'landingErrors'
   | 'txns204'
   | 'txns207'
   | 'txns500'
   | 'expire401'
   | 'sessionExpired';
 
-/** How the mock misbehaves: a step-0 fault, a wire fault, or a bank answer. */
+/** How the mock misbehaves: a wire fault, or a bank answer. */
 export type HapoalimFault =
   | 'none'
   | NetworkFault

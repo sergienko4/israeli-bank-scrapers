@@ -1,13 +1,12 @@
 /**
- * Hapoalim HTTP-only wire — mocked E2E for what crosses the wire: the exact
- * header map on every call, the raw form bodies in field order, the sealed
- * password, the client-set `G3CmE` cookie, the decoded CSRF echo, and the
+ * Hapoalim app wire — mocked E2E for what crosses the wire: the app headers,
+ * the plain password with a non-empty device signature, the CSRF cookie
+ * decoded into `csrffield`, the session cookie `step1-mobile` needs, and the
  * per-account data queries with the movements body exactly `[]`.
  *
  * Rule #18: all credentials + data are synthetic; no real PII.
  */
 
-import { openSeal } from '../../Helpers/SealOpener.js';
 import type { IRecordedCall } from '../Helpers/FetchMockKit.js';
 import { parseForm } from '../Helpers/FetchMockKit.js';
 import { cookiesOf } from '../Helpers/MockReplies.js';
@@ -15,76 +14,47 @@ import {
   compositeOf,
   HAPOALIM_MOCK_CREDS,
   HAPOALIM_OPEN_ACCOUNTS,
-  HP_G3CME,
-  HP_G3CME_COOKIE,
-  HP_KEY,
-  HP_ORIGIN,
-  HP_XSRF_DECODED,
+  HP_APP_ID,
+  HP_APP_VERSION,
+  HP_OTP,
 } from './HapoalimMockData.js';
 import { ACCOUNT_TRAIL, OTP_TRAIL, runHapoalim, trailOf, VERIFY_TRAIL } from './HapoalimRun.js';
 
 /** A header map, as the wire carries it. */
 type HeaderMap = Readonly<Record<string, string>>;
 
-/** Stands in for the fresh `uuid` each movements call sends. */
-/** Movements asks per account: the first page and one backfill round. */
-const MOVEMENT_ASKS = ACCOUNT_TRAIL.filter(step => step === ACCOUNT_TRAIL[1]).length;
-
 const ANY_UUID = '<uuid>';
 const UUID_SHAPE = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/u;
 
-const GET_HEADERS: HeaderMap = {
-  accept: 'application/json',
-  'user-agent': 'israeli-bank-scrapers',
-  referer: `${HP_ORIGIN}/ng-portals/auth/he/`,
-};
-const POST_HEADERS: HeaderMap = {
-  ...GET_HEADERS,
-  origin: HP_ORIGIN,
-  'x-xsrf-token': HP_XSRF_DECODED,
+const APP_HEADERS: HeaderMap = {
+  'x-bnhp-app-version': HP_APP_VERSION,
+  'client-version-nbr': HP_APP_VERSION,
 };
 const FORM_HEADERS: HeaderMap = {
-  ...POST_HEADERS,
-  'content-type': 'application/x-www-form-urlencoded',
+  mobile: 'ca',
+  'content-type': 'application/x-www-form-urlencoded;charset=UTF-8',
 };
 const TXNS_HEADERS: HeaderMap = {
-  ...POST_HEADERS,
+  ...APP_HEADERS,
   'content-type': 'application/json;charset=UTF-8',
   pageuuid: '/current-account/transactions',
   uuid: ANY_UUID,
 };
 
-/** The exact header map, cookie aside, each trail entry must send. */
-const HEADERS_BY_STEP: Readonly<Record<string, HeaderMap>> = {
-  [VERIFY_TRAIL[0]]: { ...GET_HEADERS, accept: 'text/html' },
-  [VERIFY_TRAIL[1]]: GET_HEADERS,
-  [VERIFY_TRAIL[2]]: FORM_HEADERS,
-  [VERIFY_TRAIL[3]]: FORM_HEADERS,
+/** The headers each trail entry must carry, as a subset of what it sends. */
+const HEADERS_BY_STEP: Readonly<Partial<Record<string, HeaderMap>>> = {
+  [VERIFY_TRAIL[0]]: APP_HEADERS,
+  [VERIFY_TRAIL[1]]: FORM_HEADERS,
   [OTP_TRAIL[0]]: FORM_HEADERS,
   [OTP_TRAIL[1]]: FORM_HEADERS,
-  'GET /ServerServices/landing-page': GET_HEADERS,
-  'GET /ServerServices/general/accounts': GET_HEADERS,
-  [ACCOUNT_TRAIL[0]]: GET_HEADERS,
+  'GET /ServerServices/step1-mobile': APP_HEADERS,
+  'GET /ServerServices/general/accounts': APP_HEADERS,
+  [ACCOUNT_TRAIL[0]]: APP_HEADERS,
   [ACCOUNT_TRAIL[1]]: TXNS_HEADERS,
 };
 
-/** The form bodies with no secret, byte for byte and in field order. */
-const RAW_BODIES: readonly (readonly [string, string])[] = [
-  [VERIFY_TRAIL[2], 'identifier=syn-hp-user&organization=106402333&mfp=&deviceId=null'],
-  [OTP_TRAIL[0], 'otpchannel=sms&flow=authenticate&state=logonotp&mfp=&deviceId=null'],
-  [
-    OTP_TRAIL[1],
-    'otp=24680&state=logonotp&flow=authenticate&csrffield=syn%2Bhp%2Fcsrf&mfp=&deviceId=null',
-  ],
-];
-
-const RAW_STEPS: ReadonlySet<string> = new Set(RAW_BODIES.map(([step]) => step));
-
-/** verify's fields, in the order the bank's own page posts them. */
-const VERIFY_FIELDS = [
-  ...['identifier', 'organization', 'credentials', 'mfp', 'deviceid'],
-  ...['executionTime', 'userID', 'authType', 'G3CmE', 'bsd'],
-];
+/** Movements asks per account: the first page and one backfill round. */
+const MOVEMENT_ASKS = 2;
 
 /**
  * A call's headers, without its Cookie header and with any uuid masked.
@@ -107,7 +77,12 @@ function headersBesidesCookie(call: IRecordedCall): HeaderMap {
  * @returns The step's calls, in order.
  */
 function callsTo(calls: readonly IRecordedCall[], step: string): readonly IRecordedCall[] {
-  return calls.filter(call => trailOf(call) === step);
+  const found: IRecordedCall[] = [];
+  for (const call of calls) {
+    const sent = trailOf(call);
+    if (sent === step) found.push(call);
+  }
+  return found;
 }
 
 /**
@@ -118,63 +93,100 @@ function callsTo(calls: readonly IRecordedCall[], step: string): readonly IRecor
  */
 function queryOf(call: IRecordedCall, name: string): string {
   const { searchParams } = new URL(call.url);
-  return searchParams.get(name) ?? '';
+  const value = searchParams.get(name);
+  return value ?? '';
 }
 
-describe('Hapoalim browserless wire', () => {
-  it('sends the exact header map on every call, and no content-type on a GET', async () => {
+/**
+ * Whether a call's headers include every expected pair.
+ * @param call - A recorded call.
+ * @param expected - Required header pairs.
+ * @returns True when every pair matches.
+ */
+function hasHeaders(call: IRecordedCall, expected: HeaderMap): boolean {
+  const sent = headersBesidesCookie(call);
+  return Object.entries(expected).every(([name, value]) => sent[name] === value);
+}
+
+/**
+ * The uuids sent to the movements step.
+ * @param calls - Every recorded call.
+ * @returns The masked uuids, in order.
+ */
+function movementUuids(calls: readonly IRecordedCall[]): readonly string[] {
+  const step = ACCOUNT_TRAIL[1];
+  const movements = callsTo(calls, step);
+  return movements.map(call => call.headers.get('uuid') ?? '');
+}
+
+describe('Hapoalim app wire', () => {
+  it('sends the app headers on every call', async () => {
     const run = await runHapoalim();
-    const sent = run.calls.map(call => [trailOf(call), headersBesidesCookie(call)]);
-    const required = run.calls.map(call => [trailOf(call), HEADERS_BY_STEP[trailOf(call)]]);
     expect(run.result.success).toBe(true);
-    expect(sent).toEqual(required);
+    for (const call of run.calls) {
+      const step = trailOf(call);
+      const expected = HEADERS_BY_STEP[step];
+      if (expected !== undefined) {
+        const isMatched = hasHeaders(call, expected);
+        expect(isMatched).toBe(true);
+      }
+    }
+  });
+
+  it('carries the app id in every query', async () => {
+    const run = await runHapoalim();
+    for (const call of run.calls) {
+      const step = trailOf(call);
+      const isAppCall = step.startsWith('POST /authenticate') || step.startsWith('GET /ServerServices');
+      if (isAppCall) {
+        const appId = queryOf(call, 'appId');
+        expect(appId).toBe(HP_APP_ID);
+      }
+    }
   });
 
   it('sends a fresh uuid on each movements call', async () => {
     const run = await runHapoalim();
-    const uuids = callsTo(run.calls, ACCOUNT_TRAIL[1]).map(call => call.headers.get('uuid'));
+    const uuids = movementUuids(run.calls);
     expect(uuids).toHaveLength(HAPOALIM_OPEN_ACCOUNTS.length * MOVEMENT_ASKS);
     expect(new Set(uuids).size).toBe(uuids.length);
   });
 
-  it('sends the form bodies byte for byte, the CSRF cookie decoded into csrffield', async () => {
+  it('posts the plain password with a non-empty device signature', async () => {
     const run = await runHapoalim();
-    const kept = run.calls.filter(call => {
-      const step = trailOf(call);
-      return RAW_STEPS.has(step);
-    });
-    const sent = kept.map(call => [trailOf(call), call.body]);
-    expect(sent).toEqual(RAW_BODIES);
-  });
-
-  it('posts verify in field order, with the G3CmE value and a seal that opens to the password', async () => {
-    const run = await runHapoalim();
-    const [verify] = callsTo(run.calls, VERIFY_TRAIL[3]);
+    const verifyCalls = callsTo(run.calls, VERIFY_TRAIL[1]);
+    const verify = verifyCalls[0];
     const form = parseForm(verify.body);
-    const fields = Object.keys(form);
-    const opened = openSeal(form.credentials, HP_KEY);
-    const encodedPassword = encodeURIComponent(HAPOALIM_MOCK_CREDS.password);
-    expect(fields).toEqual(VERIFY_FIELDS);
-    expect(form.G3CmE).toBe(HP_G3CME);
-    expect(form.userID).toBe(HAPOALIM_MOCK_CREDS.userCode);
-    expect(opened.source).toBe(HAPOALIM_MOCK_CREDS.password);
-    expect(verify.body).not.toContain(encodedPassword);
+    expect(form.identifier).toBe(HAPOALIM_MOCK_CREDS.userCode);
+    expect(form.credentials).toBe(HAPOALIM_MOCK_CREDS.password);
+    expect(form.authType).toBe('');
+    expect(form.flow).toBe('authenticate');
+    const signature = form.mfp as string | undefined;
+    expect(signature === undefined || signature === '').toBe(false);
   });
 
-  it('sets the G3CmE cookie itself before init, and sends it from init on', async () => {
+  it('decodes the CSRF cookie into csrffield on the SMS step', async () => {
     const run = await runHapoalim();
-    const carries = run.calls.map(call => {
-      const sent = cookiesOf(call);
-      return sent.includes(HP_G3CME_COOKIE);
-    });
-    const fromInit = run.calls.map((_call, index) => index >= 2);
-    expect(carries).toEqual(fromInit);
+    const otpCalls = callsTo(run.calls, OTP_TRAIL[1]);
+    const otpVerify = otpCalls[0];
+    const form = parseForm(otpVerify.body);
+    expect(form.csrffield).toBe('syn+hp/csrf');
+    expect(form.otp).toBe(HP_OTP);
+    expect(form.appId).toBe(HP_APP_ID);
   });
 
-  it('sends no cookie on the first call', async () => {
+  it('sends no cookie on the first call, then carries the session', async () => {
     const run = await runHapoalim();
     const hasCookie = run.calls[0].headers.has('cookie');
     expect(hasCookie).toBe(false);
+    const step1Calls = callsTo(run.calls, 'GET /ServerServices/step1-mobile');
+    const step1 = step1Calls[0];
+    const sent = cookiesOf(step1);
+    let hasSession = false;
+    for (const cookie of sent) {
+      if (cookie.startsWith('SMSESSION=')) hasSession = true;
+    }
+    expect(hasSession).toBe(true);
   });
 
   it('reads each open account by its composite id, the movements body exactly []', async () => {
@@ -182,9 +194,18 @@ describe('Hapoalim browserless wire', () => {
     const ids = HAPOALIM_OPEN_ACCOUNTS.map(compositeOf);
     const balances = callsTo(run.calls, ACCOUNT_TRAIL[0]);
     const movements = callsTo(run.calls, ACCOUNT_TRAIL[1]);
-    const balanceIds = balances.map(call => queryOf(call, 'partyCurrentAccount'));
-    const movementIds = movements.map(call => queryOf(call, 'accountId'));
-    const bodies = movements.map(call => call.body);
+    const balanceIds: string[] = [];
+    for (const call of balances) {
+      const id = queryOf(call, 'partyCurrentAccount');
+      balanceIds.push(id);
+    }
+    const movementIds: string[] = [];
+    for (const call of movements) {
+      const id = queryOf(call, 'accountId');
+      movementIds.push(id);
+    }
+    const bodies: string[] = [];
+    for (const call of movements) bodies.push(call.body);
     const askedIds = ids.flatMap(id => Array.from({ length: MOVEMENT_ASKS }, () => id));
     const emptyArrays = askedIds.map(() => '[]');
     expect(balanceIds).toEqual(ids);

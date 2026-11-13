@@ -8,7 +8,9 @@
 
 /** DER tags the CSR builder writes. */
 const DER_TAGS = {
+  boolean: 0x01,
   bitString: 0x03,
+  octetString: 0x04,
   objectId: 0x06,
   utf8String: 0x0c,
   printableString: 0x13,
@@ -69,5 +71,63 @@ function derSequence(parts: readonly Buffer[]): Buffer {
   return derNode(DER_TAGS.sequence, body);
 }
 
+/** First arc of a dotted OID is encoded as `40 * first + second`. */
+const OID_FIRST_ARC_FACTOR = 40;
+
+/** Largest arc that still fits one octet. */
+const OID_SHORT_ARC_LIMIT = 0x80;
+
+/**
+ * Whether a value is a non-negative safe integer.
+ * @param value - Candidate arc.
+ * @returns True for a usable OID arc.
+ */
+function isArc(value: number): boolean {
+  return Number.isSafeInteger(value) && value >= 0;
+}
+
+/**
+ * Mark every base-128 group except the last with the continuation bit.
+ * @param groups - Little-endian groups, most significant first.
+ * @returns Groups ready for the wire.
+ */
+function markGroups(groups: readonly number[]): number[] {
+  return groups.map((group, index): number =>
+    index === groups.length - 1 ? group : group + OID_SHORT_ARC_LIMIT,
+  );
+}
+
+/**
+ * Base-128 encoding of one OID arc.
+ * @param arc - Non-negative arc.
+ * @returns The arc's octets.
+ */
+function arcOctets(arc: number): Buffer {
+  const groups: number[] = [];
+  let remaining = arc;
+  do {
+    groups.unshift(remaining % OID_SHORT_ARC_LIMIT);
+    remaining = Math.floor(remaining / OID_SHORT_ARC_LIMIT);
+  } while (remaining > 0);
+  const marked = markGroups(groups);
+  return Buffer.from(marked);
+}
+
+/**
+ * Encode a dotted OID (`2.5.29.19`) as an OBJECT IDENTIFIER node.
+ * @param dotted - Dot-separated numeric arcs.
+ * @returns The OID node, or false for a malformed OID.
+ */
+function derOid(dotted: string): Buffer | false {
+  const parts = dotted.split('.').map(Number);
+  if (parts.length < 2) return false;
+  if (!parts.every(isArc)) return false;
+  const [first, second, ...rest] = parts;
+  if (first > 2 || second >= OID_FIRST_ARC_FACTOR) return false;
+  const head = first * OID_FIRST_ARC_FACTOR + second;
+  const body = Buffer.concat([arcOctets(head), ...rest.map(arcOctets)]);
+  return derNode(DER_TAGS.objectId, body);
+}
+
 export type { DerTag };
-export { DER_TAGS, derNode, derSequence };
+export { DER_TAGS, derNode, derOid, derSequence };
