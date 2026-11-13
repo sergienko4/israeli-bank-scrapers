@@ -18,6 +18,8 @@ const SMOKE = createRequire(import.meta.url)(
 ) as ISmoke;
 const GRAPHQL_URL = 'https://fe-sec.pepper.co.il/graphql';
 const ACCOUNT_ID = 'acct-syn-001';
+/** The currency the packed mapping reports when a row carries none. */
+const DEFAULT_CURRENCY = 'ILS';
 const SECRET = 'bearer-secret-9f8e7d6c5b4a';
 
 /** One request a fake library makes through the `fetch` the smoke installed. */
@@ -130,7 +132,7 @@ const GOOD_RESULT = {
           identifier: 'txn-1',
           chargedAmount: -12.5,
           date: '2026-03-10T00:00:00Z',
-          originalCurrency: 'ILS',
+          originalCurrency: 'EUR',
           description: 'Synthetic coffee',
         },
         {
@@ -263,7 +265,7 @@ async function ask<T>(query: string, accountId: string | false, token: string): 
 /**
  * Map what was served into a result, the way the packed library does. Where a field is
  * absent it falls back as the real mapping does: the account number to the account id,
- * a missing balance to 0, and the date to the effective date.
+ * a missing balance to 0, the date to the effective date and the currency to ILS.
  * @param account - The served account.
  * @param balance - The served balance.
  * @param page - The served transactions page.
@@ -276,7 +278,7 @@ function mapServed(account: IServedAccount, balance: IServedBalance, page: IServ
     identifier: row.transactionId,
     chargedAmount: row.transactionAmount,
     date: row.bookingDate ?? row.effectiveDate,
-    originalCurrency: row.currency,
+    originalCurrency: row.currency ?? DEFAULT_CURRENCY,
     description: row.description,
   }));
   const accountNumber = account.accountNumber ?? account.accountId;
@@ -500,6 +502,33 @@ const BROKEN_BINDINGS: readonly IBrokenBinding[] = [
     key: 'balance',
     operation: 'fetchAccountBalance',
     edits: [['($accountId: String!)', '($accountId: String!, $accountId: String)']],
+  },
+  {
+    name: 'a balance whose account id is bound on the parent field',
+    key: 'balance',
+    operation: 'fetchAccountBalance',
+    edits: [
+      ['balance(accountId: $accountId)', 'balance'],
+      ['accounts {', 'accounts(accountId: $accountId) {'],
+    ],
+  },
+  {
+    name: 'transactions whose arguments are all bound on the parent field',
+    key: 'transactions',
+    operation: 'Transactions',
+    edits: [
+      [`oshTransactionsNew(${TXN_ARGUMENTS})`, 'oshTransactionsNew'],
+      ['accounts {', `accounts(${TXN_ARGUMENTS}) {`],
+    ],
+  },
+  {
+    name: 'transactions whose account id alone is bound on the parent field',
+    key: 'transactions',
+    operation: 'Transactions',
+    edits: [
+      ['oshTransactionsNew(accountId: $accountId, ', 'oshTransactionsNew('],
+      ['accounts {', 'accounts(accountId: $accountId) {'],
+    ],
   },
   {
     name: 'transactions that no longer bind the account id',

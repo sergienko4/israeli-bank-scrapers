@@ -119,7 +119,7 @@ const GRAPHQL_DATA = {
             transactionAmount: -12.5,
             bookingDate: '2026-03-10T00:00:00Z',
             effectiveDate: '2026-03-11T00:00:00Z',
-            currency: 'ILS',
+            currency: 'EUR',
             description: 'Synthetic coffee',
           },
         ],
@@ -183,18 +183,51 @@ function afterParens(tokens, start) {
 }
 
 /**
- * Read one field and, when it has one, its nested selection.
+ * Whether a token is a GraphQL name.
+ * @param {string | undefined} token - The token.
+ * @returns {boolean} True for a name.
+ */
+function isName(token) {
+  return /^[A-Za-z_]\w*$/.test(token ?? '');
+}
+
+/**
+ * Read the arguments of one field. Only `name: $variable` is understood, so a literal,
+ * a list or an argument given twice is rejected rather than guessed at.
+ * @param {string[]} args - The tokens between the field's parentheses.
+ * @returns {Map<string, string> | false} Argument name to variable name, or false.
+ */
+function argumentsOf(args) {
+  const found = new Map();
+  for (let i = 0; i < args.length; i += 4) {
+    const [name, colon, dollar, variable] = args.slice(i, i + 4);
+    const isBinding = isName(name) && colon === ':' && dollar === '$' && isName(variable);
+    if (!isBinding || found.has(name)) return false;
+    found.set(name, variable);
+  }
+  return found;
+}
+
+/**
+ * Read one field and, when it has one, its nested selection. The field's arguments are
+ * recorded under its dotted path, so a binding stays tied to the field that owns it.
  * @param {string[]} tokens - The tokens.
  * @param {number} at - Index of the field name.
+ * @param {string[]} path - The names of the fields enclosing this one.
+ * @param {Map<string, Map<string, string>>} sink - Receives each field's arguments by path.
  * @returns {{name: string, tree: object | true, next: number} | false} The field, or false
  * when the syntax is not one the registered queries use.
  */
-function readField(tokens, at) {
-  if (!/^[A-Za-z_]\w*$/.test(tokens[at] ?? '')) return false;
-  const next = tokens[at + 1] === '(' ? afterParens(tokens, at + 1) : at + 1;
-  if (next < 0) return false;
+function readField(tokens, at, path, sink) {
+  if (!isName(tokens[at])) return false;
+  const here = [...path, tokens[at]];
+  const hasArgs = tokens[at + 1] === '(';
+  const next = hasArgs ? afterParens(tokens, at + 1) : at + 1;
+  const args = hasArgs && next > 0 ? argumentsOf(tokens.slice(at + 2, next - 1)) : new Map();
+  if (next < 0 || args === false) return false;
+  sink.set(here.join('.'), args);
   if (tokens[next] !== '{') return { name: tokens[at], tree: true, next };
-  const nested = readSet(tokens, next + 1);
+  const nested = readSet(tokens, next + 1, here, sink);
   return nested === false ? false : { name: tokens[at], tree: nested.tree, next: nested.next };
 }
 
@@ -202,13 +235,15 @@ function readField(tokens, at) {
  * Read the fields of a selection set up to its closing brace.
  * @param {string[]} tokens - The tokens.
  * @param {number} from - Index just after the opening brace.
+ * @param {string[]} path - The names of the fields enclosing this set.
+ * @param {Map<string, Map<string, string>>} sink - Receives each field's arguments by path.
  * @returns {{tree: object, next: number} | false} The selection, or false when unsupported.
  */
-function readSet(tokens, from) {
+function readSet(tokens, from, path, sink) {
   const tree = {};
   let at = from;
   while (tokens[at] !== '}') {
-    const field = readField(tokens, at);
+    const field = readField(tokens, at, path, sink);
     if (field === false || Object.hasOwn(tree, field.name)) return false;
     tree[field.name] = field.tree;
     at = field.next;
@@ -221,13 +256,14 @@ function readSet(tokens, from) {
  * queries use is understood: nested fields, arguments and a variable list. Aliases,
  * fragments and directives are not, so a query using them is rejected rather than guessed at.
  * @param {string} query - The query text.
+ * @param {Map<string, Map<string, string>>} [sink] - Receives each field's arguments by path.
  * @returns {object | false} The selection tree, or false when the query is not understood.
  */
-function selectionOf(query) {
+function selectionOf(query, sink = new Map()) {
   const tokens = tokenize(query);
   const open = tokens[2] === '(' ? afterParens(tokens, 2) : 2;
   if (tokens[0] !== 'query' || open < 0 || tokens[open] !== '{') return false;
-  const set = readSet(tokens, open + 1);
+  const set = readSet(tokens, open + 1, [], sink);
   return set !== false && set.next === tokens.length ? set.tree : false;
 }
 
@@ -249,65 +285,53 @@ function project(value, tree) {
 }
 
 /**
- * Whether a token is a GraphQL name.
- * @param {string | undefined} token - The token.
- * @returns {boolean} True for a name.
- */
-function isName(token) {
-  return /^[A-Za-z_]\w*$/.test(token ?? '');
-}
-
-/**
- * The variables a query declares, and the argument each one is bound to in its selection.
- * Only `name: $variable` bindings are understood, and a variable declared twice is not;
- * anything else is rejected, not guessed at.
+ * The variables a query declares and, by field path, the arguments it binds them to.
+ * A variable declared twice, or any syntax the registered queries do not use, is not understood.
  * @param {string} query - The query text.
- * @returns {{declared: Set<string>, bound: Map<string, string>} | false} The declarations and
- * the argument-to-variable bindings, or false when the query is not understood.
+ * @returns {{declared: Set<string>, bound: Map<string, Map<string, string>>} | false} The
+ * declarations and each field's argument-to-variable bindings, or false.
  */
 function bindingsOf(query) {
+  const bound = new Map();
+  if (selectionOf(query, bound) === false) return false;
   const tokens = tokenize(query);
   const open = tokens[2] === '(' ? afterParens(tokens, 2) : 2;
-  if (open < 0) return false;
   const header = tokens.slice(3, open - 1);
   const names = header.filter((t, i) => header[i - 1] === '$' && isName(t));
   const declared = new Set(names);
   const isDeclaredOnce =
     declared.size === names.length && header.filter(t => t === '$').length === names.length;
-  const body = tokens.slice(open);
-  const pairs = body.flatMap((t, i) =>
-    t === ':' && body[i + 1] === '$' && isName(body[i - 1]) && isName(body[i + 2])
-      ? [[body[i - 1], body[i + 2]]]
-      : [],
-  );
-  const bound = new Map(pairs);
-  const isClean =
-    bound.size === pairs.length && body.filter(t => t === '$').length === pairs.length;
-  return isClean && isDeclaredOnce ? { declared, bound } : false;
+  return isDeclaredOnce ? { declared, bound } : false;
 }
 
 /**
  * Whether the query's variables line up the way a GraphQL server needs: every variable it
  * uses is declared and every one it declares is used. For an account-scoped operation each
- * variable the library sends must also be bound to the argument of the same name, so a
- * dropped or renamed binding cannot leave the account, window or page unrequested.
+ * variable the library sends must also be bound, on the field that resolves it, to the
+ * argument of the same name, so a dropped, renamed or relocated binding cannot leave the
+ * account, window or page unrequested.
  * @param {string} query - The query text.
  * @param {object} variables - The variables the request carried.
- * @param {boolean} isScoped - Whether the operation is account-scoped.
+ * @param {string | undefined} owner - Dotted path of the field that takes the variables, or
+ * undefined for an operation that is not account-scoped.
  * @returns {boolean} True when the declarations and bindings hold.
  */
-function bindingsHold(query, variables, isScoped) {
+function bindingsHold(query, variables, owner) {
   const found = bindingsOf(query);
   if (found === false) return false;
-  const used = new Set(found.bound.values());
+  const used = new Set([...found.bound.values()].flatMap(args => [...args.values()]));
   const isMatched =
     used.size === found.declared.size && [...used].every(n => found.declared.has(n));
-  const isBound = Object.keys(variables).every(name => found.bound.get(name) === name);
-  return isMatched && (!isScoped || isBound);
+  const taken = found.bound.get(owner) ?? new Map();
+  const isBound = Object.keys(variables).every(name => taken.get(name) === name);
+  return isMatched && (owner === undefined || isBound);
 }
 
-/** Operations that must carry the account id the first response supplied. */
-const ACCOUNT_SCOPED = new Set(['fetchAccountBalance', 'Transactions']);
+/** Account-scoped operations, each with the field that must receive the account id. */
+const ACCOUNT_SCOPED = new Map([
+  ['fetchAccountBalance', 'accounts.balance'],
+  ['Transactions', 'accounts.oshTransactionsNew'],
+]);
 
 /**
  * Parse a request body, tolerating anything that is not a JSON object.
@@ -364,7 +388,9 @@ function rejectionOf(request) {
   if (selectionOf(query) === false) return `selection ${operation}`;
   const isScoped = ACCOUNT_SCOPED.has(operation);
   if (isScoped && variables?.accountId !== ACCOUNT_ID) return `variables ${operation}`;
-  if (!bindingsHold(query, variables ?? {}, isScoped)) return `bindings ${operation}`;
+  if (!bindingsHold(query, variables ?? {}, ACCOUNT_SCOPED.get(operation))) {
+    return `bindings ${operation}`;
+  }
   return '';
 }
 
@@ -417,7 +443,7 @@ const RESULT_CHECKS = [
     'transaction dates',
     r => sameAcross(r, 'date', ['2026-03-10T00:00:00Z', '2026-03-15T00:00:00Z']),
   ],
-  ['transaction currencies', r => sameAcross(r, 'originalCurrency', ['ILS', 'USD'])],
+  ['transaction currencies', r => sameAcross(r, 'originalCurrency', ['EUR', 'USD'])],
   [
     'transaction descriptions',
     r => sameAcross(r, 'description', ['Synthetic coffee', 'Synthetic pending']),
