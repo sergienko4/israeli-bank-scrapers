@@ -249,19 +249,43 @@ the account's concurrent-job limit.
 - **Full history.** Checkout keeps `fetch-depth: 0`. With a shallow clone
   the memory gate cannot check out the merge base, reports "not measured"
   and passes.
-- **Consumer install.** The smoke uses native
-  Leumi and substitutes a synthetic 503 response for `fetch`, so the expected
-  failure is `prime HTTP 503`. The synthetic handler accepts only
-  `https://hb2.bankleumi.co.il/H/Login.html`; a wrong host or path fails
-  before the synthetic-request marker is printed. No request is sent to the
-  bank. The check
-  requires both the synthetic-request marker and the expected failure, rather
-  than accepting any settled result. The install also runs an offline layout
+- **Consumer install.** The smoke runs two scenarios, each under CJS and ESM,
+  with and without `NODE_ENV=production`; the scenario is the program's first
+  argument. Both replace `fetch` outright and never call the original, so a
+  request they do not recognise fails closed and cannot reach a network.
+  - `leumi-503` uses native Leumi and a synthetic 503 response, so the expected
+    failure is `prime HTTP 503`. The synthetic handler accepts only
+    `https://hb2.bankleumi.co.il/H/Login.html`; a wrong host or path fails
+    before the synthetic-request marker is printed.
+  - `pepper-graphql` gives Pepper a synthetic warm token whose expiry is far
+    in the future, so no login request is made. The packed library then has to
+    resolve its registered queries and send them to the one expected GraphQL
+    endpoint, with that token, and map the synthetic responses into a typed
+    result. The stub answers like a GraphQL server: only the fields a query
+    selects, so a query that drops one the mapping reads leaves it out of the
+    response and the typed result shows it. The values are distinct, because the
+    mapping falls back when a field is missing (the account number to the account
+    id, a missing balance to 0, the date to the effective date) and identical
+    values would hide that. Posted and pending transactions are checked field by
+    field. A query is rejected when it names no registered operation, uses syntax
+    the stub does not understand (aliases, fragments), or sends an account-scoped
+    query without the account id from the first response. Anything rejected is
+    counted and named by origin and path only. The smoke prints the operations it
+    served, the unexpected-request count and its own verdict on the result; the
+    gate requires all three, plus `"success":true`. This is the only scenario that
+    fails when the query registry or the response mapping breaks in the packed
+    artifact, because the 503 scenario fails before either runs.
+
+  No request is sent to a bank. Each scenario's output is checked against that
+  scenario's own expectations, so one scenario's output is never accepted as the
+  other's, and the check requires the expected outcome rather than accepting any
+  settled result. The install also runs an offline layout
   probe against the graph the packed package resolved: pino inside the range the
   packed manifest declares, the supported `thread-stream` major, the same
   shared-state offsets, and a live stream that still carries the private `kImpl`
   record that worker retirement writes into. A moved layout fails the install
   instead of surfacing as a hung or lossy log shutdown.
+
 - **Time limits.** Each step keeps its old job's limit: 10 minutes for each
   build step, 15 for the E2E factory tests, 20 for the consumer install and
   30 for each memory step. The job limit is the longest chain,

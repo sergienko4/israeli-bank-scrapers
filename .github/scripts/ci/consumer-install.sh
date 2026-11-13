@@ -40,9 +40,20 @@
 #      into: pino inside the range the packed manifest declares, the supported
 #      thread-stream major, the same shared-state offsets, and a live stream that
 #      still carries the `kImpl` record. Offline and deterministic; no bank.
+#   4. A successful scrape, not only a failed one. The pepper-graphql scenario
+#      must return a typed result mapped from synthetic GraphQL responses,
+#      through the registered queries the package ships. A package whose
+#      registry or response mapping broke when packed still settles under the
+#      503 scenario, because that fails before either runs.
 #
-# NO BANK IS CONTACTED. The smoke replaces fetch with a synthetic 503 response,
-# making the native Leumi run hermetic and independent of the bank's status.
+# NO BANK IS CONTACTED. Two scenarios run, each replacing fetch outright so a
+# request it does not recognise fails closed instead of reaching a network:
+#   leumi-503       a synthetic 503 stops the native Leumi flow at its first
+#                   request, independent of the bank's status.
+#   pepper-graphql  a synthetic warm token skips the login, then the packed
+#                   library resolves its registered GraphQL queries, sends them,
+#                   and maps synthetic responses into a typed result. Only the
+#                   one expected endpoint is served; anything else is counted.
 #
 # Usage:
 #   CONSUMER_NODE=/absolute/path/to/floor-node consumer-install.sh
@@ -90,6 +101,13 @@ EXPECTED_KIND="SETTLED result"
 # No bank may be contacted, so a scrape that reports success means the harness
 # has stopped being hermetic and the gate is no longer proving anything.
 EXPECTED_VERDICT='"success":false'
+
+# The GraphQL scenario must succeed, because every response is synthetic and the
+# smoke itself checks the typed result. Success is asserted positively: the
+# operations it served, no unexpected request, and the smoke's own verdict.
+GRAPHQL_EXPECTED_OPERATIONS="GRAPHQL_OPERATIONS Transactions,UserDataV2,fetchAccountBalance"
+GRAPHQL_EXPECTED_UNEXPECTED="GRAPHQL_UNEXPECTED 0"
+GRAPHQL_EXPECTED_VERDICT="GRAPHQL_VERDICT ok"
 
 WORK_DIR=""
 
@@ -242,6 +260,25 @@ fi
 
 FAILED=0
 
+# Print the substrings a scenario's output must contain, one per line.
+#
+# $1 - scenario name passed to the smoke program
+expectations_for() {
+  case "$1" in
+    leumi-503)
+      printf '%s\n' "${EXPECTED_KIND}" "${EXPECTED_VERDICT}" "${EXPECTED_REQUEST}" "${EXPECTED_OUTCOME}"
+      ;;
+    pepper-graphql)
+      printf '%s\n' "${EXPECTED_KIND}" '"success":true' "${GRAPHQL_EXPECTED_OPERATIONS}" \
+        "${GRAPHQL_EXPECTED_UNEXPECTED}" "${GRAPHQL_EXPECTED_VERDICT}"
+      ;;
+    *)
+      echo "consumer-install: unknown scenario $1" >&2
+      return 1
+      ;;
+  esac
+}
+
 # Diagnostics go to stdout, not stderr, so each verdict stays next to the
 # `==>` header it belongs to. The two streams are buffered independently once
 # CI captures them, which detaches a failure from the environment that caused
@@ -251,13 +288,15 @@ FAILED=0
 # rather than merely *an* outcome.
 #
 # $1 - captured smoke output
+# $2 - scenario name
 #
 # Returns 0 when every expectation is present, 1 otherwise (marking the run
 # failed, so the caller can bail out without repeating the bookkeeping).
 assert_expected_outcome() {
-  local output="$1"
-  local expectation
-  for expectation in "${EXPECTED_KIND}" "${EXPECTED_VERDICT}" "${EXPECTED_REQUEST}" "${EXPECTED_OUTCOME}"; do
+  local output="$1" scenario="$2"
+  local expectation expectations
+  expectations="$(expectations_for "${scenario}")" || { FAILED=1; return 1; }
+  while IFS= read -r expectation; do
     case "${output}" in
       *"${expectation}"*)
         ;;
@@ -269,18 +308,21 @@ assert_expected_outcome() {
         return 1
         ;;
     esac
-  done
+  done <<EXPECTATIONS
+${expectations}
+EXPECTATIONS
   return 0
 }
 
 # Run the consumer program under one environment and assert on the outcome.
 #
 # $1 - consumer entrypoint program
-# $2 - human-readable environment label; remaining arguments go to `env`
+# $2 - scenario name, passed to the program as its first argument
+# $3 - human-readable environment label; remaining arguments go to `env`
 run_environment() {
-  local program="$1" label="$2"
-  shift 2
-  echo "==> Consumer environment: ${label} (${program})"
+  local program="$1" scenario="$2" label="$3"
+  shift 3
+  echo "==> Consumer environment: ${label} (${program}, ${scenario})"
 
   # The exit status is part of the verdict, so it is captured rather than
   # discarded: the smoke program exits non-zero when an exception escapes to
@@ -288,7 +330,7 @@ run_environment() {
   # `set -e` while still recording what happened.
   local output
   local status=0
-  output="$(env "$@" "$CONSUMER_NODE" "./${program}" 2>&1)" || status=$?
+  output="$(env "$@" "$CONSUMER_NODE" "./${program}" "${scenario}" 2>&1)" || status=$?
 
   case "${output}" in
     *"${SETTLED_MARKER}"*)
@@ -318,9 +360,9 @@ run_environment() {
     return 0
   fi
 
-  assert_expected_outcome "${output}" || return 0
+  assert_expected_outcome "${output}" "${scenario}" || return 0
 
-  echo "    ok - settled with the expected environment failure"
+  echo "    ok - settled with the expected ${scenario} outcome"
   echo "    ${output}"
   return 0
 }
@@ -355,8 +397,10 @@ assert_dependency_layout "${PKG_DIR}"
 # explicitly so a developer who exports it cannot silently run this gate
 # down a different transport branch than CI does.
 for program in smoke.cjs smoke.mjs; do
-  run_environment "$program" "default (CI and NODE_ENV unset)" -u CI -u NODE_ENV -u PRETTY_LOGS
-  run_environment "$program" "NODE_ENV=production" -u CI -u PRETTY_LOGS NODE_ENV=production
+  for scenario in leumi-503 pepper-graphql; do
+    run_environment "$program" "$scenario" "default (CI and NODE_ENV unset)" -u CI -u NODE_ENV -u PRETTY_LOGS
+    run_environment "$program" "$scenario" "NODE_ENV=production" -u CI -u PRETTY_LOGS NODE_ENV=production
+  done
 done
 
 if [ "${FAILED}" -ne 0 ]; then

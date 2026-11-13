@@ -62,13 +62,38 @@ removed. See [Compatibility](compatibility.md) before upgrading older callers.
 `require()` work, but browser options and types were removed in v10; this is
 a breaking change. Follow the [compatibility notes](compatibility.md).
 
-Two differences worth knowing:
+Three differences worth knowing:
 
 - **Type names gained an `I` prefix** (`IScraper`, `IScraperScrapingResult`).
   The old names remain exported as aliases, so existing code compiles as-is.
 - **`accounts[].balance` is now always populated** — by `API-DIRECT-SCRAPE.final`
   for every pipeline bank. Code that already read `account.balance` keeps
   working unchanged.
+- **`scraper.onProgress(listener)` never calls the listener.** The method is kept
+  so code written for upstream still compiles and registers without error, but no
+  bank's scrape emits an event: not on success, not on failure, and not when the
+  pipeline cannot be built. Use the result of `scrape()` for the outcome, and see
+  [Progress and observability](#progress-and-observability) for what to watch
+  while a scrape runs.
 
 For the architectural differences behind those changes, see
 [Migration strategy](architecture/migration.md).
+
+## Progress and observability
+
+`ScraperProgressTypes` is still exported, but nothing emits those values, so a
+listener passed to `onProgress` stays silent for the life of the scraper. Code that
+relies on an event (for example, to show "logging in" during an SMS-code wait) is
+never told anything. `PipelineScraper.test.ts` pins this behavior, so a future change that
+starts emitting events has to update this page in the same change.
+
+To follow a run, use what the pipeline does provide:
+
+- **The result.** `scrape()` resolves with `success`, `errorType` and
+  `errorMessage` and does not reject for an expected failure.
+- **Structured logs.** With `FORENSIC_TRACE=true`, each run writes a `pipeline.log`.
+  At debug level it holds one `phase-stage` record per completed stage, carrying
+  `phase`, `stage` and `runId`. See [Structured events](observability/events.md).
+- **Callbacks that do exist.** `otpCodeRetriever` is called when the bank asks for a
+  code, and `onAuthFlowComplete` is called after a successful login. See
+  [Configuration](configuration.md).
