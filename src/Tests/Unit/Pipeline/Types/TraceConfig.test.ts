@@ -1,7 +1,7 @@
 /**
  * Unit tests for TraceConfig — single per-process artefact folder driven by
  * FORENSIC_TRACE=true. Covers the off-forensic empty-string contract and the
- * lazy-creation behaviour for the run / network / screenshot directories.
+ * lazy-creation behaviour for the run, network and sub-step network directories.
  */
 
 import * as fs from 'node:fs';

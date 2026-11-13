@@ -197,17 +197,17 @@ describe('issuesFromCode — [Async] check', () => {
   });
 });
 
-// The specifier every Phase file actually uses is `playwright-core`, not
+// The specifier every Phase file used was `playwright-core`, not
 // `playwright`. Until the `playwright-core` rows existed, the rule and its
 // tests agreed with each other about a specifier no source file imports, so
 // the gate reported green while guarding nothing.
 //
 // Type-only imports are erased at compile time and carry no runtime coupling;
-// a Phase naming `Page` in a signature is legitimate. Banning them would flag
-// five existing files for no safety gain — hence the `expected: 0` rows.
+// a Phase naming `Page` in a signature is legitimate. Banning them would have
+// flagged five files for no safety gain — hence the `expected: 0` rows.
 //
 // `import type` is not the only erased form. `import { type Page }` is equally
-// erased and is the dominant style here (40+ files), so a statement-shape-only
+// erased and was the dominant style here (40+ files), so a statement-shape-only
 // check would flag the moment a Phase adopted the house style. The mixed row
 // pins the other side: one runtime binding among type bindings still leaks.
 const RULE_10_CASES = [
@@ -281,8 +281,8 @@ describe('issuesFromCode — Rule #10 Playwright leak', () => {
 // the table pins both directions.
 //
 // The three `expected: 0` structural rows are the ones that make the rule
-// satisfiable at all. The helpers are DEFINED inside the Pipeline tree
-// (ElementWaitAction.ts, ElementsInteractions.ts) and are imported by name
+// satisfiable at all. The helpers were DEFINED inside the Pipeline tree
+// (ElementWaitAction.ts, ElementsInteractions.ts) and imported by name
 // from outside the Elements zone, so a naive
 // "name appears in a Pipeline file" check would flag the definitions and the
 // export list and could never reach zero.

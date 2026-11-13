@@ -121,8 +121,8 @@ export const PIPELINE_WELL_KNOWN_QUERY_KEYS = {
 /** WellKnown path fragments for the shared credit-card billing-cycle API.
  *  Card-family backends (CAL / Isracard / Amex / MAX) all expose
  *  `/Transactions/api/<pathFragment>/<actionName>` — the PATH is shared
- *  backend infrastructure, not a bank identity. Fragments are combined
- *  with the discovered API origin at call time; no hostname is hardcoded. */
+ *  backend infrastructure, not a bank identity. No module reads this table
+ *  today, and no hostname is hardcoded here. */
 export const PIPELINE_WELL_KNOWN_BILLING = {
   /** Parent path segment of the billing-cycle API. Presence in any
    *  captured URL proves the bank's backend exposes the family. */
@@ -135,8 +135,7 @@ export const PIPELINE_WELL_KNOWN_BILLING = {
 
 /** WellKnown path fragments for the shared "pending / clearance-requests"
  *  API on the same card-family backbone as {@link PIPELINE_WELL_KNOWN_BILLING}.
- *  Used by {@link resolvePendingUrl} when no pending URL was captured —
- *  combined with the discovered API origin so no hostname is hardcoded. */
+ *  No module reads this table today. */
 export const PIPELINE_WELL_KNOWN_PENDING = {
   /** API prefix under the bank's origin (shared with billing). */
   apiPrefix: '/Transactions/api',
@@ -146,21 +145,16 @@ export const PIPELINE_WELL_KNOWN_PENDING = {
   actionName: 'getClearanceRequests',
 } as const;
 
-/** WellKnown header name patterns for network discovery. */
+/** WellKnown header name patterns left from network discovery. No module reads
+ *  this table today. */
 export const PIPELINE_WELL_KNOWN_HEADERS = {
   /** Request header names that carry the API origin. */
   origin: ['origin', 'referer'],
-  /** Narrow Origin-key set for `spaHasAny` guards (case-insensitive).
-   *  Separate from `origin` (which is the broader DISCOVERY fallback
-   *  chain) because using `origin` here would also match a captured
-   *  `referer` on `spaBase` and incorrectly suppress the bank-Origin
-   *  fallback. See `setOriginAndReferer` in DiscoveryHeaders.ts. */
+  /** Narrow Origin-key set (case-insensitive). Separate from `origin`, whose
+   *  broader discovery chain also matches a captured `referer`. */
   originKey: ['origin'],
-  /** Request header names that carry the SPA page Referer. Separate
-   *  from `origin` because the Referer guard in `buildDiscoveredHeaders`
-   *  must only check the captured `referer` value (the bare-origin
-   *  fallback fires when SPA didn't send one), independent of the
-   *  origin-discovery lookup. */
+  /** Request header names that carry the SPA page Referer. Separate from
+   *  `origin` so a Referer check reads only the captured `referer` value. */
   referer: ['referer'],
   /** Request header names that carry a site/session ID. */
   siteId: ['x-site-id', 'x-session-id'],

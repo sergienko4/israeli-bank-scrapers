@@ -27,7 +27,7 @@ const OKHTTP_MARKER = 'okhttp/';
 
 // Dynamic import dodges the no-restricted-imports DI rule that bans static
 // imports of Registry/Config/** in Pipeline tests (precedent:
-// PipelineBankConfigAuthConfirm.test.ts).
+// PipelineBankConfigSeeder.test.ts).
 describe('Pepper headless config — GraphQL WAF header', () => {
   it('declares an OkHttp user-agent as a GraphQL default header', async () => {
     const { resolvePipelineBankConfig } =

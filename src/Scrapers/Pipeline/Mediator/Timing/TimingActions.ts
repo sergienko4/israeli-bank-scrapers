@@ -179,8 +179,8 @@ function scheduleHumanDelay(delay: number, resolve: (v: Procedure<void>) => bool
 }
 
 /**
- * Random delay that mimics human interaction timing.
- * Default range: 300-1200ms (realistic for clicks and navigation).
+ * Random delay between `minMs` (inclusive) and `maxMs` (exclusive), so repeated
+ * waits do not land on a fixed beat. Default range: 300-1200ms.
  * @param minMs - The minimum delay in milliseconds.
  * @param maxMs - The maximum delay in milliseconds.
  * @returns A promise that resolves after a random delay.

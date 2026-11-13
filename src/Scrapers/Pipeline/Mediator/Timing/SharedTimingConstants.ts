@@ -7,8 +7,7 @@
  * <p>Conventions and rationale for each constant are preserved from
  * the original file; the only change is physical location. The barrel
  * was retired once every importer moved to a domain file, so this is
- * now the canonical definition for these constants. `Waiting.ts` still
- * re-exports `SECOND` for its own consumers.
+ * now the canonical definition for these constants.
  */
 
 /** One second in milliseconds — base unit for timeout arithmetic. */
@@ -20,10 +19,10 @@ export const DEFAULT_WAIT_TIMEOUT_MS = 10000;
 /** Default polling interval for waitUntil (ms). */
 export const DEFAULT_WAIT_INTERVAL_MS = 100;
 
-/** Minimum human-like delay for general interactions (ms). */
+/** Default lower bound of `humanDelay` (ms). */
 export const HUMAN_DELAY_MIN_MS = 300;
 
-/** Maximum human-like delay for general interactions (ms). */
+/** Default upper bound of `humanDelay` (ms). */
 export const HUMAN_DELAY_MAX_MS = 1200;
 
 /**

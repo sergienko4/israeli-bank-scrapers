@@ -20,6 +20,7 @@ import type {
   IResponseSessionSpec,
   SessionContextPatch,
 } from './IApiDirectScrapeShape.js';
+import { guardAnswerCallback } from './ShapeGuard.js';
 
 /** One answer a call's header sink saw: its declared headers and status. */
 interface ISeenAnswer {
@@ -140,7 +141,9 @@ function applySessionPatch(input: ISessionRead): Procedure<void> {
   const name = call.call ?? call.queryTag;
   const answer = capture.seen.at(-1);
   if (answer === undefined) return unseenAnswer(name);
-  const patch = spec.patch({ body: response, ...answer, ctx: call.ctx });
+  const patch = guardAnswerCallback('responseSession.patch', () =>
+    spec.patch({ body: response, ...answer, ctx: call.ctx }),
+  );
   return storePatch(patch, call.bus, name);
 }
 

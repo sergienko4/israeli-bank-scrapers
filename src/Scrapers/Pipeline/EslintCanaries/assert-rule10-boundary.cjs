@@ -3,7 +3,8 @@
  * Assert the Rule #10 layer boundary from the RESOLVED config.
  *
  * Rule #10 bans raw `page.*` in Pipeline business logic; the Mediator is
- * exempt because it owns the browser handle (P7, general-rules-guidlines.md).
+ * exempt because it was the one layer that owned the page handle (P7,
+ * general-rules-guidlines.md).
  * No canary can prove the exempt side — a canary proves a rule FIRES, and the
  * Mediator's contract is that it does NOT.
  *

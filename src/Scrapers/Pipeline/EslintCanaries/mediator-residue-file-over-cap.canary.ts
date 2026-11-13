@@ -5,7 +5,7 @@
  */
 
 // Canary: Phase 2 lockdown per-file size guard - asserts max-lines: 150
-// (skipBlankLines + skipComments) fires on Mediator/BalanceResolve + ...8 other residue sub-clusters cluster files.
+// (skipBlankLines + skipComments) fires on the Mediator residue sub-cluster files (Scrape/, Credentials/, Timing/).
 // Phase 2 split the big phase-action files into co-located <=150-LoC
 // helpers (commit phase-2e-residue). This canary + the eslint.config.mjs
 // override block guarantees no future commit can re-blob the cluster.

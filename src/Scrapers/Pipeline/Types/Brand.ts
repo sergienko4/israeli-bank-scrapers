@@ -141,7 +141,7 @@ export function mintBankSlug(raw: string): BankSlug {
   return raw as BankSlug;
 }
 
-/** Diagnostic phase-and-step descriptor used for screenshot/fixture labels. */
+/** Diagnostic phase-and-step label, such as `login-pre-done`. */
 export type PhaseStepLabel = Brand<string, 'PhaseStepLabel'>;
 
 /**

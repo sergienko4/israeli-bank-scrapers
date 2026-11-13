@@ -51,10 +51,6 @@ describe('Feature — WithBankContext', () => {
 // TraceConfig.getLogFile() (gated by FORENSIC_TRACE). See
 // `Tests/Unit/Pipeline/Types/TraceConfig.test.ts` for coverage.
 
-// The MockTiming re-export was removed from Debug.ts — every consumer
-// imports from `Types/MockTiming.js` directly. Those symbols are covered by
-// `Tests/Unit/Pipeline/Types/MockTiming.test.ts`.
-
 // ── Redaction / censor behaviour via pino integration ──────────────
 
 describe('Pino censor integration (PII redaction)', () => {

@@ -439,7 +439,11 @@ export interface IResponseSessionArgs {
 export interface IResponseSessionSpec {
   /** Response header names the patch reads, in any case. */
   readonly headers: readonly string[];
-  /** Builds the session-context patch; a failure fails the call. */
+  /**
+   * Builds the session-context patch; a failure fails the call. A throw is
+   * converted to a typed failure naming `responseSession.patch` and the error
+   * class, never the thrown message.
+   */
   readonly patch: (args: IResponseSessionArgs) => Procedure<SessionContextPatch>;
 }
 
@@ -529,8 +533,9 @@ export interface IApiDirectScrapeShape<TAcct, TCursor> {
    * before the step reads it. For banks that report a failure inside an
    * HTTP 200 body (an expired session, say): returning a failure makes the
    * call fail as a non-2xx would, so balance falls back and the phase's
-   * recovery runs, instead of the body yielding nothing silently. Absent ⇒
-   * every 2xx body is used as-is.
+   * recovery runs, instead of the body yielding nothing silently. A throw is
+   * converted to the same typed failure, naming the check and the error class,
+   * never the thrown message. Absent ⇒ every 2xx body is used as-is.
    */
   readonly checkBody?: BodyCheck;
   /**

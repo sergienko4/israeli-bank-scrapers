@@ -56,7 +56,7 @@ export const PIPELINE_WELL_KNOWN_ACCOUNT_FIELDS = {
  *
  * <p>Each `bancs*` alias is PREPENDED (matching is alias-first — see
  * `BfsFieldSearch.Match.matchField`) so a record flattened by
- * {@link "../../../Mediator/Scrape/Bancs/BancsNormalizer.js"} deterministically
+ * {@link "../../Mediator/Scrape/Bancs/BancsNormalizer.js"} deterministically
  * resolves to its computed flat field. This is a provable no-op for every
  * other bank: no non-BaNCS record carries a `bancs*` key, so the alias fails
  * to match and resolution falls straight through to the existing aliases. */

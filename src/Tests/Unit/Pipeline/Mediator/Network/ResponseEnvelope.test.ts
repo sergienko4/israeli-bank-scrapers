@@ -17,7 +17,7 @@
  *   <li>shape near-misses (missing key, wrong value type) → passthrough</li>
  * </ul>
  *
- * <p>Pure-function contract — synthetic inputs, no Playwright needed.
+ * <p>Pure-function contract — synthetic inputs only.
  * All data is fabricated; field names mirror the real Leumi shape.
  */
 

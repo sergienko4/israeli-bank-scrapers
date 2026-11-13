@@ -1,10 +1,9 @@
 /**
- * PII redaction for harvested bank fixtures.
+ * PII redaction for committed bank fixtures.
  *
- * <p>Single source of truth for the patterns the harvester applies
- * BEFORE writing any HTML/JSON to disk. Extracted from
- * {@link HarvestBankHtml} so post-login network responses + pre-login
- * page DOM go through the same scrubber.
+ * <p>Single source of truth for the patterns applied to a captured response
+ * BEFORE it is written to disk, so every committed HTML/JSON fixture goes
+ * through the same scrubber.
  *
  * <p>Patterns are ordered: narrower rules MUST come first so a broad
  * rule (e.g. 9-digit Israeli ID) does not pre-empt a tighter match

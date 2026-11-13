@@ -260,11 +260,12 @@ A bank whose session rotates on every answer (Yahav's BaNCS session id, XSRF tok
 
 The call fails, named after it (`queryTag`, or the bootstrap step's `name`), when:
 
-| Cause                                                            | Failure message                          |
-| ---------------------------------------------------------------- | ---------------------------------------- |
-| the patch fails                                                  | `<call> <patch message>`, its error type |
-| the mediator refuses the merged session-context                  | `<call> session patch refused`           |
-| no answer reached the sink (for example a GraphQL step)          | `<call> response unseen`                 |
+| Cause                                                   | Failure message                                          |
+| ------------------------------------------------------- | -------------------------------------------------------- |
+| the patch fails                                         | `<call> <patch message>`, its error type                 |
+| the patch throws                                        | `<call> shape responseSession.patch threw: <ErrorClass>` |
+| the mediator refuses the merged session-context         | `<call> session patch refused`                           |
+| no answer reached the sink (for example a GraphQL step) | `<call> response unseen`                                 |
 
 A failed answer, or a failed body check, never reaches the patch. A shape with no `responseSession` sends its opts untouched. The customer secondary identity GET is not read.
 
@@ -281,7 +282,7 @@ Beyond the three required steps (`customer` / `balance` / `transactions`), `IApi
 - `bodyDigest` (shape root) — an `IBodyDigestConfig` that adds a digest header over every REST object POST body (Yahav). See [Body digest](#body-digest).
 - `resultGuard` — a fail-closed POST-stage guard over a PII-free `IApiDirectScrapeGuardSummary` that aborts a degraded run (e.g. zero transactions from a warm session).
 - `checkBody` (shape root, type `BodyCheck`) — a check run on every **successful** scrape response (bootstrap, customer and its secondary identity GET, balance, transactions) before the step reads it. For banks that report a failure inside an HTTP 200 body: a failed check fails the call exactly as a non-2xx would, so balance falls back to `fallbackOnFail` and the phase's recover-once re-login runs, instead of the body yielding no rows silently. `dispatchStep` and the secondary GET share `applyBodyChecks`; a successful response with no check passes through unchanged (the ring issuers fail a `Header.Status: -2` "session expired" body).
-- `checkBodyByOperation` (shape root, `OperationBodyChecks`) — selects a `BodyCheck` by `ScrapeOperation`: `bootstrap`, `customer`, `customer-secondary`, `balance` or `txns`. `applyBodyChecks` runs the selected check before `checkBody`, passing its successful output to the global check; the first failure stops extraction. Unlisted operations retain global-check behavior, and a dispatch with a map but no operation fails before I/O.
+- `checkBodyByOperation` (shape root, `OperationBodyChecks`) — selects a `BodyCheck` by `ScrapeOperation`: `bootstrap`, `customer`, `customer-secondary`, `balance` or `txns`. `applyBodyChecks` runs the selected check before `checkBody`, passing its successful output to the global check; the first failure stops extraction. Unlisted operations retain global-check behavior, and a dispatch with a map but no operation fails before I/O. A check that throws is converted to a typed failure, `shape checkBody threw: <ErrorClass>` or `shape checkBodyByOperation threw: <ErrorClass>`, which never carries the thrown message because a parse error can quote the answer. The converted failure is an ordinary `Generic` one, so it follows the recovery rules for any such failure; a check's own typed refusal keeps its type, so a WAF or integrity refusal still never recovers.
 - `omitBankText` (shape root) — copied by `withApiDirect` from the login config's flag (`bindBankTextRule`). A failed call (bootstrap, customer and its secondary identity GET, balance, transactions) then carries only its name and HTTP status (`customer HTTP 500`), never the reply text; a WAF block keeps its fixed reason. `checkAnswer` reads the call's name, check and flag from an `IAnswerGuard` and applies the flag through the login flow's `sanitiseStepFailure`. Absent ⇒ a failed call keeps the transport's message.
 - `bootstrap` — an `IApiDirectScrapeBootstrapStep`, or an ordered list of them, that runs **once before** the per-account scrape to seed the session context with material later steps need (PayBox's per-session HMAC key). See below.
 - `isCardIssuer` — declares that this shape's rows are **card** transactions, so the mapper inverts the issuer's sign convention. See below.

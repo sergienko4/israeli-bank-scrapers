@@ -20,6 +20,7 @@ import {
   dispatchStep,
   type IDispatchArgs,
 } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeDispatch.js';
+import { createApiDirectScrapePhase } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.js';
 import type { IDriverCtx } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeTypes.js';
 import type {
   ApiBody,
@@ -34,7 +35,8 @@ import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
-import { makeMockContext } from '../../Infrastructure/MockFactories.js';
+import { makeMockContext, makeRecoverySessionStubs } from '../../Infrastructure/MockFactories.js';
+import { SYN_CASE } from './ApiDirectScrapeBankShapes.js';
 
 /** One answer on the wire: its HTTP status and headers. */
 interface IWireAnswer {
@@ -369,5 +371,130 @@ describe('ApiDirectScrapeResponseSession/bootstrap', () => {
     expect(result.success).toBe(true);
     const session = sb.session();
     expect(session).toEqual({ mag: 'm-1', session: 's-2' });
+  });
+});
+
+/** The scrape phase on a warm session, and the recovery call it would make. */
+interface IWarmPhase {
+  readonly scrape: ReturnType<typeof createApiDirectScrapePhase>;
+  readonly ctx: IActionContext;
+  readonly recover: jest.Mock<Promise<Procedure<string>>, []>;
+}
+
+/**
+ * Report the session as warm.
+ * @returns Always true.
+ */
+function reportWarm(): boolean {
+  return true;
+}
+
+/**
+ * Answer a re-login as successful.
+ * @returns A resolved empty success.
+ */
+function recoverOk(): Promise<Procedure<string>> {
+  const recovered = succeed('');
+  return Promise.resolve(recovered);
+}
+
+/**
+ * A patch that throws instead of answering.
+ * @param thrown - The value to throw.
+ * @returns A throwing patch.
+ */
+function throwingPatch(thrown: unknown): PatchFn {
+  /**
+   * Throw instead of answering.
+   * @returns Never.
+   */
+  function patchThatThrows(): Procedure<SessionContextPatch> {
+    throw thrown;
+  }
+  return jest.fn<Procedure<SessionContextPatch>, [IResponseSessionArgs]>(patchThatThrows);
+}
+
+/**
+ * Build the real scrape phase on a warm session, so a failed scrape qualifies
+ * for the recover-once re-login and the spy can see whether it was attempted.
+ * @param patch - The response-session patch under test.
+ * @returns The phase, its context and its recovery spy.
+ */
+function warmPhase(patch: PatchFn): IWarmPhase {
+  const sb = makeSessionBus(OK_PLAN);
+  const recover = jest.fn<Promise<Procedure<string>>, []>(recoverOk);
+  const warm = { wasSessionWarm: reportWarm, recoverSession: recover };
+  const bus: IApiMediator = { ...sb.bus, ...makeRecoverySessionStubs(), ...warm };
+  const spec = sessionSpec(patch);
+  const shape = { ...SYN_CASE.shape, bootstrap: LOGIN_STEP, responseSession: spec };
+  return { scrape: createApiDirectScrapePhase(shape), ctx: ctxFor(bus), recover };
+}
+
+const PATCH_FAILURE = new Error('patch exploded');
+const THROWN_VALUES = [
+  { name: 'an Error', thrown: PATCH_FAILURE },
+  { name: 'a string', thrown: 'patch exploded as text' },
+  { name: 'a Symbol', thrown: Symbol('patch exploded') },
+];
+const THREW = 'shape responseSession.patch threw: Error';
+const DATA_CALL_THREW = fail(ScraperErrorTypes.Generic, `balance ${THREW}`);
+const BOOTSTRAP_THREW = fail(ScraperErrorTypes.Generic, `bootstrap ${THREW}`);
+const REFUSED = fail(ScraperErrorTypes.Generic, 'balance bank status');
+
+/**
+ * An error whose message quotes the bank's answer and whose class name is
+ * chosen by the thrower, as a hostile or careless patch might produce.
+ * @returns The error.
+ */
+function leakyError(): Error {
+  const leaky = new Error('token abc-123 in the answer');
+  leaky.name = 'abc-123';
+  return leaky;
+}
+
+describe('ApiDirectScrapeResponseSession/throwing patch', () => {
+  it.each(THROWN_VALUES)(
+    '[RST-1] fails a data call typed and commits nothing when the patch throws $name',
+    async row => {
+      const sb = makeSessionBus(OK_PLAN);
+      const patch = throwingPatch(row.thrown);
+      const args = balanceArgs(sb.bus, { responseSession: sessionSpec(patch) });
+      const result = await dispatchStep(args);
+      expect(result).toEqual(DATA_CALL_THREW);
+      const session = sb.session();
+      expect(session).toBe(FIRST_SESSION);
+    },
+  );
+
+  it('[RST-2] fails a bootstrap call typed when its patch throws', async () => {
+    const sb = makeSessionBus(OK_PLAN);
+    const patch = throwingPatch(PATCH_FAILURE);
+    const d = bootDriver(sb, LOGIN_STEP, patch);
+    const result = await runBootstrap(d);
+    expect(result).toEqual(BOOTSTRAP_THREW);
+  });
+
+  it('[RST-3] never reports the thrown message or a thrown class name', async () => {
+    const sb = makeSessionBus(OK_PLAN);
+    const leaky = leakyError();
+    const patch = throwingPatch(leaky);
+    const args = balanceArgs(sb.bus, { responseSession: sessionSpec(patch) });
+    const result = await dispatchStep(args);
+    expect(result).toEqual(DATA_CALL_THREW);
+  });
+
+  it('[RST-4] keeps a refused patch distinct from a thrown one', async () => {
+    const sb = makeSessionBus(OK_PLAN);
+    const patch = makePatch(BANK_STATUS);
+    const args = balanceArgs(sb.bus, { responseSession: sessionSpec(patch) });
+    const result = await dispatchStep(args);
+    expect(result).toEqual(REFUSED);
+  });
+
+  it('[RST-5] recovers once on a warm session when the patch throws', async () => {
+    const patch = throwingPatch(PATCH_FAILURE);
+    const { scrape, ctx, recover } = warmPhase(patch);
+    await scrape(ctx);
+    expect(recover).toHaveBeenCalledTimes(1);
   });
 });
