@@ -13,7 +13,7 @@ import {
 import { isSearchableObject } from './BfsFieldSearch.Match.js';
 
 /** BFS queue item for iterative deep search. */
-interface ISearchItem {
+export interface ISearchItem {
   readonly value: Record<string, unknown>;
   readonly depth: number;
 }
@@ -91,5 +91,4 @@ function flattenObjectTree(root: ApiRecord): readonly ApiRecord[] {
   return all.map((entry): ApiRecord => entry.value);
 }
 
-export type { ISearchItem };
 export { flattenObjectTree };

@@ -23,7 +23,7 @@ import { getDebug } from '../../../Logging/Debug.js';
 const LOG = getDebug(import.meta.url);
 
 /** Outcome of one mapping round. Counts only — never row content. */
-export interface IMapRejectResult {
+interface IMapRejectResult {
   /** Rows the bank shape handed to the mapper. */
   readonly extracted: number;
   /** Rows the mapper turned into transactions. */

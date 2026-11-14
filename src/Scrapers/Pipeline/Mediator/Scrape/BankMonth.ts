@@ -218,7 +218,7 @@ function bankMonthBounds(value: IBankMonth): IBankMonthBounds {
   return { start: startMoment.toDate(), end: endMoment.toDate() };
 }
 
-export type { IBankDateParts, IBankMonth, IBankMonthBounds };
+export type { IBankMonth };
 export {
   bankDatePartsOfInstant,
   bankDatePartsOfLabel,

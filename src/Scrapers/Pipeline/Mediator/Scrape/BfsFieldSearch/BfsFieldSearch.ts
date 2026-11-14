@@ -121,7 +121,6 @@ function findAllFieldValues(
   return hits.filter((h): h is string | number => h !== false);
 }
 
-export type { ISearchItem } from './BfsFieldSearch.Flatten.js';
 export { isSearchableObject, matchField } from './BfsFieldSearch.Match.js';
 export { findAllFieldValues, findFieldValue };
 export { flattenObjectTree } from './BfsFieldSearch.Flatten.js';

@@ -45,7 +45,7 @@ const LOG = getDebug(import.meta.url);
  * nothing older can have been withheld. `unproven` means it does not — the
  * account may simply be quiet, or the provider may have truncated.
  */
-export type WindowVerdict = 'covered' | 'unproven';
+type WindowVerdict = 'covered' | 'unproven';
 
 /** Inputs for one window-coverage reconciliation. */
 export interface IWindowArgs {

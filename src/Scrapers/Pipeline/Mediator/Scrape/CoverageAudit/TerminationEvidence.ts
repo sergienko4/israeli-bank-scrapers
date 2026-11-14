@@ -29,7 +29,7 @@ import type { PaginationTermination } from '../../../Strategy/Fetch/Pagination.j
 import type { Brand } from '../../../Types/Brand.js';
 
 /** Branded result of {@link isLossyTermination} (Rule #15 — no bare primitive return). */
-export type IsLossyTermination = Brand<boolean, 'IsLossyTermination'>;
+type IsLossyTermination = Brand<boolean, 'IsLossyTermination'>;
 
 /** The planned pagination walk completed without a detected halt. */
 const DOUBT_NONE = 0;

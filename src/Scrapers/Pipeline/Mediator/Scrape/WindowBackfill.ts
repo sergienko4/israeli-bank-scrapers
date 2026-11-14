@@ -24,7 +24,7 @@ import { blockOf, BOUND_DID_NOT_MOVE } from './WindowBackfillBlocks.js';
 const LOG = getDebug(import.meta.url);
 
 /** Issue another request under a narrowed bound. */
-export interface IBackfillAsk {
+interface IBackfillAsk {
   readonly shouldAsk: true;
   /** Upper bound for that request. */
   readonly nextEnd: Option<Date>;
@@ -33,7 +33,7 @@ export interface IBackfillAsk {
 }
 
 /** Stop asking, and say what ended it. */
-export interface IBackfillRefusal {
+interface IBackfillRefusal {
   readonly shouldAsk: false;
   /** Always absent: there is no next request to bound. */
   readonly nextEnd: Option<Date>;
