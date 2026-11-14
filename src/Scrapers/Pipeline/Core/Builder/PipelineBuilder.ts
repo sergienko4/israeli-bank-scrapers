@@ -5,7 +5,7 @@ import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/ConfigCo
 import {
   type CredentialEnricher,
   deviceIdentityEnricherOf,
-} from '../../Mediator/ApiDirectCall/DeviceIdentity/DeviceIdentityProvider.js';
+} from '../../Mediator/ApiDirectCall/DeviceIdentity/DeviceIdentityEnricher.js';
 import type { IApiDirectScrapeShape } from '../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import type { IPipelineDescriptor } from '../PipelineDescriptor.js';

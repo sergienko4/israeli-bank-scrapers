@@ -49,14 +49,16 @@ describe('device-identity redaction', () => {
 
   it.each(DEVICE_KEYS)('keeps a top-level %s out of the log stream', key => {
     const output = logRedacted({ [key]: SECRETS[key] });
-    expect(output).not.toContain(SECRETS[key]);
-    expect(output).toContain('[REDACTED]');
+    const line = output.trim();
+    const parsed = JSON.parse(line) as Record<string, unknown>;
+    expect(parsed[key]).toBe('[REDACTED]');
   });
 
   it('keeps every device field out of a credential object', () => {
     const output = logRedacted({ credentials: SECRETS });
-    for (const secret of Object.values(SECRETS)) expect(output).not.toContain(secret);
-    expect(output).toContain('[REDACTED]');
+    const line = output.trim();
+    const parsed = JSON.parse(line) as { credentials?: Record<string, unknown> };
+    for (const key of DEVICE_KEYS) expect(parsed.credentials?.[key]).toBe('[REDACTED]');
   });
 
   it.each(DEVICE_KEYS)('classifies %s as a token', key => {
@@ -66,6 +68,7 @@ describe('device-identity redaction', () => {
 
   it.each(DEVICE_KEYS)('redacts %s in a JSON dump', key => {
     const dump = redactJsonBody({ [key]: SECRETS[key] });
-    expect(dump).not.toContain(SECRETS[key]);
+    const parsed = JSON.parse(dump) as Record<string, unknown>;
+    expect(parsed[key]).toBe('[REDACTED]');
   });
 });

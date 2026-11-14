@@ -9,7 +9,6 @@ import { createHmac, randomBytes } from 'node:crypto';
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { ScraperCredentials } from '../../../../Base/Interface.js';
-import { none, type Option, some } from '../../../Types/Option.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import type {
@@ -18,7 +17,11 @@ import type {
   IWarmStartConfig,
 } from '../ConfigContracts/index.js';
 import { decodeWarmBundle } from '../Flow/WarmCarryBundle.js';
-import type { IDeviceIdentityProvider, IDeviceSignatureFormat } from './DeviceIdentityTypes.js';
+import type {
+  IDeviceIdentityProvider,
+  IDeviceProfile,
+  IDeviceSignatureFormat,
+} from './DeviceIdentityTypes.js';
 import DEVICE_SIGNATURE_FORMATS from './DeviceSignatureFormats.js';
 import readHostProfile from './HostProfile.js';
 
@@ -32,9 +35,8 @@ const MISSING_SCOPE = 'device identity scope missing';
 const SEED_BYTES = 8;
 const SEED_CHARS = 16;
 
-/** The credential-enrichment seam the pipeline builder attaches. */
+/** The credential-enrichment result the pipeline builder consumes. */
 type Enriched = Procedure<ScraperCredentials>;
-type CredentialEnricher = (credentials: ScraperCredentials) => Enriched;
 
 /** The expectation argument the carry-bundle decoder takes. */
 type WarmExpectation = Parameters<typeof decodeWarmBundle>[1];
@@ -44,6 +46,13 @@ interface IRuntime {
   readonly config: IDeviceIdentityConfig;
   readonly format: IDeviceSignatureFormat;
   readonly warmStart: IWarmStartConfig | undefined;
+  readonly readProfile: () => IDeviceProfile;
+}
+
+/** Optional provider seams for tests and alternate hosts. */
+interface IProviderOptions {
+  readonly formats?: Readonly<Record<string, IDeviceSignatureFormat>>;
+  readonly readProfile?: () => IDeviceProfile;
 }
 
 /** The raw token seed and the signature seed derived from it. */
@@ -59,14 +68,6 @@ interface IWarmTokenSource {
   readonly seedSlot: string;
 }
 
-/** Everything the credential bag needs after a successful derivation. */
-interface IEnrichedArgs {
-  readonly credentials: ScraperCredentials;
-  readonly config: IDeviceIdentityConfig;
-  readonly seeds: IDeviceSeeds;
-  readonly signature: string;
-}
-
 /**
  * Read the configured field from an untyped credential bag.
  * @param credentials - Caller credentials.
@@ -80,15 +81,18 @@ function suppliedValue(credentials: ScraperCredentials, field: string): string {
 
 /**
  * Return credentials with the seed and signature fields set.
- * @param args - Caller credentials, config, seeds and signature.
+ * @param credentials - Caller credentials.
+ * @param config - Bank device-identity declaration.
+ * @param values - Raw seed and signature.
  * @returns Enriched credentials.
  */
-function withValues(args: IEnrichedArgs): ScraperCredentials {
-  return {
-    ...args.credentials,
-    [args.config.seedSlot]: args.seeds.deviceSeed,
-    [args.config.credential]: args.signature,
-  };
+function withValues(
+  credentials: ScraperCredentials,
+  config: IDeviceIdentityConfig,
+  values: readonly [string, string],
+): ScraperCredentials {
+  const [deviceSeed, signature] = values;
+  return { ...credentials, [config.seedSlot]: deviceSeed, [config.credential]: signature };
 }
 
 /**
@@ -186,7 +190,7 @@ function signatureOf(
 ): Procedure<string> {
   const override = overrideOf(runtime, credentials);
   if (override !== false) return override;
-  const profile = readHostProfile();
+  const profile = runtime.readProfile();
   return runtime.format.generate(profile, signatureSeed);
 }
 
@@ -201,18 +205,17 @@ function ensureFor(runtime: IRuntime, credentials: ScraperCredentials): Enriched
   if (!isOk(seeds)) return seeds;
   const signature = signatureOf(runtime, credentials, seeds.value.signatureSeed);
   if (!isOk(signature)) return signature;
-  const config = runtime.config;
-  const args = { credentials, config, seeds: seeds.value, signature: signature.value };
-  const enriched = withValues(args);
+  const values: readonly [string, string] = [seeds.value.deviceSeed, signature.value];
+  const enriched = withValues(credentials, runtime.config, values);
   return succeed(enriched);
 }
 
 /**
  * Build the provider object for one resolved runtime.
  * @param runtime - Resolved device-identity runtime.
- * @returns The provider.
+ * @returns The provider, or the runtime's failure.
  */
-function providerOf(runtime: IRuntime): IDeviceIdentityProvider {
+function providerOf(runtime: IRuntime): Procedure<IDeviceIdentityProvider> {
   /**
    * The provider's one method.
    * @param credentials - Caller credentials.
@@ -220,66 +223,42 @@ function providerOf(runtime: IRuntime): IDeviceIdentityProvider {
    */
   const ensure = (credentials: ScraperCredentials): Procedure<ScraperCredentials> =>
     ensureFor(runtime, credentials);
-  return { ensure };
+  return succeed({ ensure });
+}
+
+/**
+ * Resolve the format and host-profile reader for one declaration.
+ * @param config - Bank device-identity declaration.
+ * @param options - Optional format registry and profile reader.
+ * @param warmStart - Bank warm-start config, when it carries the seed.
+ * @returns The runtime, or false for an unknown format.
+ */
+function runtimeOf(
+  config: IDeviceIdentityConfig,
+  options: IProviderOptions,
+  warmStart?: IWarmStartConfig,
+): IRuntime | false {
+  const formats = options.formats ?? DEVICE_SIGNATURE_FORMATS;
+  const format = Object.hasOwn(formats, config.format) ? formats[config.format] : false;
+  if (format === false) return false;
+  return { config, format, warmStart, readProfile: options.readProfile ?? readHostProfile };
 }
 
 /**
  * Build the generic provider from one bank's device-identity config.
  * @param config - Bank device-identity declaration.
  * @param warmStart - Bank warm-start config, when it carries the seed.
- * @param formats - Registered formats; defaults to the production registry.
+ * @param options - Optional format registry and profile reader.
  * @returns The provider, or a fixed failure for an unknown format.
  */
 function createDeviceIdentityProvider(
   config: IDeviceIdentityConfig,
   warmStart?: IWarmStartConfig,
-  formats: Readonly<Record<string, IDeviceSignatureFormat>> = DEVICE_SIGNATURE_FORMATS,
+  options: IProviderOptions = {},
 ): Procedure<IDeviceIdentityProvider> {
-  const format = Object.hasOwn(formats, config.format) ? formats[config.format] : false;
-  if (format === false) return fail(ScraperErrorTypes.Generic, UNKNOWN_FORMAT);
-  const provider = providerOf({ config, format, warmStart });
-  return succeed(provider);
-}
-
-/**
- * Bind a built provider to the enricher signature.
- * @param provider - Built provider.
- * @returns An enricher that delegates to it.
- */
-function enricherOf(provider: IDeviceIdentityProvider): CredentialEnricher {
-  return credentials => provider.ensure(credentials);
-}
-
-/**
- * Build an enricher, or one that re-emits the provider's build failure.
- * @param config - Bank device-identity declaration.
- * @param warmStart - Bank warm-start config, when it carries the seed.
- * @returns The enricher.
- */
-function builtEnricher(
-  config: IDeviceIdentityConfig,
-  warmStart?: IWarmStartConfig,
-): CredentialEnricher {
-  const provider = createDeviceIdentityProvider(config, warmStart);
-  if (!isOk(provider)) return () => provider;
-  return enricherOf(provider.value);
-}
-
-/**
- * Build the enricher a bank's `deviceIdentity` config selects.
- * @param config - Bank device-identity declaration, when present.
- * @param warmStart - Bank warm-start config, when it carries the seed.
- * @returns Some(enricher), or none when the bank declares none.
- */
-function deviceIdentityEnricherOf(
-  config?: IDeviceIdentityConfig,
-  warmStart?: IWarmStartConfig,
-): Option<CredentialEnricher> {
-  if (config === undefined) return none();
-  const enrich = builtEnricher(config, warmStart);
-  return some(enrich);
+  const runtime = runtimeOf(config, options, warmStart);
+  if (runtime === false) return fail(ScraperErrorTypes.Generic, UNKNOWN_FORMAT);
+  return providerOf(runtime);
 }
 
 export default createDeviceIdentityProvider;
-export { deviceIdentityEnricherOf };
-export type { CredentialEnricher };

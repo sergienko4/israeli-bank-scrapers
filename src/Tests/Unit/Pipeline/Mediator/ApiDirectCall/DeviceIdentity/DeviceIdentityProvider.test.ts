@@ -12,10 +12,12 @@ import type {
   ICookieJarWarmStart,
   IDeviceIdentityConfig,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
-import createDeviceIdentityProvider, {
-  deviceIdentityEnricherOf,
-} from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/DeviceIdentity/DeviceIdentityProvider.js';
-import type { IDeviceSignatureFormat } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/DeviceIdentity/DeviceIdentityTypes.js';
+import { deviceIdentityEnricherOf } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/DeviceIdentity/DeviceIdentityEnricher.js';
+import createDeviceIdentityProvider from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/DeviceIdentity/DeviceIdentityProvider.js';
+import type {
+  IDeviceProfile,
+  IDeviceSignatureFormat,
+} from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/DeviceIdentity/DeviceIdentityTypes.js';
 import type { Procedure } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
@@ -54,6 +56,26 @@ const JAR: ICookieJarWarmStart = {
 
 /** Credentials a derivation can succeed on. */
 const CREDS: ScraperCredentials = { userCode: 'user-a', password: 'pass-a' };
+
+/** A synthetic host profile for the injected-reader test. */
+const PROFILE: IDeviceProfile = {
+  hostName: 'fixture-host',
+  platform: 'linux',
+  arch: 'x64',
+  cpuModel: 'fixture-cpu',
+  cpuCount: 4,
+  totalMemory: 8_000_000_000,
+  locale: 'en-US',
+  timeZone: 'UTC',
+  userAgent: 'fixture-agent',
+  network: {
+    ipAddress: '192.0.2.10',
+    netmaskAddress: '255.255.255.0',
+    macAddress: '02:00:00:00:00:01',
+    gatewayAddress: '192.0.2.1',
+    broadcastAddress: '192.0.2.255',
+  },
+};
 
 /**
  * The raw signature a successful enrichment injected.
@@ -134,7 +156,7 @@ describe('device-identity provider edges', () => {
 
   it('reports an unknown format at build time and on every enrich', () => {
     const unknown = { ...CONFIG, format: 'unknown' };
-    const built = createDeviceIdentityProvider(unknown, WARM, {});
+    const built = createDeviceIdentityProvider(unknown, WARM, { formats: {} });
     expect(built).toMatchObject({
       success: false,
       errorMessage: 'device identity format unknown',
@@ -146,6 +168,29 @@ describe('device-identity provider edges', () => {
       success: false,
       errorMessage: 'device identity format unknown',
     });
+  });
+
+  it('generates from the injected host profile', () => {
+    const built = createDeviceIdentityProvider(CONFIG, WARM, {
+      /**
+       * Return the synthetic profile.
+       * @returns The fixture profile.
+       */
+      readProfile: () => PROFILE,
+    });
+    if (!built.success) throw new ScraperError(built.errorMessage);
+    const result = built.value.ensure(CREDS);
+    const signature = signatureOf(result);
+    const parsed = JSON.parse(signature) as {
+      deviceSignature?: {
+        system?: { deviceName?: string; host?: string };
+        wifi?: { macAddress?: string; ipAddress?: string };
+      };
+    };
+    expect(parsed.deviceSignature?.system?.deviceName).toBe('fixture-host');
+    expect(parsed.deviceSignature?.system?.host).toBe('fixture-host');
+    expect(parsed.deviceSignature?.wifi?.macAddress).toBe('02:00:00:00:00:01');
+    expect(parsed.deviceSignature?.wifi?.ipAddress).toBe('192.0.2.10');
   });
 
   it('propagates a format generation failure', () => {
@@ -162,7 +207,9 @@ describe('device-identity provider edges', () => {
        */
       generate: () => fail(ScraperErrorTypes.Generic, 'generate failed'),
     };
-    const built = createDeviceIdentityProvider(CONFIG, WARM, { 'risk-minder-mfp': failing });
+    const built = createDeviceIdentityProvider(CONFIG, WARM, {
+      formats: { 'risk-minder-mfp': failing },
+    });
     if (!built.success) throw new ScraperError(built.errorMessage);
     const result = built.value.ensure(CREDS);
     expect(result).toMatchObject({ success: false, errorMessage: 'generate failed' });
