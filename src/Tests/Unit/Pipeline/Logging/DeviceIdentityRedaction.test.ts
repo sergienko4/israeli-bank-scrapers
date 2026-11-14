@@ -11,6 +11,7 @@ import { PassThrough } from 'node:stream';
 import pino from 'pino';
 
 import { SENSITIVE_PATHS } from '../../../../Scrapers/Pipeline/Types/DebugConfig.js';
+import type { JsonValue } from '../../../../Scrapers/Pipeline/Types/JsonValue.js';
 import { classifyKey, redactJsonBody } from '../../../../Scrapers/Pipeline/Types/PiiRedactor.js';
 
 /** The device-identity fields the enricher injects. */
@@ -22,6 +23,15 @@ const SECRETS: Readonly<Record<(typeof DEVICE_KEYS)[number], string>> = {
   deviceSignature: JSON.stringify({ deviceSignature: { system: { androidId: 'syn-id' } } }),
   mfp: 'c3luLW1mcA==',
 };
+
+/** A richer signature with host and network facts inside the token container. */
+const SIGNATURE_BODY = JSON.stringify({
+  deviceSignature: {
+    system: { androidId: 'syn-android-id', deviceName: 'syn-host' },
+    wifi: { macAddress: '02:00:00:00:00:01', ipAddress: '192.0.2.10' },
+  },
+  ipAddress: '192.0.2.10',
+});
 
 /**
  * Log one payload through a pino logger wired to the real redaction paths.
@@ -59,6 +69,24 @@ describe('device-identity redaction', () => {
     const line = output.trim();
     const parsed = JSON.parse(line) as { credentials?: Record<string, unknown> };
     for (const key of DEVICE_KEYS) expect(parsed.credentials?.[key]).toBe('[REDACTED]');
+  });
+
+  it('censors a token-classified container passed as raw JSON', () => {
+    const dump = redactJsonBody(SIGNATURE_BODY);
+    const parsed = JSON.parse(dump) as Record<string, unknown>;
+    expect(parsed.deviceSignature).toBe('[REDACTED]');
+    expect(dump).not.toContain('syn-android-id');
+    expect(dump).not.toContain('syn-host');
+    expect(dump).not.toContain('02:00:00:00:00:01');
+  });
+
+  it('censors a token-classified container passed as a parsed object', () => {
+    const dump = redactJsonBody(JSON.parse(SIGNATURE_BODY) as JsonValue);
+    const parsed = JSON.parse(dump) as Record<string, unknown>;
+    expect(parsed.deviceSignature).toBe('[REDACTED]');
+    expect(dump).not.toContain('syn-android-id');
+    expect(dump).not.toContain('syn-host');
+    expect(dump).not.toContain('02:00:00:00:00:01');
   });
 
   it.each(DEVICE_KEYS)('classifies %s as a token', key => {
