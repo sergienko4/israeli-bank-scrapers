@@ -60,4 +60,16 @@ describe('RiskMinder MFP format', () => {
     expect(accepted).toEqual({ success: true, value: true });
     expect(rejected).toMatchObject({ success: false, errorMessage: 'device signature invalid' });
   });
+
+  it.each([
+    { label: 'an empty value', value: '' },
+    { label: 'a non-JSON value', value: 'not-json' },
+    { label: 'a JSON array', value: '[]' },
+    { label: 'a value with no Android id', value: '{"deviceSignature":{"system":{}}}' },
+    { label: 'a system value that is not an object', value: '{"deviceSignature":{"system":"x"}}' },
+    { label: 'an oversize value', value: 'x'.repeat(8193) },
+  ])('rejects $label', ({ value }) => {
+    const rejected = RISK_MINDER_MFP_FORMAT.validate(value);
+    expect(rejected).toMatchObject({ success: false, errorMessage: 'device signature invalid' });
+  });
 });
