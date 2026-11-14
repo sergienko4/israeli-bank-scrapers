@@ -57,6 +57,24 @@ function releasesRedirectBody(response: Response, request: ICappedRequest): bool
 }
 
 /**
+ * Whether a non-challenge answer or an unbounded challenge needs its body.
+ * @param response - Received response.
+ * @param reading - Response-reading policy.
+ * @param action - The effective status action.
+ * @returns True when the WAF classifier or reader needs the body.
+ */
+function needsBodyAfterChallenge(
+  response: Response,
+  reading: IResponseReading,
+  action: ReturnType<typeof statusActionFor>,
+): boolean {
+  if (isChallenge(response)) return true;
+  if (action.has) return false;
+  if (!isApiSuccess(response)) return true;
+  return !isMediaTypeMismatch(response, reading.mediaType);
+}
+
+/**
  * Whether the WAF classifier or response reader still needs the body.
  * @param response - Received headers and status.
  * @param request - This call's wire redirect mode and response-reading policy.
@@ -66,11 +84,9 @@ function needsBody(response: Response, request: ICappedRequest): boolean {
   const { reading } = request;
   if (releasesRedirectBody(response, request)) return false;
   if (isBoundedChallenge(response, reading)) return false;
-  if (isChallenge(response)) return true;
   const action = statusActionFor({ response, reading });
-  if (action.has) return false;
-  if (!isApiSuccess(response)) return true;
-  return !isMediaTypeMismatch(response, reading.mediaType);
+  if (action.has && action.value === 'rate-limit') return false;
+  return needsBodyAfterChallenge(response, reading, action);
 }
 
 /**

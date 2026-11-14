@@ -56,11 +56,60 @@ function abortSensitiveResponse(init: RequestInit, options: ResponseInit): Respo
   return new Response(body, options);
 }
 
+/**
+ * Builds a response whose body errors before it can be consumed.
+ * @param options - Response status and headers.
+ * @returns The broken-body response.
+ */
+function brokenResponse(options: ResponseInit): Response {
+  const body = new ReadableStream<Uint8Array>({
+    /**
+     * Fail the stream before a reader can consume it.
+     * @param controller - Stream controller.
+     * @returns True once the failure is installed.
+     */
+    start(controller): boolean {
+      controller.error(new Error('ECONNRESET'));
+      return true;
+    },
+  });
+  return new Response(body, options);
+}
+
+/**
+ * Answer with a broken challenge body.
+ * @returns The broken response.
+ */
+function fetchBrokenChallenge(): Promise<Response> {
+  const response = brokenResponse({
+    status: 429,
+    headers: CLOUDFLARE_CHALLENGE_HEADERS,
+  });
+  return Promise.resolve(response);
+}
+
 describe('unbounded Cloudflare challenges', () => {
   const originalFetch = globalThis.fetch;
 
   afterEach((): void => {
     globalThis.fetch = originalFetch;
+  });
+
+  it('applies a rate-limit action before reading a broken challenge body', async () => {
+    globalThis.fetch = fetchBrokenChallenge;
+    const strategy = cappedNative(BASE_URL, {
+      timeoutMs: LOWERED_CAP_MS,
+      statusPolicy: { 429: 'rate-limit' },
+    });
+    const result = await strategy.fetchGet(ITEMS_URL, {
+      extraHeaders: {},
+      responseKind: 'text',
+    });
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.WafBlocked,
+      errorMessage: 'GET https://api.bank.example/v1/items 429: rate limited',
+    });
   });
 
   it('keeps an abort-sensitive 203 challenge body and reports WAF_BLOCKED', async () => {
