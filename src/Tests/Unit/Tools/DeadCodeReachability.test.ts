@@ -172,6 +172,27 @@ describe('symbol-level dead-code reachability', () => {
     }
   });
 
+  it('does not treat imports of an unconsumed barrel export as live', () => {
+    const graph = graphOf([
+      moduleOf('entry.ts', { imports: [{ target: 'barrel.ts', names: ['Live'] }] }),
+      moduleOf('barrel.ts', {
+        named: [
+          { exported: 'Live', target: 'live.ts', targetName: 'Live' },
+          { exported: 'Dead', target: 'dead.ts', targetName: 'Dead' },
+        ],
+      }),
+      moduleOf('live.ts', { local: ['Live'] }),
+      moduleOf('dead.ts', {
+        local: ['Dead'],
+        imports: [{ target: 'helper.ts', names: ['Helper'] }],
+      }),
+      moduleOf('helper.ts', { local: ['Helper'] }),
+    ]);
+    const report = analyze(graph, ['entry.ts']);
+    expect(report.files).toEqual([]);
+    expect(report.exports).toEqual(['dead.ts#Dead', 'helper.ts#Helper']);
+  });
+
   it('parses static imports and re-exports end-to-end', () => {
     const base = tmpdir();
     const prefix = path.join(base, 'dead-code-static-');

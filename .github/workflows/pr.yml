@@ -559,9 +559,16 @@ jobs:
         run: |
           base_file="${RUNNER_TEMP}/base-dead-code-baseline.json"
           if ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
-            git fetch --no-tags origin "${BASE_REF}" || true
+            if ! git fetch --no-tags origin "${BASE_SHA}"; then
+              git fetch --no-tags origin "${BASE_REF}" || true
+            fi
           fi
-          if git show "${BASE_SHA}:src/Tests/Tools/dead-code.baseline.json" > "${base_file}" 2>/dev/null; then
+          if ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            echo "::error::Cannot retrieve base commit ${BASE_SHA}; refusing to skip the dead-code guard."
+            exit 1
+          fi
+          if git cat-file -e "${BASE_SHA}:src/Tests/Tools/dead-code.baseline.json" 2>/dev/null; then
+            git show "${BASE_SHA}:src/Tests/Tools/dead-code.baseline.json" > "${base_file}"
             npx tsx src/Tests/Tools/detect-dead-code.ts --guard-against "${base_file}"
           else
             echo "Dead-code baseline absent on base; allowing initial establishment."

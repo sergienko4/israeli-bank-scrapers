@@ -554,26 +554,57 @@ function reachableFiles(graph: ModuleGraph, entries: readonly string[]): Readonl
 }
 
 /**
- * Mark the exports consumed by imports and the public entry points.
+ * Add every file that owns a used export to the consumed-file set.
+ * @param used - Used `file#name` keys.
+ * @param files - Consumed-file accumulator.
+ * @returns True once every owner is added.
+ */
+function addUsedFiles(used: ReadonlySet<string>, files: Set<string>): boolean {
+  for (const key of used) {
+    const separator = key.lastIndexOf(SEP);
+    const file = key.slice(0, separator);
+    files.add(file);
+  }
+  return true;
+}
+
+/**
+ * Mark the imports of one consumed module as used.
  * @param graph - Parsed modules.
- * @param reachable - Reachable file set.
+ * @param used - Used-key accumulator.
+ * @param file - Consumed module file.
+ * @returns True once every import is processed.
+ */
+function consumeImports(graph: ModuleGraph, used: Set<string>, file: string): boolean {
+  const source = graph.get(file);
+  if (source === undefined) return true;
+  for (const edge of source.imports) {
+    if (edge.names === '*') markAllExports(graph, used, edge.target);
+    else for (const name of edge.names) markExport({ graph, used, file: edge.target, name });
+  }
+  return true;
+}
+
+/**
+ * Mark the exports consumed by imports and the public entry points.
+ *
+ * Only imports of a module with at least one consumed export are live for
+ * symbol tracking. A barrel that merely re-exports a frozen unused export
+ * must not make that export's private dependencies look live.
+ * @param graph - Parsed modules.
  * @param entries - Entry-point files.
  * @returns Used `file#name` keys.
  */
-function usedExports(
-  graph: ModuleGraph,
-  reachable: ReadonlySet<string>,
-  entries: readonly string[],
-): ReadonlySet<string> {
+function usedExports(graph: ModuleGraph, entries: readonly string[]): ReadonlySet<string> {
   const used = new Set<string>();
+  const files = new Set(entries);
   for (const entry of entries) markAllExports(graph, used, entry);
-  for (const file of reachable) {
-    const source = graph.get(file);
-    if (source === undefined) continue;
-    for (const edge of source.imports) {
-      if (edge.names === '*') markAllExports(graph, used, edge.target);
-      else for (const name of edge.names) markExport({ graph, used, file: edge.target, name });
-    }
+  addUsedFiles(used, files);
+  let previous = -1;
+  while (previous !== used.size) {
+    previous = used.size;
+    for (const file of [...files]) consumeImports(graph, used, file);
+    addUsedFiles(used, files);
   }
   return used;
 }
@@ -586,7 +617,7 @@ function usedExports(
  */
 function analyze(graph: ModuleGraph, entries: readonly string[]): IDeadCodeReport {
   const reachable = reachableFiles(graph, entries);
-  const used = usedExports(graph, reachable, entries);
+  const used = usedExports(graph, entries);
   const files = [...graph.keys()].filter(file => !reachable.has(file)).sort();
   const exports: string[] = [];
   for (const file of graph.keys()) {
