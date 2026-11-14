@@ -123,4 +123,4 @@ function toBuilderState(fields: IBuilderFields): IBuilderState {
 }
 
 export type { IBuilderFields };
-export { assertRequiredFields, toBuilderState, validateBuilderFields };
+export { toBuilderState, validateBuilderFields };

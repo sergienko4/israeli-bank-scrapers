@@ -10,5 +10,5 @@ function createPipelineBuilder(): PipelineBuilder {
   return Reflect.construct(PipelineBuilder, []);
 }
 
-export { createPipelineBuilder };
 export default createPipelineBuilder;
+export { createPipelineBuilder };

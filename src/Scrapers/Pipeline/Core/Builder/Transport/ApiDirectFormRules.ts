@@ -164,4 +164,3 @@ const API_DIRECT_FORM_RULES: readonly IApiDirectRule[] = [
 ];
 
 export default API_DIRECT_FORM_RULES;
-export { API_DIRECT_FORM_RULES };

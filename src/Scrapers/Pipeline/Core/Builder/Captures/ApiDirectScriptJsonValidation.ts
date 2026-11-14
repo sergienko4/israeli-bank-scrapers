@@ -41,4 +41,3 @@ function isScriptJsonCaptureValid(capture: object): boolean {
 }
 
 export default isScriptJsonCaptureValid;
-export { isScriptJsonCaptureValid };

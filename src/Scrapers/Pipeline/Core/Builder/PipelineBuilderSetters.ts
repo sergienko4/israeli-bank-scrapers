@@ -109,7 +109,7 @@ function snapshotFields(state: IBuilderState): IBuilderFields {
   return { ...state };
 }
 
-export type { AnyApiDirectScrapeShape, IBuilderState };
+export type { IBuilderState };
 export {
   bindBankTextRule,
   createEmptyState,

@@ -12,9 +12,9 @@ import type { IHeaderExtract } from '../../../Mediator/ApiDirectCall/ConfigContr
 import type { ITransportConfig } from '../../../Registry/Config/PipelineBankConfigTypes.js';
 import { allSteps, type IApiDirectRule, type IApiDirectRuleInput } from '../ApiDirectRuleInput.js';
 import { API_DIRECT_COOKIE_RULES } from './ApiDirectCookieRules.js';
-import { API_DIRECT_INTEGRITY_RULES } from './ApiDirectIntegrityRules.js';
-import { API_DIRECT_MEDIA_RULES } from './ApiDirectMediaRules.js';
-import { API_DIRECT_UTF8_RULES } from './ApiDirectUtf8Rules.js';
+import API_DIRECT_INTEGRITY_RULES from './ApiDirectIntegrityRules.js';
+import API_DIRECT_MEDIA_RULES from './ApiDirectMediaRules.js';
+import API_DIRECT_UTF8_RULES from './ApiDirectUtf8Rules.js';
 
 /** A step field one transport family acts on. */
 type GatedStepField =
@@ -250,5 +250,4 @@ const API_DIRECT_NATIVE_RULES: readonly IApiDirectRule[] = [
   ...API_DIRECT_INTEGRITY_RULES,
 ];
 
-export default API_DIRECT_NATIVE_RULES;
 export { API_DIRECT_NATIVE_RULES, NATIVE_TRANSPORT_FIELDS };

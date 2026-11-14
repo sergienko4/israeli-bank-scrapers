@@ -80,4 +80,3 @@ function isJwtClaimsCaptureValid(capture: object): boolean {
 }
 
 export default isJwtClaimsCaptureValid;
-export { isJwtClaimsCaptureValid };

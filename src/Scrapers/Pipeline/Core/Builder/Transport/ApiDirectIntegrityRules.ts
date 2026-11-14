@@ -33,4 +33,3 @@ const API_DIRECT_INTEGRITY_RULES: readonly IApiDirectRule[] = [
 ];
 
 export default API_DIRECT_INTEGRITY_RULES;
-export { API_DIRECT_INTEGRITY_RULES };

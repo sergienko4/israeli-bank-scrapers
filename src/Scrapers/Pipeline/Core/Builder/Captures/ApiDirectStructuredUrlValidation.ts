@@ -94,4 +94,3 @@ function areSdkUrlRulesValid(value: unknown): boolean {
 }
 
 export default areSdkUrlRulesValid;
-export { areSdkUrlRulesValid };

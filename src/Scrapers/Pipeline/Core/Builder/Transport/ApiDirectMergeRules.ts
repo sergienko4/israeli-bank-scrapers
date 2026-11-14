@@ -75,5 +75,4 @@ const API_DIRECT_MERGE_RULES: readonly IApiDirectRule[] = [
   },
 ];
 
-export default API_DIRECT_MERGE_RULES;
 export { API_DIRECT_MERGE_RULES, isMergeRoot };

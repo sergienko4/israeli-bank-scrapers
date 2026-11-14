@@ -17,7 +17,7 @@ import {
   type IApiDirectRuleInput,
   isExtractSlot,
 } from '../ApiDirectRuleInput.js';
-import { API_DIRECT_PERSISTENT_AUTH_RULES } from './ApiDirectPersistentAuthRules.js';
+import API_DIRECT_PERSISTENT_AUTH_RULES from './ApiDirectPersistentAuthRules.js';
 
 /**
  * Whether a step extracts the slot, or lands its checked final URL there.
@@ -72,5 +72,3 @@ const API_DIRECT_SESSION_RULES: readonly IApiDirectRule[] = [
 ];
 
 export default API_DIRECT_SESSION_RULES;
-
-export { API_DIRECT_SESSION_RULES };

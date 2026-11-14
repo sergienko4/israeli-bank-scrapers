@@ -42,4 +42,3 @@ const API_DIRECT_PERSISTENT_AUTH_RULES: readonly IApiDirectRule[] = [
 ];
 
 export default API_DIRECT_PERSISTENT_AUTH_RULES;
-export { API_DIRECT_PERSISTENT_AUTH_RULES };

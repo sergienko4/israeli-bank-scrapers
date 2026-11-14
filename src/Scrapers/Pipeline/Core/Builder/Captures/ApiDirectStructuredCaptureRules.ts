@@ -11,9 +11,9 @@ import {
   isExtractSlot,
 } from '../ApiDirectRuleInput.js';
 import { generatedSlots } from '../Auth/ApiDirectWarmBundleRules.js';
-import { isJwtClaimsCaptureValid } from './ApiDirectJwtCaptureValidation.js';
-import { isScriptJsonCaptureValid } from './ApiDirectScriptJsonValidation.js';
-import { areSdkUrlRulesValid } from './ApiDirectStructuredUrlValidation.js';
+import isJwtClaimsCaptureValid from './ApiDirectJwtCaptureValidation.js';
+import isScriptJsonCaptureValid from './ApiDirectScriptJsonValidation.js';
+import areSdkUrlRulesValid from './ApiDirectStructuredUrlValidation.js';
 
 /**
  * Validates an SDK reference capture's URL rules.
@@ -119,4 +119,3 @@ const API_DIRECT_STRUCTURED_CAPTURE_RULES: readonly IApiDirectRule[] = [
 ];
 
 export default API_DIRECT_STRUCTURED_CAPTURE_RULES;
-export { API_DIRECT_STRUCTURED_CAPTURE_RULES };

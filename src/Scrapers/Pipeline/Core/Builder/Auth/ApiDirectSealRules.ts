@@ -301,4 +301,3 @@ const API_DIRECT_SEAL_RULES: readonly IApiDirectRule[] = [
 ];
 
 export default API_DIRECT_SEAL_RULES;
-export { API_DIRECT_SEAL_RULES };
