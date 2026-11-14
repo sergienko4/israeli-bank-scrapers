@@ -21,5 +21,4 @@ const BEINLEUMI_API_DIRECT_CALL: IApiDirectCallConfig = buildFibiApiDirectCall(B
 
 const BEINLEUMI_TRANSPORT: ITransportConfig = buildFibiTransport(BEINLEUMI_BRAND);
 
-export default BEINLEUMI_API_DIRECT_CALL;
 export { BEINLEUMI_API_DIRECT_CALL, BEINLEUMI_TRANSPORT };

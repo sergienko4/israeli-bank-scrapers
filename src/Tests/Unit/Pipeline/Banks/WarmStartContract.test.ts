@@ -35,6 +35,7 @@ import {
   cookieJarWarmOf,
   warmCarryField,
 } from '../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmStartKind.js';
+import { callOfModule } from '../../../Helpers/BankConfigModule.js';
 import { stepWrites, writesOf } from './CarrySlotWriters.js';
 
 /** Bank label paired with the module path of its call-config literal. */
@@ -184,19 +185,14 @@ function isCarryToken(config: IApiDirectCallConfig): boolean {
   return boundWarmOf(config) === false;
 }
 
-/** Module shape shared by every call-config literal — default export. */
-interface IConfigModule {
-  readonly default: IApiDirectCallConfig;
-}
-
 /**
  * Load one bank's call-config literal via the permitted dynamic-import hatch.
  * @param path - Module path of the config literal.
  * @returns Promise resolving to the config.
  */
 async function loadConfig(path: string): Promise<IApiDirectCallConfig> {
-  const mod = (await import(path)) as IConfigModule;
-  return mod.default;
+  const mod = (await import(path)) as Record<string, unknown>;
+  return callOfModule(mod);
 }
 
 /**

@@ -138,5 +138,4 @@ const HAPOALIM_STEPS: readonly IStepConfig[] = [
 /** Where a warm start resumes: the device registration call, which checks the session. */
 const HAPOALIM_RESUME_STEP_INDEX = HAPOALIM_STEPS.indexOf(STEP1_STEP);
 
-export default HAPOALIM_STEPS;
 export { HAPOALIM_RESUME_STEP_INDEX, HAPOALIM_STEPS };

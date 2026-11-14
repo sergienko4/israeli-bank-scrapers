@@ -144,5 +144,4 @@ const MIZRAHI_TRANSPORT: ITransportConfig = {
   omitBankText: MIZRAHI_API_DIRECT_CALL.omitBankText,
 };
 
-export default MIZRAHI_API_DIRECT_CALL;
 export { MIZRAHI_API_DIRECT_CALL, MIZRAHI_TRANSPORT };

@@ -86,5 +86,4 @@ const MAX_TRANSPORT: ITransportConfig = {
   sessionCookies: true,
 };
 
-export default MAX_API_DIRECT_CALL;
 export { MAX_API_DIRECT_CALL, MAX_TRANSPORT };

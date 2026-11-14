@@ -21,5 +21,4 @@ const MASSAD_API_DIRECT_CALL: IApiDirectCallConfig = buildFibiApiDirectCall(MASS
 
 const MASSAD_TRANSPORT: ITransportConfig = buildFibiTransport(MASSAD_BRAND);
 
-export default MASSAD_API_DIRECT_CALL;
 export { MASSAD_API_DIRECT_CALL, MASSAD_TRANSPORT };

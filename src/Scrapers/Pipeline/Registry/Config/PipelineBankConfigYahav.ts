@@ -51,5 +51,4 @@ const YAHAV_TRANSPORT: ITransportConfig = {
   cookieDomains: ['yahav.co.il'],
 };
 
-export default YAHAV_API_DIRECT_CALL;
 export { YAHAV_API_DIRECT_CALL, YAHAV_TRANSPORT };

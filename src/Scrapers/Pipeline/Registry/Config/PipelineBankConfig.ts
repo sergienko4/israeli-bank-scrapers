@@ -117,5 +117,4 @@ function resolvePipelineBankConfig(companyId: CompanyTypes): IPipelineBankConfig
 
 seedWkFromPipelineConfig(PIPELINE_BANK_CONFIG);
 
-export default resolvePipelineBankConfig;
 export { PIPELINE_BANK_CONFIG, resolvePipelineBankConfig };

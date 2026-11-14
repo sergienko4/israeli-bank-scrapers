@@ -13,5 +13,4 @@ const AMEX_API_DIRECT_CALL = buildRingApiDirectCall(AMEX_RING);
 /** Amex transport endpoints. */
 const AMEX_TRANSPORT = buildRingTransport(AMEX_RING);
 
-export default AMEX_API_DIRECT_CALL;
 export { AMEX_API_DIRECT_CALL, AMEX_TRANSPORT };

@@ -13,6 +13,7 @@
 import type { IApiDirectCallConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import RISK_MINDER_MFP_FORMAT from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/DeviceIdentity/Formats/RiskMinderMfp.js';
 import { checkRequiredCreds } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RequiredCreds.js';
+import { callOfModule } from '../../../../Helpers/BankConfigModule.js';
 import {
   INVALID_CREDS_DISCOUNT,
   INVALID_CREDS_HAPOALIM,
@@ -49,8 +50,8 @@ const ROWS: readonly IPlaceholderRow[] = [
  */
 async function loadCall(bank: string): Promise<IApiDirectCallConfig> {
   const path = `${CONFIG_DIR}PipelineBankConfig${bank}.js`;
-  const loaded = (await import(path)) as { readonly default: IApiDirectCallConfig };
-  return loaded.default;
+  const loaded = (await import(path)) as Record<string, unknown>;
+  return callOfModule(loaded);
 }
 
 describe('invalid-login placeholders reach the bank', () => {

@@ -27,6 +27,7 @@ import type { JsonValue } from '../../../../../Scrapers/Pipeline/Mediator/ApiDir
 import { buildInitialCarry } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/FlowInitCarry.build.js';
 import { hydrate } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/GenericBodyTemplate.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { callOfModule } from '../../../../Helpers/BankConfigModule.js';
 
 const CONFIG_DIR = '../../../../../Scrapers/Pipeline/Registry/Config/';
 
@@ -179,7 +180,7 @@ const EXPECTED_SERVICES = [
  */
 async function loadModule(issuer: IRingIssuer): Promise<IRingModule> {
   const loaded = (await import(`${CONFIG_DIR}${issuer.module}`)) as Record<string, unknown>;
-  const call = loaded.default as IApiDirectCallConfig;
+  const call = callOfModule(loaded);
   const transportConfig = loaded[issuer.transportExport] as ITransportConfig;
   return { call, transportConfig };
 }

@@ -24,6 +24,7 @@ import { checkRequiredCreds } from '../../../../../Scrapers/Pipeline/Mediator/Ap
 import { applyExtractRules } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.extractRules.js';
 import { hydrate } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/GenericBodyTemplate.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { callOfModule } from '../../../../Helpers/BankConfigModule.js';
 
 const CONFIG_MODULE = '../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigYahav.js';
 
@@ -88,7 +89,7 @@ const TOKEN_FORM = {
  */
 async function loadModule(): Promise<IYahavModule> {
   const loaded = (await import(CONFIG_MODULE)) as Record<string, unknown>;
-  const call = loaded.default as IApiDirectCallConfig;
+  const call = callOfModule(loaded);
   const transportConfig = loaded.YAHAV_TRANSPORT as TransportBlock;
   return { call, transportConfig };
 }

@@ -19,6 +19,7 @@ import {
 } from '../../../../../Scrapers/Pipeline/Core/Builder/Validation/ApiDirectConfigRules.js';
 import type { IApiDirectCallConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { hydrate } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/GenericBodyTemplate.js';
+import { callOfModule } from '../../../../Helpers/BankConfigModule.js';
 
 const CONFIG_DIR = '../../../../../Scrapers/Pipeline/Registry/Config/';
 
@@ -41,7 +42,7 @@ const CREDS = { username: 'user1', password: 'pw' } as const;
 async function loadMax(): Promise<IMaxModule> {
   const path = `${CONFIG_DIR}PipelineBankConfigMax.js`;
   const loaded = (await import(path)) as Record<string, unknown>;
-  const call = loaded.default as IApiDirectCallConfig;
+  const call = callOfModule(loaded);
   const transportConfig = loaded.MAX_TRANSPORT as ITransportConfig;
   return { call, transportConfig };
 }

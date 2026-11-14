@@ -38,5 +38,4 @@ const ONEZERO_TRANSPORT: ITransportConfig = {
   phoneNumberFormat: 'international-plus',
 };
 
-export default ONEZERO_TRANSPORT;
 export { ONEZERO_TRANSPORT, ONEZERO_USER_AGENT };
