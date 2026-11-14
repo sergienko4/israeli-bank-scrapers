@@ -16,6 +16,7 @@ import { CompanyTypes } from '../../../../../Definitions.js';
 import type { IApiDirectRuleInput } from '../../../../../Scrapers/Pipeline/Core/Builder/Validation/ApiDirectConfigRules.js';
 import { validateApiDirectConfig } from '../../../../../Scrapers/Pipeline/Core/Builder/Validation/ApiDirectConfigRules.js';
 import type { IApiDirectCallConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
+import { callOfModule } from './BankConfigModule.js';
 
 /** The bank's transport block, as the build-time validator reads it. */
 type TransportBlock = Exclude<IApiDirectRuleInput['transport'], false>;
@@ -58,7 +59,7 @@ async function loadConfig(
   transportExport: string,
 ): Promise<ILoadedConfig & { readonly text: string }> {
   const loaded = (await import(`${CONFIG_DIR}${module}`)) as Record<string, unknown>;
-  const call = loaded.default as IApiDirectCallConfig;
+  const call = callOfModule(loaded);
   const transportConfig = loaded[transportExport] as TransportBlock;
   const text = JSON.stringify({ call, transportConfig });
   return { call, transportConfig, text };

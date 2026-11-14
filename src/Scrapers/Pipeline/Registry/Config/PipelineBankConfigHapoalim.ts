@@ -106,5 +106,4 @@ const HAPOALIM_TRANSPORT: ITransportConfig = {
   omitBankText: HAPOALIM_API_DIRECT_CALL.omitBankText,
 };
 
-export default HAPOALIM_API_DIRECT_CALL;
 export { HAPOALIM_API_DIRECT_CALL, HAPOALIM_TRANSPORT };

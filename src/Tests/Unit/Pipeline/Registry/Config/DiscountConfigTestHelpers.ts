@@ -18,6 +18,7 @@ import { hydrate } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall
 import { resolveRefText } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/RefResolver.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { callOfModule } from './BankConfigModule.js';
 
 const CONFIG_MODULE =
   '../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigDiscount.js';
@@ -52,7 +53,7 @@ const CARRY = { uid: UID, uidMd5: UID_MD5, rsaKey: 'syn-key', mi6: UID_MD5 } as 
  */
 async function loadModule(): Promise<IDiscountModule> {
   const loaded = (await import(CONFIG_MODULE)) as Record<string, unknown>;
-  const call = loaded.default as IApiDirectCallConfig;
+  const call = callOfModule(loaded);
   const transport = loaded.DISCOUNT_TRANSPORT as TransportBlock;
   return { call, transport };
 }

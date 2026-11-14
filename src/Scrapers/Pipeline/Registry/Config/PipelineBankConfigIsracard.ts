@@ -13,5 +13,4 @@ const ISRACARD_API_DIRECT_CALL = buildRingApiDirectCall(ISRACARD_RING);
 /** Isracard transport endpoints. */
 const ISRACARD_TRANSPORT = buildRingTransport(ISRACARD_RING);
 
-export default ISRACARD_API_DIRECT_CALL;
 export { ISRACARD_API_DIRECT_CALL, ISRACARD_TRANSPORT };

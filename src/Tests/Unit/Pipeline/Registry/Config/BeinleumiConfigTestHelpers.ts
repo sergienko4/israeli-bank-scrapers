@@ -16,6 +16,7 @@ import { classifyAnswer } from '../../../../../Scrapers/Pipeline/Mediator/ApiDir
 import { applyExtractRules } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.extractRules.js';
 import { hydrate } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/GenericBodyTemplate.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { callOfModule } from './BankConfigModule.js';
 
 const CONFIG_MODULE =
   '../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigBeinleumi.js';
@@ -81,7 +82,7 @@ const ENVELOPE_HEADERS = [
  */
 async function loadModule(): Promise<IBeinleumiModule> {
   const loaded = (await import(CONFIG_MODULE)) as Record<string, unknown>;
-  const call = loaded.default as IApiDirectCallConfig;
+  const call = callOfModule(loaded);
   const transport = loaded.BEINLEUMI_TRANSPORT as TransportBlock;
   return { call, transport };
 }

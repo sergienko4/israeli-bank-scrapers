@@ -150,5 +150,4 @@ const YAHAV_STEPS: readonly IStepConfig[] = [PRIME_STEP, REGISTER_STEP, LOGON_ST
 /** Where a warm start resumes: the token call, over the stored certificate. */
 const YAHAV_RESUME_STEP_INDEX = YAHAV_STEPS.indexOf(LOGON_STEP);
 
-export default YAHAV_STEPS;
 export { YAHAV_RESUME_STEP_INDEX, YAHAV_STEPS };

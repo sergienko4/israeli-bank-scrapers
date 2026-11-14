@@ -20,6 +20,7 @@ import {
   INVALID_CREDS_USERNAME_PASSWORD,
   INVALID_CREDS_YAHAV,
 } from '../../../../TestConstants.js';
+import { callOfModule } from './BankConfigModule.js';
 
 const CONFIG_DIR = '../../../../../Scrapers/Pipeline/Registry/Config/';
 
@@ -49,8 +50,8 @@ const ROWS: readonly IPlaceholderRow[] = [
  */
 async function loadCall(bank: string): Promise<IApiDirectCallConfig> {
   const path = `${CONFIG_DIR}PipelineBankConfig${bank}.js`;
-  const loaded = (await import(path)) as { readonly default: IApiDirectCallConfig };
-  return loaded.default;
+  const loaded = (await import(path)) as Record<string, unknown>;
+  return callOfModule(loaded);
 }
 
 describe('invalid-login placeholders reach the bank', () => {

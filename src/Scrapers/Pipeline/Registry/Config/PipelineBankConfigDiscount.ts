@@ -23,5 +23,4 @@ const DISCOUNT_API_DIRECT_CALL: IApiDirectCallConfig = buildTelebankApiDirectCal
 
 const DISCOUNT_TRANSPORT: ITransportConfig = buildTelebankTransport(DISCOUNT_BRAND);
 
-export default DISCOUNT_API_DIRECT_CALL;
 export { DISCOUNT_API_DIRECT_CALL, DISCOUNT_TRANSPORT };
