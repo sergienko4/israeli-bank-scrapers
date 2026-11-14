@@ -1,0 +1,263 @@
+/**
+ * Symbol-level dead-code reachability. The gate must follow re-exports from
+ * the real entry points and treat a barrel as a path, not as proof that every
+ * symbol behind it is used.
+ */
+
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import * as path from 'node:path';
+
+import type {
+  IDeadCodeBaseline,
+  IModuleSource,
+} from '../../../Tests/Tools/DeadCodeReachability.js';
+import {
+  analyze,
+  findRegressions,
+  loadModules,
+  parseModuleSource,
+} from '../../../Tests/Tools/DeadCodeReachability.js';
+
+/**
+ * Build one synthetic module source.
+ * @param file - Repo-relative path.
+ * @param overrides - Fields to replace.
+ * @returns Complete module source.
+ */
+function moduleOf(file: string, overrides: Partial<IModuleSource> = {}): IModuleSource {
+  return { file, local: [], named: [], stars: [], namespaces: [], imports: [], ...overrides };
+}
+
+/**
+ * Build a graph from modules.
+ * @param modules - Synthetic modules.
+ * @returns Parsed-module map.
+ */
+function graphOf(modules: readonly IModuleSource[]): Map<string, IModuleSource> {
+  return new Map(modules.map(module => [module.file, module]));
+}
+
+/** A baseline with no frozen items. */
+const EMPTY_BASELINE: IDeadCodeBaseline = {
+  note: 'synthetic',
+  unreachableFiles: [],
+  unusedExports: [],
+};
+
+describe('symbol-level dead-code reachability', () => {
+  it('flags a file reachable only through an unreachable barrel re-export', () => {
+    const graph = graphOf([
+      moduleOf('entry.ts'),
+      moduleOf('barrel.ts', { stars: ['hidden.ts'] }),
+      moduleOf('hidden.ts', { local: ['value'] }),
+    ]);
+    const report = analyze(graph, ['entry.ts']);
+    expect(report.files).toEqual(['barrel.ts', 'hidden.ts']);
+  });
+
+  it('resolves a named import through a reachable export-star barrel', () => {
+    const graph = graphOf([
+      moduleOf('entry.ts', { imports: [{ target: 'barrel.ts', names: ['value'] }] }),
+      moduleOf('barrel.ts', { stars: ['impl.ts'] }),
+      moduleOf('impl.ts', { local: ['value'] }),
+    ]);
+    const report = analyze(graph, ['entry.ts']);
+    expect(report).toEqual({ files: [], exports: [] });
+  });
+
+  it('reports an unused local export in a reachable module', () => {
+    const graph = graphOf([
+      moduleOf('entry.ts', { imports: [{ target: 'impl.ts', names: ['used'] }] }),
+      moduleOf('impl.ts', { local: ['used', 'unused'] }),
+    ]);
+    const report = analyze(graph, ['entry.ts']);
+    expect(report).toEqual({ files: [], exports: ['impl.ts#unused'] });
+  });
+
+  it('fails only for items added outside the frozen baseline', () => {
+    const current = { files: ['a.ts', 'b.ts'], exports: ['a.ts#x', 'b.ts#y'] };
+    const baseline: IDeadCodeBaseline = {
+      ...EMPTY_BASELINE,
+      unreachableFiles: ['a.ts'],
+      unusedExports: ['a.ts#x'],
+    };
+    const regressions = findRegressions(current, baseline);
+    expect(regressions).toEqual({ files: ['b.ts'], exports: ['b.ts#y'] });
+    const shrunk = findRegressions({ files: ['a.ts'], exports: ['a.ts#x'] }, baseline);
+    expect(shrunk).toEqual({ files: [], exports: [] });
+  });
+
+  it('finds dynamic imports in initializers and function bodies', () => {
+    const base = tmpdir();
+    const prefix = path.join(base, 'dead-code-');
+    const root = mkdtempSync(prefix);
+    try {
+      const aPath = path.join(root, 'a.ts');
+      const bPath = path.join(root, 'b.ts');
+      const cPath = path.join(root, 'c.ts');
+      const entryPath = path.join(root, 'entry.ts');
+      writeFileSync(aPath, 'export const a = 1;');
+      writeFileSync(bPath, 'export const b = 1;');
+      writeFileSync(cPath, 'export const c = 1;');
+      const text =
+        "const lazy = import('./a.js');\nfunction load() { return import('./b.js'); }\nconst tpl = import(`./c.js`);";
+      const source = parseModuleSource(root, entryPath, text);
+      const targets = source.imports.map(edge => edge.target);
+      expect(targets).toEqual(['a.ts', 'b.ts', 'c.ts']);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('does not re-export or resolve a default through export star', () => {
+    const graph = graphOf([
+      moduleOf('entry.ts', { stars: ['impl.ts'] }),
+      moduleOf('impl.ts', { local: ['default', 'named'] }),
+    ]);
+    const report = analyze(graph, ['entry.ts']);
+    expect(report.exports).toEqual(['impl.ts#default']);
+  });
+
+  it('reports unused exports from a frozen unreachable file', () => {
+    const graph = graphOf([moduleOf('entry.ts'), moduleOf('dead.ts', { local: ['old', 'new'] })]);
+    const report = analyze(graph, ['entry.ts']);
+    expect(report).toEqual({ files: ['dead.ts'], exports: ['dead.ts#new', 'dead.ts#old'] });
+  });
+
+  it('collects identifiers from nested destructuring exports', () => {
+    const root = process.cwd();
+    const file = path.join(root, 'src', 'fixture.ts');
+    const text =
+      'export const { value, nested: { inner } } = source; export const [first, , third] = list;';
+    const source = parseModuleSource(root, file, text);
+    expect(source.local).toEqual(['value', 'inner', 'first', 'third']);
+  });
+
+  it('records an import-type qualifier in the parser', () => {
+    const base = tmpdir();
+    const prefix = path.join(base, 'dead-code-import-type-');
+    const root = mkdtempSync(prefix);
+    try {
+      const implPath = path.join(root, 'impl.ts');
+      const entryPath = path.join(root, 'entry.ts');
+      writeFileSync(implPath, 'export interface Payload { x: number; }');
+      const source = parseModuleSource(
+        root,
+        entryPath,
+        "export type Public = import('./impl.js').Payload;",
+      );
+      expect(source.imports).toEqual([{ target: 'impl.ts', names: ['Payload'] }]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('marks all exports for an unqualified typeof import', () => {
+    const base = tmpdir();
+    const prefix = path.join(base, 'dead-code-typeof-');
+    const root = mkdtempSync(prefix);
+    try {
+      const implPath = path.join(root, 'impl.ts');
+      const entryPath = path.join(root, 'entry.ts');
+      writeFileSync(implPath, 'export interface Payload { x: number; }');
+      const source = parseModuleSource(
+        root,
+        entryPath,
+        "export type M = typeof import('./impl.js');",
+      );
+      expect(source.imports).toEqual([{ target: 'impl.ts', names: '*' }]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('does not treat imports of an unconsumed barrel export as live', () => {
+    const graph = graphOf([
+      moduleOf('entry.ts', { imports: [{ target: 'barrel.ts', names: ['Live'] }] }),
+      moduleOf('barrel.ts', {
+        named: [
+          { exported: 'Live', target: 'live.ts', targetName: 'Live' },
+          { exported: 'Dead', target: 'dead.ts', targetName: 'Dead' },
+        ],
+      }),
+      moduleOf('live.ts', { local: ['Live'] }),
+      moduleOf('dead.ts', {
+        local: ['Dead'],
+        imports: [{ target: 'helper.ts', names: ['Helper'] }],
+      }),
+      moduleOf('helper.ts', { local: ['Helper'] }),
+    ]);
+    const report = analyze(graph, ['entry.ts']);
+    expect(report.files).toEqual([]);
+    expect(report.exports).toEqual(['dead.ts#Dead', 'helper.ts#Helper']);
+  });
+
+  it('tracks side-effect imports as consumed modules without using their exports', () => {
+    const graph = graphOf([
+      moduleOf('entry.ts', { imports: [{ target: 'init.ts', names: [] }] }),
+      moduleOf('init.ts', {
+        local: ['init'],
+        imports: [{ target: 'helper.ts', names: ['helper'] }],
+      }),
+      moduleOf('helper.ts', { local: ['helper'] }),
+    ]);
+    const report = analyze(graph, ['entry.ts']);
+    expect(report.files).toEqual([]);
+    expect(report.exports).toEqual(['init.ts#init']);
+  });
+
+  it('parses static imports and re-exports end-to-end', () => {
+    const base = tmpdir();
+    const prefix = path.join(base, 'dead-code-static-');
+    const root = mkdtempSync(prefix);
+    try {
+      const src = path.join(root, 'src');
+      mkdirSync(src);
+      const fixtures: Readonly<Record<string, string>> = {
+        'default.ts': 'export default 1;',
+        'named.ts': 'export const value = 1; export const unused = 2;',
+        'namespace.ts': 'export const a = 1; export const b = 2;',
+        'side.ts': 'export const sideValue = 1;',
+        'reexport.ts': 'export const named = 1; export const other = 2;',
+        'star.ts': 'export const starValue = 1; export default 2;',
+        'starNs.ts': 'export const nsValue = 1;',
+        'entry.ts': [
+          "import def from './default.js';",
+          "import { value as alias } from './named.js';",
+          "import * as ns from './namespace.js';",
+          "import './side.js';",
+          "export { named as renamed } from './reexport.js';",
+          "export * from './star.js';",
+          "export * as starNs from './starNs.js';",
+        ].join('\n'),
+      };
+      for (const [name, text] of Object.entries(fixtures)) {
+        const file = path.join(src, name);
+        writeFileSync(file, text);
+      }
+      const graph = loadModules(root);
+      const report = analyze(graph, ['src/entry.ts']);
+      expect(report.files).toEqual([]);
+      expect(report.exports).toEqual([
+        'src/named.ts#unused',
+        'src/reexport.ts#other',
+        'src/side.ts#sideValue',
+        'src/star.ts#default',
+      ]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('parses local, default and local-clause exports', () => {
+    const root = process.cwd();
+    const file = path.join(root, 'src', 'fixture.ts');
+    const source = parseModuleSource(
+      root,
+      file,
+      'export const a = 1; export default function f() { return a; } export { a as b };',
+    );
+    expect(source.local).toEqual(['a', 'default', 'b']);
+  });
+});
