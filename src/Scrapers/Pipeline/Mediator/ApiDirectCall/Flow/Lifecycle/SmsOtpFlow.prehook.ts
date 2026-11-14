@@ -13,7 +13,7 @@
 import { ScraperErrorTypes } from '../../../../../Base/ErrorTypes.js';
 import type { Procedure } from '../../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../../Types/Procedure.js';
-import { DEFAULT_OTP_TIMEOUT_MS } from '../../../Timing/OtpTimingConfig.js';
+import DEFAULT_OTP_TIMEOUT_MS from '../../../Timing/OtpTimingConfig.js';
 import { RACE_TIMED_OUT, raceTimeout } from '../../../Timing/TimingActions.js';
 import type { IPreStepHook } from '../../ConfigContracts/EnvelopeTypes.js';
 import type { ITemplateScope } from '../../Template/RefResolver.js';

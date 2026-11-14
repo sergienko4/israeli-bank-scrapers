@@ -18,7 +18,7 @@ import type {
   IStepConfig,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { runSmsOtpFlow } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/SmsOtpFlow.js';
-import { DEFAULT_OTP_TIMEOUT_MS } from '../../../../../../Scrapers/Pipeline/Mediator/Timing/OtpTimingConfig.js';
+import DEFAULT_OTP_TIMEOUT_MS from '../../../../../../Scrapers/Pipeline/Mediator/Timing/OtpTimingConfig.js';
 import { registerWkUrl } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import type { ICookieSession } from '../../../../../../Scrapers/Pipeline/Types/Domain/CookieSession.js';
 import type { JsonValue } from '../../../../../../Scrapers/Pipeline/Types/JsonValue.js';
