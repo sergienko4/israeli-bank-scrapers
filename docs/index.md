@@ -49,7 +49,7 @@ flowchart LR
 | Banks supported  | **17** total — all API-direct on the Pipeline     | [Banks](banks/index.md)                         |
 | Phases           | API-direct: `API-DIRECT-CALL → API-DIRECT-SCRAPE` | [Phases](phases/index.md)                       |
 | Test suites      | 412, ~4,800 tests, 97.20% statements coverage     | [Workflow → CI gates](workflow/ci.md)           |
-| Pre-commit gates | Up to 23 gates in parallel                        | [Workflow → Pre-commit](workflow/pre-commit.md) |
+| Pre-commit gates | 8 fast gates; CI runs the full set                | [Workflow → Pre-commit](workflow/pre-commit.md) |
 
 ## What's new
 

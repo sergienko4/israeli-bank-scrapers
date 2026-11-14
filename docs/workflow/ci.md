@@ -56,7 +56,7 @@ and release together — covered in
 | **PR body compliance**        | n/a (server-side `actions/github-script`)                                                                             | PR body missing one of the 3 mandatory sections (`## Why`, `## What`, `## Guideline compliance`)                                                                                                                                                                                          | `.github/workflows/pr-body-check.yml` — mirrored locally by [`npm run lint:pr-body`](pre-push.md)         |
 | **Cited paths**               | `lint:doc-paths`                                                                                                      | An agent doc or PR body cites a repo path that does not exist                                                                                                                                                                                                                             | `scripts/check-doc-paths.mjs` — see [Doc path gate](doc-paths.md)                                         |
 | **Plan refs**                 | `lint:plan-refs`                                                                                                      | An added line cites an ID from a local, uncommitted plan (item number, decision ID, task number or section mark); fixtures, captured pages, lockfiles and the generated changelog are skipped                                                                                             | `scripts/check-plan-refs.mjs` — runs in the pre-commit hook and in `pr-body-check.yml`                    |
-| **Docs staleness**            | n/a (`Docs staleness canary` step of the [`Static checks`](#static-checks) job in `pr.yml`; also the pre-commit hook) | A file listed in a docs page's `source-files:` front matter changed, but no page that lists it changed. Runs on every PR that `is-bot-pr.cjs` does not exempt: bot PRs and same-repository `dependabot/…` or `release-please--…` branches skip it — see [Code scanning](code-scanning.md) | `.github/scripts/ci/docs-staleness.sh`                                                                    |
+| **Docs staleness**            | n/a (`Docs staleness canary` step of the [`Static checks`](#static-checks) job in `pr.yml`)                           | A file listed in a docs page's `source-files:` front matter changed, but no page that lists it changed. Runs on every PR that `is-bot-pr.cjs` does not exempt: bot PRs and same-repository `dependabot/…` or `release-please--…` branches skip it — see [Code scanning](code-scanning.md) | `.github/scripts/ci/docs-staleness.sh`                                                                    |
 | **Links**                     | n/a (Lychee step in `pr.yml`)                                                                                         | A link in `README.md` or `docs/**/*.md` is broken; runs when a PR touches Markdown, and on every manual run                                                                                                                                                                               | [Link checking](#link-checking)                                                                           |
 | **Fork PRs**                  | n/a (server-side `gh`)                                                                                                | A pull request opened from a fork is commented on and closed automatically — see [Pull requests come from this repository only](#pull-requests-come-from-this-repository-only)                                                                                                            | `.github/workflows/no-fork-prs.yml`                                                                       |
 
@@ -220,6 +220,17 @@ push inside the account's concurrent-job limit.
   docs staleness start a few seconds later than they did as separate jobs.
   `Validate` needs `Detect changes` too, so a failed change detection fails
   the merge rather than silently skipping them.
+- **Gates that used to run only in the hook.** Biome, dead code, guideline
+  coverage, test duplication, fixture PII, CodeRabbit filters and Jest scopes
+  ran nowhere but the pre-commit hook, which a fresh clone does not install
+  and `--no-verify` skips. They are foreground steps here now, each triggered
+  at least as widely as what can break it; fixture PII and CodeRabbit filters
+  are dependency-free and run on every run. `Added lines carry no known real
+  PII value` runs the staged-PII guard over the pull request's additions
+  (`BASE_SHA` = the base commit), bot PRs included. The pre-commit hook keeps
+  only fast, change-scoped and leak-preventing gates, and
+  `HookGatesInCi.test.ts` fails if a gate left in the hook has no step here.
+  See [Pre-commit hook](pre-commit.md).
 - **No shared writes.** Background steps share the working tree with the
   foreground ones, so none may write a file another step reads. Scorecard
   scans a `git archive` copy in a temporary directory. Decoupling writes its

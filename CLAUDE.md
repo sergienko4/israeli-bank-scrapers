@@ -75,7 +75,9 @@ Published as `@sergienko4/israeli-bank-scrapers` on npm.
 
 1. Branch from `main`: `git checkout -b fix/description`
 2. Verify relevant focused tests with `npm run test:unit -- --runTestsByPath <test-path>`
-3. Use normal commit hooks for their enabled gates, including lint and `npm run build` (tsup)
+3. Use the normal commit hook: fast gates on what you staged (type check, ESLint, Biome,
+   architecture, cycles) plus the PII and plan-ref leak checks; CI runs the full gate set,
+   including the build and the public-surface check
 4. Let CI run full suites, coverage and approved real-bank E2E
 5. Conventional commits: `fix:`, `feat:`, `refactor:`
 6. PR → squash merge to main

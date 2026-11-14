@@ -82,7 +82,6 @@ const PUBLIC_SURFACE_PATHS = [
  */
 const CHECKER_CALL_SITES = [
   ['.github/actions/build-package/action.yml', 'npm run lint:public-surface'],
-  ['.husky/pre-commit', 'npm run lint:public-surface'],
 ] as const;
 
 /**
@@ -647,12 +646,13 @@ describe('CriticalDepsFullSuiteGate', () => {
     expect(checkScript).toBe(CHECK_SCRIPT_COMMAND);
   });
 
-  it('[CI-CRIT-GATE] Wiring_HuskyBuildGate_ShouldChainTheChecker', () => {
-    const hookPath = join(REPO_ROOT, '.husky/pre-commit');
-    const hook = read(hookPath);
-    const buildGate = hook.split('\n').find(line => line.includes('bg_gate "build"')) ?? '';
-    const hasCheckerChained = buildGate.trimEnd().endsWith("&& npm run lint:public-surface'");
-    expect(hasCheckerChained).toBe(true);
+  it('[CI-CRIT-GATE] Wiring_BuildPackage_ShouldCheckTheFreshBuild', () => {
+    const actionPath = join(REPO_ROOT, '.github/actions/build-package/action.yml');
+    const action = read(actionPath);
+    const buildAt = action.indexOf('run: npx tsup');
+    const checkAt = action.indexOf('run: npm run lint:public-surface');
+    expect(buildAt).toBeGreaterThanOrEqual(0);
+    expect(checkAt).toBeGreaterThan(buildAt);
   });
 
   it('[CI-CRIT-GATE] Detector_HuskyChange_ShouldRunTheWiringTests', () => {

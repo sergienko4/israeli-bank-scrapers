@@ -110,7 +110,6 @@ or snapshot missing). `2` is never a pass.
 
 | Surface | Entry point |
 | --- | --- |
-| Pre-commit | Folded into the `build` gate in `.husky/pre-commit`, immediately after `tsup` produces `lib/`. Gates run in parallel, so it shares the gate that guarantees the build exists rather than racing it. |
 | CI | The `Check public API surface` step in `.github/actions/build-package/action.yml`, alongside the existing output checks and `publint`. |
 
 The CI step only runs if the build step of the `package-factory` job runs. The
@@ -144,9 +143,9 @@ read more into a green result than it earns:
   artifact; the gate only guarantees it cannot be out of date.
 - **It reads `lib/`, so it is only as fresh as your last build.** Run it
   standalone after editing `src/index.ts` without rebuilding and it will compare
-  a stale declaration and pass. Always `npm run build` first — the pre-commit
-  hook and the CI action both do, which is why they are the authoritative
-  invocations.
+  a stale declaration and pass. Always `npm run build` first — the CI action
+  builds immediately before it checks, which is why it is the authoritative
+  invocation.
 - **It does not cover the package entrypoints.** `main`, `module`, `types` and
   the conditional `exports` map in `package.json` decide what a consumer can
   actually import. Redirecting one of those changes the usable API while the

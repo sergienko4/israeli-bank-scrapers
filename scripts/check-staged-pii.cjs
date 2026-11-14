@@ -21,8 +21,13 @@
  *
  * Exit 1 (blocks the commit) when any staged addition matches. Prints the
  * offending file(s) only — never the value.
+ *
+ * With `BASE_SHA` set it scans the pull request's additions instead
+ * (`git diff BASE_SHA...HEAD`), which is how CI runs it: the hook only sees
+ * what is staged, so a commit made with the hook skipped needs this second
+ * look before it can merge.
  */
-const { execSync } = require('node:child_process');
+const { execFileSync } = require('node:child_process');
 const { createHash } = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -56,12 +61,21 @@ function candidateTokens(line) {
   return tokens;
 }
 
-/** Scan the staged additions and return the set of offending file paths. */
-function findOffendingFiles(deny) {
-  const diff = execSync('git diff --cached --unified=0', {
-    encoding: 'utf8',
-    maxBuffer: 128 * 1024 * 1024,
-  });
+/** A full or abbreviated commit id; anything else is refused, never passed to git. */
+const COMMIT_ID = /^[0-9a-f]{7,40}$/i;
+
+/**
+ * The `git` arguments for the additions to scan: the staged index, or the
+ * pull request range when a base commit is given.
+ */
+function diffArgs(baseSha) {
+  if (!baseSha) return ['diff', '--cached', '--unified=0'];
+  if (!COMMIT_ID.test(baseSha)) return null;
+  return ['diff', '--unified=0', `${baseSha}...HEAD`];
+}
+
+/** Return the set of file paths whose added lines carry a denylisted value. */
+function findOffendingFiles(deny, diff) {
   const offending = new Set();
   let file = '';
   for (const line of diff.split('\n')) {
@@ -76,14 +90,21 @@ function findOffendingFiles(deny) {
 }
 
 function main() {
-  const deny = loadDenylist();
-  const offending = findOffendingFiles(deny);
+  const baseSha = process.env.BASE_SHA ?? '';
+  const args = diffArgs(baseSha);
+  if (args === null) {
+    console.error('🛑 PII guard: BASE_SHA is not a commit id.');
+    process.exit(2);
+  }
+  const scope = baseSha ? `changes since ${baseSha}` : 'staged changes';
+  const diff = execFileSync('git', args, { encoding: 'utf8', maxBuffer: 128 * 1024 * 1024 });
+  const offending = findOffendingFiles(loadDenylist(), diff);
   if (offending.length === 0) {
-    console.log('✅ pii-denylist: no known real values in staged changes.');
+    console.log(`✅ pii-denylist: no known real values in ${scope}.`);
     return;
   }
   console.error(
-    '\n🛑 PII guard: staged changes re-introduce a known real ' +
+    `\n🛑 PII guard: ${scope} re-introduce a known real ` +
       'account / card / API-key value in:',
   );
   for (const file of offending) console.error(`   ${file}`);
@@ -95,4 +116,6 @@ function main() {
   process.exit(1);
 }
 
-main();
+module.exports = { diffArgs, findOffendingFiles };
+
+if (require.main === module) main();

@@ -143,6 +143,8 @@ scripts/**
 # and Git-Bash on Windows rather than on ubuntu-latest alone.
 !scripts/check-shell-portability.mjs
 !scripts/check-staged-pii.cjs
+# Types the `CheckStagedPii` unit test, which imports the guard's pure core.
+!scripts/check-staged-pii.d.cts
 # Run by `npm run lint:syntax-guardrails` from the pre-commit hook and the
 # Static checks job, so it has to be in the tree for either to work. It is the
 # only instrument that can see a flat-config `no-restricted-syntax` override

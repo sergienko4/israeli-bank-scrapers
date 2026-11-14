@@ -37,8 +37,13 @@ set -euo pipefail
 
 CANARY_DIR="src/Scrapers/Pipeline/EslintCanaries"
 FIXTURE_DIR="$CANARY_DIR/fixtures"
-# Use node to get a cross-platform temp file path (works on Windows + Unix)
-TMPFILE="$(node -e "const os=require('os');const p=require('path');console.log(p.join(os.tmpdir(),'canary-verify.json'))")"
+# Use node to get a cross-platform temp file path (works on Windows + Unix).
+# The directory is unique per run: a fixed name let two concurrent runs (two
+# checkouts, or two gates of one hook) overwrite each other's ESLint report
+# mid-read, and the parse crashed.
+TMPDIR_CANARY="$(node -e "const fs=require('fs');const os=require('os');const p=require('path');console.log(fs.mkdtempSync(p.join(os.tmpdir(),'canary-verify-')))")"
+trap 'rm -rf "$TMPDIR_CANARY"' EXIT
+TMPFILE="$TMPDIR_CANARY/eslint.json"
 
 echo "🔍 Running Canary Validation..."
 

@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# Local pre-commit gates: fast, scoped to what is staged, plus the checks
+# that stop a leak before it enters history. Every repo-wide gate (build,
+# full ESLint, canaries, guardrails, guideline coverage, test duplication,
+# Jest scopes, docs gates, audit) runs in CI on every pull request it can
+# affect; HookGatesInCi.test.ts fails if a gate here has no CI step.
 set -o pipefail
 LOG_FILE=".pre-commit-output.log"
 : > "$LOG_FILE"
@@ -7,23 +12,6 @@ LOG_FILE=".pre-commit-output.log"
 STAGED_FILES=$(git diff --cached --name-only)
 CODE_FILES=$(echo "$STAGED_FILES" | grep -v -E '^\.(github|husky)/|^(README|CHANGELOG|CONTRIBUTING|SECURITY|CODE_OF_CONDUCT|CLEAN_CODE|LICENSE)' | grep -v -E '\.(md|json|yml|yaml)$' | grep -v -E '^(tasks/|\.)' || true)
 if [ -z "$CODE_FILES" ]; then
-    # Before skipping: a package.json-only commit lands here, because the
-    # filter above drops every .json path — and editing a test script's
-    # --testPathIgnorePatterns is the single likeliest way to widen a run's
-    # scope by accident. Leaving this path unguarded would exempt the exact
-    # edit the gate exists to catch, so run that one gate here. It asks Jest
-    # to list what each script selects, so it costs about fifteen seconds.
-    # A jest.*.js config counts as code and takes the normal path below, so
-    # it cannot arrive in this branch; it stays in the pattern only so the
-    # guard keeps holding if the filter above is ever widened.
-    SCOPE_FILES=$(echo "$STAGED_FILES" | grep -E '^(package\.json|jest\.[^/]*\.(c|m)?js)$' || true)
-    if [ -n "$SCOPE_FILES" ]; then
-        if ! npm run lint:jest-scopes >>"$LOG_FILE" 2>&1; then
-            echo "❌ jest-scopes FAILED — test scope drift; see $LOG_FILE" | tee -a "$LOG_FILE"
-            exit 1
-        fi
-        echo "  ✅ jest-scopes passed" | tee -a "$LOG_FILE"
-    fi
     # Docs, workflows and config are where a planning ID is likeliest to
     # slip in, and every one of them arrives in this branch. The scan reads
     # only the staged additions, so it costs well under a second.
@@ -35,39 +23,6 @@ if [ -z "$CODE_FILES" ]; then
     echo "⏭️  No source code changes — skipping quality gates" | tee -a "$LOG_FILE"
     exit 0
 fi
-
-# ── T1-INVERSE: test-only branch lockdown ─────────────────────────────
-# Symmetric to the existing T1 test-body-freeze guard (commit-msg hook).
-# Blocks production-code changes on test-only branches so test-refactor
-# PRs cannot silently smuggle behaviour changes.
-#
-# Activates when branch matches: refactor/phase-7-*, refactor/phase-9-*,
-# or chore/test-*. Production-code = anything under src/ that is NOT
-# under src/Tests/ or src/Scrapers/Pipeline/EslintCanaries/.
-#
-# If you discovered a production bug while doing test-only work, open
-# a separate fix(prod): PR FIRST, merge it, rebase this branch on the
-# new main, then resume the test-only work. Test-only PRs must stay
-# behaviour-preserving for review reliability.
-BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
-case "$BRANCH" in
-    refactor/phase-7-*|refactor/phase-9-*|chore/test-*)
-        PROD_DIFF=$(echo "$STAGED_FILES" | grep -E '^src/' \
-            | grep -v -E '^src/Tests/' \
-            | grep -v -E '^src/Scrapers/Pipeline/EslintCanaries/' \
-            || true)
-        if [ -n "$PROD_DIFF" ]; then
-            echo "❌ T1-INVERSE: test-only branch '$BRANCH' contains production-code changes:" | tee -a "$LOG_FILE"
-            echo "$PROD_DIFF" | sed 's/^/   /' | tee -a "$LOG_FILE"
-            echo "" | tee -a "$LOG_FILE"
-            echo "Test-only branches forbid src/Scrapers/** diffs (canaries excepted)." | tee -a "$LOG_FILE"
-            echo "If you discovered a production bug, open a separate fix(prod): PR" | tee -a "$LOG_FILE"
-            echo "FIRST, merge it, rebase this branch, then resume the test-only work." | tee -a "$LOG_FILE"
-            exit 1
-        fi
-        echo "✅ T1-INVERSE: zero production-code diff on test-only branch '$BRANCH'" | tee -a "$LOG_FILE"
-        ;;
-esac
 
 log() { echo "$1" | tee -a "$LOG_FILE"; }
 FAIL_COUNT=0
@@ -84,7 +39,6 @@ CACHE_DIR="node_modules/.cache/pre-commit"
 mkdir -p "$CACHE_DIR"
 
 cache_marker() {
-    # Gate names contain `:` (test:pipeline, test:mock, test:e2e:mock).
     # On Windows NTFS, `:` is the Alternate Data Stream separator, so
     # `touch foo:bar` writes to an ADS on `foo` and the subsequent
     # `[ -f foo:bar ]` returns false — the cache speed-up silently
@@ -177,26 +131,41 @@ if [ -n "$CACHE_KEY" ]; then
     find "$CACHE_DIR" -type f -name "*.passed" ! -name "*.$CACHE_KEY.passed" -delete 2>/dev/null
 fi
 
-# ── Phase 2 + 3 + 4 — every gate in parallel ──────────────────────────
-# All gates that have no inter-gate dependencies run concurrently. The
-# old layout chained Phase 3 (pipeline tests) and Phase 4 (mock + e2e
-# mock) sequentially after Phase 2 (static analysis), even though the
-# only real dependency was on Phase 1 prettier output. The longest
-# single gate (mock or e2e:mock at ~3 min) now sets the wall clock.
+# ── Phase 2: every gate in parallel ───────────────────────────────────
 log ""
 log "⚡ Phase 2: All gates parallel..."
 
-bg_gate "tsc"          "yes" npm run type-check
+# Whole program, but the TypeScript 7 native compiler checks it in seconds,
+# and a type error is the commonest way a change breaks the build.
+bg_gate "tsc" "yes" npm run type-check
 
-# Named for its scope, not for the tool. This gate lints ONLY the
-# Pipeline tree. The whole tree (`eslint src --max-warnings 0`) is
-# linted inside the "build" gate below, via `npm run build` →
-# `npm run lint`. Before the rename this ran as plain "eslint", so a
-# lint error under src/Tests/ reported as "build FAILED" while the
-# gate called "eslint" stayed green — accurate, but unreadable.
-bg_gate "eslint:pipeline" "yes" npx eslint src/Scrapers/Pipeline --max-warnings=0
-bg_gate "biome"        "yes" npx biome lint src --max-diagnostics=50
-bg_gate "audit"        "yes" npm audit --audit-level=high --omit=dev
+# Staged files only, as CI's ESLint step scopes them (`src`, no `.cjs`).
+# Above 50 files the list would outgrow the Windows command line, so the
+# gate lints the whole tree instead, exactly as CI does. A lint-config edit
+# (`eslint.config.mjs`, `eslint/`, `biome.json`) can change the verdict on
+# files nobody staged; only CI's full run sees that.
+LINT_FILES=$(git diff --cached --name-only --diff-filter=d -- 'src/' | grep -E '\.(ts|tsx|js|jsx|mjs)$' || true)
+if [ -n "$LINT_FILES" ]; then
+    LINT_FILE_COUNT=$(echo "$LINT_FILES" | wc -l)
+    if [ "$LINT_FILE_COUNT" -gt 50 ]; then
+        log "  ℹ️  eslint/biome: $LINT_FILE_COUNT files staged — linting the whole src tree (cmdline-safe)"
+        bg_gate "eslint" "yes" npx eslint src --max-warnings 0 --ignore-pattern '**/*.cjs'
+        bg_gate "biome" "yes" npx biome lint src --max-diagnostics=50
+    else
+        LINT_LIST=$(mktemp)
+        echo "$LINT_FILES" > "$LINT_LIST"
+        # Read the list from stdin, NOT `xargs -a` — `-a` is a GNU extension
+        # and macOS ships BSD xargs, where it aborts with "illegal option -- a".
+        # NUL-separated, so a path with a space stays one argument.
+        bg_gate "eslint" "yes" bash -c "tr '\\n' '\\0' < '$LINT_LIST' | xargs -0 npx eslint --max-warnings 0"
+        bg_gate "biome" "yes" bash -c "tr '\\n' '\\0' < '$LINT_LIST' | xargs -0 npx biome lint --max-diagnostics=50 --no-errors-on-unmatched"
+    fi
+else
+    log "  ⏭️  eslint/biome skipped — no lintable src/ file staged"
+fi
+if echo "$STAGED_FILES" | grep -q -E '^(eslint\.config\.mjs|eslint/|biome\.json)'; then
+    log "  ℹ️  lint config staged — CI runs the full ESLint, guardrail and canary gates"
+fi
 
 # Architectural Guardrails — the linter's scope is the whole `src` tree
 # (widened from Pipeline-only), matching `npm run lint`. Filter to `src/`
@@ -211,236 +180,26 @@ if [ -n "$ARCH_FILES" ]; then
     else
         ARCH_LIST=$(mktemp)
         echo "$ARCH_FILES" > "$ARCH_LIST"
-        # Read the list from stdin, NOT `xargs -a` — `-a` is a GNU
-        # extension and macOS ships BSD xargs, where it aborts with
-        # "illegal option -- a". Redirection is POSIX and behaves
-        # identically on GNU, BSD and Git-Bash.
         bg_gate "architecture" "yes" bash -c "xargs npx tsx src/Tests/Tools/lint-and-validate.ts < '$ARCH_LIST'"
     fi
 else
     log "  ⏭️  architecture skipped — no src/ files staged"
 fi
 
-bg_gate "build"             "yes" bash -c 'npm run build && npx rimraf lib/Common lib/Scrapers lib/Tests && test -f lib/index.cjs && npm run lint:public-surface'
-bg_gate "canaries"          "yes" npm run lint:canaries
-bg_gate "dead-code"         "yes" npm run lint:dead-code
-bg_gate "cycles"            "yes" npm run lint:cycles
-bg_gate "guideline-coverage" "yes" npm run lint:guideline-coverage
-# ESLint flat config REPLACES `no-restricted-syntax` options instead of
-# merging them, so the last matching block wins outright and every selector
-# unique to an earlier block evaporates with no error to notice. That is
-# invisible to `eslint src` — the rule still "runs", it just runs a smaller
-# set. This gate reads the RESOLVED config per production Pipeline file and
-# asserts every armed selector actually reached it. Runs unconditionally: the
-# collision is created by editing eslint.config.mjs, but it is also created by
-# adding a file under a path some later block already narrows.
-bg_gate "syntax-guardrails" "yes" npm run lint:syntax-guardrails
-bg_gate "test-duplication"  "yes" npm run lint:test-duplication
-bg_gate "fixtures-pii"      "yes" npm run lint:fixtures-pii
-bg_gate "pii-staged"        "yes" npm run lint:pii-staged
-# Plan files stay local, so an item number, decision ID, task number or
-# section mark cited from one explains nothing to a reader of the repo.
-# Not cached: the staged additions depend on HEAD as well as on the staged
-# tree. BASE_SHA is cleared so a value left exported in the shell cannot
-# turn this staged scan into a branch-wide one.
-bg_gate "plan-refs"         "no"  env BASE_SHA= npm run lint:plan-refs
-# Cheap, dependency-free consistency check: .nvmrc, engines.node, the CI
-# matrix and the README table must all name the same Node range. Runs
-# unconditionally because a README-only commit is the likeliest way to
-# drift it.
-bg_gate "node-support"      "yes" npm run lint:node-support
-# CodeRabbit's exclusion filters must only skip generated output. An
-# unanchored glob (`!**/lib/**`) reads as a build directory but matches one
-# ANYWHERE, so `scripts/decoupling-metrics/lib/*.mjs` — hand-written — went
-# unreviewed with no error to notice. Runs unconditionally: the two ways to
-# trip it are editing the filter list and adding a file under a path some
-# filter already reaches, and the second touches no config at all.
-bg_gate "coderabbit-filters" "yes" npm run lint:coderabbit-filters
-# Test scripts must not silently widen their own scope. Jest's
-# --testPathIgnorePatterns CLI flag REPLACES the config's list instead of
-# extending it, so a script that passes it reads like it is adding an
-# exclusion while it is actually discarding every one the config declared.
-# Not conditioned on which files are staged, because the two ways to trip
-# this — editing a package.json script, or adding a suite under a path some
-# script drops — need not touch a jest config. A package.json-only commit
-# never reaches here at all; the early exit at the top runs the same gate.
-bg_gate "jest-scopes"       "yes" npm run lint:jest-scopes
+# An import you just added is the usual way a cycle appears; the scan of the
+# whole graph takes about two seconds.
+bg_gate "cycles" "yes" npm run lint:cycles
 
-# docs-strict — fires when docs/** or any root .md file (consumed by
-# mkdocs.yml's nav / referenced via relative link) changed. Catches the
-# broken-relative-link / dead-nav class of failure locally instead of
-# burning a CI cycle (CR cycle-2: docs/contributing/lint.md broke
-# `mkdocs build --strict` with `../../CLEAN_CODE.md` pointing outside
-# docs_dir). Soft-skips when Python or mkdocs is missing — CI will
-# always re-run it under the `Validate` job either way.
-DOCS_FILES=$(echo "$STAGED_FILES" | grep -E '^(docs/|[A-Z_]+\.md$|mkdocs\.yml$)' || true)
-if [ -n "$DOCS_FILES" ]; then
-    if command -v zensical >/dev/null 2>&1; then
-        bg_gate "docs-strict" "yes" npm run lint:docs-strict
-    else
-        log "  ⏭️  docs-strict skipped — zensical not installed locally (CI still enforces)"
-    fi
-else
-    log "  ⏭️  docs-strict skipped — no docs/** or root .md files staged"
-fi
-
-# docs-coverage — fires when any Pipeline TS file is staged. Catches
-# the "new public export shipped without docs/ mention" class of CI
-# failure locally instead of burning a CI cycle. STAGE_MODE=1 so the
-# script diffs STAGED content (`git diff --cached`) against BASE_SHA
-# instead of `BASE_SHA..HEAD` — HEAD is still the parent commit at
-# pre-commit time, so the old range was always empty (silent skip).
-# BASE_SHA is the merge-base with the base ref, as in CI, not its tip:
-# a tip that moved after the branch forked (say a dependabot lockfile
-# bump) would otherwise count as part of this commit. Soft-skips when
-# the base ref (origin/main → main) can't be resolved locally — CI
-# always re-runs it under the `Validate` job either way.
-DOCS_BASE_REF=""
-if git rev-parse --verify -q origin/main >/dev/null 2>&1; then
-    DOCS_BASE_REF=origin/main
-elif git rev-parse --verify -q main >/dev/null 2>&1; then
-    DOCS_BASE_REF=main
-fi
-DOCS_BASE_SHA=""
-if [ -n "$DOCS_BASE_REF" ]; then
-    DOCS_BASE_SHA=$(git merge-base "$DOCS_BASE_REF" HEAD 2>/dev/null || git rev-parse "$DOCS_BASE_REF")
-fi
-DOCS_COV_FILES=$(echo "$STAGED_FILES" | grep -E '^src/Scrapers/Pipeline/.*\.ts$' || true)
-if [ -n "$DOCS_COV_FILES" ]; then
-    if [ -n "$DOCS_BASE_SHA" ]; then
-        bg_gate "docs-coverage" "yes" bash -c "STAGE_MODE=1 BASE_SHA='$DOCS_BASE_SHA' BASE_REF=main bash .github/scripts/ci/docs-coverage.sh"
-    else
-        log "  ⏭️  docs-coverage skipped — origin/main and main both unresolvable locally (CI still enforces)"
-    fi
-else
-    log "  ⏭️  docs-coverage skipped — no Pipeline TS files staged"
-fi
-
-# docs-staleness — Case B counterpart of docs-coverage. Fires when
-# any source file is staged AND a docs page declares that file in its
-# YAML frontmatter `source-files:` list. Fails if the docs page itself
-# was not also staged. Opt-in: docs pages without frontmatter give zero
-# signal; the gate only enforces bindings that contributors explicitly
-# declared. STAGE_MODE=1 for the same reason as docs-coverage. See
-# `.github/scripts/ci/docs-staleness.sh` for the algorithm + sample
-# frontmatter at `docs/observability/init-navigation-forensics.md`.
-if [ -n "$DOCS_BASE_SHA" ]; then
-    bg_gate "docs-staleness" "yes" bash -c "STAGE_MODE=1 BASE_SHA='$DOCS_BASE_SHA' BASE_REF=main bash .github/scripts/ci/docs-staleness.sh"
-else
-    log "  ⏭️  docs-staleness skipped — origin/main and main both unresolvable locally (CI still enforces)"
-fi
-
-# Heavy gates — each runs Jest with its own worker pool. Three gates
-# run concurrently here, so each pool gets ~1/3 of the available cores
-# (floor-divide, min 2) instead of a fixed `8`. On a 4-core laptop the
-# split is 2/2/2 = 6 workers total; on a 16-core dev box it's 5/5/5 = 15;
-# on a 24-core build VM it's 8/8/8 = 24. Prevents the resource-exhaustion
-# observed when three gates each grabbed 8 workers on smaller machines.
-TOTAL_CORES="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"
-JEST_WORKERS="$(( (TOTAL_CORES + 2) / 3 ))"
-[ "$JEST_WORKERS" -lt 2 ] && JEST_WORKERS=2
-
-JEST_BIN="node --experimental-vm-modules node_modules/jest/bin/jest.js"
-
-# Disabled 2026-06-15: test:pipeline + bank-tests were the last heavy Jest
-# gates in pre-commit (~10 min wall every commit) and are fully covered in
-# CI. `npm run test:pipeline` runs as the `Validate` job (pr.yml) and again
-# under sonarcloud.yml; that jest.pipeline.config.cjs already includes the
-# Unit/Pipeline/bank/ suite the standalone bank-tests gate re-ran, so the
-# bank gate is a strict subset — relocating both loses zero coverage. This
-# keeps the local commit flow fast (static gates: tsc / eslint / biome /
-# architecture / canaries / build) while CI stays the hard gate for the
-# Jest suites. Re-enable locally via `npm run test:pipeline` or the bank
-# pattern below when validating pipeline changes before pushing.
-#bg_gate "test:pipeline"     "yes" bash -c "npm run test:pipeline -- --maxWorkers=$JEST_WORKERS"
-#bg_gate "bank-tests"        "yes" bash -c "$JEST_BIN --testPathPatterns='Unit/Pipeline/bank/' --maxWorkers=$JEST_WORKERS"
-# Disabled 2026-06-14: test:mock runs every bank's mocked suite (~2-3 min
-# wall) and is fully covered by the `E2E mocked` CI job (pr.yml). Re-enable
-# for local validation via `npm run test:mock`.
-#bg_gate "test:mock"         "yes" bash -c "npm run test:mock -- --parallel=$JEST_WORKERS"
+# Leaks cannot be taken back once pushed, so these stay local as well as in
+# CI. BASE_SHA is cleared so a value left exported in the shell cannot turn
+# a staged scan into a branch-wide one. plan-refs is not cached: the staged
+# additions depend on HEAD as well as on the staged tree.
+bg_gate "fixtures-pii" "yes" npm run lint:fixtures-pii
+bg_gate "pii-staged" "yes" env BASE_SHA= npm run lint:pii-staged
+bg_gate "plan-refs" "no" env BASE_SHA= npm run lint:plan-refs
 
 wait_all
 
-# ── Phase 2b: test:e2e:mock (sequential, CI-parity) ───────────────────
-# CI's Validate job runs test:e2e:mock as its own sequential step;
-# mirror that here for stability.
-#
-# Disabled 2026-06-14: same rationale as test:mock — the gate is fully
-# covered by the `E2E mocked` CI job. Re-enable for local validation
-# via `npm run test:e2e:mock`.
-# log ""
-# log "🎭 Phase 2b: test:e2e:mock (sequential, CI-parity)..."
-# if [ -n "$CACHE_KEY" ] && [ -f "$(cache_marker "test:e2e:mock")" ]; then
-#     log "  ⚡ test:e2e:mock cache HIT — skipping (last-passed for tree $CACHE_KEY)"
-# else
-#     npm run test:e2e:mock 2>&1 | tee -a "$LOG_FILE"
-#     if [ "${PIPESTATUS[0]}" -ne 0 ]; then
-#         log "❌ test:e2e:mock FAILED"
-#         exit 1
-#     fi
-#     if [ -n "$CACHE_KEY" ]; then
-#         touch "$(cache_marker "test:e2e:mock")"
-#     fi
-# fi
-
-# ── Phase 3: e2e-factory-tests (network-bound, sequential) ────────────
-# Runs `Tests/E2e.test.ts` which hits real bank URLs to verify the
-# error-handling contract (invalid-creds rejection). The 180s
-# per-test timeout assumed an idle box — when this runs concurrent
-# with the network-heavy test:mock + test:e2e:mock pools above, the
-# slow-path latency exceeds 180s. Sequencing this AFTER wait_all
-# returns the gate to its baseline timing budget.
-#
-# Disabled 2026-05-13: the invalid-creds test hits bankhapoalim.co.il
-# directly and is load-bearing on bank-side WAF / hCaptcha state,
-# which made the gate brittle. Invalid-credential rejection remains
-# covered by Phase 5 (`test:e2e:real`) against the operator-managed
-# real-bank target list. Re-enable by uncommenting the block below
-# when the bank-side flake is mitigated.
-#
-# log ""
-# log "🌐 Phase 3: e2e-factory-tests (network-bound, sequential)..."
-# if [ -n "$CACHE_KEY" ] && [ -f "$(cache_marker "e2e-factory-tests")" ]; then
-#     log "  ⚡ e2e-factory-tests cache HIT — skipping (last-passed for tree $CACHE_KEY)"
-# else
-#     npm run test:e2e-factory-tests 2>&1 | tee -a "$LOG_FILE"
-#     if [ "${PIPESTATUS[0]}" -ne 0 ]; then
-#         log "❌ e2e-factory-tests FAILED"
-#         exit 1
-#     fi
-#     if [ -n "$CACHE_KEY" ]; then
-#         touch "$(cache_marker "e2e-factory-tests")"
-#         fi
-# fi
-
-# # ── Phase 5: Live E2E (real banks, FINAL gate) ──
-# # This is the last gate — if it passes, the commit proceeds.
-# # Routes through `scripts/run-real-suite.ts` (gitignored, operator-
-# # controlled bank list — typically OneZero + Beinleumi for local
-# # runs). The Docker-based parallel hook lives in
-# # docker/{Dockerfile.ci-mirror,run-banks.sh} as scaffolding but is
-# # NOT wired in here yet: the in-flight smoke run on commit `cd0db7da`
-# # surfaced a Docker Desktop / vEthernet DNS contention pattern
-# # (5+ parallel bank containers saturating the host resolver,
-# # producing "Server Not Found" on bank URLs) that is tracked for a
-# # follow-up. Until that is resolved, host sequential mode stays.
-run_e2e_happy_path() {
-    log ""
-    log "🔴 Phase 5: Live E2E — happy-path (Rule #16 — never parallel with Isracard)"
-    npm run test:e2e:real 2>&1 | tee -a "$LOG_FILE"
-    if [ "${PIPESTATUS[0]}" -ne 0 ]; then
-        log "❌ Live E2E (happy-path) FAILED"
-        exit 1
-    fi
-    log ""
-}
-# Disabled 2026-06-14: Live real-bank e2e is operator-triggered, not a
-# pre-commit concern — it burns real-bank WAF / OTP budget on every
-# commit. CI's `E2E Real {A,B,C} — approval gate` jobs cover this.
-# Re-enable locally via `npm run test:e2e:real` before pushing.
-# run_e2e_happy_path
-#run_e2e_happy_path
-
 log "══════════════════════════════════════════════════════"
 log "✅  ALL LOCAL GATES PASSED. COMMITTING..."
-log ""
+log "   CI runs the full gate set on the pull request."

@@ -31,22 +31,28 @@ fi
 # matches that a malformed file with stray `shell:` lines could spoof.
 # Falls back to exit 1 if the package can't load — keeps the canary
 # fail-loud on every other class of error.
-if node --input-type=module -e "
-  import yaml from 'yaml';
-  import { readFileSync } from 'node:fs';
-  const doc = yaml.parse(readFileSync('${FILE}', 'utf8'));
-  const shell = doc?.defaults?.run?.shell ?? '';
-  const tokens = String(shell);
-  // Require bash + the bundled strict-mode flag pattern that
-  // `bash -euo pipefail` produces. Matching the literal '-euo' is
-  // safer than checking '-e' / '-u' independently — '-u' is NOT a
-  // substring of '-euo' (the 'u' is preceded by 'e', not '-'), which
-  // was a real bug in the first version of this canary.
-  const ok = /\\bbash\\b/.test(tokens)
-    && /-euo\\b/.test(tokens)
-    && tokens.includes('pipefail');
-  process.exit(ok ? 0 : 1);
-" >/dev/null 2>&1; then
+#
+# The program is a quoted heredoc and the path an argument, so the shell
+# expands neither. It used to be a double-quoted `-e` string: a backtick
+# in one of its comments ran as a command substitution that started an
+# interactive bash, which hung `npm run lint` whenever stdin was a terminal.
+if node --input-type=module - "$FILE" >/dev/null 2>&1 <<'JS'
+import yaml from 'yaml';
+import { readFileSync } from 'node:fs';
+const doc = yaml.parse(readFileSync(process.argv[2], 'utf8'));
+const shell = doc?.defaults?.run?.shell ?? '';
+const tokens = String(shell);
+// Require bash + the bundled strict-mode flag pattern that
+// `bash -euo pipefail` produces. Matching the literal '-euo' is
+// safer than checking '-e' / '-u' independently — '-u' is NOT a
+// substring of '-euo' (the 'u' is preceded by 'e', not '-'), which
+// was a real bug in the first version of this canary.
+const ok = /\bbash\b/.test(tokens)
+  && /-euo\b/.test(tokens)
+  && tokens.includes('pipefail');
+process.exit(ok ? 0 : 1);
+JS
+then
   exit 0
 fi
 exit 1
