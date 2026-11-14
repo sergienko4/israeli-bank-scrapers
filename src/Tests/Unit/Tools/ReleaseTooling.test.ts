@@ -6,6 +6,7 @@
  * suite exercises them. Each case below pins a behaviour that was either
  * reported as a defect in review or is relied on by a workflow step.
  */
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -242,6 +243,19 @@ describe('upgrade-notes', () => {
     const data = buildData([buildEntry()]);
     const section = mod.renderSection('8.6.7', data);
     expect(section).toContain('No action required');
+  });
+
+  it('renders the real 10.1.0 Hapoalim transition instead of a drop-in note', () => {
+    const compatPath = join(REPO_ROOT, 'compatibility.json');
+    const raw = readFileSync(compatPath, 'utf8');
+    const data = JSON.parse(raw) as ICompatData;
+    const section = mod.renderSection('10.1.0', data);
+    expect(section).toContain('Hapoalim stores the device seed');
+    expect(section).toContain('two-SMS enrollment');
+    expect(section).not.toContain('No action required');
+    const old = mod.renderSection('10.0.0', data);
+    expect(old).toContain("website's API");
+    expect(old).not.toContain('device seed');
   });
 
   it('always states the Node requirement and links the full notes', () => {
