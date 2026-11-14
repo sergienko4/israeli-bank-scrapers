@@ -547,6 +547,25 @@ jobs:
       - name: Dead code
         if: ${{ !cancelled() && steps.ready.outcome == 'success' && (needs.changes.outputs.full_suite == 'true') }}
         run: npm run lint:dead-code
+      # Tamper-guard: the gate trusts the working-tree baseline, so a PR could
+      # add dead code AND append its keys to dead-code.baseline.json. Once the
+      # base branch has a baseline, reject new frozen keys. The initial PR that
+      # introduces the file is allowed to establish it.
+      - name: Dead-code baseline tamper-guard
+        if: ${{ !cancelled() && steps.ready.outcome == 'success' && (github.event_name == 'pull_request' && needs.changes.outputs.src == 'true') }}
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          base_file="${RUNNER_TEMP}/base-dead-code-baseline.json"
+          if ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            git fetch --no-tags origin "${BASE_REF}" || true
+          fi
+          if git show "${BASE_SHA}:src/Tests/Tools/dead-code.baseline.json" > "${base_file}" 2>/dev/null; then
+            npx tsx src/Tests/Tools/detect-dead-code.ts --guard-against "${base_file}"
+          else
+            echo "Dead-code baseline absent on base; allowing initial establishment."
+          fi
       # `syntax_guardrails` and `deps`: the gate resolves the ESLint config, so a
       # config-only edit or a lint-tooling bump can change its answer.
       - name: Guideline coverage

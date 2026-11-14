@@ -4,7 +4,7 @@
  * symbol behind it is used.
  */
 
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 
@@ -15,6 +15,7 @@ import type {
 import {
   analyze,
   findRegressions,
+  loadModules,
   parseModuleSource,
 } from '../../../Tests/Tools/DeadCodeReachability.js';
 
@@ -166,6 +167,49 @@ describe('symbol-level dead-code reachability', () => {
         "export type M = typeof import('./impl.js');",
       );
       expect(source.imports).toEqual([{ target: 'impl.ts', names: '*' }]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('parses static imports and re-exports end-to-end', () => {
+    const base = tmpdir();
+    const prefix = path.join(base, 'dead-code-static-');
+    const root = mkdtempSync(prefix);
+    try {
+      const src = path.join(root, 'src');
+      mkdirSync(src);
+      const fixtures: Readonly<Record<string, string>> = {
+        'default.ts': 'export default 1;',
+        'named.ts': 'export const value = 1; export const unused = 2;',
+        'namespace.ts': 'export const a = 1; export const b = 2;',
+        'side.ts': 'export const sideValue = 1;',
+        'reexport.ts': 'export const named = 1; export const other = 2;',
+        'star.ts': 'export const starValue = 1; export default 2;',
+        'starNs.ts': 'export const nsValue = 1;',
+        'entry.ts': [
+          "import def from './default.js';",
+          "import { value as alias } from './named.js';",
+          "import * as ns from './namespace.js';",
+          "import './side.js';",
+          "export { named as renamed } from './reexport.js';",
+          "export * from './star.js';",
+          "export * as starNs from './starNs.js';",
+        ].join('\n'),
+      };
+      for (const [name, text] of Object.entries(fixtures)) {
+        const file = path.join(src, name);
+        writeFileSync(file, text);
+      }
+      const graph = loadModules(root);
+      const report = analyze(graph, ['src/entry.ts']);
+      expect(report.files).toEqual([]);
+      expect(report.exports).toEqual([
+        'src/named.ts#unused',
+        'src/reexport.ts#other',
+        'src/side.ts#sideValue',
+        'src/star.ts#default',
+      ]);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
