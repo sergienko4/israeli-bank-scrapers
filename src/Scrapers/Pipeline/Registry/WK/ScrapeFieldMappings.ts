@@ -13,11 +13,6 @@ import PROVIDER_ANNOTATION_FIELDS from './ScrapeProviderFields.js';
 // {@link ./ScrapeTxnIdentifierFields.js} for the same reason.
 import TXN_IDENTIFIER_FIELDS from './ScrapeTxnIdentifierFields.js';
 
-/** WellKnown response status field names. */
-export const PIPELINE_WELL_KNOWN_RESPONSE_FIELDS = {
-  responseStatus: ['Status', 'status', 'HeaderStatus', 'responseStatus'],
-} satisfies Record<string, string[]>;
-
 /**
  * WellKnown ACCOUNT-side field mappings — owned by ACCOUNT-RESOLVE
  * and any SCRAPE caller that needs an account/card identifier.
@@ -193,5 +188,3 @@ export const PIPELINE_WELL_KNOWN_TXN_FIELDS = {
 } satisfies Record<string, string[]>;
 
 export { DISPLAY_ID_FIELDS, QUERY_ID_FIELDS } from './ScrapeIdFields.js';
-export { PIPELINE_WELL_KNOWN_MONTHLY_FIELDS } from './ScrapeMonthlyFields.js';
-export type AccountContainerName = (typeof PIPELINE_WELL_KNOWN_ACCOUNT_FIELDS.containers)[number];

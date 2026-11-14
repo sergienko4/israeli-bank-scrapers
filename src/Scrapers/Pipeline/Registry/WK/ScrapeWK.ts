@@ -12,12 +12,6 @@ export const KNOWN_DATE_FORMATS: string[] = [
   'YYYY.MM.DDTHH:mm:ss',
 ];
 
-/** Key patterns that indicate an ACCOUNT/CARD response (billing data). */
-export const ACCOUNT_SIGNATURE_KEYS = /billing|charges|cardsCharges/i;
-
-/** Key patterns that indicate a TRANSACTION response (amount/date/description). */
-export const TXN_SIGNATURE_KEYS = /originalAmount|fullPurchaseDate|transactionDate/i;
-
 // ── API endpoint URL patterns ─────────────────────────────────────────────────────
 
 /** WellKnown API endpoint patterns — regex patterns for network discovery. */
@@ -112,81 +106,7 @@ export const PIPELINE_WELL_KNOWN_API = {
   pending: [/approvals/i, /getClearanceRequests/i, /FutureTransaction/i],
 } satisfies Record<string, RegExp[]>;
 
-/** WellKnown SPA query-param keys — URL shape hints (not bank-specific). */
-export const PIPELINE_WELL_KNOWN_QUERY_KEYS = {
-  /** Query key used by SPAs that page monthly filter state through the URL. */
-  filterData: 'filterData',
-} as const;
-
-/** WellKnown path fragments for the shared credit-card billing-cycle API.
- *  Card-family backends (CAL / Isracard / Amex / MAX) all expose
- *  `/Transactions/api/<pathFragment>/<actionName>` — the PATH is shared
- *  backend infrastructure, not a bank identity. No module reads this table
- *  today, and no hostname is hardcoded here. */
-export const PIPELINE_WELL_KNOWN_BILLING = {
-  /** Parent path segment of the billing-cycle API. Presence in any
-   *  captured URL proves the bank's backend exposes the family. */
-  pathFragment: 'transactionsDetails',
-  /** Leaf action returning per-card monthly transactions. */
-  actionName: 'getCardTransactionsDetails',
-  /** API prefix under the bank's origin — shared by all card backends. */
-  apiPrefix: '/Transactions/api',
-} as const;
-
-/** WellKnown path fragments for the shared "pending / clearance-requests"
- *  API on the same card-family backbone as {@link PIPELINE_WELL_KNOWN_BILLING}.
- *  No module reads this table today. */
-export const PIPELINE_WELL_KNOWN_PENDING = {
-  /** API prefix under the bank's origin (shared with billing). */
-  apiPrefix: '/Transactions/api',
-  /** Parent path segment of the pending-transactions API. */
-  pathFragment: 'approvals',
-  /** Leaf action returning the pending/clearance request list. */
-  actionName: 'getClearanceRequests',
-} as const;
-
-/** WellKnown header name patterns left from network discovery. No module reads
- *  this table today. */
-export const PIPELINE_WELL_KNOWN_HEADERS = {
-  /** Request header names that carry the API origin. */
-  origin: ['origin', 'referer'],
-  /** Narrow Origin-key set (case-insensitive). Separate from `origin`, whose
-   *  broader discovery chain also matches a captured `referer`. */
-  originKey: ['origin'],
-  /** Request header names that carry the SPA page Referer. Separate from
-   *  `origin` so a Referer check reads only the captured `referer` value. */
-  referer: ['referer'],
-  /** Request header names that carry a site/session ID. */
-  siteId: ['x-site-id', 'x-session-id'],
-  /** Captured-header exclusion taxonomy, not an active discovery hook.
-   *  Connection framing, session cookies, transport hints and client
-   *  fingerprints must not be blindly replayed from captured requests.
-   *  Origin and authorization require the caller's current identity.
-   *  Content-negotiation and application headers are deliberately absent
-   *  from this set because bank APIs can depend on their exact values. */
-  browserStandard: new Set([
-    'accept-encoding',
-    'connection',
-    'content-length',
-    'cookie',
-    'host',
-    'origin',
-    'sec-ch-ua',
-    'sec-ch-ua-mobile',
-    'sec-ch-ua-platform',
-    'sec-fetch-dest',
-    'sec-fetch-mode',
-    'sec-fetch-site',
-    'transfer-encoding',
-    'upgrade-insecure-requests',
-    'authorization',
-  ]),
-} as const;
-
-export type { AccountContainerName } from './ScrapeFieldMappings.js';
 export {
   PIPELINE_WELL_KNOWN_ACCOUNT_FIELDS,
-  PIPELINE_WELL_KNOWN_MONTHLY_FIELDS,
-  PIPELINE_WELL_KNOWN_RESPONSE_FIELDS,
   PIPELINE_WELL_KNOWN_TXN_FIELDS,
 } from './ScrapeFieldMappings.js';

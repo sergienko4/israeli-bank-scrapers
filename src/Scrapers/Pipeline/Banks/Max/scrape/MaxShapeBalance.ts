@@ -14,7 +14,7 @@
  * in their shapes.
  */
 
-import { ILS_CURRENCY_CODE } from '../../../Registry/WK/BalanceResolveWK.js';
+import ILS_CURRENCY_CODE from '../../../Registry/WK/BalanceResolveWK.js';
 import type { Brand } from '../../../Types/Brand.js';
 
 /** Outstanding ILS cycle debit of one card — branded for Rule #15. */

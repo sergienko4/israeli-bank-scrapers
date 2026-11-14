@@ -20,7 +20,7 @@
 
 import moment from 'moment';
 
-import { ILS_CURRENCY_CODE } from '../../../Scrapers/Pipeline/Registry/WK/BalanceResolveWK.js';
+import ILS_CURRENCY_CODE from '../../../Scrapers/Pipeline/Registry/WK/BalanceResolveWK.js';
 import type { JsonUnknownRecord } from '../../../Scrapers/Pipeline/Types/JsonValue.js';
 import type {
   CallKind,

@@ -21,7 +21,9 @@ the same row. Picking the right one is owned by
 
 `findCurrencyHit` matches the WK `currency` alias list in
 `ScrapeFieldMappings.ts`. The list is **first-match-wins**, so its order is the
-contract:
+contract. The currency and shekel-alias lists are the only
+`ScrapeFieldMappings` tables this page describes; the account and transaction
+dictionaries belong to their own consumers.
 
 1. `bancsCurrency`, `trnCurrencySymbol`, `currency`
 2. `originalCurrencyIso` — ISO-4217 text
