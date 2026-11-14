@@ -26,15 +26,23 @@ interface ICappedRequest {
 }
 
 /**
+ * Whether a response carries the Cloudflare challenge marker.
+ * @param response - Received response.
+ * @returns True when the edge marked it as a challenge.
+ */
+function isChallenge(response: Response): boolean {
+  const headers = Object.fromEntries(response.headers);
+  return hasCloudflareChallengeHeader(headers);
+}
+
+/**
  * Whether an integrity-bounded answer is a header-only challenge.
  * @param response - Received response.
  * @param reading - Response-reading policy.
  * @returns True when the challenge body is not needed.
  */
 function isBoundedChallenge(response: Response, reading: IResponseReading): boolean {
-  if (reading.responseIntegrity === undefined) return false;
-  const headers = Object.fromEntries(response.headers);
-  return hasCloudflareChallengeHeader(headers);
+  return reading.responseIntegrity !== undefined && isChallenge(response);
 }
 
 /**
@@ -58,6 +66,7 @@ function needsBody(response: Response, request: ICappedRequest): boolean {
   const { reading } = request;
   if (releasesRedirectBody(response, request)) return false;
   if (isBoundedChallenge(response, reading)) return false;
+  if (isChallenge(response)) return true;
   const action = statusActionFor({ response, reading });
   if (action.has) return false;
   if (!isApiSuccess(response)) return true;
