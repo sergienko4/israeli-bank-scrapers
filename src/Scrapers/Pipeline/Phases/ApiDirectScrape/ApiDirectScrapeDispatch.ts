@@ -112,7 +112,7 @@ function isPostArray(vars: ApiPostData): vars is readonly JsonValue[] {
  * @param checkBody - The shape's check, when it declares one.
  * @returns The response, or the check's failure.
  */
-export function applyBodyCheck(
+function applyBodyCheck(
   response: Procedure<ApiBody>,
   name: string,
   checkBody?: BodyCheck,

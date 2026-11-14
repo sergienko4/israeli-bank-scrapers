@@ -44,7 +44,7 @@ import {
 } from './ApiDirectScrapeWalkRounds.js';
 
 /** What a stopped walk settled on about the window it was asked for. */
-export interface IWalkEnd {
+interface IWalkEnd {
   /** The start the caller asked for, as rendered for the audit. */
   readonly requestedStart: string;
   /** What the window audit made of the rows held. */

@@ -41,7 +41,7 @@ interface ICardsResp {
 }
 
 /** Card-extract function bound to one ring issuer. */
-export type RingCardsExtract = (args: IExtractAccountsArgs) => readonly IRingCard[];
+type RingCardsExtract = (args: IExtractAccountsArgs) => readonly IRingCard[];
 
 /**
  * The CardsList request body.

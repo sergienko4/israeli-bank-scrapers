@@ -132,7 +132,7 @@ function auditPageDeclared<TAcct, TCursor>(a: IAcctCtx<TAcct, TCursor>, body: Ap
  * @param items - Rows the shape extracted from it.
  * @returns True once both checks have reported.
  */
-export function auditPage<TAcct, TCursor>(
+function auditPage<TAcct, TCursor>(
   a: IAcctCtx<TAcct, TCursor>,
   body: ApiBody,
   items: readonly object[],

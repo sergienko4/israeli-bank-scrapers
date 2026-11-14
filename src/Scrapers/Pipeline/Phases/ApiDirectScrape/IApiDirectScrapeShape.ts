@@ -92,8 +92,8 @@ export type OperationBodyChecks = Readonly<Partial<Record<ScrapeOperation, BodyC
  * relevant per-call inputs (ctx / acct / cursor) so banks can pick
  * different endpoints per account kind (PayBox wallet vs debit).
  */
-export type CustomerUrlTag = WKUrlOrLiteral | ((ctx: IActionContext) => WKUrlOrLiteral);
-export type BalanceUrlTag<TAcct> = WKUrlOrLiteral | ((acct: TAcct) => WKUrlOrLiteral);
+type CustomerUrlTag = WKUrlOrLiteral | ((ctx: IActionContext) => WKUrlOrLiteral);
+type BalanceUrlTag<TAcct> = WKUrlOrLiteral | ((acct: TAcct) => WKUrlOrLiteral);
 export type TxnsUrlTag<TAcct, TCursor> =
   WKUrlOrLiteral | ((acct: TAcct, cursor: TCursor | false, ctx: IActionContext) => WKUrlOrLiteral);
 

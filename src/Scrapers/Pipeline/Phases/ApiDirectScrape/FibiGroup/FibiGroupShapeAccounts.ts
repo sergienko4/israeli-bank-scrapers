@@ -29,7 +29,7 @@ import {
 } from './FibiGroupShapeHelpers.js';
 
 /** Display account number — branded for Rule #15. */
-export type FibiAccountNumberDisplay = Brand<string, 'FibiAccountNumberDisplay'>;
+type FibiAccountNumberDisplay = Brand<string, 'FibiAccountNumberDisplay'>;
 
 interface IRawAccount {
   readonly account?: string;

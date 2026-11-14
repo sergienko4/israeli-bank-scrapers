@@ -82,4 +82,3 @@ export function withZeroAccountsFloor(shapeGuard?: ScrapeResultGuard): ScrapeRes
 }
 
 export default zeroAccountsGuard;
-export type { ScrapeResultGuard };
