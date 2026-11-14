@@ -222,4 +222,3 @@ const API_DIRECT_DERIVE_RULES: readonly IApiDirectRule[] = [
 ];
 
 export default API_DIRECT_DERIVE_RULES;
-export { API_DIRECT_DERIVE_RULES };

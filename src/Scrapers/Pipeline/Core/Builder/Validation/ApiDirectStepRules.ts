@@ -26,7 +26,7 @@ import {
   isBodyPointer,
   isExtractSlot,
 } from '../ApiDirectRuleInput.js';
-import { API_DIRECT_OPTIONAL_EXTRACT_RULES } from '../Captures/ApiDirectOptionalExtractRules.js';
+import API_DIRECT_OPTIONAL_EXTRACT_RULES from '../Captures/ApiDirectOptionalExtractRules.js';
 import { isBadRegex, isFlatPattern } from '../FlatPattern.js';
 import API_DIRECT_TAIL_RULES from './ApiDirectTailRules.js';
 
@@ -284,5 +284,4 @@ const API_DIRECT_STEP_RULES: readonly IApiDirectRule[] = [
   ...API_DIRECT_TAIL_RULES,
 ];
 
-export default API_DIRECT_STEP_RULES;
 export { API_DIRECT_OUTCOME_RULES, API_DIRECT_STEP_RULES };

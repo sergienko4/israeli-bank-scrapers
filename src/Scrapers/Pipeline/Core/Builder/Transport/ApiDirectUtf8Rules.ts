@@ -27,4 +27,3 @@ const API_DIRECT_UTF8_RULES: readonly IApiDirectRule[] = [
 ];
 
 export default API_DIRECT_UTF8_RULES;
-export { API_DIRECT_UTF8_RULES };

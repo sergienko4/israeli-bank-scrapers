@@ -15,9 +15,9 @@ import type {
   ITextCapture,
 } from '../../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { anyStep, type IApiDirectRule } from '../ApiDirectRuleInput.js';
-import { API_DIRECT_FORM_CAPTURE_RULES } from './ApiDirectFormCaptureRules.js';
-import { API_DIRECT_LOCATION_CAPTURE_RULES } from './ApiDirectLocationCaptureRules.js';
-import { API_DIRECT_STRUCTURED_CAPTURE_RULES } from './ApiDirectStructuredCaptureRules.js';
+import API_DIRECT_FORM_CAPTURE_RULES from './ApiDirectFormCaptureRules.js';
+import API_DIRECT_LOCATION_CAPTURE_RULES from './ApiDirectLocationCaptureRules.js';
+import API_DIRECT_STRUCTURED_CAPTURE_RULES from './ApiDirectStructuredCaptureRules.js';
 
 /** Longest text answer a step may accept, in chars (2 MiB). */
 const MAX_TEXT_CHARS = 2_097_152;
@@ -178,4 +178,3 @@ const API_DIRECT_TEXT_RULES: readonly IApiDirectRule[] = [
 ];
 
 export default API_DIRECT_TEXT_RULES;
-export { API_DIRECT_TEXT_RULES };

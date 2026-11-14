@@ -72,5 +72,4 @@ const API_DIRECT_COOKIE_RULES: readonly IApiDirectRule[] = [
   },
 ];
 
-export default API_DIRECT_COOKIE_RULES;
 export { API_DIRECT_COOKIE_RULES, isCookieRef };

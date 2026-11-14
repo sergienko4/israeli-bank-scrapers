@@ -75,4 +75,3 @@ const API_DIRECT_HTTP_FAILURE_RULES: readonly IApiDirectRule[] = [
 ];
 
 export default API_DIRECT_HTTP_FAILURE_RULES;
-export { API_DIRECT_HTTP_FAILURE_RULES };

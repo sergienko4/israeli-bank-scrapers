@@ -28,15 +28,15 @@ import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, succeed } from '../../../Types/Procedure.js';
 import type { IApiDirectRule, IApiDirectRuleInput } from '../ApiDirectRuleInput.js';
 import { allSteps, hasCookieDomains } from '../ApiDirectRuleInput.js';
-import { API_DIRECT_GENERATE_RULES } from '../Auth/ApiDirectGenerateRules.js';
-import { API_DIRECT_SEAL_RULES } from '../Auth/ApiDirectSealRules.js';
-import { API_DIRECT_SESSION_RULES } from '../Auth/ApiDirectSessionRules.js';
+import API_DIRECT_GENERATE_RULES from '../Auth/ApiDirectGenerateRules.js';
+import API_DIRECT_SEAL_RULES from '../Auth/ApiDirectSealRules.js';
+import API_DIRECT_SESSION_RULES from '../Auth/ApiDirectSessionRules.js';
 import { API_DIRECT_WARM_BUNDLE_RULES } from '../Auth/ApiDirectWarmBundleRules.js';
-import { API_DIRECT_TEXT_RULES } from '../Captures/ApiDirectTextRules.js';
-import { API_DIRECT_CLIENT_CERT_RULES } from '../Transport/ApiDirectClientCertRules.js';
-import { API_DIRECT_FORM_RULES } from '../Transport/ApiDirectFormRules.js';
+import API_DIRECT_TEXT_RULES from '../Captures/ApiDirectTextRules.js';
+import API_DIRECT_CLIENT_CERT_RULES from '../Transport/ApiDirectClientCertRules.js';
+import API_DIRECT_FORM_RULES from '../Transport/ApiDirectFormRules.js';
 import { API_DIRECT_NATIVE_RULES } from '../Transport/ApiDirectNativeRules.js';
-import { API_DIRECT_TRANSPORT_RULES } from '../Transport/ApiDirectTransportRules.js';
+import API_DIRECT_TRANSPORT_RULES from '../Transport/ApiDirectTransportRules.js';
 import { API_DIRECT_OUTCOME_RULES, API_DIRECT_STEP_RULES } from './ApiDirectStepRules.js';
 
 /**

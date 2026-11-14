@@ -148,7 +148,7 @@ function hasCookieDomains(input: IApiDirectRuleInput): boolean {
   return input.transport !== false && input.transport.cookieDomains !== undefined;
 }
 
-export type { AnswerCaptureEntry, ClassifierCheck, IApiDirectRule, IApiDirectRuleInput };
+export type { IApiDirectRule, IApiDirectRuleInput };
 export {
   allSteps,
   answerCapturesOf,

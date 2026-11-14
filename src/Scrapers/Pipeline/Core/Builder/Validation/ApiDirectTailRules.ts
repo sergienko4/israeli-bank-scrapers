@@ -5,7 +5,7 @@
  */
 
 import type { IApiDirectRule } from '../ApiDirectRuleInput.js';
-import { API_DIRECT_HTTP_FAILURE_RULES } from './ApiDirectHttpFailureRules.js';
+import API_DIRECT_HTTP_FAILURE_RULES from './ApiDirectHttpFailureRules.js';
 import API_DIRECT_DEVICE_IDENTITY_RULES from './DeviceIdentityRules.js';
 
 /** Device-identity and HTTP-failure rules, in run order. */

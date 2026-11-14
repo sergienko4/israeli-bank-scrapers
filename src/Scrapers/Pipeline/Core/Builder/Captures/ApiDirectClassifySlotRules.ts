@@ -130,4 +130,3 @@ const API_DIRECT_CLASSIFY_SLOT_RULES: readonly IApiDirectRule[] = [
 ];
 
 export default API_DIRECT_CLASSIFY_SLOT_RULES;
-export { API_DIRECT_CLASSIFY_SLOT_RULES };

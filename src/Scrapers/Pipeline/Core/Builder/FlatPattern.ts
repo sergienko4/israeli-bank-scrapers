@@ -107,5 +107,4 @@ function isBadRegex(pattern: string): boolean {
   return !isAnchored || !isCompilable(pattern);
 }
 
-export default isFlatPattern;
 export { isBadRegex, isFlatPattern };

@@ -69,4 +69,3 @@ const API_DIRECT_OPTIONAL_REF_RULES: readonly IApiDirectRule[] = [
 ];
 
 export default API_DIRECT_OPTIONAL_REF_RULES;
-export { API_DIRECT_OPTIONAL_REF_RULES };

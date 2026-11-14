@@ -3,7 +3,7 @@
  */
 
 import { isQueryKey } from '../../../Mediator/ApiDirectCall/Flow/FlowUrlQuery.js';
-import { areSdkUrlRulesValid } from '../Captures/ApiDirectStructuredUrlValidation.js';
+import areSdkUrlRulesValid from '../Captures/ApiDirectStructuredUrlValidation.js';
 
 const SAFE_PATH = /^\/[\w.~/-]*$/u;
 

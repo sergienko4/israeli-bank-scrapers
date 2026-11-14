@@ -78,4 +78,3 @@ const API_DIRECT_CLIENT_CERT_RULES: readonly IApiDirectRule[] = [
 ];
 
 export default API_DIRECT_CLIENT_CERT_RULES;
-export { API_DIRECT_CLIENT_CERT_RULES };
