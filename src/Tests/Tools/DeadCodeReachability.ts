@@ -148,6 +148,19 @@ function declarationName(statement: ts.Statement): string | false {
 }
 
 /**
+ * Collect identifiers from a binding name, including nested patterns.
+ * @param name - Identifier, object pattern or array pattern.
+ * @returns Every bound identifier, excluding omitted array elements.
+ */
+function bindingNames(name: ts.BindingName): readonly string[] {
+  if (ts.isIdentifier(name)) return [name.text];
+  return name.elements.flatMap(element => {
+    if (ts.isOmittedExpression(element)) return [];
+    return bindingNames(element.name);
+  });
+}
+
+/**
  * Collect the names declared by one exported statement.
  * @param statement - Source statement.
  * @returns Exported local names.
@@ -156,7 +169,7 @@ function declaredNames(statement: ts.Statement): readonly string[] {
   if (!hasModifier(statement, ts.SyntaxKind.ExportKeyword)) return [];
   if (hasModifier(statement, ts.SyntaxKind.DefaultKeyword)) return ['default'];
   if (ts.isVariableStatement(statement)) {
-    return statement.declarationList.declarations.map(decl => decl.name.getText());
+    return statement.declarationList.declarations.flatMap(decl => bindingNames(decl.name));
   }
   const name = declarationName(statement);
   return name === false ? [] : [name];
@@ -298,15 +311,61 @@ function parseImport(statement: ts.ImportDeclaration, context: IParserContext): 
 }
 
 /**
+ * The leftmost identifier of an entity name.
+ * @param name - Identifier or qualified name.
+ * @returns The first segment.
+ */
+function firstEntityName(name: ts.EntityName): string {
+  let current = name;
+  while (ts.isQualifiedName(current)) current = current.left;
+  return current.text;
+}
+
+/**
+ * The consumed names of an import-type reference.
+ * @param node - Import-type node.
+ * @returns The qualifier's first name, or `*` for an unqualified import.
+ */
+function importTypeNames(node: ts.ImportTypeNode): readonly string[] | '*' {
+  if (node.qualifier === undefined) return '*';
+  return [firstEntityName(node.qualifier)];
+}
+
+/**
+ * The static module specifier of an import-type reference.
+ * @param node - Import-type node.
+ * @returns The specifier, or false when it is not a static literal.
+ */
+function importTypeSpecifier(node: ts.ImportTypeNode): string | false {
+  const argument = node.argument;
+  if (!ts.isLiteralTypeNode(argument)) return false;
+  return ts.isStringLiteralLike(argument.literal) ? argument.literal.text : false;
+}
+
+/**
+ * Record one import-type reference as a module edge.
+ * @param node - Import-type node.
+ * @param context - Parser context.
+ * @returns True once processed.
+ */
+function importTypeEdge(node: ts.ImportTypeNode, context: IParserContext): boolean {
+  const spec = importTypeSpecifier(node);
+  if (spec === false) return true;
+  const names = importTypeNames(node);
+  return addEdge(context, spec, names);
+}
+
+/**
  * Collect dynamic `import('...')` edges from a subtree.
  * @param node - Current AST node.
  * @param context - Parser context.
  * @returns True once the subtree is walked.
  */
 function dynamicImports(node: ts.Node, context: IParserContext): boolean {
+  if (ts.isImportTypeNode(node)) importTypeEdge(node, context);
   if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
     const [argument] = node.arguments;
-    if (ts.isStringLiteral(argument)) addEdge(context, argument.text, '*');
+    if (ts.isStringLiteralLike(argument)) addEdge(context, argument.text, '*');
   }
   ts.forEachChild(node, child => {
     dynamicImports(child, context);

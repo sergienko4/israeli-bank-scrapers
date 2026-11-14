@@ -94,13 +94,16 @@ describe('symbol-level dead-code reachability', () => {
     try {
       const aPath = path.join(root, 'a.ts');
       const bPath = path.join(root, 'b.ts');
+      const cPath = path.join(root, 'c.ts');
       const entryPath = path.join(root, 'entry.ts');
       writeFileSync(aPath, 'export const a = 1;');
       writeFileSync(bPath, 'export const b = 1;');
-      const text = "const lazy = import('./a.js');\nfunction load() { return import('./b.js'); }";
+      writeFileSync(cPath, 'export const c = 1;');
+      const text =
+        "const lazy = import('./a.js');\nfunction load() { return import('./b.js'); }\nconst tpl = import(`./c.js`);";
       const source = parseModuleSource(root, entryPath, text);
       const targets = source.imports.map(edge => edge.target);
-      expect(targets).toEqual(['a.ts', 'b.ts']);
+      expect(targets).toEqual(['a.ts', 'b.ts', 'c.ts']);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -119,6 +122,53 @@ describe('symbol-level dead-code reachability', () => {
     const graph = graphOf([moduleOf('entry.ts'), moduleOf('dead.ts', { local: ['old', 'new'] })]);
     const report = analyze(graph, ['entry.ts']);
     expect(report).toEqual({ files: ['dead.ts'], exports: ['dead.ts#new', 'dead.ts#old'] });
+  });
+
+  it('collects identifiers from nested destructuring exports', () => {
+    const root = process.cwd();
+    const file = path.join(root, 'src', 'fixture.ts');
+    const text =
+      'export const { value, nested: { inner } } = source; export const [first, , third] = list;';
+    const source = parseModuleSource(root, file, text);
+    expect(source.local).toEqual(['value', 'inner', 'first', 'third']);
+  });
+
+  it('records an import-type qualifier in the parser', () => {
+    const base = tmpdir();
+    const prefix = path.join(base, 'dead-code-import-type-');
+    const root = mkdtempSync(prefix);
+    try {
+      const implPath = path.join(root, 'impl.ts');
+      const entryPath = path.join(root, 'entry.ts');
+      writeFileSync(implPath, 'export interface Payload { x: number; }');
+      const source = parseModuleSource(
+        root,
+        entryPath,
+        "export type Public = import('./impl.js').Payload;",
+      );
+      expect(source.imports).toEqual([{ target: 'impl.ts', names: ['Payload'] }]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('marks all exports for an unqualified typeof import', () => {
+    const base = tmpdir();
+    const prefix = path.join(base, 'dead-code-typeof-');
+    const root = mkdtempSync(prefix);
+    try {
+      const implPath = path.join(root, 'impl.ts');
+      const entryPath = path.join(root, 'entry.ts');
+      writeFileSync(implPath, 'export interface Payload { x: number; }');
+      const source = parseModuleSource(
+        root,
+        entryPath,
+        "export type M = typeof import('./impl.js');",
+      );
+      expect(source.imports).toEqual([{ target: 'impl.ts', names: '*' }]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it('parses local, default and local-clause exports', () => {
