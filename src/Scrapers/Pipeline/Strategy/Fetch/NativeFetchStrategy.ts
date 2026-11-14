@@ -305,7 +305,6 @@ class NativeFetchStrategy implements IFetchStrategy {
   }
 }
 
-export default NativeFetchStrategy;
 export { NativeFetchStrategy };
 export type { FetchInvoke, HttpVerb } from './FetchStrategy.js';
 export type { IDispatch } from './NativeFetchDispatch.js';

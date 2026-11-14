@@ -84,6 +84,5 @@ function withDefaultHeaders(inner: IFetchStrategy, defaults: DefaultHeaders): IF
   return Reflect.construct(DefaultHeadersFetchStrategy, [inner, defaults]);
 }
 
-export default withDefaultHeaders;
 export type { DefaultHeaders };
 export { DefaultHeadersFetchStrategy, mergeUnder, withDefaultHeaders };

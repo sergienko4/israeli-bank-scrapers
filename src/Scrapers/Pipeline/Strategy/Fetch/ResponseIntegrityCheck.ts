@@ -34,5 +34,4 @@ function checkResponseIntegrity(policy: unknown, supported: boolean): Procedure<
   return succeed(undefined);
 }
 
-export default checkResponseIntegrity;
 export { checkResponseIntegrity, failResponseIntegrity };

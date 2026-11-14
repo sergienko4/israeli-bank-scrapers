@@ -282,4 +282,3 @@ async function fetchPaginated<TItem, TCursor>(
 
 export type { IFetchPaginatedArgs, IPage, IPaginatedWalk, PaginationTermination };
 export { fetchPaginated, MAX_PAGES };
-export default fetchPaginated;

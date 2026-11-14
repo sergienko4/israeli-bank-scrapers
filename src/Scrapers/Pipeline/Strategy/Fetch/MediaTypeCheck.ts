@@ -54,5 +54,4 @@ async function refuseMediaType<T>(answer: IAnswer): Promise<Option<Procedure<T>>
   return some(refused);
 }
 
-export default refuseMediaType;
 export { isMediaTypeMismatch, refuseMediaType };

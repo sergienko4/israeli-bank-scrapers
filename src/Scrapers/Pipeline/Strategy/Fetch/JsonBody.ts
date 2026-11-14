@@ -23,6 +23,5 @@ function serializeJsonBody(body: ApiPostData): ISerializedJsonBody {
   return { text, bytes };
 }
 
-export default serializeJsonBody;
 export type { ISerializedJsonBody };
 export { serializeJsonBody };
