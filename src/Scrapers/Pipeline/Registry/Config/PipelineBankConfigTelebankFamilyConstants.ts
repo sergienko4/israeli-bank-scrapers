@@ -101,7 +101,6 @@ export {
   TELEBANK_ORIGIN,
   TELEBANK_STATIC_HEADERS,
   TELEBANK_TITAN_HEADERS,
-  TELEBANK_UA,
   telebankDocumentHeaders,
   telebankLoginHeaders,
   telebankLoginPage,

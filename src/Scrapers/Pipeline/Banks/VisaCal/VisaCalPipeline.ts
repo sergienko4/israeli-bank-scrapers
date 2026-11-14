@@ -9,7 +9,7 @@
 import type { ScraperOptions } from '../../../Base/Interface.js';
 import createPipelineBuilder from '../../Core/Builder/PipelineBuilderFactory.js';
 import type { IPipelineDescriptor } from '../../Core/PipelineDescriptor.js';
-import { VISACAL_API_DIRECT_CALL } from '../../Registry/Config/PipelineBankConfigVisaCal.js';
+import VISACAL_API_DIRECT_CALL from '../../Registry/Config/PipelineBankConfigVisaCal.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { VISACAL_SHAPE } from './scrape/VisaCalShape.js';
 

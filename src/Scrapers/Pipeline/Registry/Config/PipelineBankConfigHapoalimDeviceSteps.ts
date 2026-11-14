@@ -98,4 +98,3 @@ const HAPOALIM_DEVICE_STEPS: readonly IStepConfig[] = [
 ];
 
 export default HAPOALIM_DEVICE_STEPS;
-export { HAPOALIM_DEVICE_STEPS };

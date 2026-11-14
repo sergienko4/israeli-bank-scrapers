@@ -17,7 +17,7 @@ import {
   type IPersistentAuthStateV1,
 } from '../../Scrapers/Pipeline/Mediator/ApiDirectCall/PersistentAuthStateCodec.js';
 import { formatPhoneNumber } from '../../Scrapers/Pipeline/Mediator/Credentials/PhoneFormatter.js';
-import { PEPPER_API_DIRECT_CALL } from '../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigPepper.js';
+import PEPPER_API_DIRECT_CALL from '../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigPepper.js';
 import { isOk } from '../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeJwtExpiringIn } from '../Helpers/Jwt.js';
 

@@ -93,7 +93,6 @@ const PAYBOX_SECRETS: Readonly<Record<string, string>> = Object.freeze({
 
 export {
   KEY_EXCHANGE_SALT,
-  PAYBOX_CANONICAL,
   PAYBOX_HMAC_HEADER_SIGNER,
   PAYBOX_LOGIN_SIGNER,
   PAYBOX_SCRAPE_SIGNER,

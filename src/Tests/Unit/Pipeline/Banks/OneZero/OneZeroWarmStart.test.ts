@@ -26,6 +26,7 @@ import { warmCarryField } from '../../../../../Scrapers/Pipeline/Mediator/ApiDir
 import type { ITokenContext } from '../../../../../Scrapers/Pipeline/Types/Domain/TokenContext.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { isOk, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { callOfModule } from '../../../../Helpers/BankConfigModule.js';
 import { makeJwtExpiringIn } from '../../../../Helpers/Jwt.js';
 import type { IApiPostCapture } from '../../Mediator/ApiDirectCall/Flow/StubMediator.js';
 import { makeStubMediator } from '../../Mediator/ApiDirectCall/Flow/StubMediator.js';
@@ -39,9 +40,7 @@ const CALL_PATH = '../../../../../Scrapers/Pipeline/Registry/Config/PipelineBank
 const REGISTRY_PATH = '../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js';
 
 /** Module shape returned by the dynamic call-config import. */
-interface ICallModule {
-  readonly ONEZERO_API_DIRECT_CALL: IApiDirectCallConfig;
-}
+type ICallModule = Record<string, unknown>;
 
 /** Token context — the flow reads only the resolved bank identity. */
 const CTX: ITokenContext = { companyId: CompanyTypes.OneZero };
@@ -52,7 +51,7 @@ const CTX: ITokenContext = { companyId: CompanyTypes.OneZero };
  */
 async function loadCall(): Promise<IApiDirectCallConfig> {
   const mod = (await import(CALL_PATH)) as ICallModule;
-  return mod.ONEZERO_API_DIRECT_CALL;
+  return callOfModule(mod);
 }
 
 /**

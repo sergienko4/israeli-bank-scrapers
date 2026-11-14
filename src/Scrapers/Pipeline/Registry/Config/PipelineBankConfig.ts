@@ -20,17 +20,13 @@ import { MAX_TRANSPORT } from './PipelineBankConfigMax.js';
 import { MERCANTILE_TRANSPORT } from './PipelineBankConfigMercantile.js';
 import { MIZRAHI_TRANSPORT } from './PipelineBankConfigMizrahi.js';
 import { ONEZERO_TRANSPORT } from './PipelineBankConfigOneZeroTransport.js';
-import { PEPPER_TRANSPORT } from './PipelineBankConfigPepperTransport.js';
-import { seedWkFromPipelineConfig } from './PipelineBankConfigSeeder.js';
+import PEPPER_TRANSPORT from './PipelineBankConfigPepperTransport.js';
+import seedWkFromPipelineConfig from './PipelineBankConfigSeeder.js';
 import type { IPipelineBankConfig, ITransportConfig } from './PipelineBankConfigTypes.js';
-import { VISACAL_TRANSPORT } from './PipelineBankConfigVisaCalTransport.js';
+import VISACAL_TRANSPORT from './PipelineBankConfigVisaCalTransport.js';
 import { YAHAV_TRANSPORT } from './PipelineBankConfigYahav.js';
 
-export type {
-  AuthPathKey,
-  IPipelineBankConfig,
-  ITransportConfig,
-} from './PipelineBankConfigTypes.js';
+export type { IPipelineBankConfig, ITransportConfig } from './PipelineBankConfigTypes.js';
 
 /**
  * Build an API-native bank config: its login runs over the transport block.

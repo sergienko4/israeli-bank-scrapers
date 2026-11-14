@@ -29,7 +29,7 @@ import type {
   IApiDirectCallConfig,
   IStepConfig,
 } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
-import { literalHeaders } from './PipelineBankConfigLiteralHeaders.js';
+import literalHeaders from './PipelineBankConfigLiteralHeaders.js';
 import {
   MIZRAHI_DOCUMENT_HEADERS,
   MIZRAHI_LANDING_URL,

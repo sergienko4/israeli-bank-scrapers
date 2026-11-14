@@ -25,7 +25,7 @@ import {
   fibiEntryUrl,
   type IFibiBrand,
 } from './PipelineBankConfigFibiFamilyConstants.js';
-import { literalHeaders } from './PipelineBankConfigLiteralHeaders.js';
+import literalHeaders from './PipelineBankConfigLiteralHeaders.js';
 
 /** The longest SSO code or authorization header read. */
 const SSO_MAX_CHARS = 32768;

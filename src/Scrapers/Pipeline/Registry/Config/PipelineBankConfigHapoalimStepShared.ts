@@ -7,7 +7,7 @@
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { IStepOutcome } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { HAPOALIM_AUTH_HEADERS } from './PipelineBankConfigHapoalimConstants.js';
-import { literalHeaders } from './PipelineBankConfigLiteralHeaders.js';
+import literalHeaders from './PipelineBankConfigLiteralHeaders.js';
 
 /** App identity headers, plus a fresh trace id per step. */
 const AUTH_HEADERS = {

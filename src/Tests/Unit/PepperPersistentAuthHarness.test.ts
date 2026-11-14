@@ -12,7 +12,7 @@
 import ScraperError from '../../Scrapers/Base/ScraperError.js';
 import { isJwtFresh } from '../../Scrapers/Pipeline/Mediator/ApiDirectCall/Jwt/GenericJwtClaims.js';
 import type { IRehydratedPersistentAuth } from '../../Scrapers/Pipeline/Mediator/ApiDirectCall/PersistentAuthStateCodec.js';
-import { PEPPER_API_DIRECT_CALL } from '../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigPepper.js';
+import PEPPER_API_DIRECT_CALL from '../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigPepper.js';
 import { PEPPER_MOCK_CREDS } from '../E2eMocked/Pepper/PepperFetchMock.js';
 import {
   decodeDurable,

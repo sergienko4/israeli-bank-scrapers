@@ -29,7 +29,7 @@ interface IConfigModule {
 }
 
 interface ISeederModule {
-  readonly seedWkFromPipelineConfig: (registry: BankRegistry) => unknown;
+  readonly default: (registry: BankRegistry) => unknown;
 }
 
 interface ICandidateModule {
@@ -120,7 +120,7 @@ function restore(modules: IModules, saved: ISnapshot): true {
   modules.registry.PIPELINE_BANK_CONFIG[HINT] = saved.bank;
   globalThis.fetch = saved.fetch;
   resetWkRegistryForTest();
-  modules.seeder.seedWkFromPipelineConfig(modules.registry.PIPELINE_BANK_CONFIG);
+  modules.seeder.default(modules.registry.PIPELINE_BANK_CONFIG);
   return true;
 }
 
@@ -138,7 +138,7 @@ function install(modules: IModules, saved: ISnapshot, factory: PipelineFactory):
     transport: modules.candidate.LEUMI_TRANSPORT,
   };
   resetWkRegistryForTest();
-  modules.seeder.seedWkFromPipelineConfig(modules.registry.PIPELINE_BANK_CONFIG);
+  modules.seeder.default(modules.registry.PIPELINE_BANK_CONFIG);
   return true;
 }
 

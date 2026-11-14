@@ -39,4 +39,3 @@ const PEPPER_TRANSPORT: ITransportConfig = {
 };
 
 export default PEPPER_TRANSPORT;
-export { PEPPER_TRANSPORT };

@@ -99,13 +99,13 @@ describe('PipelineBankConfigSeeder', () => {
     expect(transportConfig).toBeDefined();
     resetWkRegistryForTest();
     try {
-      SEEDER.seedWkFromPipelineConfig({ ...PIPELINE_BANK_CONFIG, [bank]: withoutTransport });
+      SEEDER.default({ ...PIPELINE_BANK_CONFIG, [bank]: withoutTransport });
       const result = resolveWkUrl('identityBase', bank);
       const isResolved = isOk(result);
       expect(isResolved).toBe(false);
     } finally {
       resetWkRegistryForTest();
-      SEEDER.seedWkFromPipelineConfig(PIPELINE_BANK_CONFIG);
+      SEEDER.default(PIPELINE_BANK_CONFIG);
     }
   });
 });

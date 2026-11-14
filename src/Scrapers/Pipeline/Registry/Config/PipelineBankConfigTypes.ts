@@ -14,7 +14,7 @@ import type {
 } from '../../Types/Domain/FetchPolicy.js';
 
 /** Generic auth-path keys — per-bank subsets plug into `paths` below. */
-export type AuthPathKey =
+type AuthPathKey =
   | 'identity.deviceToken'
   | 'identity.otpPrepare'
   | 'identity.otpVerify'
@@ -55,7 +55,7 @@ export type AuthPathKey =
  * pipeline edge runs the matching transform before the bank's
  * login flow consumes the value.
  */
-export type PhoneNumberFormatTag =
+type PhoneNumberFormatTag =
   'international-plus' | 'international-dash' | 'international-flat' | 'local-only';
 
 /**
