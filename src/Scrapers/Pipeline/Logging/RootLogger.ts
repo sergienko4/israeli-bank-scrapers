@@ -14,7 +14,7 @@
 import pino, { type Logger } from 'pino';
 
 import type { Brand } from '../Types/Brand.js';
-import { SENSITIVE_PATHS } from '../Types/DebugConfig.js';
+import SENSITIVE_PATHS from '../Types/DebugConfig.js';
 import { toError } from '../Types/ErrorUtils.js';
 import { createCensorFn } from '../Types/PiiRedactor.js';
 import { currentRunScope, noteRunLogFile } from '../Types/RunScope.js';

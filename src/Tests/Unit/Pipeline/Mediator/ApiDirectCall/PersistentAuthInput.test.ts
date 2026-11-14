@@ -18,7 +18,7 @@ import {
   readPersistentAuthInput,
 } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ApiDirectCallActions.pre.js';
 import type { IApiDirectCallConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
-import { SENSITIVE_PATHS } from '../../../../../Scrapers/Pipeline/Types/DebugConfig.js';
+import SENSITIVE_PATHS from '../../../../../Scrapers/Pipeline/Types/DebugConfig.js';
 import type { ITokenContext } from '../../../../../Scrapers/Pipeline/Types/Domain/TokenContext.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import { createCensorFn } from '../../../../../Scrapers/Pipeline/Types/PiiRedactor.js';

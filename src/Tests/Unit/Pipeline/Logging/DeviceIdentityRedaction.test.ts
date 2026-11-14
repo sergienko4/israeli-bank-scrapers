@@ -10,7 +10,7 @@ import { PassThrough } from 'node:stream';
 
 import pino from 'pino';
 
-import { SENSITIVE_PATHS } from '../../../../Scrapers/Pipeline/Types/DebugConfig.js';
+import SENSITIVE_PATHS from '../../../../Scrapers/Pipeline/Types/DebugConfig.js';
 import type { JsonValue } from '../../../../Scrapers/Pipeline/Types/JsonValue.js';
 import { classifyKey, redactJsonBody } from '../../../../Scrapers/Pipeline/Types/PiiRedactor.js';
 

@@ -33,15 +33,6 @@ type TraceStatus = 'ok' | 'empty' | 'error';
  */
 type MaskedText = Brand<string, 'MaskedText'>;
 
-// ── Base Event — mandatory coordinates on EVERY log event ────────────
-
-/** Every pipeline log event MUST carry these coordinates. */
-interface IBaseEvent {
-  readonly event: EventName;
-  readonly phase: PhaseName;
-  readonly stage: StageLabel;
-}
-
 // ── Event payloads — each event's specific fields ────────────────────
 
 /** All event names in the pipeline. */
@@ -146,5 +137,5 @@ function maskVisibleText(text: string): MaskedText {
   return (trimmed.slice(0, MAX_VISIBLE_TEXT_LENGTH) + '...') as MaskedText;
 }
 
-export type { EventName, IBaseEvent, IEventPayloads, MaskedText, PipelineLogEvent, StageLabel };
+export type { PipelineLogEvent };
 export { maskVisibleText };

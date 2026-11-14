@@ -65,5 +65,4 @@ function parseJsonOrThrow(text: string, context: string): JsonUnknown {
   }
 }
 
-export type { JsonParseFailureText };
 export { describeJsonParseFailure, parseJsonOrThrow };

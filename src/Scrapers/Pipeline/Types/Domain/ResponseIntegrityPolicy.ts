@@ -21,5 +21,4 @@ function isResponseIntegrity(value: unknown): value is IResponseIntegrity {
   return sha256 === undefined || (typeof sha256 === 'string' && SHA256_PATTERN.test(sha256));
 }
 
-export default isResponseIntegrity;
 export { isResponseIntegrity };
