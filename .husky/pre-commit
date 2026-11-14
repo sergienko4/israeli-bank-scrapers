@@ -159,7 +159,9 @@ if [ -n "$LINT_FILES" ]; then
         # Read the list from stdin, NOT `xargs -a` — `-a` is a GNU extension
         # and macOS ships BSD xargs, where it aborts with "illegal option -- a".
         # NUL-separated, so a path with a space stays one argument.
-        bg_gate "eslint" "no" bash -c "tr '\\n' '\\0' < '$LINT_LIST' | xargs -0 npx eslint --max-warnings 0"
+        # `--no-warn-ignored`: a staged file the config ignores (canaries, .js,
+        # .mjs) is skipped instead of raising a warning --max-warnings 0 rejects.
+        bg_gate "eslint" "no" bash -c "tr '\\n' '\\0' < '$LINT_LIST' | xargs -0 npx eslint --max-warnings 0 --no-warn-ignored"
         bg_gate "biome" "no" bash -c "tr '\\n' '\\0' < '$LINT_LIST' | xargs -0 npx biome lint --max-diagnostics=50 --no-errors-on-unmatched"
     fi
 else
