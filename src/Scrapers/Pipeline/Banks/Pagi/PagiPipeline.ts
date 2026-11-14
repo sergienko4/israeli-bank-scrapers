@@ -7,7 +7,7 @@
  */
 
 import type { ScraperOptions } from '../../../Base/Interface.js';
-import { createPipelineBuilder } from '../../Core/Builder/PipelineBuilderFactory.js';
+import createPipelineBuilder from '../../Core/Builder/PipelineBuilderFactory.js';
 import type { IPipelineDescriptor } from '../../Core/PipelineDescriptor.js';
 import { PAGI_API_DIRECT_CALL } from '../../Registry/Config/PipelineBankConfigPagi.js';
 import type { Procedure } from '../../Types/Procedure.js';

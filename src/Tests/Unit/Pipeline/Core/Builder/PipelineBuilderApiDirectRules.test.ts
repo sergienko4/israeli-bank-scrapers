@@ -113,7 +113,7 @@ function buildWith(
   opts: ScraperOptions,
   call: IApiDirectCallConfig,
 ): Procedure<IPipelineDescriptor> {
-  const builder = BUILDER_FACTORY.createPipelineBuilder();
+  const builder = BUILDER_FACTORY.default();
   const seeded = builder.withOptions(opts);
   const withLogin = seeded.withApiDirect(call, MOCK_API_DIRECT_SHAPE);
   return withLogin.build();

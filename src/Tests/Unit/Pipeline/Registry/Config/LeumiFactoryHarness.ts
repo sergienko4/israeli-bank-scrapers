@@ -13,7 +13,7 @@ import type {
 import { buildLeumiNativePipeline } from '../../../../../Scrapers/Pipeline/Banks/Leumi/LeumiPipeline.js';
 import { LEUMI_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Leumi/scrape/LeumiShape.js';
 import PIPELINE_REGISTRY from '../../../../../Scrapers/Pipeline/Banks/PipelineRegistry.js';
-import { createPipelineBuilder } from '../../../../../Scrapers/Pipeline/Core/Builder/PipelineBuilderFactory.js';
+import createPipelineBuilder from '../../../../../Scrapers/Pipeline/Core/Builder/PipelineBuilderFactory.js';
 import type { PipelineFactory } from '../../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
 import type { IApiDirectCallConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { resetWkRegistryForTest } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
