@@ -40,7 +40,8 @@
 #                 regressions could itself be weakened and merged without
 #                 the gate that depends on it ever running. Same
 #                 self-testing role `ci_scripts` plays for the memory gate.
-#   test_config — a Jest config (`jest.*.js` / `jest.*.cjs`) was modified.
+#   test_config — a Jest config (`jest.*.js` / `jest.*.cjs`) or the Jest-scope
+#                 checker (`scripts/check-jest-scopes.mjs`) was modified.
 #                 These files sit at the repo root, so they match NO other
 #                 group: a change to `transformIgnorePatterns`, `moduleNameMapper`
 #                 or `testEnvironment` used to reach main with the unit suite
@@ -237,7 +238,7 @@ if has '^docs/|^mkdocs_hooks/|^mkdocs\.yml$|^requirements-docs\.txt$|^typedoc\.j
 if has '^src/Scrapers/Pipeline/.*\.ts$'; then pipeline_ts=true; fi
 if has '^\.github/scripts/ci/|^\.github/workflows/|^\.github/actions/|^\.husky/|^scripts/check-shell-portability\.mjs$|^scripts/npm-audit/|^scripts/npm-audit-watch\.mjs$|^scripts/dev-tooling/|^scripts/dev-tooling-watch\.mjs$|^typedoc\.json$|^scripts/run-typedoc\.mjs$'; then ci_scripts=true; fi
 if has '^package\.json$|^package-lock\.json$|^\.github/dependabot\.yml$|^renovate\.json$|^\.nvmrc$'; then deps=true; fi
-if has '^jest\..*\.(js|cjs|mjs|ts)$|^jest\.config\.(js|cjs|mjs|ts)$'; then test_config=true; fi
+if has '^jest\..*\.(js|cjs|mjs|ts)$|^jest\.config\.(js|cjs|mjs|ts)$|^scripts/check-jest-scopes\.mjs$'; then test_config=true; fi
 if has '^scripts/decoupling-metrics/'; then metrics=true; fi
 # Everything that defines the published API surface or the check that guards
 # it. `full_suite` is `src OR critical_deps` and so misses a snapshot-only,

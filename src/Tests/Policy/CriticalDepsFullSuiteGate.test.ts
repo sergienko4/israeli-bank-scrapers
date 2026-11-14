@@ -668,6 +668,16 @@ describe('CriticalDepsFullSuiteGate', () => {
     expect(condition).toContain("needs.changes.outputs.ci_scripts == 'true'");
   });
 
+  it('[CI-CRIT-GATE] Detector_JestScopeCheckerChange_ShouldSetTestConfig', () => {
+    const script = read(DETECTOR);
+    const rule = /if has '(?<pattern>[^']+)'; then test_config=true; fi/u.exec(script);
+    const pattern = new RegExp(rule?.groups?.pattern ?? '^$', 'u');
+    const isCheckerCovered = pattern.test('scripts/check-jest-scopes.mjs');
+    const isUnrelatedCovered = pattern.test('scripts/check-doc-paths.mjs');
+    expect(isCheckerCovered).toBe(true);
+    expect(isUnrelatedCovered).toBe(false);
+  });
+
   it('[CI-CRIT-GATE] Detector_HuskyChange_ShouldRunTheWiringTests', () => {
     const script = read(DETECTOR);
     const ciScriptsRule =
