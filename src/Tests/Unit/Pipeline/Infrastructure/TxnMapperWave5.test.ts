@@ -5,6 +5,18 @@
  */
 
 import { autoMapTransaction } from '../../../../Scrapers/Pipeline/Mediator/Scrape/TxnMapper/TxnMapper.js';
+import type { ITransaction } from '../../../../Transactions.js';
+
+/**
+ * Map one raw record and assert the mapper accepted it.
+ * @param raw - Raw transaction record.
+ * @returns The mapped transaction.
+ */
+function mapOne(raw: Record<string, unknown>): ITransaction {
+  const mapped = autoMapTransaction(raw);
+  expect(mapped).not.toBe(false);
+  return mapped as ITransaction;
+}
 
 describe('TxnMapper — Wave 5 branches', () => {
   // coerceNumber NaN fallback (line 92) — via originalAmount branch
@@ -15,11 +27,9 @@ describe('TxnMapper — Wave 5 branches', () => {
       description: 'x',
       originalAmount: 'not-a-number',
     };
-    const result = autoMapTransaction(raw);
-    if (result !== false) {
-      // Falls back to amount (-10) when originalAmount unparseable.
-      expect(typeof result.originalAmount).toBe('number');
-    }
+    const txn = mapOne(raw);
+    // Falls back to amount (-10) when originalAmount unparseable.
+    expect(txn.originalAmount).toBe(-10);
   });
 
   // maybeNegateAmount: isCardTxn + amount===0 (line 519)
@@ -30,10 +40,8 @@ describe('TxnMapper — Wave 5 branches', () => {
       description: 'Card zero charge',
       dealSumType: '0', // activates card flag
     };
-    const result = autoMapTransaction(raw);
-    if (result !== false) {
-      expect(result.chargedAmount).toBe(0);
-    }
+    const txn = mapOne(raw);
+    expect(txn.chargedAmount).toBe(0);
   });
 
   // isMappableTxn: infinite amount rejected (line 557)

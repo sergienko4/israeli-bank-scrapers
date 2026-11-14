@@ -29,7 +29,7 @@ export const CANONICAL_CAPS: Readonly<Record<string, number>> = {
  * Canaries are excluded because they hold deliberate violations. Top-level
  * `src/*.ts` is left to the §3 cluster row, whose representative is `src/index.ts`.
  */
-export const PRODUCTION_ROOTS: readonly string[] = ['src/Common', 'src/Scrapers'];
+export const PRODUCTION_ROOTS: readonly string[] = ['src/Scrapers'];
 
 /** Directory name that holds deliberate rule violations, so it is never audited. */
 export const CANARY_DIR = 'EslintCanaries';

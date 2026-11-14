@@ -85,6 +85,15 @@ function amountById(rows: readonly Record<string, unknown>[], id: string): numbe
   return typeof amount === 'number' ? amount : Number.NaN;
 }
 
+/**
+ * Build a `StmtRunningBal` list carrying one CURRENT balance value.
+ * @param value - Running-balance magnitude (string, as BaNCS emits).
+ * @returns Single-element running-balance list.
+ */
+function runningBal(value: string): readonly Record<string, unknown>[] {
+  return [{ CurrAmt: { Amt: { Value: value } }, BalType: { CDE: 'CURRENT' } }];
+}
+
 describe('BaNCS normalizer — sign resolution', () => {
   it('single OutPymntOrd (boundary row) → negative amount', () => {
     const record = buildBancsRecord({
@@ -166,5 +175,117 @@ describe('BaNCS normalizer — default-deny for non-BaNCS records', () => {
     expect(out).toHaveLength(1);
     expect(out[0]).toBe(plain);
     expect('bancsAmount' in out[0]).toBe(false);
+  });
+});
+
+describe('BaNCS normalizer — boundary + fallback branches', () => {
+  it('unknown type + no balance → default debit and fills currency/date fallbacks', () => {
+    const minimal = {
+      OrigDt: { Day: 5, Month: 3, Year: 2026 },
+      TotalCurAmt: { Amt: { Value: '75' } },
+      TxnType: { OthrSubTyp: 'MysteryType' },
+    };
+    const out = normalizeBancsRecords([minimal]);
+    const row = out[0];
+    expect(row.bancsAmount).toBe(-75);
+    expect(row.bancsCurrency).toBe('ILS');
+    expect(row.bancsProcessedDate).toBe('2026-03-05');
+    expect(row.bancsDescription).toBe('');
+  });
+
+  it('single InPymntOrd (boundary credit) → positive charged amount', () => {
+    const credit = {
+      OrigDt: { Day: 8, Month: 3, Year: 2026 },
+      TotalCurAmt: { Amt: { Value: '250' } },
+      TxnType: { OthrSubTyp: 'InPymntOrd' },
+    };
+    const out = normalizeBancsRecords([credit]);
+    expect(out[0].bancsAmount).toBe(250);
+  });
+
+  it('same-day rows sign deterministically by API arrival order', () => {
+    const first = {
+      OrigDt: { Day: 4, Month: 4, Year: 2026 },
+      TotalCurAmt: { Amt: { Value: '100' } },
+      TxnType: { OthrSubTyp: 'OutPymntOrd' },
+      StmtRunningBal: runningBal('900'),
+    };
+    const second = {
+      OrigDt: { Day: 4, Month: 4, Year: 2026 },
+      TotalCurAmt: { Amt: { Value: '300' } },
+      TxnType: { OthrSubTyp: 'OutPymntOrd' },
+      StmtRunningBal: runningBal('1200'),
+    };
+    const out = normalizeBancsRecords([first, second]);
+    // index tie-break keeps [first, second]; delta(second) = 1200 − 900 = +300.
+    expect(out[1].bancsAmount).toBe(300);
+    expect(out[0].bancsAmount).toBe(-100);
+  });
+
+  it('type/delta disagreement trusts the running-balance delta (credit)', () => {
+    const older = {
+      OrigDt: { Day: 1, Month: 1, Year: 2026 },
+      TotalCurAmt: { Amt: { Value: '100' } },
+      TxnType: { OthrSubTyp: 'OutPymntOrd' },
+      StmtRunningBal: runningBal('1000'),
+    };
+    const newer = {
+      OrigDt: { Day: 2, Month: 1, Year: 2026 },
+      TotalCurAmt: { Amt: { Value: '200' } },
+      TxnType: { OthrSubTyp: 'OutPymntOrd' },
+      StmtRunningBal: runningBal('1200'),
+    };
+    const out = normalizeBancsRecords([older, newer]);
+    expect(out[0].bancsAmount).toBe(-100);
+    expect(out[1].bancsAmount).toBe(200);
+  });
+
+  it('non-numeric running balance falls back to the type-code direction', () => {
+    const first = {
+      OrigDt: { Day: 1, Month: 1, Year: 2026 },
+      TotalCurAmt: { Amt: { Value: '100' } },
+      TxnType: { OthrSubTyp: 'OutPymntOrd' },
+      StmtRunningBal: runningBal('1000'),
+    };
+    const second = {
+      OrigDt: { Day: 2, Month: 1, Year: 2026 },
+      TotalCurAmt: { Amt: { Value: '200' } },
+      TxnType: { OthrSubTyp: 'OutPymntOrd' },
+      StmtRunningBal: runningBal('not-a-number'),
+    };
+    const out = normalizeBancsRecords([first, second]);
+    expect(out[0].bancsAmount).toBe(-100);
+    expect(out[1].bancsAmount).toBe(-200);
+  });
+});
+
+describe('BaNCS normalizer — signs isolated from non-BaNCS rows', () => {
+  it('a stray non-BaNCS row cannot perturb BaNCS running-balance signs', () => {
+    const rowA = buildBancsRecord({
+      id: 'FAKE-A',
+      day: 10,
+      magnitude: '200',
+      runBal: '1000',
+      typeCode: 'OutPymntOrd',
+    });
+    const rowC = buildBancsRecord({
+      id: 'FAKE-C',
+      day: 12,
+      magnitude: '300',
+      runBal: '1200',
+      typeCode: 'OutPymntOrd',
+    });
+    // A date-bearing non-BaNCS record (no TotalCurAmt) that sorts BETWEEN
+    // A and C and — if signed alongside them — would break C's delta.
+    const stray = {
+      OrigDt: { Day: 11, Month: 1, Year: 2026 },
+      StmtRunningBal: runningBal('5000'),
+      description: 'stray non-BaNCS row',
+    };
+    const out = normalizeBancsRecords([rowA, stray, rowC]);
+    expect(out[0].bancsAmount).toBe(-200);
+    expect('bancsAmount' in out[1]).toBe(false);
+    // C's sign uses A's balance (delta +200), NOT the stray's 5000.
+    expect(out[2].bancsAmount).toBe(300);
   });
 });

@@ -1,11 +1,23 @@
 /**
  * Branch coverage extensions for TxnMapper.
- * Targets coerceString/Number, isVoidedTransaction, maybeNegateAmount,
- * resolveAmount split, isMappableTxn malformed txn rejection.
+ * Targets coerceString/Number, maybeNegateAmount, resolveAmount split and
+ * isMappableTxn malformed txn rejection.
  */
 
 import { parseAutoDate } from '../../../../Scrapers/Pipeline/Mediator/Scrape/Coercion/Coercion.js';
 import { autoMapTransaction } from '../../../../Scrapers/Pipeline/Mediator/Scrape/TxnMapper/TxnMapper.js';
+import type { ITransaction } from '../../../../Transactions.js';
+
+/**
+ * Map one raw record and assert the mapper accepted it.
+ * @param raw - Raw transaction record.
+ * @returns The mapped transaction.
+ */
+function mapOne(raw: Record<string, unknown>): ITransaction {
+  const mapped = autoMapTransaction(raw);
+  expect(mapped).not.toBe(false);
+  return mapped as ITransaction;
+}
 
 describe('TxnMapper — branch completion', () => {
   it('parseAutoDate returns original string when no format matches', () => {
@@ -26,18 +38,17 @@ describe('TxnMapper — branch completion', () => {
     expect(result).toBe(false);
   });
 
-  it('autoMapTransaction rejects NaN amount', () => {
+  it('coerces a non-numeric amount to zero', () => {
     const raw = { date: '2026-01-15', amount: 'garbage', description: 'x' };
-    const result = autoMapTransaction(raw);
-    // coerceNumber('garbage') is NaN → falsy via Number.isFinite — but resolveAmount may fall back.
-    expect(result === false || typeof result === 'object').toBe(true);
+    const txn = mapOne(raw);
+    expect(txn.chargedAmount).toBe(0);
   });
 
-  it('autoMapTransaction coerces numeric date (number branch)', () => {
+  it('coerces a numeric YYYYMMDD date', () => {
     const raw = { date: 20260115, amount: -10, description: 'x' };
-    const result = autoMapTransaction(raw);
-    // Numeric date → String(20260115) — won't match KNOWN_DATE_FORMATS
-    expect(result === false || typeof result === 'object').toBe(true);
+    const txn = mapOne(raw);
+    expect(txn.originalAmount).toBe(-10);
+    expect(txn.date).toContain('2026-01');
   });
 
   it('negates amount when card-company signature (dealSumType present + positive amount)', () => {
@@ -47,10 +58,8 @@ describe('TxnMapper — branch completion', () => {
       description: 'Card Charge',
       dealSumType: '0',
     };
-    const result = autoMapTransaction(raw);
-    if (result !== false) {
-      expect(result.chargedAmount).toBeLessThanOrEqual(0);
-    }
+    const txn = mapOne(raw);
+    expect(txn.chargedAmount).toBe(-250);
   });
 
   it('resolves split debit/credit amount when amount is false', () => {
@@ -60,11 +69,9 @@ describe('TxnMapper — branch completion', () => {
       debitAmount: 100,
       creditAmount: 40,
     };
-    const result = autoMapTransaction(raw);
-    if (result !== false) {
-      // credit - debit = -60
-      expect(typeof result.chargedAmount).toBe('number');
-    }
+    const txn = mapOne(raw);
+    // credit - debit = -60
+    expect(txn.chargedAmount).toBe(-60);
   });
 
   it('normalizeCurrency converts shekel alias to ILS', () => {
@@ -74,9 +81,7 @@ describe('TxnMapper — branch completion', () => {
       description: 'x',
       currency: '₪',
     };
-    const result = autoMapTransaction(raw);
-    if (result !== false) {
-      expect(result.originalCurrency).toBe('ILS');
-    }
+    const txn = mapOne(raw);
+    expect(txn.originalCurrency).toBe('ILS');
   });
 });
