@@ -35,7 +35,7 @@ export const BANK_EXTRA_DNS_HOSTS: BankExtraDnsHosts = {
   [CompanyTypes.Amex]: ['ring.americanexpress.co.il'],
   [CompanyTypes.Beinleumi]: ['online.fibi.co.il'],
   [CompanyTypes.Discount]: ['start.telebank.co.il'],
-  [CompanyTypes.Hapoalim]: ['login.bankhapoalim.co.il'],
+  [CompanyTypes.Hapoalim]: ['iphone.bankhapoalim.co.il'],
   [CompanyTypes.Isracard]: ['ring.isracard.co.il'],
   [CompanyTypes.Leumi]: ['hb2.bankleumi.co.il', 'sa.bankleumi.co.il'],
   [CompanyTypes.Massad]: ['online.bankmassad.co.il'],

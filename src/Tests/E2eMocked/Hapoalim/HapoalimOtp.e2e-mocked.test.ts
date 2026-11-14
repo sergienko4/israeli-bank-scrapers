@@ -1,9 +1,9 @@
 /**
  * Hapoalim HTTP-only SMS step — mocked E2E for its edges: no retriever, a
  * wrong or malformed code, the bank refusing the code step, a missing or
- * unusable CSRF cookie or flow, and an otp-init state other than the pending
- * one. Each pins whether the caller was asked for a code, and how far the
- * run got.
+ * unusable CSRF cookie, a pending answer without a flow field, and an
+ * otp-init state other than the pending one. Each pins whether the caller was
+ * asked for a code, and how far the run got.
  *
  * Rule #18: all credentials + data are synthetic; no real PII.
  */
@@ -11,9 +11,9 @@
 import { ScraperErrorTypes } from '../../../Scrapers/Base/ErrorTypes.js';
 import type { HapoalimFault } from './HapoalimFaults.js';
 import { HP_BANK_NOTICE } from './HapoalimFaults.js';
-import { HP_PHONE } from './HapoalimMockData.js';
+import { HP_OTP, HP_PHONE } from './HapoalimMockData.js';
 import type { IRunSetup } from './HapoalimRun.js';
-import { OTP_TRAIL, runHapoalim, VERIFY_TRAIL } from './HapoalimRun.js';
+import { LANDING_TRAIL, OTP_TRAIL, runHapoalim, VERIFY_TRAIL } from './HapoalimRun.js';
 
 /** An SMS-step failure: the input, the failure, and what the run did first. */
 interface IOtpRefusal {
@@ -92,6 +92,22 @@ const OTP_REFUSALS: readonly IOtpRefusal[] = [
     hints: ASKED,
   },
   {
+    name: 'the login code reused for the device step-up',
+    fault: 'newDevice',
+    setup: { otp: [HP_OTP, HP_OTP] },
+    errorType: ScraperErrorTypes.InvalidOtp,
+    message: 'stepupVerify outcome unmapped',
+    trail: [
+      ...VERIFY_TRAIL,
+      ...OTP_TRAIL,
+      ...LANDING_TRAIL,
+      'POST /arcotid/download',
+      'POST /stepup/otp/init',
+      'POST /stepup/otp/verify',
+    ],
+    hints: [HP_PHONE, HP_PHONE],
+  },
+  {
     name: 'no csrfcookie',
     fault: 'noCsrf',
     setup: {},
@@ -118,15 +134,6 @@ const OTP_REFUSALS: readonly IOtpRefusal[] = [
     trail: SENT_TRAIL,
     hints: [],
   },
-  {
-    name: 'a pending answer without a flow',
-    fault: 'noFlow',
-    setup: {},
-    errorType: ScraperErrorTypes.Generic,
-    message: 'ref carry.flow missing from scope.carry',
-    trail: SENT_TRAIL,
-    hints: [],
-  },
   ...(['otpInitStateOther', 'otpInitStateObject', 'otpInitStateNumber'] as const).map(fault => ({
     name: `an otp-init ${fault}`,
     fault,
@@ -139,6 +146,29 @@ const OTP_REFUSALS: readonly IOtpRefusal[] = [
 ];
 
 describe('Hapoalim browserless SMS step', () => {
+  it('asks twice on a new device: login OTP then the device step-up', async () => {
+    const run = await runHapoalim('newDevice');
+    expect(run.result.success).toBe(true);
+    expect(run.hints).toEqual([HP_PHONE, HP_PHONE]);
+    expect(run.trail).toContain('POST /stepup/otp/init');
+    expect(run.trail).toContain('POST /stepup/otp/verify');
+    expect(run.trail).toContain('POST /arcotid/download');
+  });
+
+  it('asks once on a registered device and skips the step-up', async () => {
+    const run = await runHapoalim();
+    expect(run.result.success).toBe(true);
+    expect(run.hints).toEqual([HP_PHONE]);
+    expect(run.trail).not.toContain('POST /stepup/otp/init');
+    expect(run.trail).not.toContain('POST /arcotid/download');
+  });
+
+  it('does not read a flow field from verify: the OTP form sends the literal', async () => {
+    const run = await runHapoalim('noFlow');
+    expect(run.result.success).toBe(true);
+    expect(run.hints).toEqual([HP_PHONE]);
+  });
+
   it.each(OTP_REFUSALS)('fails $name', async refusal => {
     const run = await runHapoalim(refusal.fault, refusal.setup);
     expect(run.result.success).toBe(false);

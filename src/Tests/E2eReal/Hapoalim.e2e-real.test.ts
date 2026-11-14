@@ -26,7 +26,7 @@ DESCRIBE_IF('E2E: Bank Hapoalim (real credentials)', () => {
   });
 
   it('scrapes transactions successfully', async () => {
-    const retrieve = createBankOtpPoller('Hapoalim', LOG);
+    const retrieve = createBankOtpPoller('Hapoalim', LOG, true);
     const scraper = createScraper({
       companyId: CompanyTypes.Hapoalim,
       startDate: defaultStartDate(),
@@ -35,6 +35,7 @@ DESCRIBE_IF('E2E: Bank Hapoalim (real credentials)', () => {
     const result = await scraper.scrape({
       userCode: process.env.HAPOALIM_USER_CODE ?? '',
       password: process.env.HAPOALIM_PASSWORD ?? '',
+      deviceSignature: process.env.HAPOALIM_DEVICE_SIGNATURE ?? '',
     });
 
     assertSuccessfulScrape(result);

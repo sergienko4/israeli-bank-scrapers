@@ -11,6 +11,7 @@
  */
 
 import type { IApiDirectCallConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
+import RISK_MINDER_MFP_FORMAT from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/DeviceIdentity/Formats/RiskMinderMfp.js';
 import { checkRequiredCreds } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RequiredCreds.js';
 import {
   INVALID_CREDS_DISCOUNT,
@@ -56,6 +57,11 @@ describe('invalid-login placeholders reach the bank', () => {
   it.each(ROWS)('$bank placeholder passes the local shape check', async ({ bank, creds }) => {
     const call = await loadCall(bank);
     const checked = checkRequiredCreds(call, creds);
+    expect(checked).toEqual({ success: true, value: true });
+  });
+
+  it('the Hapoalim signature passes the device-identity validator', () => {
+    const checked = RISK_MINDER_MFP_FORMAT.validate(INVALID_CREDS_HAPOALIM.deviceSignature);
     expect(checked).toEqual({ success: true, value: true });
   });
 });

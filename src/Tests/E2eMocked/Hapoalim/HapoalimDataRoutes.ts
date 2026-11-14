@@ -16,7 +16,7 @@ import { errorReply } from '../Helpers/FetchMockKit.js';
 import { bodiless, hasCookies, json, reply } from '../Helpers/MockReplies.js';
 import type { HapoalimFault, IMockRun, Route } from './HapoalimFaults.js';
 import { authCookieOf, HP_BANK_NOTICE } from './HapoalimFaults.js';
-import { accountOf, accountsBody, HP_XSRF_DECODED, rowsOf } from './HapoalimMockData.js';
+import { accountOf, accountsBody, rowsOf } from './HapoalimMockData.js';
 
 const API = '/ServerServices';
 const TXNS_TYPE = 'application/json;charset=UTF-8';
@@ -82,14 +82,12 @@ function routeBalance(call: IRecordedCall): Response {
 }
 
 /**
- * Whether a movements call carries what the bank requires.
+ * Whether a movements call carries what the app bank requires.
  * @param call - The recorded request.
- * @returns True for an empty JSON array body with the JSON type and XSRF echo.
+ * @returns True for an empty JSON array body with the JSON type.
  */
 function isTxnsRequest(call: IRecordedCall): boolean {
-  const isJson = call.headers.get('content-type') === TXNS_TYPE;
-  const isEcho = call.headers.get('x-xsrf-token') === HP_XSRF_DECODED;
-  return call.body === '[]' && isJson && isEcho;
+  return call.body === '[]' && call.headers.get('content-type') === TXNS_TYPE;
 }
 
 /**

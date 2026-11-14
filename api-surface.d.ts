@@ -359,7 +359,7 @@ interface IAuthFlowInfo {
  * <p>One documented opt-out exists: a step declaring
  * `preHook.reuse: 'per-step'` acquires afresh, so a retriever CAN be called
  * again within the same flow. That is reserved for a bank that genuinely
- * delivers a distinct secret per step; no bank declares it today.
+ * delivers a distinct secret per step (Hapoalim's device step-up).
  *
  * <p>It IS called again for a genuinely new code when a login is retried after
  * the bank rejects the previous one.
@@ -372,6 +372,7 @@ type ScraperCredentials = {
     password: string;
     otpCodeRetriever?: (phoneHint: string) => Promise<string>;
     otpLongTermToken?: string;
+    deviceSignature?: string;
 } | {
     username: string;
     password: string;
@@ -444,11 +445,12 @@ interface IScraperOptions {
      *
      * Called at most once per successful acquisition per login attempt — see the
      * `otpCodeRetriever` contract note above `ScraperCredentials`. A single-shot
-     * implementation (one SMS in, one code out) is sufficient for every bank
-     * shipped today. Two documented exceptions can call it again within one
-     * login: an acquisition that rejects is not cached, so a retry re-prompts;
-     * and a step config may opt out with `preHook.reuse: 'per-step'`, which no
-     * bank currently does.
+     * implementation (one SMS in, one code out) is sufficient for most banks.
+     * Hapoalim's device step-up asks for a second, distinct code in the same
+     * login, so its callback is invoked again; implementations must answer both
+     * prompts. An acquisition that rejects is not cached, so a retry re-prompts.
+     * A step config may opt out of the once-per-login cache with
+     * `preHook.reuse: 'per-step'`; Hapoalim uses it for the device step-up.
      * @param phoneHint masked phone number reported by the bank, e.g. "*******1200" (empty string if none)
      */
     otpCodeRetriever?: (phoneHint: string) => Promise<string>;

@@ -9,7 +9,8 @@
  */
 
 import { ScraperErrorTypes } from '../../../Scrapers/Base/ErrorTypes.js';
-import { HP_FOREIGN_TARGET, HP_VERIFY_REPLAY_URL } from './HapoalimAuthRoutes.js';
+import { parseForm } from '../Helpers/FetchMockKit.js';
+import { HP_VERIFY_REPLAY_URL } from './HapoalimAuthRoutes.js';
 import type { HapoalimFault } from './HapoalimFaults.js';
 import { HP_BANK_NOTICE } from './HapoalimFaults.js';
 import {
@@ -18,6 +19,7 @@ import {
   HAPOALIM_OPEN_ACCOUNTS,
   HP_PHONE,
 } from './HapoalimMockData.js';
+import type { IHapoalimRun } from './HapoalimRun.js';
 import {
   ACCOUNT_OPEN_TRAIL,
   ACCOUNTS_TRAIL,
@@ -62,53 +64,13 @@ const VERIFY_REFUSALS: readonly IRefusal[] = [
     message: 'verify bank error',
     trail: VERIFY_TRAIL,
   },
-  {
-    fault: 'foreignTarget',
-    errorType: ScraperErrorTypes.Generic,
-    message: 'verify extract target invalid',
-    trail: VERIFY_TRAIL,
-  },
-  {
-    fault: 'targetNumber',
-    errorType: ScraperErrorTypes.Generic,
-    message: 'verify extract target invalid',
-    trail: VERIFY_TRAIL,
-  },
-];
-
-/** Invalid answers before or after the SMS step, and where each stops the run. */
-const ANSWER_REFUSALS: readonly IRefusal[] = [
-  {
-    fault: 'initResultString',
-    errorType: ScraperErrorTypes.Generic,
-    message: 'identify extract result invalid',
-    trail: VERIFY_TRAIL.slice(0, 3),
-  },
-  {
-    fault: 'initResultMissing',
-    errorType: ScraperErrorTypes.Generic,
-    message: 'envelope selector miss: result at /result',
-    trail: VERIFY_TRAIL.slice(0, 3),
-  },
-  {
-    fault: 'pageIdBad',
-    errorType: ScraperErrorTypes.Generic,
-    message: 'landing extract pageId invalid',
-    trail: SIGNED_IN_TRAIL,
-  },
-  {
-    fault: 'landingErrors',
-    errorType: ScraperErrorTypes.Generic,
-    message: 'landing bank error',
-    trail: SIGNED_IN_TRAIL,
-  },
 ];
 
 /** Step-0 faults and the failure each must surface, with no response text. */
 const STEP_ZERO_FAULTS: readonly (readonly [HapoalimFault, ScraperErrorTypes, string])[] = [
-  ['http500', ScraperErrorTypes.Generic, 'bootstrap HTTP 500'],
-  ['reject', ScraperErrorTypes.Generic, 'bootstrap GENERIC'],
-  ['timeout', ScraperErrorTypes.Timeout, 'bootstrap TIMEOUT'],
+  ['http500', ScraperErrorTypes.Generic, 'identify HTTP 500'],
+  ['reject', ScraperErrorTypes.Generic, 'identify GENERIC'],
+  ['timeout', ScraperErrorTypes.Timeout, 'identify TIMEOUT'],
 ];
 
 /**
@@ -123,6 +85,20 @@ async function expectRefused(refusal: IRefusal): Promise<void> {
   expect(run.result.errorMessage).toBe(refusal.message);
   expect(run.result.errorMessage).not.toContain(HP_BANK_NOTICE);
   expect(run.trail).toEqual(refusal.trail);
+}
+
+/**
+ * The `mfp` form field of a run's password call.
+ * @param run - Finished run.
+ * @returns The signature, or '' when the call did not happen.
+ */
+function verifyMfpOf(run: IHapoalimRun): string {
+  const verify = run.calls.find(
+    call => call.method === 'POST' && call.url.includes('/authenticate/verify'),
+  );
+  if (verify === undefined) return '';
+  const form = parseForm(verify.body);
+  return Object.hasOwn(form, 'mfp') ? form.mfp : '';
 }
 
 describe('Hapoalim browserless login', () => {
@@ -162,17 +138,17 @@ describe('Hapoalim browserless login', () => {
     expect(run.hints).toEqual([]);
   });
 
+  it('fails step1 when a 200 body reports an app error, not a session', async () => {
+    const run = await runHapoalim('step1Errors');
+    expect(run.result.success).toBe(false);
+    expect(run.result.errorType).toBe(ScraperErrorTypes.Generic);
+    expect(run.result.errorMessage).toBe('step1 capture bankError present');
+    expect(run.result.errorMessage).not.toContain(HP_BANK_NOTICE);
+    expect(run.trail).toEqual(SIGNED_IN_TRAIL);
+  });
+
   it.each(VERIFY_REFUSALS)('fails a verify $fault before any SMS', async refusal => {
     await expectRefused(refusal);
-  });
-
-  it.each(ANSWER_REFUSALS)('fails an invalid $fault answer', async refusal => {
-    await expectRefused(refusal);
-  });
-
-  it('never names a foreign landing target in the failure', async () => {
-    const run = await runHapoalim('foreignTarget');
-    expect(run.result.errorMessage).not.toContain(new URL(HP_FOREIGN_TARGET).host);
   });
 
   it.each(['verify302', 'verify307'] as const)(
@@ -237,5 +213,20 @@ describe('Hapoalim browserless login', () => {
     expect(run.result.errorType).toBe(ScraperErrorTypes.Generic);
     expect(run.result.errorMessage).toBe('Missing or malformed credentials: password');
     expect(run.calls).toHaveLength(0);
+  });
+
+  it('reuses the token seed after a refused warm session', async () => {
+    const creds = { ...HAPOALIM_MOCK_CREDS, deviceSignature: '' };
+    const first = await runHapoalim('none', { creds });
+    const token = first.result.persistentOtpToken ?? '';
+    expect(first.result.success).toBe(true);
+    expect(token).not.toBe('');
+    const resumed = { ...creds, otpLongTermToken: token };
+    const second = await runHapoalim('sessionExpired', { creds: resumed });
+    expect(second.result.success).toBe(true);
+    const firstMfp = verifyMfpOf(first);
+    const secondMfp = verifyMfpOf(second);
+    expect(firstMfp).not.toBe('');
+    expect(secondMfp).toBe(firstMfp);
   });
 });

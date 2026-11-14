@@ -13,7 +13,7 @@ import type {
   ScraperOptions,
 } from '../../Base/Interface.js';
 import type { VoidResult } from '../../Base/Interfaces/CallbackTypes.js';
-import { isOk, type Procedure, toLegacy } from '../Types/Procedure.js';
+import { isOk, type Procedure, succeed, toLegacy } from '../Types/Procedure.js';
 import { normalizeCredentials } from './CredentialAliases.js';
 import { executePipeline } from './Executor/PipelineExecutor.js';
 import type { IPipelineDescriptor } from './PipelineDescriptor.js';
@@ -29,6 +29,35 @@ type ProgressCallback = (
 
 /** Event name for scrape progress notifications. */
 const SCRAPE_PROGRESS = 'SCRAPE_PROGRESS';
+
+/**
+ * Let the bank fill credentials it can derive itself, when it declares a hook.
+ * @param descriptor - Built pipeline descriptor.
+ * @param credentials - Normalized caller credentials.
+ * @returns The enriched credentials, or the hook's failure.
+ */
+function enrichedCredentials(
+  descriptor: IPipelineDescriptor,
+  credentials: ScraperCredentials,
+): Procedure<ScraperCredentials> {
+  if (descriptor.enrichCredentials === undefined) return succeed(credentials);
+  return descriptor.enrichCredentials(credentials);
+}
+
+/**
+ * Enrich credentials, then run the descriptor.
+ * @param descriptor - Built pipeline descriptor.
+ * @param credentials - Normalized caller credentials.
+ * @returns Legacy scrape result.
+ */
+async function runEnriched(
+  descriptor: IPipelineDescriptor,
+  credentials: ScraperCredentials,
+): Promise<IScraperScrapingResult> {
+  const enriched = enrichedCredentials(descriptor, credentials);
+  if (!isOk(enriched)) return toLegacy(enriched);
+  return executePipeline(descriptor, enriched.value);
+}
 
 /** IScraper adapter — wraps pipeline execution for backward compatibility. */
 class PipelineScraper<TCredentials extends ScraperCredentials> implements IScraper<TCredentials> {
@@ -60,7 +89,7 @@ class PipelineScraper<TCredentials extends ScraperCredentials> implements IScrap
       return legacy;
     }
     const normalized = normalizeCredentials(credentials);
-    return executePipeline(buildResult.value, normalized);
+    return runEnriched(buildResult.value, normalized);
   }
 
   /**

@@ -1590,6 +1590,7 @@ jobs:
           # OTP to the Jest poller during the login flow.
           HAPOALIM_USER_CODE: ${{ secrets.HAPOALIM_USER_CODE }}
           HAPOALIM_PASSWORD: ${{ secrets.HAPOALIM_PASSWORD }}
+          HAPOALIM_DEVICE_SIGNATURE: ${{ secrets.HAPOALIM_DEVICE_SIGNATURE }}
           BEINLEUMI_USERNAME: ${{ secrets.BEINLEUMI_USERNAME }}
           BEINLEUMI_PASSWORD: ${{ secrets.BEINLEUMI_PASSWORD }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}

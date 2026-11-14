@@ -136,7 +136,11 @@ matrix leg or a PR-triggered workflow has to update it.
   Group A's Discount, VisaCal, Isracard and Max legs, Group B's
   Hapoalim and Beinleumi legs, Group D's Amex leg and Group E's Yahav
   and Mizrahi legs log in over the bank's API. All groups use HTTP and
-  install no browser. A
+  install no browser. The Hapoalim leg may receive
+  `HAPOALIM_DEVICE_SIGNATURE` (raw `rmDeviceID` JSON, optional): with it the
+  leg reuses a pre-enrolled identity; without it the pipeline derives a
+  per-user identity from the seed carried in `otpLongTermToken` and the first
+  run spends the two device OTPs. A
   group holds its approval gate's runner or its legs', never both. Only
   `SonarCloud Scan` and CodeQL may still be running beside them, plus
   GitHub's 2 runs: 13 + 2 + 2 = 17. Dependency Review, Validate PR Title, PR

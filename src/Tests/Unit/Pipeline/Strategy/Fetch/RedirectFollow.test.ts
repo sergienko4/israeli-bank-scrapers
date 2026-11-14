@@ -426,6 +426,81 @@ describe('sendUnderPolicy — manual hops', () => {
 const POST_AS_GET: IManualRedirect = { ...MANUAL, postAsGet: true };
 const POST_REFUSED = `POST ${SAFE_START} redirect refused`;
 
+describe('sendUnderPolicy — accept', () => {
+  it.each([204, 205])('returns a bodyless %i untouched for the status policy', async status => {
+    const response = new Response(null, { status });
+    const invoke = serve([response]);
+    const run = makeRun(invoke, { policy: 'accept' });
+    const result = await sendUnderPolicy(run);
+    expect(isOk(result) ? result.value.response : null).toBe(response);
+  });
+
+  it('turns an accepted 302 into a 200 that keeps its body and headers', async () => {
+    const response = new Response('handshake', {
+      status: 302,
+      headers: { location: HOP_1, 'x-edge': 'kept' },
+    });
+    const invoke = serve([response]);
+    const run = makeRun(invoke, { policy: 'accept' });
+    const result = await sendUnderPolicy(run);
+    const isSent = isOk(result);
+    const answered = isOk(result) ? result.value.response : new Response(null);
+    const responseUrl = isOk(result) ? result.value.responseUrl : '';
+    const edge = answered.headers.get('x-edge');
+    const text = await answered.text();
+    expect([isSent, answered.status, edge, text, responseUrl]).toEqual([
+      true,
+      200,
+      'kept',
+      'handshake',
+      START,
+    ]);
+  });
+
+  it('keeps a 302 untouched when the status policy names an action', async () => {
+    const response = new Response('handshake', {
+      status: 302,
+      headers: { location: HOP_1 },
+    });
+    const reading = { statusPolicy: { 302: 'rate-limit' as const }, responseKind: 'text' as const };
+    const invoke = serve([response]);
+    const run = makeRun(invoke, { policy: 'accept', reading });
+    const result = await sendUnderPolicy(run);
+    expect(isOk(result) ? result.value.response : null).toBe(response);
+  });
+
+  it('refuses an accepted redirect body that is not strict UTF-8', async () => {
+    const body = new Uint8Array([0xff, 0xfe]);
+    const response = new Response(body, { status: 302, headers: { location: HOP_1 } });
+    const invoke = serve([response]);
+    const reading = { statusPolicy: {}, responseKind: 'text' as const, strictUtf8: true };
+    const run = makeRun(invoke, { policy: 'accept', reading });
+    const result = await sendUnderPolicy(run);
+    const text = failureText(result);
+    expect(text).toBe(`GET ${SAFE_START} body not utf-8`);
+  });
+
+  it('propagates a redirect body read failure instead of answering empty', async () => {
+    const body = new ReadableStream<Uint8Array>({
+      /**
+       * Fail the stream before a reader can consume it.
+       * @param controller - Stream controller.
+       * @returns True once the failure is installed.
+       */
+      start(controller): boolean {
+        controller.error(new Error('ECONNRESET'));
+        return true;
+      },
+    });
+    const response = new Response(body, { status: 302, headers: { location: HOP_1 } });
+    const invoke = serve([response]);
+    const run = makeRun(invoke, { policy: 'accept' });
+    const result = await sendUnderPolicy(run);
+    const text = failureText(result);
+    expect(text).toBe(`GET ${SAFE_START} body read failed`);
+  });
+});
+
 /**
  * A JSON POST run under the given manual policy.
  * @param invoke - Fake transport seam.

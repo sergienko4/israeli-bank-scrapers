@@ -2,6 +2,10 @@
 
 import type { ScraperOptions } from '../../../Base/Interface.js';
 import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
+import {
+  type CredentialEnricher,
+  deviceIdentityEnricherOf,
+} from '../../Mediator/ApiDirectCall/DeviceIdentity/DeviceIdentityProvider.js';
 import type { IApiDirectScrapeShape } from '../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import type { IPipelineDescriptor } from '../PipelineDescriptor.js';
@@ -55,6 +59,16 @@ class PipelineBuilder {
     const scrape = shape as unknown as IApiDirectScrapeShape<unknown, unknown>;
     const bound = bindBankTextRule(scrape, config);
     setApiDirectScrape(this._s, bound);
+    return this.withDeviceIdentity(config);
+  }
+
+  /**
+   * Attach the generic pre-login credential enricher (device identity, etc.).
+   * @param enricher - Hook that fills credentials before the first phase.
+   * @returns This builder.
+   */
+  public withCredentialEnricher(enricher: CredentialEnricher): this {
+    this._s.enrichCredentials = enricher;
     return this;
   }
 
@@ -66,6 +80,17 @@ class PipelineBuilder {
     const fields = snapshotFields(this._s);
     const opts = this._s.options as ScraperOptions;
     return buildDescriptor(fields, opts);
+  }
+
+  /**
+   * Attach the generic device-identity enricher when the bank declares one.
+   * @param config - Bank api-direct config.
+   * @returns This builder.
+   */
+  private withDeviceIdentity(config: IApiDirectCallConfig): this {
+    const enricher = deviceIdentityEnricherOf(config.deviceIdentity, config.warmStart);
+    if (!enricher.has) return this;
+    return this.withCredentialEnricher(enricher.value);
   }
 }
 

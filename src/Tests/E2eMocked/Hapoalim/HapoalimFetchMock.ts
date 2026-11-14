@@ -13,7 +13,7 @@ import type {
   NetworkFault,
 } from '../Helpers/FetchMockKit.js';
 import { errorReply, installFetchMock, NETWORK_FAULTS } from '../Helpers/FetchMockKit.js';
-import { AUTH_ROUTES, HP_BOOTSTRAP_PATH } from './HapoalimAuthRoutes.js';
+import { AUTH_ROUTES, HP_FIRST_PATH } from './HapoalimAuthRoutes.js';
 import { DATA_ROUTES, HP_DATA_PATHS } from './HapoalimDataRoutes.js';
 import type { HapoalimFault, IMockRun, Route } from './HapoalimFaults.js';
 import { HP_ORIGIN } from './HapoalimMockData.js';
@@ -60,7 +60,7 @@ function isNetworkFault(fault: HapoalimFault): fault is NetworkFault {
  * @returns The reply.
  */
 function answerHapoalim(run: IMockRun, call: IRecordedCall): Promise<Response> {
-  const isStepZero = new URL(call.url).pathname === HP_BOOTSTRAP_PATH;
+  const isStepZero = new URL(call.url).pathname === HP_FIRST_PATH;
   if (isStepZero && isNetworkFault(run.fault)) return NETWORK_FAULTS[run.fault]();
   const route = routeOf(call);
   const response = route(call, run);

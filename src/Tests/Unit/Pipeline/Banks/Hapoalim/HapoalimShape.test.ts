@@ -119,16 +119,19 @@ describe('HapoalimShape helpers', () => {
     expect(missing).toBe(0);
   });
 
-  it('customerUrl is the static ServerServices accounts endpoint', () => {
+  it('customerUrl is the app accounts endpoint', () => {
     const url = customerUrl();
-    expect(url).toBe('https://login.bankhapoalim.co.il/ServerServices/general/accounts?lang=he');
+    expect(url).toBe(
+      'https://iphone.bankhapoalim.co.il/ServerServices/general/accounts' +
+        '?appId=bankApp3Generation&lang=he',
+    );
   });
 
   it('balanceUrl embeds the composite as partyCurrentAccount', () => {
     const url = balanceUrl(ACCT);
     expect(url).toBe(
-      'https://login.bankhapoalim.co.il/ServerServices/current-account/composite/' +
-        'balanceAndCreditLimit?partyCurrentAccount=12-170-536347&lang=he',
+      'https://iphone.bankhapoalim.co.il/ServerServices/current-account/composite/' +
+        'balanceAndCreditLimit?appId=bankApp3Generation&partyCurrentAccount=12-170-536347&lang=he',
     );
   });
 });
@@ -138,7 +141,7 @@ describe('HapoalimShape transactions', () => {
     const ctx = ctxWithStart();
     const url = txnsUrl(ACCT, false, ctx);
     expect(url).toContain(
-      'https://login.bankhapoalim.co.il/ServerServices/current-account/transactions?',
+      'https://iphone.bankhapoalim.co.il/ServerServices/current-account/transactions?appId=bankApp3Generation&',
     );
     expect(url).toContain('numItemsPerPage=1000&sortCode=1');
     expect(url).toContain('retrievalStartDate=20260604');
@@ -146,13 +149,17 @@ describe('HapoalimShape transactions', () => {
     expect(url).toMatch(/retrievalEndDate=\d{8}/);
   });
 
-  it('txnsHeaders sends the shared POST set plus the anti-replay fields', () => {
+  it('txnsHeaders sends the app version set plus the anti-replay fields', () => {
     const { uuid, ...fixed } = txnsHeaders();
     expect(fixed).toEqual({
       accept: 'application/json',
-      'user-agent': 'israeli-bank-scrapers',
-      referer: 'https://login.bankhapoalim.co.il/ng-portals/auth/he/',
-      origin: 'https://login.bankhapoalim.co.il',
+      mobile: 'ca',
+      'x-bnhp-app-version': '44.3.0',
+      'client-version-nbr': '44.3.0',
+      'x-app-name': 'bankApp3Generation',
+      'x-platform-type': 'Android',
+      'x-client-type': 'mobile-app',
+      'user-agent': 'BankHapoalim/44.3.0 (Android)',
       'x-xsrf-token': '@cookie:XSRF-TOKEN',
       'content-type': 'application/json;charset=UTF-8',
       pageUuid: '/current-account/transactions',

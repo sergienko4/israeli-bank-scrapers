@@ -283,4 +283,4 @@ function writesOf(call: IApiDirectCallConfig, slot: string): readonly ISlotWrite
 }
 
 export type { ISlotWrite };
-export { writesOf };
+export { stepWrites, writesOf };

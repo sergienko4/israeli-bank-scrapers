@@ -18,6 +18,7 @@
  */
 
 import type { IDerivedCarry, ISeedCarrySource, IWarmStartConfig } from './CarryTypes.js';
+import type { IDeviceIdentityConfig } from './DeviceIdentityTypes.js';
 import type {
   AuthScheme,
   IFingerprintConfig,
@@ -130,6 +131,13 @@ interface IApiDirectCallConfig {
    * at flow init. Order matters when derivations depend on earlier ones.
    */
   readonly derivedCarry?: readonly IDerivedCarry[];
+  /**
+   * Optional per-user device identity the infrastructure derives before
+   * login: the credential it fills, the signature format, the token seed slot
+   * and the credential the seed binds to. A caller-supplied credential wins
+   * over the derived value.
+   */
+  readonly deviceIdentity?: IDeviceIdentityConfig;
   /** Optional durable device-state support — see IPersistentAuthConfig. */
   readonly persistentAuth?: IPersistentAuthConfig;
   /**
@@ -153,3 +161,4 @@ export type {
   IPersistentAuthConfig,
   PersistentAuthKind,
 };
+export type { IDeviceIdentityConfig } from './DeviceIdentityTypes.js';

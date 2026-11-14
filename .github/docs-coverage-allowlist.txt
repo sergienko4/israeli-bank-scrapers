@@ -601,3 +601,38 @@ seedTransport
 # unit-tested without racing a real descriptor close; callers use
 # closeFileLeaseAsync.
 makeLeaseCloseCallback
+
+# --- Hapoalim app flow (PR #785) ---
+# Reason: app-edge config constants consumed only by the Hapoalim registry
+# config; they are not part of the consumer-facing guide.
+HAPOALIM_APP_ID
+HAPOALIM_APP_VERSION
+HAPOALIM_AUTH_HEADERS
+HAPOALIM_AUTH_QUERY
+
+# Reason: app device-registration step config and its shared constants; the
+# pipeline-internal vocabulary the bank config composes.
+HAPOALIM_DEVICE_STEPS
+ARCOTID_FORM
+STEPUP_INIT_FORM
+STEPUP_VERIFY_FORM
+AUTH_HEADERS
+NEW_DEVICE
+REFUSED_STATES
+
+# Reason: fetch-internal helpers of the `accept` redirect policy, consumed by
+# RedirectFollow only.
+sendAccept
+answeredUrl
+SetCookieEmitCount
+
+# --- Device identity format data (PR #785) ---
+# Reason: vendor-schema data constants consumed only by the RiskMinder MFP
+# adapter; they carry no consumer-facing behaviour.
+MFP_BLUETOOTH
+MFP_CAMERA
+MFP_EXTRA
+MFP_LOCATION
+MFP_SCREEN
+MFP_SYSTEM_STATIC
+MFP_TELEPHONY

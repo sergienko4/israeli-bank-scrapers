@@ -79,6 +79,7 @@ interface IBundleCase {
   readonly fields?: BundleFields;
   readonly transportConfig?: TransportBlock;
   readonly steps?: readonly IStepConfig[];
+  readonly seedCarryFromCreds?: IApiDirectCallConfig['seedCarryFromCreds'];
 }
 
 /**
@@ -101,7 +102,13 @@ function bundleWarm(bundleCase: IBundleCase = {}): IApiDirectRuleInput {
     ...bundleCase.fields,
   } as const;
   const steps = bundleCase.steps ?? [REGISTER, LOGON];
-  const call: IApiDirectCallConfig = { flow: 'sms-otp', envelope: {}, steps, warmStart };
+  const call: IApiDirectCallConfig = {
+    flow: 'sms-otp',
+    envelope: {},
+    steps,
+    warmStart,
+    seedCarryFromCreds: bundleCase.seedCarryFromCreds,
+  };
   return { call, transport: bundleCase.transportConfig ?? DOMAINS };
 }
 
@@ -110,7 +117,7 @@ type BrokenCase = readonly [string, IApiDirectRuleInput, string];
 
 const ACCOUNTS_MSG = 'warmStart.accountFields: must name a creds field, none blank';
 const SLOTS_EMPTY_MSG = 'warmStart.slots: must not be empty';
-const SLOTS_FILLED_MSG = 'warmStart.slots: each slot must be filled by a login step';
+const SLOTS_FILLED_MSG = 'warmStart.slots: each slot must be filled by a step or a creds seed';
 const COOKIES_MSG = 'warmStart.cookies: not allowed without transport.cookieDomains';
 const PROVIDER_MSG = 'warmStart.provider: must not be blank';
 const MAX_TOKEN_MSG = 'warmStart.maxTokenChars: must be an integer from 1 to 16384';
@@ -122,6 +129,14 @@ const BROKEN: readonly BrokenCase[] = [
   [
     'a slot no step fills',
     bundleWarm({ fields: { slots: ['clientId', 'otp'] } }),
+    SLOTS_FILLED_MSG,
+  ],
+  [
+    'a seed names another slot, leaving the kept one unfilled',
+    bundleWarm({
+      fields: { slots: ['clientId', 'deviceSeed'] },
+      seedCarryFromCreds: ['other'],
+    }),
     SLOTS_FILLED_MSG,
   ],
   ['the jar without a headless block', bundleWarm({ transportConfig: false }), COOKIES_MSG],
@@ -140,6 +155,20 @@ type SoundCase = readonly [string, IApiDirectRuleInput];
 
 const SOUND: readonly SoundCase[] = [
   ['an extract and a generated key', bundleWarm()],
+  [
+    'a string seed fills the kept slot',
+    bundleWarm({
+      fields: { slots: ['deviceSeed'] },
+      seedCarryFromCreds: ['deviceSeed'],
+    }),
+  ],
+  [
+    'an object seed fills the kept slot',
+    bundleWarm({
+      fields: { slots: ['deviceSeed'] },
+      seedCarryFromCreds: [{ field: 'deviceSeed' }],
+    }),
+  ],
   ['an rsa-key fingerprint slot', bundleWarm({ fields: { slots: ['spkiHex'] } })],
   [
     'a pkcs10-csr output slot',

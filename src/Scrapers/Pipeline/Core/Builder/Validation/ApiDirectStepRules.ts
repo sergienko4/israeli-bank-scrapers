@@ -10,10 +10,8 @@
  * and compile; `maxChars` must be an integer from 1 to 65536; `oneOf` and
  * `url` must not be empty, since an empty list would refuse every value. A `runIf` guard
  * needs a carry slot and a non-empty `oneOf`, else its step never runs.
- * A pre-hook `valuePattern` must be anchored and compile, like an
- * extract `pattern`. Both must be flat (`../FlatPattern.ts`): no group, no
- * alternation and a variable repeat on the last atom only, so a match takes
- * linear time. The `httpFailureMap` rules follow (`ApiDirectHttpFailureRules.ts`).
+ * A pre-hook `valuePattern` is anchored and flat, like an extract `pattern`;
+ * the `httpFailureMap` rules follow (`ApiDirectHttpFailureRules.ts`).
  */
 
 import type {
@@ -30,7 +28,7 @@ import {
 } from '../ApiDirectRuleInput.js';
 import { API_DIRECT_OPTIONAL_EXTRACT_RULES } from '../Captures/ApiDirectOptionalExtractRules.js';
 import { isBadRegex, isFlatPattern } from '../FlatPattern.js';
-import { API_DIRECT_HTTP_FAILURE_RULES } from './ApiDirectHttpFailureRules.js';
+import API_DIRECT_TAIL_RULES from './ApiDirectTailRules.js';
 
 /**
  * An outcome with no success codes would refuse every response.
@@ -283,7 +281,7 @@ const API_DIRECT_STEP_RULES: readonly IApiDirectRule[] = [
     message: 'steps.preHook.valuePattern: must be a flat regex',
     isBroken: hasUnflatPreHookPattern,
   },
-  ...API_DIRECT_HTTP_FAILURE_RULES,
+  ...API_DIRECT_TAIL_RULES,
 ];
 
 export default API_DIRECT_STEP_RULES;

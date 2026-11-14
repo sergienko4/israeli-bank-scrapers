@@ -23,7 +23,9 @@ import {
 function assembleDescriptor(fields: IBuilderFields, options: ScraperOptions): IPipelineDescriptor {
   const state = toBuilderState(fields);
   const phases = assemblePhases(state);
-  return { options, phases };
+  const descriptor = { options, phases };
+  if (fields.enrichCredentials === undefined) return descriptor;
+  return { ...descriptor, enrichCredentials: fields.enrichCredentials };
 }
 
 /**

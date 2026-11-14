@@ -203,10 +203,10 @@ class NativeFetchStrategy implements IFetchStrategy {
     const { documentMarker, maxTextChars, headerSink, onEmptyResponse } = opts;
     const reading = this.readingDefaults(opts, responseKind);
     const hooks = { responseKind, documentMarker, maxTextChars, headerSink, onEmptyResponse };
-    const redaction = { redactUrlValues: opts.redactUrlValues };
-    const privacy = { omitBankText: this._omitBankText };
+    const privacy = { omitBankText: this._omitBankText, redactUrlValues: opts.redactUrlValues };
     const policy = this.readingPolicy(opts);
-    return { ...policy, ...hooks, ...reading, ...privacy, ...redaction };
+    const redirect = this.redirectBodyOf(opts);
+    return { ...policy, ...hooks, ...reading, ...privacy, ...redirect };
   }
 
   /**
@@ -216,6 +216,17 @@ class NativeFetchStrategy implements IFetchStrategy {
    */
   protected resolveUrl(url: string): FullyQualifiedUrl {
     return resolveFetchUrl(this._baseUrl, url);
+  }
+
+  /**
+   * Whether the call's redirect policy returns a 3xx as its answer, so the
+   * capped reader must keep and check that body instead of releasing it.
+   * @param opts - The call's fetch options.
+   * @returns `keepRedirectBody` set for the `accept` policy.
+   */
+  private redirectBodyOf(opts: IFetchOpts): Pick<IResponseReading, 'keepRedirectBody'> {
+    const redirect = opts.redirect ?? this._redirectDefault;
+    return { keepRedirectBody: redirect === 'accept' };
   }
 
   /**

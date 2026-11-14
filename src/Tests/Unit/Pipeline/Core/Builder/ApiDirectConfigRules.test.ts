@@ -185,6 +185,30 @@ const JAR_WARM_MSG = 'warmStart.kind: cookie-jar not allowed without transport.c
 const GUARDED_ENTRY_MSG = 'warmStart.fromStepIndex: a bank-call check step must not have runIf';
 const PROVIDER_MSG = 'warmStart.provider: must not be blank';
 const ACCOUNT_FIELD_MSG = 'warmStart.accountField: must not be blank';
+const DEVICE_IDENTITY_MSG = 'deviceIdentity.seedSlot: must differ from credential';
+
+/** A declaration that tries to keep the seed and the signature in one field. */
+const DUPLICATE_DEVICE_FIELDS = {
+  seedCarryFromCreds: ['deviceSignature'],
+  deviceIdentity: {
+    credential: 'deviceSignature',
+    format: 'risk-minder-mfp',
+    seedSlot: 'deviceSignature',
+    scopeField: 'userCode',
+  },
+  warmStart: {
+    kind: 'carry-bundle',
+    credsField: 'otpLongTermToken',
+    fromStepIndex: 1,
+    validation: 'bank-call',
+    provider: 'syn-bank',
+    accountFields: ['userCode'],
+    slots: ['deviceSignature'],
+    maxTokenChars: 4096,
+    cookies: false,
+    coldFallback: 'auth-rejected',
+  },
+} as const;
 
 const BROKEN: readonly BrokenCase[] = [
   [
@@ -276,6 +300,11 @@ const BROKEN: readonly BrokenCase[] = [
     'cookie-jar warm with a blank account field',
     jarBinding({ accountField: '' }),
     ACCOUNT_FIELD_MSG,
+  ],
+  [
+    'device identity uses one field for seed and signature',
+    { call: makeCall({ ...DUPLICATE_DEVICE_FIELDS, steps: [STEP, STEP] }), transport: false },
+    DEVICE_IDENTITY_MSG,
   ],
   [
     'two broken rules report the first',

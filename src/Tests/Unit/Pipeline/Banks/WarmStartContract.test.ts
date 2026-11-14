@@ -35,7 +35,7 @@ import {
   cookieJarWarmOf,
   warmCarryField,
 } from '../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmStartKind.js';
-import { writesOf } from './CarrySlotWriters.js';
+import { stepWrites, writesOf } from './CarrySlotWriters.js';
 
 /** Bank label paired with the module path of its call-config literal. */
 const CONFIG_PATHS: readonly (readonly [string, string])[] = [
@@ -224,22 +224,60 @@ async function loadWarmPopulation(): Promise<readonly (readonly [string, IApiDir
 }
 
 /**
- * Index of the last step that collects an OTP code, or -1 when none does.
+ * Whether a step's OTP pre-hook can run on a warm start.
  *
- * <p>The bank sends the message at or before the step whose pre-hook asks for
- * the code, so resuming strictly after this index is what makes a warm start
- * provably free of SMS traffic. The cold-flow budget
- * (`TokenStrategyFromConfig.budget.ts`) exempts warm resumes from its cap on
- * exactly that assumption; this is where the assumption is enforced rather
- * than trusted.
+ * <p>A step gated by `runIf` on a carry that no warm-reachable step fills can
+ * never run, so its pre-hook cannot ask for a message.
+ * @param step - Login step to inspect.
+ * @param produced - Carry slots a warm run can fill.
+ * @returns True when the step asks for an OTP and its gate is reachable.
+ */
+function isReachableOtpHook(
+  step: IApiDirectCallConfig['steps'][number],
+  produced: ReadonlySet<string>,
+): boolean {
+  if (step.preHook?.awaitCredsField !== 'otpCodeRetriever') return false;
+  const gate = step.runIf;
+  return gate === undefined || produced.has(gate.carry);
+}
+
+/**
+ * The carry slots a warm run holds before its first resumed step: the stored
+ * token's own slots, the flow's credential seeds and its derived carry.
  * @param config - Bank call-config literal.
- * @returns Highest OTP pre-hook step index, or -1.
+ * @returns Slot names a resumed step may already read.
+ */
+function warmProducedSlots(config: IApiDirectCallConfig): Set<string> {
+  const warm = config.warmStart;
+  const seeds = (config.seedCarryFromCreds ?? []).map(seed =>
+    typeof seed === 'string' ? seed : seed.field,
+  );
+  const derived = (config.derivedCarry ?? []).map(entry => entry.into);
+  const carried = warm !== undefined && 'carryField' in warm ? [warm.carryField] : [];
+  const bundled = warm?.kind === 'carry-bundle' ? warm.slots : [];
+  return new Set([...seeds, ...derived, ...carried, ...bundled]);
+}
+
+/**
+ * Index of the last warm-reachable step that collects an OTP code, or -1.
+ *
+ * <p>Resuming strictly after this index is what makes a warm start provably
+ * free of SMS traffic. Steps before the resume point are skipped, a step
+ * gated by a carry the warm run cannot fill is unreachable, and every writer
+ * the step contract knows counts as filling its slot.
+ * @param config - Bank call-config literal.
+ * @returns Highest reachable OTP pre-hook step index, or -1.
  */
 function lastOtpPreHookIndex(config: IApiDirectCallConfig): number {
-  const otpSteps = config.steps.map((step, index) =>
-    step.preHook?.awaitCredsField === 'otpCodeRetriever' ? index : -1,
-  );
-  return Math.max(...otpSteps, -1);
+  const start = config.warmStart?.fromStepIndex ?? 0;
+  const produced = warmProducedSlots(config);
+  let last = -1;
+  for (const [index, step] of config.steps.entries()) {
+    if (index < start) continue;
+    if (isReachableOtpHook(step, produced)) last = index;
+    for (const write of stepWrites(step)) produced.add(write.slot);
+  }
+  return last;
 }
 
 /** A bank label, its config and its bound-device block. */
@@ -347,7 +385,7 @@ describe('warm-start contract — every opted-in bank', () => {
     const headerSent = configs.filter(([, config]) => isHeaderSent(config));
     for (const [, config] of headerSent) {
       const resumed = config.steps.slice(config.warmStart?.fromStepIndex ?? 0);
-      const produced = resumed.flatMap(step => Object.keys(step.extractsToCarry));
+      const produced = resumed.flatMap(step => stepWrites(step).map(write => write.slot));
       const carryField = warmCarryField(config);
       expect([...produced, carryField]).toContain('token');
     }
@@ -358,10 +396,123 @@ describe('warm-start contract — every opted-in bank', () => {
     const carrySeeded = configs.filter(([, config]) => isCarryToken(config));
     for (const [, config] of carrySeeded) {
       const carryField = warmCarryField(config);
-      const produced = config.steps.flatMap(step => Object.keys(step.extractsToCarry));
+      const produced = config.steps.flatMap(step => stepWrites(step).map(write => write.slot));
       expect(produced).toContain(carryField);
     }
   });
+});
+
+/** A resume step that fills no slot; the control in the reachability fixtures. */
+const NOOP_RESUME_STEP: IStepConfig = {
+  name: 'resume',
+  urlTag: 'auth.assert',
+  method: 'GET',
+  extractsToCarry: {},
+};
+
+/**
+ * A warm login that resumes at index 1, then asks for a code on a `state` gate.
+ *
+ * <p>A fixture that fills `state` before or at the resume step makes the hook
+ * reachable, so the no-SMS invariant must reject resuming at index 1.
+ * @param producer - The resume step, filling `state` through whatever writer
+ *   it names.
+ * @param over - Flow-level overrides, such as seeds or a warm-start block.
+ * @returns The fixture config.
+ */
+function otpAfterResume(
+  producer: IStepConfig,
+  over: Partial<IApiDirectCallConfig> = {},
+): IApiDirectCallConfig {
+  const defaultWarmStart: IApiDirectCallConfig['warmStart'] = {
+    credsField: 'otpLongTermToken',
+    carryField: 'hash',
+    fromStepIndex: 1,
+    validation: 'bank-call',
+  };
+  const warmStart = over.warmStart ?? defaultWarmStart;
+  return {
+    flow: 'sms-otp',
+    envelope: {},
+    ...over,
+    warmStart,
+    steps: [
+      { name: 'login', urlTag: 'auth.login', body: { shape: {} }, extractsToCarry: {} },
+      producer,
+      {
+        name: 'otpVerify',
+        urlTag: 'auth.otpInit',
+        body: { shape: {} },
+        runIf: { carry: 'state', oneOf: ['pending'] },
+        preHook: { awaitCredsField: 'otpCodeRetriever', intoCarryField: 'otp' },
+        extractsToCarry: {},
+      },
+    ],
+  };
+}
+
+/** A resume step filling `state` only because the response may carry it. */
+const OPTIONAL_RESUME_STEP: IStepConfig = {
+  ...NOOP_RESUME_STEP,
+  optionalExtractsToCarry: { state: { pointer: '/state' } },
+};
+
+/** Every source a warm run may fill `state` from before the OTP step. */
+const REACHABLE_OTP_FIXTURES: readonly (readonly [string, IApiDirectCallConfig])[] = [
+  ['an optional extract', otpAfterResume(OPTIONAL_RESUME_STEP)],
+  ['a credential seed', otpAfterResume(NOOP_RESUME_STEP, { seedCarryFromCreds: ['state'] })],
+  [
+    'a derived carry',
+    otpAfterResume(NOOP_RESUME_STEP, {
+      derivedCarry: [{ into: 'state', parts: ['creds.userCode'] }],
+    }),
+  ],
+  [
+    'a single-token warm carry',
+    otpAfterResume(NOOP_RESUME_STEP, {
+      warmStart: {
+        credsField: 'otpLongTermToken',
+        carryField: 'state',
+        fromStepIndex: 1,
+        validation: 'bank-call',
+      },
+    }),
+  ],
+  [
+    'a bundle slot',
+    otpAfterResume(NOOP_RESUME_STEP, {
+      warmStart: {
+        kind: 'carry-bundle',
+        credsField: 'otpLongTermToken',
+        fromStepIndex: 1,
+        validation: 'bank-call',
+        provider: 'fixture',
+        accountFields: ['userCode'],
+        slots: ['state'],
+        maxTokenChars: 1024,
+        cookies: false,
+        coldFallback: 'auth-rejected',
+      },
+    }),
+  ],
+];
+
+describe('warm-start contract — reachability sources', () => {
+  it('counts no gate that no warm-reachable writer fills', () => {
+    const fixture = otpAfterResume(NOOP_RESUME_STEP);
+    const last = lastOtpPreHookIndex(fixture);
+    expect(last).toBe(-1);
+  });
+
+  it.each(REACHABLE_OTP_FIXTURES)(
+    'rejects resuming at index 1 when %s fills the gate',
+    (_label, config) => {
+      const last = lastOtpPreHookIndex(config);
+      expect(last).toBe(2);
+      const resume = config.warmStart?.fromStepIndex ?? 0;
+      expect(resume).not.toBeGreaterThan(last);
+    },
+  );
 });
 
 describe('warm-start contract — policy exemptions', () => {
@@ -385,16 +536,17 @@ describe('warm-start contract — policy exemptions', () => {
     const configs = await loadWarmStartConfigs();
     const jarBanks = configs.filter(([, config]) => isJarToken(config));
     const jarLabels = jarBanks.map(([label]) => label);
-    // Hapoalim stores its cookie session; the landing call is the check.
-    expect(jarLabels).toEqual(['Hapoalim']);
+    // Every bank that warmed on a bare cookie jar now carries a bundle.
+    expect(jarLabels).toEqual([]);
   });
 
   it('lists the warm-start banks whose token is a bundle of carry slots', async () => {
     const configs = await loadWarmStartConfigs();
     const bundleBanks = configs.filter(([, config]) => isBundleToken(config));
     const bundleLabels = bundleBanks.map(([label]) => label);
-    // Yahav stores its device certificate and client; the token call checks it.
-    expect(bundleLabels).toEqual(['Yahav']);
+    // Hapoalim carries its device seed with the jar; Yahav its device
+    // certificate and client; each token call is the check.
+    expect(bundleLabels).toEqual(['Hapoalim', 'Yahav']);
   });
 
   it('the fixture is exempt from both policy-dependent invariants', () => {

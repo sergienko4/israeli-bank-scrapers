@@ -4,7 +4,8 @@
  * no SMS. An expired session falls back to one cold run that carries none of
  * the stored or refused cookies; a token for another account, another
  * provider or of the wrong shape is skipped for a cold run; a warm session
- * lost mid-scrape buys one cold login and one re-scrape, never a second SMS.
+ * lost mid-scrape resumes once without SMS, and a persistent rejection ends
+ * the run.
  *
  * Rule #18: all credentials + data are synthetic; no real PII.
  */
@@ -79,12 +80,12 @@ describe('Hapoalim warm start', () => {
     expect(run.hints).toEqual([HP_PHONE]);
   });
 
-  it('signs in cold once when a warm session is lost mid-scrape', async () => {
+  it('resumes once without SMS when a warm session is lost mid-scrape, then fails', async () => {
     const run = await runWarm(cold.token, 'expire401');
     const lostScrape = [...ACCOUNTS_TRAIL, ...ACCOUNT_OPEN_TRAIL];
     expect(run.result.success).toBe(false);
     expect(run.result.errorType).toBe(ScraperErrorTypes.Generic);
-    expect(run.trail).toEqual([...LANDING_TRAIL, ...lostScrape, ...SIGNED_IN_TRAIL, ...lostScrape]);
-    expect(run.hints).toEqual([HP_PHONE]);
+    expect(run.trail).toEqual([...LANDING_TRAIL, ...lostScrape, ...LANDING_TRAIL, ...lostScrape]);
+    expect(run.hints).toEqual([]);
   });
 });
