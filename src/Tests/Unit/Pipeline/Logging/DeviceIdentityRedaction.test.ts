@@ -75,18 +75,22 @@ describe('device-identity redaction', () => {
     const dump = redactJsonBody(SIGNATURE_BODY);
     const parsed = JSON.parse(dump) as Record<string, unknown>;
     expect(parsed.deviceSignature).toBe('[REDACTED]');
+    expect(parsed.ipAddress).toBe('[REDACTED]');
     expect(dump).not.toContain('syn-android-id');
     expect(dump).not.toContain('syn-host');
     expect(dump).not.toContain('02:00:00:00:00:01');
+    expect(dump).not.toContain('192.0.2.10');
   });
 
   it('censors a token-classified container passed as a parsed object', () => {
     const dump = redactJsonBody(JSON.parse(SIGNATURE_BODY) as JsonValue);
     const parsed = JSON.parse(dump) as Record<string, unknown>;
     expect(parsed.deviceSignature).toBe('[REDACTED]');
+    expect(parsed.ipAddress).toBe('[REDACTED]');
     expect(dump).not.toContain('syn-android-id');
     expect(dump).not.toContain('syn-host');
     expect(dump).not.toContain('02:00:00:00:00:01');
+    expect(dump).not.toContain('192.0.2.10');
   });
 
   it.each(DEVICE_KEYS)('classifies %s as a token', key => {

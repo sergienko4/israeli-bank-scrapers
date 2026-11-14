@@ -60,6 +60,7 @@ export const PATH_TAIL_TO_CATEGORY: Readonly<Partial<Record<string, PiiCategory>
   deviceSeed: 'token',
   deviceSignature: 'token',
   mfp: 'token',
+  ipAddress: 'token',
   smsAssertionId: 'token',
   otpContext: 'token',
   deviceToken: 'token',
