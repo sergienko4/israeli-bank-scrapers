@@ -4,6 +4,8 @@
  * symbol behind it is used.
  */
 
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 
 import type {
@@ -83,6 +85,40 @@ describe('symbol-level dead-code reachability', () => {
     expect(regressions).toEqual({ files: ['b.ts'], exports: ['b.ts#y'] });
     const shrunk = findRegressions({ files: ['a.ts'], exports: ['a.ts#x'] }, baseline);
     expect(shrunk).toEqual({ files: [], exports: [] });
+  });
+
+  it('finds dynamic imports in initializers and function bodies', () => {
+    const base = tmpdir();
+    const prefix = path.join(base, 'dead-code-');
+    const root = mkdtempSync(prefix);
+    try {
+      const aPath = path.join(root, 'a.ts');
+      const bPath = path.join(root, 'b.ts');
+      const entryPath = path.join(root, 'entry.ts');
+      writeFileSync(aPath, 'export const a = 1;');
+      writeFileSync(bPath, 'export const b = 1;');
+      const text = "const lazy = import('./a.js');\nfunction load() { return import('./b.js'); }";
+      const source = parseModuleSource(root, entryPath, text);
+      const targets = source.imports.map(edge => edge.target);
+      expect(targets).toEqual(['a.ts', 'b.ts']);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('does not re-export or resolve a default through export star', () => {
+    const graph = graphOf([
+      moduleOf('entry.ts', { stars: ['impl.ts'] }),
+      moduleOf('impl.ts', { local: ['default', 'named'] }),
+    ]);
+    const report = analyze(graph, ['entry.ts']);
+    expect(report.exports).toEqual(['impl.ts#default']);
+  });
+
+  it('reports unused exports from a frozen unreachable file', () => {
+    const graph = graphOf([moduleOf('entry.ts'), moduleOf('dead.ts', { local: ['old', 'new'] })]);
+    const report = analyze(graph, ['entry.ts']);
+    expect(report).toEqual({ files: ['dead.ts'], exports: ['dead.ts#new', 'dead.ts#old'] });
   });
 
   it('parses local, default and local-clause exports', () => {

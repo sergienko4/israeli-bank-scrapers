@@ -308,7 +308,10 @@ function dynamicImports(node: ts.Node, context: IParserContext): boolean {
     const [argument] = node.arguments;
     if (ts.isStringLiteral(argument)) addEdge(context, argument.text, '*');
   }
-  ts.forEachChild(node, child => dynamicImports(child, context));
+  ts.forEachChild(node, child => {
+    dynamicImports(child, context);
+    return false;
+  });
   return true;
 }
 
@@ -382,7 +385,9 @@ function exportsOf(graph: ModuleGraph, file: string, seen: ReadonlySet<string>):
   if (seen.has(file)) return [...names];
   const nextSeen = new Set(seen).add(file);
   for (const target of source.stars) {
-    for (const name of exportsOf(graph, target, nextSeen)) names.add(name);
+    for (const name of exportsOf(graph, target, nextSeen)) {
+      if (name !== 'default') names.add(name);
+    }
   }
   return [...names];
 }
@@ -415,6 +420,7 @@ function reexport(
   if (named !== undefined) {
     return resolveExport({ ...args, file: named.target, name: named.targetName, seen: nextSeen });
   }
+  if (args.name === 'default') return false;
   for (const target of source.stars) {
     const resolved = resolveExport({ ...args, file: target, seen: nextSeen });
     if (resolved !== false) return resolved;
@@ -524,7 +530,7 @@ function analyze(graph: ModuleGraph, entries: readonly string[]): IDeadCodeRepor
   const used = usedExports(graph, reachable, entries);
   const files = [...graph.keys()].filter(file => !reachable.has(file)).sort();
   const exports: string[] = [];
-  for (const file of reachable) {
+  for (const file of graph.keys()) {
     const source = graph.get(file);
     if (source === undefined) continue;
     for (const name of source.local) {
