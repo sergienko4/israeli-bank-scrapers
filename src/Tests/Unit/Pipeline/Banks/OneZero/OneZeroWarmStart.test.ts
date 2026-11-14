@@ -39,9 +39,6 @@ const CALL_PATH = '../../../../../Scrapers/Pipeline/Registry/Config/PipelineBank
  */
 const REGISTRY_PATH = '../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js';
 
-/** Module shape returned by the dynamic call-config import. */
-type ICallModule = Record<string, unknown>;
-
 /** Token context — the flow reads only the resolved bank identity. */
 const CTX: ITokenContext = { companyId: CompanyTypes.OneZero };
 
@@ -50,7 +47,7 @@ const CTX: ITokenContext = { companyId: CompanyTypes.OneZero };
  * @returns Promise resolving to the OneZero config literal.
  */
 async function loadCall(): Promise<IApiDirectCallConfig> {
-  const mod = (await import(CALL_PATH)) as ICallModule;
+  const mod = (await import(CALL_PATH)) as Record<string, unknown>;
   return callOfModule(mod);
 }
 
