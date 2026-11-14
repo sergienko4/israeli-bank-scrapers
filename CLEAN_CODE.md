@@ -228,8 +228,9 @@ git commit
     (cache off while unstaged changes exist):
       tsc, cycles, fixtures-pii, pii-staged, plan-refs (not cached)
       + eslint, biome   on the staged src/ code files (whole src
-                        above 50 files)
-      + architecture    on the staged src/ files (whole src above 50)
+                        above 50 files; not cached)
+      + architecture    on the staged src/ files (whole src above 50;
+                        not cached)
   → commit succeeds ✅ or lists every failed gate ❌
 ```
 

@@ -268,6 +268,8 @@ if has "${public_surface_paths}"; then public_surface=true; fi
 # `eslint/` is in the set because the flat config is split across
 # `eslint/rules/` and `eslint/clusters/`; editing a rule there alone is a
 # config-only change that touches no file under `src/`.
+# `biome.json` is in the set because it is Biome's whole configuration: a
+# PR that loosens or disables a Biome rule touches no file under `src/`.
 # `tsconfig.json` is in the set because the ESLint config turns on
 # `parserOptions.projectService`, so the tsconfig IS a lint input: it
 # decides which files are in the program and which compiler options the
@@ -276,7 +278,7 @@ if has "${public_surface_paths}"; then public_surface=true; fi
 # does not gate this step. `tsconfig.build.json` is deliberately absent:
 # `projectService` resolves the nearest `tsconfig.json`, never that file,
 # so it changes the build, not the lint.
-if has '^eslint\.config\.mjs$|^eslint/|^eslint\.canary-scope\.mjs$|^scripts/check-syntax-guardrails\.mjs$|^package\.json$|^tsconfig\.json$'; then
+if has '^eslint\.config\.mjs$|^eslint/|^eslint\.canary-scope\.mjs$|^scripts/check-syntax-guardrails\.mjs$|^package\.json$|^tsconfig\.json$|^biome\.json$'; then
   syntax_guardrails=true
 fi
 

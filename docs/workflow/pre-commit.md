@@ -19,8 +19,9 @@ this step so cosmetic fixes don't invalidate the cache.
 The hook spawns each gate as a background process and `wait`s for them all.
 Cache key per gate is `git write-tree` (the SHA of the staged tree); when the
 same SHA passes a gate, the next commit on the same content set skips it. The
-cache is off while tracked files have unstaged changes. `plan-refs` is never
-cached: it reads the staged additions, which depend on `HEAD` as well.
+cache is off while tracked files have unstaged changes. `eslint`, `biome`,
+`architecture` and `plan-refs` are never cached: they read the staged file list
+or additions, which depend on `HEAD` as well as on the staged tree.
 
 A commit that stages no source file — only docs, workflows, `.json`/`.yml`
 config or dotfiles — skips this phase and runs only `plan-refs`.

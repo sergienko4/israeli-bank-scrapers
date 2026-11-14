@@ -459,8 +459,10 @@ jobs:
       - name: Portable map unit test (gate scripts must run on bash 3.2)
         if: ${{ !cancelled() && steps.ready.outcome == 'success' && (needs.changes.outputs.ci_scripts == 'true') }}
         run: bash .github/scripts/ci/tests/portable-map.test.sh
+      # `full_suite` because the scan also covers the bash canaries under
+      # `src/`, which a canary-only PR changes without setting `ci_scripts`.
       - name: Shell portability (gates must run on macOS/Windows too)
-        if: ${{ !cancelled() && steps.ready.outcome == 'success' && (needs.changes.outputs.ci_scripts == 'true') }}
+        if: ${{ !cancelled() && steps.ready.outcome == 'success' && (needs.changes.outputs.ci_scripts == 'true' || needs.changes.outputs.full_suite == 'true') }}
         run: npm run lint:shell-portability
       - name: Docs coverage canary
         if: ${{ !cancelled() && steps.ready.outcome == 'success' && (github.event_name == 'pull_request' && needs.changes.outputs.pipeline_ts == 'true') }}
@@ -538,8 +540,9 @@ jobs:
       # them before a merge. Each runs here with a trigger at least as wide as
       # what can break it; HookGatesInCi.test.ts fails if a hook gate has no
       # step here.
+      # `syntax_guardrails` covers a `biome.json`-only edit.
       - name: Biome
-        if: ${{ !cancelled() && steps.ready.outcome == 'success' && (needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true') }}
+        if: ${{ !cancelled() && steps.ready.outcome == 'success' && (needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.syntax_guardrails == 'true') }}
         run: npx biome lint src --max-diagnostics=50
       - name: Dead code
         if: ${{ !cancelled() && steps.ready.outcome == 'success' && (needs.changes.outputs.full_suite == 'true') }}

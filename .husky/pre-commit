@@ -140,6 +140,8 @@ log "⚡ Phase 2: All gates parallel..."
 bg_gate "tsc" "yes" npm run type-check
 
 # Staged files only, as CI's ESLint step scopes them (`src`, no `.cjs`).
+# Not cached: the staged file list depends on HEAD as well as on the staged
+# tree, so a cached pass could skip files this run would lint.
 # Above 50 files the list would outgrow the Windows command line, so the
 # gate lints the whole tree instead, exactly as CI does. A lint-config edit
 # (`eslint.config.mjs`, `eslint/`, `biome.json`) can change the verdict on
@@ -149,16 +151,16 @@ if [ -n "$LINT_FILES" ]; then
     LINT_FILE_COUNT=$(echo "$LINT_FILES" | wc -l)
     if [ "$LINT_FILE_COUNT" -gt 50 ]; then
         log "  ℹ️  eslint/biome: $LINT_FILE_COUNT files staged — linting the whole src tree (cmdline-safe)"
-        bg_gate "eslint" "yes" npx eslint src --max-warnings 0 --ignore-pattern '**/*.cjs'
-        bg_gate "biome" "yes" npx biome lint src --max-diagnostics=50
+        bg_gate "eslint" "no" npx eslint src --max-warnings 0 --ignore-pattern '**/*.cjs'
+        bg_gate "biome" "no" npx biome lint src --max-diagnostics=50
     else
         LINT_LIST=$(mktemp)
         echo "$LINT_FILES" > "$LINT_LIST"
         # Read the list from stdin, NOT `xargs -a` — `-a` is a GNU extension
         # and macOS ships BSD xargs, where it aborts with "illegal option -- a".
         # NUL-separated, so a path with a space stays one argument.
-        bg_gate "eslint" "yes" bash -c "tr '\\n' '\\0' < '$LINT_LIST' | xargs -0 npx eslint --max-warnings 0"
-        bg_gate "biome" "yes" bash -c "tr '\\n' '\\0' < '$LINT_LIST' | xargs -0 npx biome lint --max-diagnostics=50 --no-errors-on-unmatched"
+        bg_gate "eslint" "no" bash -c "tr '\\n' '\\0' < '$LINT_LIST' | xargs -0 npx eslint --max-warnings 0"
+        bg_gate "biome" "no" bash -c "tr '\\n' '\\0' < '$LINT_LIST' | xargs -0 npx biome lint --max-diagnostics=50 --no-errors-on-unmatched"
     fi
 else
     log "  ⏭️  eslint/biome skipped — no lintable src/ file staged"
@@ -176,11 +178,11 @@ if [ -n "$ARCH_FILES" ]; then
     ARCH_FILE_COUNT=$(echo "$ARCH_FILES" | wc -l)
     if [ "$ARCH_FILE_COUNT" -gt 50 ]; then
         log "  ℹ️  architecture: $ARCH_FILE_COUNT files staged — invoking on whole src directory (cmdline-safe)"
-        bg_gate "architecture" "yes" bash -c "npx tsx src/Tests/Tools/lint-and-validate.ts src"
+        bg_gate "architecture" "no" bash -c "npx tsx src/Tests/Tools/lint-and-validate.ts src"
     else
         ARCH_LIST=$(mktemp)
         echo "$ARCH_FILES" > "$ARCH_LIST"
-        bg_gate "architecture" "yes" bash -c "xargs npx tsx src/Tests/Tools/lint-and-validate.ts < '$ARCH_LIST'"
+        bg_gate "architecture" "no" bash -c "xargs npx tsx src/Tests/Tools/lint-and-validate.ts < '$ARCH_LIST'"
     fi
 else
     log "  ⏭️  architecture skipped — no src/ files staged"

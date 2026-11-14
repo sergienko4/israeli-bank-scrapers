@@ -180,7 +180,9 @@ function unquoted(text: string): string {
 }
 
 /**
- * Whether CI runs the gate: it is mapped, and a `run:` step holds the command.
+ * Whether CI runs the gate: it is mapped, and a `run:` step IS the command.
+ * The whole step must equal it, so a shell comment or an `echo` naming the
+ * command in an otherwise unrelated step does not count.
  * @param gate - Gate key from the hook.
  * @param read - File reader.
  * @returns True when a CI step runs the same command.
@@ -191,7 +193,7 @@ function isInCi(gate: string, read: FileReader): boolean {
   const ciText = read(file);
   const runs = runCommands(ciText).map(unquoted);
   const wanted = unquoted(command);
-  return runs.some(run => run.includes(wanted));
+  return runs.some(run => run.trim() === wanted);
 }
 
 /**
@@ -237,6 +239,13 @@ const SYNTHETIC_HOOK = [
 const COMMENT_ONLY_WORKFLOW =
   'jobs:\n  x:\n    steps:\n      # run: npm run type-check\n      - run: echo hi\n';
 
+/** A `run:` block whose shell comment names the type check, then does something else. */
+const SHELL_COMMENT_WORKFLOW =
+  'jobs:\n  x:\n    steps:\n      - run: |\n          # npm run type-check\n          echo hi\n';
+
+/** A step that only echoes the type-check command. */
+const ECHO_ONLY_WORKFLOW = 'jobs:\n  x:\n    steps:\n      - run: echo npm run type-check\n';
+
 describe('every pre-commit gate also runs in CI', () => {
   it('[HGC-1] the hook runs gates, and each one has a CI step', () => {
     const hook = readRepoFile(HOOK);
@@ -256,9 +265,13 @@ describe('every pre-commit gate also runs in CI', () => {
     expect(uncovered).toEqual(['tsc']);
   });
 
-  it('[HGC-4] a command that appears only in a workflow comment does not count', () => {
+  it.each([
+    ['a YAML comment', COMMENT_ONLY_WORKFLOW],
+    ['a shell comment inside a run block', SHELL_COMMENT_WORKFLOW],
+    ['an echo-only step', ECHO_ONLY_WORKFLOW],
+  ])('[HGC-4] a command named only in %s does not count', (_label, workflow) => {
     const hook = 'bg_gate "tsc" "yes" npm run type-check';
-    const uncovered = uncoveredGates(hook, () => COMMENT_ONLY_WORKFLOW);
+    const uncovered = uncoveredGates(hook, () => workflow);
     expect(uncovered).toEqual(['tsc']);
   });
 
