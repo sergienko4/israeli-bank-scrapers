@@ -27,7 +27,8 @@ that calendar. Instants stay instants.**
 
 A date-only provider value denotes **midnight of that day in the bank's
 calendar**. So `29/06/2026` becomes `2026-06-28T21:00:00.000Z` — the 29th in
-Israel, expressed in UTC.
+Israel, expressed in UTC. The `IBankDateParts` and `IBankMonthBounds` shapes
+are internal to `BankMonth.ts`; the calendar rule above is the contract.
 
 ## Reading the day back
 

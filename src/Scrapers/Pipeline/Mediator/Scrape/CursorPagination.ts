@@ -8,7 +8,7 @@
  */
 
 /** Opaque brand for the first-page wire marker — treated as data only. */
-export interface ICursorFirstPageWire {
+interface ICursorFirstPageWire {
   readonly __brand: 'CursorFirstPageWire';
 }
 

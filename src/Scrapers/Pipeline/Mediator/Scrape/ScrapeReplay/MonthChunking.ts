@@ -188,5 +188,5 @@ function chunkStartMonth(chunk: IMonthChunk): IChunkMonth | false {
   return bankMonthOfLabel(chunk.start);
 }
 
-export type { IChunkMonth, IMonthChunk };
+export type { IMonthChunk };
 export { chunkStartMonth, generateMonthChunks };

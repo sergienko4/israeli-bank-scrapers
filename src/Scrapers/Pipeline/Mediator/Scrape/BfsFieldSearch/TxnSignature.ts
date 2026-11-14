@@ -9,7 +9,7 @@
  */
 
 import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../../../Registry/WK/ScrapeWK.js';
-import type { ApiRecord, UntypedValue } from '../AutoMapperFacade/AutoMapperTypes.js';
+import type { UntypedValue } from '../AutoMapperFacade/AutoMapperTypes.js';
 import { isSearchableObject } from './BfsFieldSearch.js';
 
 /** Minimum WK field matches for a txn array. */
@@ -38,13 +38,4 @@ function scoreTxnSignature(item: UntypedValue): number {
   return keys.filter((k): boolean => TXN_SIGNATURE_FIELDS.has(k)).length;
 }
 
-/**
- * Cast searchable items to typed records.
- * @param items - Raw items to filter and cast.
- * @returns Typed record array.
- */
-function castSearchable(items: readonly UntypedValue[]): readonly ApiRecord[] {
-  return items.filter((i): boolean => isSearchableObject(i)).map((i): ApiRecord => i as ApiRecord);
-}
-
-export { castSearchable, MIN_TXN_SCORE, scoreTxnSignature, TXN_SIGNATURE_FIELDS };
+export { MIN_TXN_SCORE, scoreTxnSignature };

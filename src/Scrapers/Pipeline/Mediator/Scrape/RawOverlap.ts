@@ -53,7 +53,7 @@ import { tallyBy } from './Multiset.js';
 const LOG = getDebug(import.meta.url);
 
 /** Inputs for one overlap collapse. */
-export interface IOverlapArgs {
+interface IOverlapArgs {
   /** Rows already held for this account. */
   readonly collected: readonly object[];
   /** Rows the newest request returned. */
@@ -63,7 +63,7 @@ export interface IOverlapArgs {
 }
 
 /** Outcome of one collapse. Counts only — never row content. */
-export interface IOverlapResult {
+interface IOverlapResult {
   /** Incoming rows not already held. */
   readonly kept: readonly object[];
   /** How many incoming rows were re-served. */

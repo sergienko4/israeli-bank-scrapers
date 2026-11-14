@@ -102,4 +102,4 @@ function isBancsTxnRecord(root: ApiRecord): boolean {
   return isStr(amount);
 }
 
-export { CURRENT_BALTYPE, getIn, isBancsTxnRecord, isCurrentBalType, isNum, isRecord, isStr };
+export { getIn, isBancsTxnRecord, isCurrentBalType, isNum, isRecord, isStr };

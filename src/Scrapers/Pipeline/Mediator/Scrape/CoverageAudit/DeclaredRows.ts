@@ -57,7 +57,7 @@ export interface IDeclaredArgs {
 }
 
 /** Outcome of one reconciliation. Counts only — never row content. */
-export interface IDeclaredResult {
+interface IDeclaredResult {
   /** Groups that stated a count, so were checkable. */
   readonly checked: number;
   /** Rows declared but not carried by the response, summed. Above zero means loss. */

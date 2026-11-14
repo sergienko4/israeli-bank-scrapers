@@ -59,7 +59,7 @@ export interface IStartWindowArgs {
 }
 
 /** Outcome of one windowing round. Counts only — never row content. */
-export interface IStartWindowResult {
+interface IStartWindowResult {
   /** Rows on or after the window lower bound, plus any row with no usable date. */
   readonly kept: readonly ITransaction[];
   /** Rows the caller never asked for. Above zero is expected on card issuers. */

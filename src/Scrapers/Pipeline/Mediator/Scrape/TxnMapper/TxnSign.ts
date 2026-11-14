@@ -27,7 +27,7 @@ export interface ICardSignArgs {
 }
 
 /** Both amounts of one record after sign resolution. */
-export interface ISignedAmounts {
+interface ISignedAmounts {
   amtNum: number;
   origNum: number;
 }

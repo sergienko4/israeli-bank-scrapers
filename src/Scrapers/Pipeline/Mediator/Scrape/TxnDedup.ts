@@ -45,7 +45,7 @@ export interface IDedupArgs {
 }
 
 /** Outcome of one dedup round. Counts only — never row content. */
-export interface IDedupResult {
+interface IDedupResult {
   /** Rows in arrival order with provably redundant repeats removed. */
   readonly kept: readonly ITransaction[];
   /** Repeats removed. Above zero means a page was served more than once. */

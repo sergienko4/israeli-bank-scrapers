@@ -31,7 +31,7 @@ import type { IWindowResult } from './WindowCoverage.js';
 export type WindowStop = 'covered' | WindowUnprovenReason;
 
 /** Everything the verdict is derived from. Never row content. */
-export interface IClassifyArgs {
+interface IClassifyArgs {
   /** The start the caller asked for, as rendered for the audit. */
   readonly requestedStart: string;
   /** What the window audit made of the rows held. */
