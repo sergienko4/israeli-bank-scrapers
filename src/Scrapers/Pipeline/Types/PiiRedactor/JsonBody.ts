@@ -20,6 +20,7 @@ import {
   type PiiCategory,
   type PiiClassifierBool,
   type PiiHintString,
+  REDACTED_HINT,
 } from './Types.js';
 
 export const JSON_BODY_CATEGORY: PiiCategory = 'unknown';
@@ -185,6 +186,7 @@ function redactNode(value: JsonValue, path: readonly string[], state: IWalkState
   if (state.depth > MAX_WALK_DEPTH) return '[REDACTED:depth-limit]';
   if (value === null) return value;
   if (typeof value !== 'object') return redactLeaf(value, path, state.censor);
+  if (classifyKey(path.at(-1) ?? '') === 'token') return REDACTED_HINT;
   if (state.seen.has(value)) return '[REDACTED:cycle]';
   state.seen.add(value);
   if (isJsonArray(value)) return redactArray(value, path, state);

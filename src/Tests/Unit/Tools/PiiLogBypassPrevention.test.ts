@@ -37,6 +37,28 @@ const MALICIOUS_CODE = [
  * Pipeline `files` glob. */
 const STDIN_PATH = 'src/Scrapers/Pipeline/Types/DebugConfig.ts';
 
+/** Device-identity fields that are long-lived credentials, not display data. */
+const DEVICE_IDENTITY_CODE = [
+  'declare const deviceSeed: string;',
+  'declare const deviceSignature: string;',
+  'declare const mfp: string;',
+  'declare const credentials: {',
+  '  deviceSeed: string;',
+  '  deviceSignature: string;',
+  '  mfp: string;',
+  '};',
+  'declare const LOG: { debug: (x: unknown) => unknown };',
+  '',
+  'LOG.debug(`seed: ' + '$' + '{deviceSeed}`);',
+  'LOG.debug(`signature: ' + '$' + '{deviceSignature}`);',
+  'LOG.debug(`mfp: ' + '$' + '{mfp}`);',
+  'LOG.debug(`member seed: ' + '$' + '{credentials.deviceSeed}`);',
+  'LOG.debug(`member signature: ' + '$' + '{credentials.deviceSignature}`);',
+  'LOG.debug(`member mfp: ' + '$' + '{credentials.mfp}`);',
+  '',
+  'export {};',
+].join('\n');
+
 /** Minimal ESLint JSON record needed for assertions. */
 interface IEslintMessage {
   readonly message: string;
@@ -90,6 +112,20 @@ describe('PII-log bypass prevention — both layers must catch the same code', (
     const has09 = issues.some((i): boolean => i.message.includes('T09'));
     expect(has09).toBe(true);
   });
+
+  it('Layer 2 catches device-identity names in LOG templates', () => {
+    const issues = issuesFromCode(STDIN_PATH, DEVICE_IDENTITY_CODE, new Map());
+    const piiIssues = issues.filter((i): boolean => i.rule === 'PII-Log');
+    expect(piiIssues.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('Layer 1 (ESLint) reports PII LEAK on device-identity names', () => {
+    const report = lintWithStdin(DEVICE_IDENTITY_CODE);
+    const hasPii = reportContains(report, 'PII LEAK');
+    const hasT09b = reportContains(report, 'T09b');
+    expect(hasPii).toBe(true);
+    expect(hasT09b).toBe(true);
+  }, 60_000);
 
   it('Layer 2 catches the T16 payload-bucket pattern', () => {
     const issues = issuesFromCode(STDIN_PATH, MALICIOUS_CODE, new Map());
