@@ -80,6 +80,14 @@ export const SENSITIVE_PATHS = [
   'otpLongTermToken',
   'longTermToken',
   'persistentOtpToken',
+  // Hapoalim device identity: the per-user seed is a long-lived credential
+  // inside `otpLongTermToken`; the signature is the raw `mfp` payload.
+  'deviceSeed',
+  'credentials.deviceSeed',
+  'deviceSignature',
+  'credentials.deviceSignature',
+  'mfp',
+  'credentials.mfp',
   'idToken',
   'otpToken',
   'smsAssertionId',
