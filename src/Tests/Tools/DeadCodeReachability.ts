@@ -93,6 +93,14 @@ interface IMarkArgs {
   readonly name: string;
 }
 
+/** Import-consumption arguments. */
+interface IConsumeArgs {
+  readonly graph: ModuleGraph;
+  readonly used: Set<string>;
+  readonly files: Set<string>;
+  readonly file: string;
+}
+
 /** Parsed modules keyed by repo-relative POSIX path. */
 type ModuleGraph = ReadonlyMap<string, IModuleSource>;
 
@@ -570,17 +578,19 @@ function addUsedFiles(used: ReadonlySet<string>, files: Set<string>): boolean {
 
 /**
  * Mark the imports of one consumed module as used.
- * @param graph - Parsed modules.
- * @param used - Used-key accumulator.
- * @param file - Consumed module file.
+ * @param args - Consumption arguments.
  * @returns True once every import is processed.
  */
-function consumeImports(graph: ModuleGraph, used: Set<string>, file: string): boolean {
-  const source = graph.get(file);
+function consumeImports(args: IConsumeArgs): boolean {
+  const source = args.graph.get(args.file);
   if (source === undefined) return true;
   for (const edge of source.imports) {
-    if (edge.names === '*') markAllExports(graph, used, edge.target);
-    else for (const name of edge.names) markExport({ graph, used, file: edge.target, name });
+    if (edge.names === '*') markAllExports(args.graph, args.used, edge.target);
+    else if (edge.names.length === 0) args.files.add(edge.target);
+    else
+      for (const name of edge.names) {
+        markExport({ graph: args.graph, used: args.used, file: edge.target, name });
+      }
   }
   return true;
 }
@@ -600,10 +610,12 @@ function usedExports(graph: ModuleGraph, entries: readonly string[]): ReadonlySe
   const files = new Set(entries);
   for (const entry of entries) markAllExports(graph, used, entry);
   addUsedFiles(used, files);
-  let previous = -1;
-  while (previous !== used.size) {
-    previous = used.size;
-    for (const file of [...files]) consumeImports(graph, used, file);
+  let previousUsed = -1;
+  let previousFiles = -1;
+  while (previousUsed !== used.size || previousFiles !== files.size) {
+    previousUsed = used.size;
+    previousFiles = files.size;
+    for (const file of [...files]) consumeImports({ graph, used, files, file });
     addUsedFiles(used, files);
   }
   return used;

@@ -193,6 +193,20 @@ describe('symbol-level dead-code reachability', () => {
     expect(report.exports).toEqual(['dead.ts#Dead', 'helper.ts#Helper']);
   });
 
+  it('tracks side-effect imports as consumed modules without using their exports', () => {
+    const graph = graphOf([
+      moduleOf('entry.ts', { imports: [{ target: 'init.ts', names: [] }] }),
+      moduleOf('init.ts', {
+        local: ['init'],
+        imports: [{ target: 'helper.ts', names: ['helper'] }],
+      }),
+      moduleOf('helper.ts', { local: ['helper'] }),
+    ]);
+    const report = analyze(graph, ['entry.ts']);
+    expect(report.files).toEqual([]);
+    expect(report.exports).toEqual(['init.ts#init']);
+  });
+
   it('parses static imports and re-exports end-to-end', () => {
     const base = tmpdir();
     const prefix = path.join(base, 'dead-code-static-');
