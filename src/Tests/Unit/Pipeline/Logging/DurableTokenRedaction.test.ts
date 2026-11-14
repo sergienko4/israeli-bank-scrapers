@@ -15,7 +15,7 @@ import { PassThrough } from 'node:stream';
 
 import pino from 'pino';
 
-import { SENSITIVE_PATHS } from '../../../../Scrapers/Pipeline/Types/DebugConfig.js';
+import SENSITIVE_PATHS from '../../../../Scrapers/Pipeline/Types/DebugConfig.js';
 
 /** Every name the durable warm-start credential is published under. */
 const DURABLE_TOKEN_ALIASES: readonly string[] = [

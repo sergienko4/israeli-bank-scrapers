@@ -61,5 +61,5 @@ function unwrapOr<T>(opt: Option<T>, fallback: T): T {
   return opt.value;
 }
 
-export type { INone, ISome, NonNullish, Option };
+export type { Option };
 export { isSome, none, some, unwrapOr };

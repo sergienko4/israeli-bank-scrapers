@@ -6,7 +6,7 @@
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
-import type { IFieldMatch } from '../../../Types/FieldMatch.js';
+import type IFieldMatch from '../../../Types/FieldMatch.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import { type ScalarFieldHit, type UntypedValue } from '../AutoMapperFacade/AutoMapperTypes.js';

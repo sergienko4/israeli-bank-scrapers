@@ -1,29 +1,8 @@
-/** Replacement label for PII fields in log output. */
-export const PII_LABEL = '[PII_PROTECTED]';
-
-/**
- * WellKnown sensitive key names — any log field whose key is in this set AND
- * whose string value is longer than 4 characters will be redacted to [PII_PROTECTED].
- * The 4-char exception preserves short display values (last4Digits, displayId)
- * while catching all long internal GUIDs (cardUniqueId, bankAccountUniqueID, etc.).
- */
-export const WL_SENSITIVE_KEYS = new Set([
-  // Internal card/account GUIDs used for API calls
-  'cardUniqueId',
-  'cardUniqueID',
-  'bankAccountUniqueID',
-  'bankAccountUniqueId',
-  'accountId',
-  'CardId',
-  // Pipeline field-match result that carries the query ID
-  'queryIdentifier',
-]);
-
 /** JSON paths to redact from pino log output (single source of truth =
  *  PiiRedactor.ts; this list is the Pino-side allow-list of paths to
  *  invoke the censor on). When an unknown path tail reaches the censor
  *  via wildcard, the redactor's default-deny rule applies. */
-export const SENSITIVE_PATHS = [
+const SENSITIVE_PATHS = [
   // Credentials
   'password',
   'credentials.password',
@@ -108,5 +87,4 @@ export const SENSITIVE_PATHS = [
   'setCookie',
 ];
 
-/** Field names whose values are monetary amounts (masked to sign-only in logs). */
-export const AMOUNT_KEYS = new Set(['balance', 'originalAmount', 'chargedAmount']);
+export default SENSITIVE_PATHS;
