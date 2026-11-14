@@ -1,132 +1,142 @@
 /**
- * DEAD-CODE CANARY — fails CI when any production source file under
- * `src/Scrapers/Pipeline/` has zero production importers.
+ * DEAD-CODE GATE — symbol-level reachability from the public entry points.
  *
- * "Production" excludes `*.test.ts`, `*.canary.ts`, and EslintCanaries
- * fixtures: a file consumed only by tests is dead from the runtime
- * perspective and should be deleted (Commit H removed
- * `Banks/_Shared/CookieJar.ts` for exactly this reason).
+ * Files with zero production importers are only the first symptom. A barrel
+ * can re-export a file that no consumer ever imports by name, so this gate
+ * resolves named, namespace and `export *` edges and reports both unreachable
+ * files and unused local exports.
  *
- * Algorithm:
- *   1. Walk `src/` for every `.ts` file (skip tests, canaries, fixtures,
- *      declaration files).
- *   2. Build an import graph: for each prod file, parse `from '...'`
- *      specifiers, resolve to absolute paths, and record edges.
- *   3. For every prod file under `src/Scrapers/Pipeline/`, check the
- *      reverse-edge count. Zero importers AND not an entry point → dead.
+ * The committed baseline freezes today's dead items. New items fail; fixing
+ * items shrinks the baseline. Update it only after a deliberate burn-down:
+ * `npm run lint:dead-code -- --update-baseline`.
  *
- * Entry points (allowed zero importers) live in ENTRY_POINTS. New
- * entries must include a one-line justifying comment.
- *
- * Invoked via `npm run lint:dead-code`; wired into the pre-commit
- * gate ladder so a dead file cannot reach `origin`.
+ * Invoked via `npm run lint:dead-code`; the CI Static checks job owns it.
  */
 
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-import { parseImports, resolveImport, UNRESOLVED, walkProdFiles } from './ImportGraphScan.js';
+import type { IDeadCodeBaseline, IDeadCodeReport } from './DeadCodeReachability.js';
+import { findRegressions, scanDeadCode } from './DeadCodeReachability.js';
 
 const REPO_ROOT = process.cwd();
-const SRC_ROOT = path.join(REPO_ROOT, 'src');
-const PIPELINE_ROOT = path.join(SRC_ROOT, 'Scrapers', 'Pipeline');
+const BASELINE_PATH = path.join(REPO_ROOT, 'src', 'Tests', 'Tools', 'dead-code.baseline.json');
+const UPDATE_FLAG = '--update-baseline';
 
-/**
- * Files exempted from the "must have ≥1 importer" rule.
- *
- * Legitimate entry points — public surfaces consumed externally.
- */
-const ENTRY_POINTS: ReadonlySet<string> = new Set([
-  // Public barrel export — consumed via the npm package's entry.
-  path.join(PIPELINE_ROOT, 'index.ts'),
-  // DNS warm-up manifest — its consumer is bash, not TypeScript.
-  // `.github/scripts/ci/dns-warmup.sh` reads it with grep/sed because
-  // the warm-up runs before `npm install`, so it cannot import TS.
-  path.join(PIPELINE_ROOT, 'Registry', 'Config', 'PipelineBankHosts.ts'),
-]);
+/** Public surfaces. Each entry needs a reason; a file alone is not enough. */
+const ENTRY_POINTS: readonly string[] = [
+  // Package entry: every public export starts here.
+  'src/index.ts',
+  // DNS warm-up manifest: its bash consumer runs before npm install.
+  'src/Scrapers/Pipeline/Registry/Config/PipelineBankHosts.ts',
+];
 
-/**
- * Builds the importer-count map for every production file.
- * @param prodFiles - All discovered production source paths.
- * @param prodSet - Same paths as a set for O(1) membership checks.
- * @returns Map from absolute file path to its importer count.
- */
-function countImporters(
-  prodFiles: readonly string[],
-  prodSet: ReadonlySet<string>,
-): Map<string, number> {
-  const counts = new Map<string, number>();
-  for (const f of prodFiles) counts.set(f, 0);
-  for (const file of prodFiles) {
-    for (const spec of parseImports(file)) {
-      const resolved = resolveImport(file, spec);
-      if (resolved === UNRESOLVED || resolved === file || !prodSet.has(resolved)) continue;
-      counts.set(resolved, (counts.get(resolved) ?? 0) + 1);
-    }
-  }
-  return counts;
-}
-
-/**
- * Collects Pipeline files with zero importers (excluding entry points).
- * @param counts - Importer count map produced by {@link countImporters}.
- * @returns Repo-relative dead-file paths.
- */
-function collectDeadFiles(counts: ReadonlyMap<string, number>): readonly string[] {
-  const dead: string[] = [];
-  for (const [file, count] of counts) {
-    if (!file.startsWith(PIPELINE_ROOT)) continue;
-    if (ENTRY_POINTS.has(file)) continue;
-    if (count > 0) continue;
-    const relative = path.relative(REPO_ROOT, file);
-    dead.push(relative);
-  }
-  return dead;
-}
-
-/** Sentinel returned by side-effecting helpers (parity with {@link walkProdFiles}). */
+/** Sentinel returned by side-effecting helpers (no-void rule). */
 type Done = true;
 
+/** Empty baseline used when the committed file does not exist yet. */
+const EMPTY_BASELINE: IDeadCodeBaseline = {
+  note: 'No baseline yet.',
+  unreachableFiles: [],
+  unusedExports: [],
+};
+
 /**
- * Reports the dead-file set and exits non-zero. Extracted so the main
- * driver stays under the cognitive-complexity ceiling.
- * @param dead - Repo-relative paths flagged as dead.
- * @returns Sentinel that is never reached because the helper exits.
+ * Read the committed baseline.
+ * @returns Parsed baseline, or the empty baseline when absent.
  */
-function reportDeadAndExit(dead: readonly string[]): Done {
-  console.error('❌ DEAD CODE — files with zero production importers:');
-  const sorted = [...dead].sort((a, b): number => a.localeCompare(b));
-  for (const file of sorted) console.error(`   ${file}`);
-  console.error('');
-  console.error('   Each file listed above is reachable only from tests (or');
-  console.error('   nothing). Delete it, or add it to ENTRY_POINTS in');
-  console.error('   src/Tests/Tools/detect-dead-code.ts with a justifying');
-  console.error('   comment if it is a public surface.');
-  process.exit(1);
+function readBaseline(): IDeadCodeBaseline {
+  if (!fs.existsSync(BASELINE_PATH)) return EMPTY_BASELINE;
+  const text = fs.readFileSync(BASELINE_PATH, 'utf8');
+  return JSON.parse(text) as IDeadCodeBaseline;
 }
 
 /**
- * Drives the canary end-to-end. Wrapped in a guarded entry point so the
- * file can also be imported (e.g. by colocated unit tests) without
- * triggering a filesystem walk or `process.exit(1)`.
- * @returns Sentinel `true` once the canary completes successfully.
+ * Write the current dead items as the new baseline.
+ * @param report - Current dead items.
+ * @returns True once written.
  */
-function runDeadCodeCanary(): Done {
-  const prodFiles: string[] = [];
-  walkProdFiles(SRC_ROOT, prodFiles);
-  const counts = countImporters(prodFiles, new Set(prodFiles));
-  const dead = collectDeadFiles(counts);
-  if (dead.length > 0) return reportDeadAndExit(dead);
-  const scanned = prodFiles.filter((f): boolean => f.startsWith(PIPELINE_ROOT)).length;
-  console.log(`✅ Dead-code canary clean — ${String(scanned)} Pipeline files all have ≥1 importer`);
+function writeBaseline(report: IDeadCodeReport): Done {
+  const baseline: IDeadCodeBaseline = {
+    note: 'Frozen symbol-level dead code. New items fail; remove items only as they are deleted. Refresh with `npm run lint:dead-code -- --update-baseline` after a deliberate burn-down.',
+    unreachableFiles: report.files,
+    unusedExports: report.exports,
+  };
+  fs.writeFileSync(BASELINE_PATH, `${JSON.stringify(baseline, null, 2)}\n`);
+  console.log(
+    `✅ Dead-code baseline written — ${String(report.files.length)} unreachable files, ${String(report.exports.length)} unused exports`,
+  );
   return true;
 }
 
 /**
- * Detects whether this module is the process entry point. Used so the
- * canary side effects fire only under direct `tsx` invocation, leaving
- * test imports side-effect-free. Matches by absolute path AND filename
- * suffix to tolerate the `.ts` ↔ compiled-loader path mismatch tsx
- * exposes on Windows.
+ * Print one labelled list.
+ * @param label - Section heading.
+ * @param items - Items to print.
+ * @returns True once printed.
+ */
+function printItems(label: string, items: readonly string[]): Done {
+  if (items.length === 0) return true;
+  console.error(`${label}:`);
+  for (const item of items) console.error(`   ${item}`);
+  return true;
+}
+
+/**
+ * Report new dead items and exit non-zero.
+ * @param regressions - Items absent from the baseline.
+ * @returns Sentinel that is never reached because the helper exits.
+ */
+function reportRegressionsAndExit(regressions: IDeadCodeReport): Done {
+  console.error('❌ DEAD CODE — new items outside the frozen baseline:');
+  printItems('   Unreachable files', regressions.files);
+  printItems('   Unused exports', regressions.exports);
+  console.error('');
+  console.error('   Delete the dead code, or refresh the baseline after a');
+  console.error('   deliberate burn-down with:');
+  console.error('   npm run lint:dead-code -- --update-baseline');
+  process.exit(1);
+}
+
+/**
+ * Refuse to grow the committed baseline.
+ * @param report - Current dead items.
+ * @param baseline - Previous baseline.
+ * @returns True when the current report only shrinks the baseline.
+ */
+function canReplaceBaseline(report: IDeadCodeReport, baseline: IDeadCodeBaseline): boolean {
+  const regressions = findRegressions(report, baseline);
+  return regressions.files.length === 0 && regressions.exports.length === 0;
+}
+
+/**
+ * Run the gate over the repository.
+ * @returns Sentinel `true` once the gate completes successfully.
+ */
+function runDeadCodeGate(): Done {
+  const report = scanDeadCode(REPO_ROOT, ENTRY_POINTS);
+  const baseline = readBaseline();
+  const hasBaseline = fs.existsSync(BASELINE_PATH);
+  if (process.argv.includes(UPDATE_FLAG)) {
+    if (!hasBaseline || canReplaceBaseline(report, baseline)) return writeBaseline(report);
+    const regressions = findRegressions(report, baseline);
+    console.error('❌ Baseline may only shrink: new dead items appeared.');
+    printItems('   Unreachable files', regressions.files);
+    printItems('   Unused exports', regressions.exports);
+    process.exit(1);
+  }
+  const regressions = findRegressions(report, baseline);
+  if (regressions.files.length > 0 || regressions.exports.length > 0) {
+    return reportRegressionsAndExit(regressions);
+  }
+  console.log(
+    `✅ Dead-code gate clean — ${String(report.files.length)} frozen files, ${String(report.exports.length)} frozen exports`,
+  );
+  return true;
+}
+
+/**
+ * Detect whether this module is the process entry point.
  * @returns True when invoked as the main module.
  */
 function isMainModule(): boolean {
@@ -136,15 +146,12 @@ function isMainModule(): boolean {
 }
 
 /**
- * Entry-point wrapper around {@link runDeadCodeCanary} — discards the
- * sentinel via a typed binding so the call-site stays clear of the
- * no-void / naming-convention rules. The runner exits the process on
- * failure, so `didComplete` is always `true` on return.
+ * Entry-point wrapper around {@link runDeadCodeGate}.
  * @returns The sentinel emitted by the runner.
  */
-function bootDeadCodeCanary(): Done {
-  const didComplete = runDeadCodeCanary();
+function bootDeadCodeGate(): Done {
+  const didComplete = runDeadCodeGate();
   return didComplete;
 }
 
-if (isMainModule()) bootDeadCodeCanary();
+if (isMainModule()) bootDeadCodeGate();
