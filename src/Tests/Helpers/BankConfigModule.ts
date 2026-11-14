@@ -6,7 +6,7 @@
  * one lookup rather than a per-bank export-name table.
  */
 
-import type { IApiDirectCallConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
+import type { IApiDirectCallConfig } from '../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 
 /**
  * Find the single `*_API_DIRECT_CALL` export name on a loaded bank module.

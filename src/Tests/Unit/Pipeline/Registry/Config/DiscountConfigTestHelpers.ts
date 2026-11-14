@@ -18,7 +18,7 @@ import { hydrate } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall
 import { resolveRefText } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/RefResolver.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
-import { callOfModule } from './BankConfigModule.js';
+import { callOfModule } from '../../../../Helpers/BankConfigModule.js';
 
 const CONFIG_MODULE =
   '../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigDiscount.js';

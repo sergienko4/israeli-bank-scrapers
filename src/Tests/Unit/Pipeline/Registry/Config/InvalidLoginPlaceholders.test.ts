@@ -13,6 +13,7 @@
 import type { IApiDirectCallConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import RISK_MINDER_MFP_FORMAT from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/DeviceIdentity/Formats/RiskMinderMfp.js';
 import { checkRequiredCreds } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RequiredCreds.js';
+import { callOfModule } from '../../../../Helpers/BankConfigModule.js';
 import {
   INVALID_CREDS_DISCOUNT,
   INVALID_CREDS_HAPOALIM,
@@ -20,7 +21,6 @@ import {
   INVALID_CREDS_USERNAME_PASSWORD,
   INVALID_CREDS_YAHAV,
 } from '../../../../TestConstants.js';
-import { callOfModule } from './BankConfigModule.js';
 
 const CONFIG_DIR = '../../../../../Scrapers/Pipeline/Registry/Config/';
 

@@ -16,7 +16,7 @@ import { classifyAnswer } from '../../../../../Scrapers/Pipeline/Mediator/ApiDir
 import { applyExtractRules } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.extractRules.js';
 import { hydrate } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/GenericBodyTemplate.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
-import { callOfModule } from './BankConfigModule.js';
+import { callOfModule } from '../../../../Helpers/BankConfigModule.js';
 
 const CONFIG_MODULE =
   '../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigBeinleumi.js';

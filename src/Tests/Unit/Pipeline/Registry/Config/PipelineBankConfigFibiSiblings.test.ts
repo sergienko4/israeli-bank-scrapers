@@ -15,7 +15,7 @@ import { CompanyTypes } from '../../../../../Definitions.js';
 import type { IApiDirectRuleInput } from '../../../../../Scrapers/Pipeline/Core/Builder/Validation/ApiDirectConfigRules.js';
 import { validateApiDirectConfig } from '../../../../../Scrapers/Pipeline/Core/Builder/Validation/ApiDirectConfigRules.js';
 import type { IApiDirectCallConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
-import { callOfModule } from './BankConfigModule.js';
+import { callOfModule } from '../../../../Helpers/BankConfigModule.js';
 
 /** The bank's transport block, as the build-time validator reads it. */
 type TransportBlock = Exclude<IApiDirectRuleInput['transport'], false>;
