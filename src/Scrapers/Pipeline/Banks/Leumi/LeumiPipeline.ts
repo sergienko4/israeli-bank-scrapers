@@ -4,7 +4,7 @@
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { ScraperOptions } from '../../../Base/Interface.js';
-import { createPipelineBuilder } from '../../Core/Builder/PipelineBuilderFactory.js';
+import createPipelineBuilder from '../../Core/Builder/PipelineBuilderFactory.js';
 import type { IPipelineDescriptor } from '../../Core/PipelineDescriptor.js';
 import { LEUMI_API_DIRECT_CALL } from '../../Registry/Config/PipelineBankConfigLeumi.js';
 import { fail, type Procedure } from '../../Types/Procedure.js';

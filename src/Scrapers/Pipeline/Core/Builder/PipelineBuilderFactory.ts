@@ -11,4 +11,3 @@ function createPipelineBuilder(): PipelineBuilder {
 }
 
 export default createPipelineBuilder;
-export { createPipelineBuilder };
