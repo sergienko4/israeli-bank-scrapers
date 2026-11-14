@@ -95,7 +95,7 @@ export const PIPELINE_CLUSTERS: readonly IClusterExpectations[] = [
   },
   {
     clusterName: 'Scrape canonical-10 sub-folders (§12B)',
-    representativeFile: 'src/Scrapers/Pipeline/Mediator/Scrape/ScrapeReplay/Base64Paging.ts',
+    representativeFile: 'src/Scrapers/Pipeline/Mediator/Scrape/ScrapeReplay/MonthChunking.ts',
     expectations: [
       { ruleId: 'max-lines', maxAllowed: 150 },
       { ruleId: 'max-lines-per-function', maxAllowed: 10 },

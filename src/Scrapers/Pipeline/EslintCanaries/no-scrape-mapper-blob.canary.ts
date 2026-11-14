@@ -7,10 +7,9 @@
 // Canary: Phase 5 Section 12 file-size guard — re-imposes
 // `max-lines: 150` (skipBlankLines + skipComments) on
 // Mediator/Scrape sub-modules so future commits cannot quietly
-// re-blob ScrapeAutoMapper.ts (or any of its eleven successors)
-// back toward four-digit line counts. The body below is padded
-// above the 150 effective-line ceiling so verify.sh confirms
-// the rule fires.
+// re-blob any of them back toward four-digit line counts. The body
+// below is padded above the 150 effective-line ceiling so verify.sh
+// confirms the rule fires.
 
 function canaryFunction0(): boolean {
   return true;

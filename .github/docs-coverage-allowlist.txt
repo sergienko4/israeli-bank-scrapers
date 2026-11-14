@@ -44,15 +44,15 @@
 # These symbols moved from the (formerly monolithic) ScrapeAutoMapper.ts
 # into AutoMapperFacade/AutoMapperTypes.ts as part of the 11-sub-module
 # split. They are CROSS-MODULE INTERNALS Ã¢â‚¬â€ shared types + constants
-# used by BfsFieldSearch, AccountExtractor, ContainerPicker, TxnMapper,
-# etc. Ã¢â‚¬â€ not part of the user-facing @sergienko4/israeli-bank-scrapers
-# public surface. They are not re-exported from lib/index.{cjs,mjs}.
+# used by BfsFieldSearch, TxnMapper and the bank shapes Ã¢â‚¬â€ not part of
+# the user-facing @sergienko4/israeli-bank-scrapers public surface. They
+# are not re-exported from lib/index.{cjs,mjs}.
 
-# Reason: ApiRecord Ã¢â‚¬â€ internal alias `Record<string, unknown>` for API response shapes (used by AccountExtractor + BfsFieldSearch + TxnMapper). Not a stable public type.
+# Reason: ApiRecord Ã¢â‚¬â€ internal alias `Record<string, unknown>` for API response shapes (used by BfsFieldSearch + TxnMapper). Not a stable public type.
 ApiRecord
 # Reason: DEFAULT_CURRENCY Ã¢â‚¬â€ internal 'ILS' fallback constant for amount normalization; bundled into transaction objects via the shim, never imported by consumers.
 DEFAULT_CURRENCY
-# Reason: MAX_SEARCH_DEPTH Ã¢â‚¬â€ internal BFS recursion bound for AccountExtractor field discovery; tuning constant, not user-facing.
+# Reason: MAX_SEARCH_DEPTH Ã¢â‚¬â€ internal BFS recursion bound for field discovery; tuning constant, not user-facing.
 MAX_SEARCH_DEPTH
 # Reason: ScalarFieldHit Ã¢â‚¬â€ internal helper union (`string | number | false`) for findFieldValue / coerce* miss-marking. Implementation detail of the field-search algorithm.
 ScalarFieldHit
@@ -136,10 +136,6 @@ LITERAL_TEXT_PII_PATTERNS
 # --- Phase 8.5a / commit 9 (CR PR #280 follow-up Ã¢â‚¬â€ Scoring/ShapeAwareLogs export surface) ---
 # Reason: NETWORK_FETCH_TIMEOUT_MS Ã¢â‚¬â€ Network/FetchConfig.ts AbortController-driven native-fetch timeout (30s); shared by Fetch/NativeFetch.ts so bank API stalls cannot hang the scraper indefinitely (CR PR #280 #124).
 NETWORK_FETCH_TIMEOUT_MS
-
-# --- Phase 8.5b / commit 3 (ScrapeReplay split) ---
-# Reason: JsonRecord Ã¢â‚¬â€ ScrapeReplay/JsonTypes.ts canonical Record<string, JsonNode> alias used across every ScrapeReplay/* sub-module + Strategy/Scrape/ScrapeDataActions+ScrapeChunking+Account/AccountScrapeStrategy consumers; previously exported via "export type { JsonRecord }" from ScrapeReplayAction.ts (docs-coverage regex only matches direct "export type" declarations so the symbol is now flagged, but its public-surface status is unchanged).
-JsonRecord
 
 # --- Phase 2 / CR fix (EndpointUrlHelpers Ã¢â‚¬â€ WK constant for pending/clearance-requests URL) ---
 # Reason: PIPELINE_WELL_KNOWN_PENDING Ã¢â‚¬â€ internal WellKnown registry constant in ScrapeWK.ts that names the apiPrefix/pathFragment/actionName triple for the pending/clearance-requests endpoint on the shared card-family backbone (CAL/Isracard/Amex/MAX). Mirrors the shape of pre-existing PIPELINE_WELL_KNOWN_BILLING/_API/_QUERY_KEYS/_HEADERS constants which were grandfathered into the docs-coverage gate by pre-existing on main; this addition is the same kind (Pipeline-internal WK registry plumbing consumed only by EndpointUrlHelpers.resolvePendingUrl). Not part of the @sergienko4/israeli-bank-scrapers public surface Ã¢â‚¬â€ Pipeline is internal to the scrapers, not exported via src/index.ts.

@@ -18,7 +18,7 @@
  * is the same assertion for every institution.
  */
 
-import { autoMapTransaction } from '../../../../Scrapers/Pipeline/Mediator/Scrape/ScrapeAutoMapper.js';
+import { autoMapTransaction } from '../../../../Scrapers/Pipeline/Mediator/Scrape/TxnMapper/TxnMapper.js';
 import type { ITransaction } from '../../../../Transactions.js';
 
 /** Minimum a record needs to survive the mapper's date/amount gate. */

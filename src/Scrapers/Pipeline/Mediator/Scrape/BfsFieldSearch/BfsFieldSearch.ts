@@ -2,11 +2,10 @@
  * BFS field search barrel — composes the {@link Match} (scalar
  * matchers) and {@link Flatten} (tree flattener) siblings into the
  * `findFieldValue` / `findAllFieldValues` entry points consumed by
- * TxnMapper, ContainerClaim and AccountExtractor.
+ * TxnMapper and the bank shapes.
  *
- * Extracted from ScrapeAutoMapper as part of the Phase 5
- * pipeline-decoupling split (master plan
- * pipeline-decoupling-master-2026-05-28 / phase-5).
+ * Split out of the former monolithic scrape mapper during the Phase 5
+ * pipeline-decoupling work.
  */
 
 import type { ScalarFieldHit } from '../AutoMapperFacade/AutoMapperTypes.js';

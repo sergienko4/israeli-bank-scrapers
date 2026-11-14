@@ -26,7 +26,7 @@ import {
   txnsVars,
 } from '../../../../../Scrapers/Pipeline/Banks/VisaCal/scrape/VisaCalShapeTxns.js';
 import type { ApiRecord } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/AutoMapperFacade/AutoMapperTypes.js';
-import { autoMapTransaction } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/ScrapeAutoMapper.js';
+import { autoMapTransaction } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/TxnMapper/TxnMapper.js';
 import {
   type ApiBody,
   BALANCE_UNKNOWN,
