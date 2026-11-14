@@ -11,6 +11,7 @@
  */
 
 import { CompanyTypes } from '../../../../../Definitions.js';
+import { callOfModule } from '../../../../Helpers/BankConfigModule.js';
 
 /** Prefix of the OneZero Android app User-Agent. */
 const APP_UA = /^ONEZEROIL\//;
@@ -38,7 +39,8 @@ async function oneZeroTransport(): Promise<object | false> {
 async function identityUserAgent(): Promise<string> {
   const oneZero =
     await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigOneZero.js');
-  return oneZero.ONEZERO_API_DIRECT_CALL.staticHeaders?.['User-Agent'] ?? '';
+  const call = callOfModule(oneZero);
+  return call.staticHeaders?.['User-Agent'] ?? '';
 }
 
 describe('OneZero headless config — Cloudflare WAF identity', () => {

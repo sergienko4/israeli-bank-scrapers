@@ -17,7 +17,7 @@ import {
   LEUMI_PASSWORD_CLASSIFIER,
 } from './PipelineBankConfigLeumiClassify.js';
 import { LEUMI_JWT_CAPTURE, LEUMI_SITE_GUARD } from './PipelineBankConfigLeumiPortalPolicies.js';
-import { literalHeaders } from './PipelineBankConfigLiteralHeaders.js';
+import literalHeaders from './PipelineBankConfigLiteralHeaders.js';
 
 const ORIGIN = 'https://hb2.bankleumi.co.il';
 const SERVICE = 'https://sa.bankleumi.co.il/api/v2/auth';

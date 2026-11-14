@@ -149,7 +149,7 @@ async function seedFromBankConfig(): Promise<void> {
     await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
   const seeder =
     await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigSeeder.js');
-  seeder.seedWkFromPipelineConfig(registry.PIPELINE_BANK_CONFIG);
+  seeder.default(registry.PIPELINE_BANK_CONFIG);
 }
 
 describe('UrlsWK/pepperAuthUrls', () => {
@@ -292,7 +292,7 @@ async function seedSessionBank(): Promise<void> {
     paths: SESSION_PATHS,
   };
   const config = { urls: { base: SESSION_ORIGIN }, transport: transportConfig } as const;
-  seeder.seedWkFromPipelineConfig({ [HINT]: config });
+  seeder.default({ [HINT]: config });
 }
 
 describe('UrlsWK/sessionAuthTags', () => {

@@ -32,7 +32,7 @@ import {
   fibiEntryUrl,
   type IFibiBrand,
 } from './PipelineBankConfigFibiFamilyConstants.js';
-import { literalHeaders } from './PipelineBankConfigLiteralHeaders.js';
+import literalHeaders from './PipelineBankConfigLiteralHeaders.js';
 
 /** The brand-specific part of a Transmit step. */
 type BrandPart = Pick<IPostStep, 'headers' | 'queryTemplate' | 'extractRules'>;

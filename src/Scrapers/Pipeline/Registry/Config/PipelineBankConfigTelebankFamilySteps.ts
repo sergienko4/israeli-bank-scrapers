@@ -11,7 +11,7 @@ import type {
   IBodyTemplate,
   IStepConfig,
 } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
-import { literalHeaders } from './PipelineBankConfigLiteralHeaders.js';
+import literalHeaders from './PipelineBankConfigLiteralHeaders.js';
 import type { ITelebankBrand } from './PipelineBankConfigTelebankFamilyConstants.js';
 import {
   TELEBANK_ORIGIN,
@@ -217,4 +217,3 @@ function telebankLoginSteps(brand: ITelebankBrand): readonly IStepConfig[] {
 }
 
 export default telebankLoginSteps;
-export { telebankLoginSteps };

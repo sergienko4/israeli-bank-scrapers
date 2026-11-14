@@ -36,7 +36,7 @@ import {
   TELEBANK_STATIC_HEADERS,
   telebankLoginPage,
 } from './PipelineBankConfigTelebankFamilyConstants.js';
-import { telebankLoginSteps } from './PipelineBankConfigTelebankFamilySteps.js';
+import telebankLoginSteps from './PipelineBankConfigTelebankFamilySteps.js';
 import type { ITransportConfig } from './PipelineBankConfigTypes.js';
 
 /** Shared transport policy: one jar for the telebank domain, no stray redirect. */

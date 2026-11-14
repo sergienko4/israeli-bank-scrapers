@@ -134,5 +134,4 @@ const ONEZERO_API_DIRECT_CALL: IApiDirectCallConfig = {
   steps: ONEZERO_LOGIN_STEPS,
 };
 
-export { ONEZERO_API_DIRECT_CALL };
 export default ONEZERO_API_DIRECT_CALL;

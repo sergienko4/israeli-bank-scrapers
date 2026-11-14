@@ -74,4 +74,3 @@ function seedWkFromPipelineConfig(
 }
 
 export default seedWkFromPipelineConfig;
-export { seedWkFromPipelineConfig };

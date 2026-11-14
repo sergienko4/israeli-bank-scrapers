@@ -9,7 +9,7 @@
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { IStepConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { HAPOALIM_ERRORS, HAPOALIM_TARGETS } from './PipelineBankConfigHapoalimConstants.js';
-import { HAPOALIM_DEVICE_STEPS } from './PipelineBankConfigHapoalimDeviceSteps.js';
+import HAPOALIM_DEVICE_STEPS from './PipelineBankConfigHapoalimDeviceSteps.js';
 import { OTP_INIT_FORM, OTP_VERIFY_FORM, VERIFY_FORM } from './PipelineBankConfigHapoalimForms.js';
 import { AUTH_HEADERS, REFUSED_STATES } from './PipelineBankConfigHapoalimStepShared.js';
 

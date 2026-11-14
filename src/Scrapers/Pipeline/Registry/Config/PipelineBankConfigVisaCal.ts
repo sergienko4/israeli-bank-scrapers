@@ -93,4 +93,3 @@ const VISACAL_API_DIRECT_CALL: IApiDirectCallConfig = {
 };
 
 export default VISACAL_API_DIRECT_CALL;
-export { VISACAL_API_DIRECT_CALL };

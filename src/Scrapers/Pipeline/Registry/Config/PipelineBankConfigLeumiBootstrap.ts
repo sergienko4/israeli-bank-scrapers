@@ -4,7 +4,7 @@
 
 import type { IGetStep, IStepConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { IUrlRule } from '../../Types/Domain/FetchPolicy.js';
-import { literalHeaders } from './PipelineBankConfigLiteralHeaders.js';
+import literalHeaders from './PipelineBankConfigLiteralHeaders.js';
 
 const ORIGIN = 'https://hb2.bankleumi.co.il';
 const GATE = '/staticcontent/gate-keeper/';

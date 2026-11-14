@@ -16,7 +16,7 @@ import {
   SSO_RULES,
 } from './PipelineBankConfigLeumiPortalPolicies.js';
 import LEUMI_SSO_STEPS from './PipelineBankConfigLeumiPortalSso.js';
-import { literalHeaders } from './PipelineBankConfigLiteralHeaders.js';
+import literalHeaders from './PipelineBankConfigLiteralHeaders.js';
 
 const USER_REF = 'creds.username';
 const AUTHENTICATE: IPostStep = {

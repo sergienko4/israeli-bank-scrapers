@@ -24,4 +24,3 @@ const VISACAL_TRANSPORT: ITransportConfig = {
 };
 
 export default VISACAL_TRANSPORT;
-export { VISACAL_TRANSPORT };

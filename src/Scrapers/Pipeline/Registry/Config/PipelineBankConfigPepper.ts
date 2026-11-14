@@ -26,7 +26,7 @@ import {
   STATIC_HEADERS,
   TS_CLIENT_VERSION,
 } from './PipelineBankConfigPepperFingerprint.js';
-import { PEPPER_RESUME_STEPS } from './PipelineBankConfigPepperResumeSteps.js';
+import PEPPER_RESUME_STEPS from './PipelineBankConfigPepperResumeSteps.js';
 import { ASSERT_OTP_STEP, ASSERT_PWD_STEP, BIND_STEP } from './PipelineBankConfigPepperSteps.js';
 
 /** Pepper config literal — seeded into PIPELINE_BANK_CONFIG[PEPPER]. */
@@ -70,5 +70,4 @@ const PEPPER_API_DIRECT_CALL: IApiDirectCallConfig = {
   },
 };
 
-export { PEPPER_API_DIRECT_CALL };
 export default PEPPER_API_DIRECT_CALL;

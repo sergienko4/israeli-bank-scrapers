@@ -8,7 +8,7 @@ import type {
   ISeedCarrySource,
 } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { CLIENT_PROFILE } from './PipelineBankConfigLeumiBootstrap.js';
-import { literalHeaders } from './PipelineBankConfigLiteralHeaders.js';
+import literalHeaders from './PipelineBankConfigLiteralHeaders.js';
 
 const ORIGIN = 'https://hb2.bankleumi.co.il';
 const GATE = '/staticcontent/gate-keeper/';

@@ -14,7 +14,7 @@ import type {
   JoinPart,
   JsonValueTemplate,
 } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
-import { literalHeaders } from './PipelineBankConfigLiteralHeaders.js';
+import literalHeaders from './PipelineBankConfigLiteralHeaders.js';
 import {
   YAHAV_CLIENT_ID,
   YAHAV_DEVICE_NAME,

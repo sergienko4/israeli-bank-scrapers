@@ -19,4 +19,3 @@ function literalHeaders(headers: Readonly<Record<string, string>>): StepHeaders 
 }
 
 export default literalHeaders;
-export { literalHeaders };

@@ -10,7 +10,7 @@ import {
   PAGE_LIMIT,
   SPA_RULES,
 } from './PipelineBankConfigLeumiPortalPolicies.js';
-import { literalHeaders } from './PipelineBankConfigLiteralHeaders.js';
+import literalHeaders from './PipelineBankConfigLiteralHeaders.js';
 
 const SSO_STEP: IGetStep = {
   name: 'logon',

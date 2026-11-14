@@ -23,11 +23,15 @@ function findCallExport(loaded: Readonly<Record<string, unknown>>): string {
 }
 
 /**
- * Read the api-direct call config from a loaded bank module.
+ * Read the api-direct call config from a loaded bank module. A default-only
+ * module wins; the named `*_API_DIRECT_CALL` fallback covers modules that
+ * still export both forms.
  * @param loaded - Dynamically imported bank config module.
  * @returns The module's api-direct call config.
  */
 function callOfModule(loaded: Readonly<Record<string, unknown>>): IApiDirectCallConfig {
+  const fallback = loaded.default;
+  if (fallback !== undefined) return fallback as IApiDirectCallConfig;
   return loaded[findCallExport(loaded)] as IApiDirectCallConfig;
 }
 
