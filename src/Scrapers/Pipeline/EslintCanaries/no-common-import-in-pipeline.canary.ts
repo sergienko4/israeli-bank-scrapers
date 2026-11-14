@@ -5,16 +5,17 @@
  */
 
 // Canary: Phase 3 — Pipeline production code must not import from Common/*
-// (Pipeline is canonical; Common/* holds only result formatting). The import
-// below MUST trip `no-restricted-imports` via PHASE3_COMMON_IMPORT_BAN_PATTERN.
+// (Pipeline is canonical; Common/* is a retired shim tree). The import below
+// MUST trip `no-restricted-imports` via PHASE3_COMMON_IMPORT_BAN_PATTERN.
 //
-// The banned module only has to be a *live* Common one — it is never called for
-// its behaviour. `ResultFormatter` is a real implementation module rather than a
-// re-export shim, so no later shim retirement can invalidate this canary.
-import { maskAccount } from '../../../Common/ResultFormatter.js';
+// The rule is a pure specifier-pattern ban. Common/ no longer holds a live
+// production module after the test-helper move, so this fixture names the
+// banned prefix directly. Canaries are excluded from the build and are only
+// linted with --no-ignore, so the placeholder is never executed.
+import { deprecatedShim } from '../../../Common/Phase3Canary.js';
 
 function makeCanaryLogger(): unknown {
-  return maskAccount('phase-3-canary');
+  return deprecatedShim('phase-3-canary');
 }
 
 export { makeCanaryLogger };

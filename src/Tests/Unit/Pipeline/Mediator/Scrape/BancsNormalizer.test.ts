@@ -1,24 +1,20 @@
 /**
- * BaNCS (Yahav) transaction extraction — synthetic, PII-free tests.
+ * BaNCS (Yahav) normalizer — synthetic, PII-free tests.
  *
- * <p>Proves the shape-guarded BaNCS normalizer that teaches the shared
- * generic engine to read TCS BaNCS `Payload.DataEntity[]` records:
+ * <p>Proves the shape-guarded normalizer that Yahav's transaction extractor
+ * applies to TCS BaNCS `Payload.DataEntity[]` records:
  *   1. a single boundary row (no usable prior balance) signs via the
  *      `TxnType` fallback map (`OutPymntOrd` → debit → negative);
  *   2. a multi-row set (deliberately shuffled) signs via the
  *      running-balance delta — debits negative, credits positive —
  *      after chronological sort;
  *   3. `normalizeBancsRecords` is a provable no-op for a non-BaNCS
- *      record (returned by reference, no `bancs*` keys added);
- *   4. end-to-end, a non-BaNCS `movements` bank is unaffected by the
- *      normalizer wired into `extractTransactions`.
+ *      record (returned by reference, no `bancs*` keys added).
  *
  * Every value is fabricated (`FAKE-*`) — no real account data appears.
  */
 
 import normalizeBancsRecords from '../../../../../Scrapers/Pipeline/Mediator/Scrape/Bancs/BancsNormalizer.js';
-import { extractTransactions } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/ScrapeAutoMapper.js';
-import type { ITransaction } from '../../../../../Transactions.js';
 
 /** Synthetic BaNCS record parameters (all values fabricated — zero PII). */
 interface IBancsArgs {
@@ -51,8 +47,7 @@ function txnRefFor(srcId = ''): Record<string, unknown> {
 }
 
 /**
- * Build one synthetic BaNCS `DataEntity[]` record. Includes top-level
- * `Memo` + `TxnId` so the content-based hunt walker discovers the array.
+ * Build one synthetic BaNCS `DataEntity[]` record.
  * @param args - Synthetic record parameters.
  * @returns A raw BaNCS transaction record.
  */
@@ -79,23 +74,15 @@ function buildBancsRecord(args: IBancsArgs): Record<string, unknown> {
 }
 
 /**
- * Wrap synthetic records in the BaNCS `Payload.DataEntity` envelope.
- * @param records - Synthetic BaNCS records.
- * @returns MessageEnvelope-shaped body the hunt walker understands.
- */
-function bancsEnvelope(records: readonly Record<string, unknown>[]): Record<string, unknown> {
-  return { Payload: { DataEntity: records } };
-}
-
-/**
- * Find a mapped transaction's charged amount by identifier.
- * @param txns - Mapped transactions.
+ * Find a normalized row's signed amount by its normalized identifier.
+ * @param rows - Normalized BaNCS rows.
  * @param id - Identifier to locate.
- * @returns The charged amount, or NaN when not found.
+ * @returns The signed amount, or NaN when not found.
  */
-function amountById(txns: readonly ITransaction[], id: string): number {
-  const hit = txns.find((t): boolean => t.identifier === id);
-  return hit === undefined ? Number.NaN : hit.chargedAmount;
+function amountById(rows: readonly Record<string, unknown>[], id: string): number {
+  const hit = rows.find((row): boolean => row.bancsIdentifier === id);
+  const amount = hit?.bancsAmount;
+  return typeof amount === 'number' ? amount : Number.NaN;
 }
 
 /**
@@ -107,8 +94,8 @@ function runningBal(value: string): readonly Record<string, unknown>[] {
   return [{ CurrAmt: { Amt: { Value: value } }, BalType: { CDE: 'CURRENT' } }];
 }
 
-describe('BaNCS extraction — sign resolution', () => {
-  it('single OutPymntOrd (boundary row) → negative charged amount', () => {
+describe('BaNCS normalizer — sign resolution', () => {
+  it('single OutPymntOrd (boundary row) → negative amount', () => {
     const record = buildBancsRecord({
       id: 'FAKE-SINGLE',
       day: 10,
@@ -116,11 +103,10 @@ describe('BaNCS extraction — sign resolution', () => {
       runBal: '500',
       typeCode: 'OutPymntOrd',
     });
-    const env = bancsEnvelope([record]);
-    const txns = extractTransactions(env);
-    expect(txns).toHaveLength(1);
-    expect(txns[0].chargedAmount).toBe(-150);
-    expect(txns[0].identifier).toBe('FAKE-SINGLE');
+    const rows = normalizeBancsRecords([record]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].bancsAmount).toBe(-150);
+    expect(rows[0].bancsIdentifier).toBe('FAKE-SINGLE');
   });
 
   it('three rows incl. a credit → running-balance delta assigns signs', () => {
@@ -145,19 +131,18 @@ describe('BaNCS extraction — sign resolution', () => {
       runBal: '900',
       typeCode: 'OutPymntOrd',
     });
-    const env = bancsEnvelope([rowB, rowA, rowC]);
-    const txns = extractTransactions(env);
-    expect(txns).toHaveLength(3);
-    const amtA = amountById(txns, 'FAKE-A');
-    const amtB = amountById(txns, 'FAKE-B');
-    const amtC = amountById(txns, 'FAKE-C');
-    expect(amtA).toBe(-200);
-    expect(amtB).toBe(200);
-    expect(amtC).toBe(-300);
+    const rows = normalizeBancsRecords([rowB, rowA, rowC]);
+    const amountA = amountById(rows, 'FAKE-A');
+    const amountB = amountById(rows, 'FAKE-B');
+    const amountC = amountById(rows, 'FAKE-C');
+    expect(rows).toHaveLength(3);
+    expect(amountA).toBe(-200);
+    expect(amountB).toBe(200);
+    expect(amountC).toBe(-300);
   });
 });
 
-describe('BaNCS extraction — per-row identifier', () => {
+describe('BaNCS normalizer — per-row identifier', () => {
   it('distinguishes two rows that share one batch TRANSACTIONID', () => {
     const feeA = buildBancsRecord({
       id: 'FAKE-BATCH-1',
@@ -175,56 +160,25 @@ describe('BaNCS extraction — per-row identifier', () => {
       typeCode: 'InvcApplication',
       srcId: 'FAKE-SRC-2',
     });
-    const env = bancsEnvelope([feeA, feeB]);
-    const txns = extractTransactions(env);
-    expect(txns).toHaveLength(2);
-    const ids = txns.map((t): string => String(t.identifier));
-    const unique = new Set(ids);
-    expect(unique.size).toBe(2);
+    const rows = normalizeBancsRecords([feeA, feeB]);
+    const ids = rows.map((row): unknown => row.bancsIdentifier);
+    expect(new Set(ids).size).toBe(2);
     expect(ids).toContain('FAKE-SRC-1');
     expect(ids).toContain('FAKE-SRC-2');
   });
-
-  it('falls back to TRANSACTIONID when no source reference is present', () => {
-    const record = buildBancsRecord({
-      id: 'FAKE-NO-SRC',
-      day: 9,
-      magnitude: '50',
-      runBal: '700',
-      typeCode: 'OutPymntOrd',
-    });
-    const env = bancsEnvelope([record]);
-    const txns = extractTransactions(env);
-    expect(txns).toHaveLength(1);
-    expect(txns[0].identifier).toBe('FAKE-NO-SRC');
-  });
 });
 
-describe('BaNCS extraction — default-deny for non-BaNCS records', () => {
-  it('normalizeBancsRecords returns a non-BaNCS record by reference', () => {
+describe('BaNCS normalizer — default-deny for non-BaNCS records', () => {
+  it('returns a non-BaNCS record by reference', () => {
     const plain = { movementId: 'x', movementAmount: 90, description: 'demo' };
     const out = normalizeBancsRecords([plain]);
     expect(out).toHaveLength(1);
     expect(out[0]).toBe(plain);
     expect('bancsAmount' in out[0]).toBe(false);
   });
-
-  it('extractTransactions leaves a non-BaNCS movements bank unaffected', () => {
-    const movement = {
-      movementId: 'm-1',
-      movementTimestamp: '2026-01-15T10:00:00',
-      movementAmount: 90,
-      movementCurrency: 'ILS',
-      description: 'demo',
-    };
-    const env = { movements: [movement] };
-    const txns = extractTransactions(env);
-    expect(txns).toHaveLength(1);
-    expect(txns[0].chargedAmount).toBe(90);
-  });
 });
 
-describe('BaNCS extraction — boundary + fallback branches', () => {
+describe('BaNCS normalizer — boundary + fallback branches', () => {
   it('unknown type + no balance → default debit and fills currency/date fallbacks', () => {
     const minimal = {
       OrigDt: { Day: 5, Month: 3, Year: 2026 },
@@ -305,7 +259,7 @@ describe('BaNCS extraction — boundary + fallback branches', () => {
   });
 });
 
-describe('BaNCS extraction — signs isolated from non-BaNCS rows', () => {
+describe('BaNCS normalizer — signs isolated from non-BaNCS rows', () => {
   it('a stray non-BaNCS row cannot perturb BaNCS running-balance signs', () => {
     const rowA = buildBancsRecord({
       id: 'FAKE-A',

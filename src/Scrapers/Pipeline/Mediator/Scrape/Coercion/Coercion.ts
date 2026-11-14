@@ -2,9 +2,8 @@
  * Coercion helpers — convert raw BFS field hits into typed
  * scalars consumable by the AutoMapper pipeline.
  *
- * Extracted from ScrapeAutoMapper as part of the Phase 5
- * pipeline-decoupling split (master plan
- * pipeline-decoupling-master-2026-05-28 / phase-5).
+ * Split out of the former monolithic scrape mapper during the Phase 5
+ * pipeline-decoupling work.
  */
 
 import { KNOWN_DATE_FORMATS } from '../../../Registry/WK/ScrapeWK.js';

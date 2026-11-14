@@ -12,7 +12,7 @@
  * wrong. These tests pin it.
  */
 
-import { autoMapTransaction } from '../../../../Scrapers/Pipeline/Mediator/Scrape/ScrapeAutoMapper.js';
+import { autoMapTransaction } from '../../../../Scrapers/Pipeline/Mediator/Scrape/TxnMapper/TxnMapper.js';
 import type { ITransaction } from '../../../../Transactions.js';
 
 /** A charge as a card issuer reports it: positive, meaning "you owe this". */

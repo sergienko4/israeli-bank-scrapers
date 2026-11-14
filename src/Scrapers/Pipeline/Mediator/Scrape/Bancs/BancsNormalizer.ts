@@ -1,12 +1,11 @@
 /**
- * BaNCS normalizer — the array-level entry point wired into the shared
- * `extractTransactions` pipeline.
+ * BaNCS normalizer — the array-level entry point used by Yahav's
+ * `YahavShapeTxns` extractor.
  *
- * <p>Default-deny: when no hunt-collected record passes the BaNCS shape
- * guard the input is returned UNCHANGED, so the other five pipeline
- * banks (Leumi/Discount/VisaCal/Max/Isracard) are provably unaffected.
- * When BaNCS records ARE present it signs them (running-balance delta,
- * see {@link "./BancsSign.js"}) and flattens each into collision-free
+ * <p>Default-deny: when no record passes the BaNCS shape guard the input
+ * is returned UNCHANGED, so a non-BaNCS caller cannot be affected. When
+ * BaNCS records ARE present it signs them (running-balance delta, see
+ * {@link "./BancsSign.js"}) and flattens each into collision-free
  * `bancs*` scalar fields that the generic mapper resolves via the
  * prepended WK aliases in
  * {@link "../../../Registry/WK/ScrapeFieldMappings.js"}.

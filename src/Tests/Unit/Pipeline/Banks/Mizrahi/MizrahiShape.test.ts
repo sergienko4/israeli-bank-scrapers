@@ -33,7 +33,7 @@ import {
 } from '../../../../../Scrapers/Pipeline/Banks/Mizrahi/scrape/MizrahiShapeTxns.js';
 import type { ApiRecord } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/AutoMapperFacade/AutoMapperTypes.js';
 import { bankMomentOfInstant } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/BankCalendar.js';
-import { autoMapTransaction } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/ScrapeAutoMapper.js';
+import { autoMapTransaction } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/TxnMapper/TxnMapper.js';
 import type {
   ApiBody,
   IExtractAccountsArgs,

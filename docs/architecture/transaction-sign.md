@@ -124,6 +124,6 @@ declaration and fails while any of them is missing from the table above, and
 the [docs staleness gate](../workflow/docs-coverage.md) fails if the module is
 edited without this page being updated.
 
-Behaviour is proven by `ScrapeAutoMapperDirectionCode.test.ts`, which maps every
+Behaviour is proven by `TxnMapperDirectionCode.test.ts`, which maps every
 case through the real `autoMapTransaction` entry point rather than calling the
 sign helpers directly.

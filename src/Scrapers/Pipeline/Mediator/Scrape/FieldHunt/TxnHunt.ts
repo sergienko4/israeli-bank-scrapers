@@ -1,7 +1,7 @@
 /**
  * Transaction hunt — depth-first iterative walk that collects
  * every txn-like array in a nested API response. Powers
- * `huntTransactions`, used by ContainerPicker's primary extractor.
+ * `huntTransactions`, used by the coverage audit.
  *
  * Sub-split out of FieldHunt.ts during Phase 5 to keep both files
  * under the per-cluster max-lines:150 eff cap (master plan

@@ -1,11 +1,11 @@
-import type { IErrorResult } from './Interfaces/ErrorResult.js';
-import type { IWafErrorDetails } from './Interfaces/WafErrorDetails.js';
+import type { IErrorResult } from '../../Scrapers/Base/Interfaces/ErrorResult.js';
+import type { IWafErrorDetails } from '../../Scrapers/Base/Interfaces/WafErrorDetails.js';
 
-export { ScraperErrorTypes } from './ErrorTypes.js';
-export type { IErrorResult } from './Interfaces/ErrorResult.js';
-export type { IWafErrorDetails } from './Interfaces/WafErrorDetails.js';
+export { ScraperErrorTypes } from '../../Scrapers/Base/ErrorTypes.js';
+export type { IErrorResult } from '../../Scrapers/Base/Interfaces/ErrorResult.js';
+export type { IWafErrorDetails } from '../../Scrapers/Base/Interfaces/WafErrorDetails.js';
 
-import { ScraperErrorTypes } from './ErrorTypes.js';
+import { ScraperErrorTypes } from '../../Scrapers/Base/ErrorTypes.js';
 
 /**
  * Create a typed error result with success=false.

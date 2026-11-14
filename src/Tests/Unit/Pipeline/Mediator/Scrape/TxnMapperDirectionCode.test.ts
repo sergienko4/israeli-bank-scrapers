@@ -1,5 +1,5 @@
 /**
- * ScrapeAutoMapper — numeric direction-code sign convention (issue #532).
+ * TxnMapper — numeric direction-code sign convention (issue #532).
  *
  * <p>Some banks report the amount as an unsigned MAGNITUDE and encode the
  * direction in a numeric activity code rather than a debit/credit word.
@@ -92,7 +92,7 @@ function chargedOf(row: Row): number {
   return txn.chargedAmount;
 }
 
-describe('ScrapeAutoMapper/NumericDirectionCode', () => {
+describe('TxnMapper/NumericDirectionCode', () => {
   it('maps the real captured inbound row positive, unchanged', () => {
     const row = realRow();
     const txn = mapRow(row);

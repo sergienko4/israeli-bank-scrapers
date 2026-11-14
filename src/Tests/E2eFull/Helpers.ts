@@ -1,6 +1,6 @@
-import { maskAccount, maskAmount, maskDesc } from '../../Common/ResultFormatter.js';
 import type { IScraperScrapingResult } from '../../Scrapers/Base/Interface.js';
 import type { ITransaction, ITransactionsAccount } from '../../Transactions.js';
+import { maskAccount, maskAmount, maskDesc } from '../Helpers/ResultFormatter.js';
 
 export { SCRAPE_TIMEOUT } from '../Config/TestTimingConfig.js';
 export const isCiEnvironment = !!process.env.CI;

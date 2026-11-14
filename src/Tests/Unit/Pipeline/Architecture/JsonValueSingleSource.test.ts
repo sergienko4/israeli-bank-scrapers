@@ -648,10 +648,10 @@ function openRecordAliasCount(files: readonly string[]): number {
  * "Known gap" (`docs/architecture/json-algebra.md`) reproduces.
  *
  * <p>The assertion is exact equality, not a ceiling. A ceiling lets the
- * count fall to 24 and then drift back to 25 unnoticed; exact equality makes
+ * count fall to 23 and then drift back to 24 unnoticed; exact equality makes
  * paying the debt down edit this number in the same commit.
  */
-const OPEN_RECORD_ALIASES = 25;
+const OPEN_RECORD_ALIASES = 24;
 
 /** The canonical module, spelled as the three exemption files spell it. */
 const CANONICAL_POSIX = 'src/Scrapers/Pipeline/Types/JsonValue.ts';

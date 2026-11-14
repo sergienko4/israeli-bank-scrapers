@@ -72,7 +72,9 @@ The first record that yields a usable hit decides; alias order applies
 `normalizeCurrency` maps the shekel aliases from WK `shekelAliases`
 (`שח`, `ש"ח`, `NIS`, `₪`) to `ILS` and passes every other value through. When
 no record yields a usable hit, the mapper falls back to `ILS`.
-`chargedCurrency` goes through the same `normalizeCurrency` step.
+`chargedCurrency` goes through the same `normalizeCurrency` step. An absent
+`chargedCurrency` stays `undefined`; the mapper does not copy
+`originalCurrency` into it.
 
 Mizrahi relies on that fallback. Its `get428Index` rows carry `kodMatbea`,
 which is `null` in every captured row and is not in the alias list, so the rows

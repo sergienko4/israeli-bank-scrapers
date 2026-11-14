@@ -168,29 +168,6 @@ function hasBadFreshSeed(input: IApiDirectRuleInput): boolean {
   return (input.call.seedCarryFromCreds ?? []).some(isBadFreshSeed);
 }
 
-/**
- * Whether a seed writes a fallback secret with an invalid name or combines
- * it with a bootstrap, which makes the precedence ambiguous.
- * @param entry - Seed declaration.
- * @returns True for an invalid fallback policy.
- */
-function isBadFallbackSecret(entry: string | ISeedCarrySource): boolean {
-  if (typeof entry === 'string') return false;
-  const name: unknown = entry.fallbackSecret;
-  if (name === undefined) return false;
-  if (typeof name !== 'string' || name.trim() === '') return true;
-  return entry.bootstrap !== undefined;
-}
-
-/**
- * Whether the call contains an invalid fallback secret.
- * @param input - Rule input.
- * @returns True for an invalid seed.
- */
-function hasBadFallbackSecret(input: IApiDirectRuleInput): boolean {
-  return (input.call.seedCarryFromCreds ?? []).some(isBadFallbackSecret);
-}
-
 /** Carry-generator rules, checked after the step-guard rules. */
 const API_DIRECT_GENERATE_RULES: readonly IApiDirectRule[] = [
   {
@@ -216,10 +193,6 @@ const API_DIRECT_GENERATE_RULES: readonly IApiDirectRule[] = [
   {
     message: 'seedCarryFromCreds: alwaysBootstrap needs a random bootstrap',
     isBroken: hasBadFreshSeed,
-  },
-  {
-    message: 'seedCarryFromCreds: fallbackSecret must be non-empty and not combined with bootstrap',
-    isBroken: hasBadFallbackSecret,
   },
   ...API_DIRECT_DERIVE_RULES,
   ...API_DIRECT_CODEC_RULES,

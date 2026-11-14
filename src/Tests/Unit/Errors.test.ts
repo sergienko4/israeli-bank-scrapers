@@ -6,7 +6,7 @@ import {
   type IErrorResult,
   ScraperErrorTypes,
   WafBlockError,
-} from '../../Scrapers/Base/Errors.js';
+} from '../Helpers/Errors.js';
 
 describe('ScraperErrorTypes', () => {
   it('has all expected error types', () => {

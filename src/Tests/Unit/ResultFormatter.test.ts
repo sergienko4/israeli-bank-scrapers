@@ -3,16 +3,16 @@ import { Writable } from 'node:stream';
 import { jest } from '@jest/globals';
 import pino from 'pino';
 
+import { ScraperErrorTypes } from '../../Scrapers/Base/ErrorTypes.js';
+import type { IScraperScrapingResult } from '../../Scrapers/Base/Interface.js';
+import type { ITransaction } from '../../Transactions.js';
+import { TransactionStatuses, TransactionTypes } from '../../Transactions.js';
 import {
   formatResultSummary,
   maskAccount,
   maskAmount,
   maskDesc,
-} from '../../Common/ResultFormatter.js';
-import { ScraperErrorTypes } from '../../Scrapers/Base/Errors.js';
-import type { IScraperScrapingResult } from '../../Scrapers/Base/Interface.js';
-import type { ITransaction } from '../../Transactions.js';
-import { TransactionStatuses, TransactionTypes } from '../../Transactions.js';
+} from '../Helpers/ResultFormatter.js';
 
 /**
  * Creates a test transaction with sensible defaults.

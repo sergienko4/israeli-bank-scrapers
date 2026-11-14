@@ -5,9 +5,8 @@
  * card-vs-bank amount sign convention, debit/credit netting,
  * direction-WK sign correction, and date/amount sanity gating.
  *
- * Extracted from ScrapeAutoMapper as part of the Phase 5
- * pipeline-decoupling split (master plan
- * pipeline-decoupling-master-2026-05-28 / phase-5).
+ * Split out of the former monolithic scrape mapper during the Phase 5
+ * pipeline-decoupling work.
  */
 
 import type { ITransaction } from '../../../../../Transactions.js';

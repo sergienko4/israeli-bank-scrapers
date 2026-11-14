@@ -1,5 +1,5 @@
 /**
- * Shared types and constants for the ScrapeAutoMapper cluster.
+ * Shared types and constants for the scrape mapper cluster.
  * Co-located with the facade so every sub-module under
  * `Pipeline/Mediator/Scrape/` imports a single canonical home.
  */

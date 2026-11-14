@@ -1,13 +1,13 @@
-import type { IScraperScrapingResult } from '../Scrapers/Base/Interface.js';
+import type { IScraperScrapingResult } from '../../Scrapers/Base/Interface.js';
 import {
   redactAccount,
   redactAmount,
   redactErrorMessage,
   redactMerchant,
   redactSensitiveEnum,
-} from '../Scrapers/Pipeline/Types/PiiRedactor.js';
-import type { ITransaction, ITransactionsAccount } from '../Transactions.js';
-import { ISRAEL_LOCALE, MAX_TXN_PREVIEW, SEPARATOR_WIDTH } from './Config/ResultFormatterConfig.js';
+} from '../../Scrapers/Pipeline/Types/PiiRedactor.js';
+import type { ITransaction, ITransactionsAccount } from '../../Transactions.js';
+import { ISRAEL_LOCALE, MAX_TXN_PREVIEW, SEPARATOR_WIDTH } from './ResultFormatterConfig.js';
 
 /** Optional numeric amount — undefined when the bank API omits the field. */
 type OptionalAmount = number | undefined;

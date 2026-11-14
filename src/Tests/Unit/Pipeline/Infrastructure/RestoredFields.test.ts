@@ -11,7 +11,7 @@
  * Payload field names only; no real provider values.
  */
 
-import { autoMapTransaction } from '../../../../Scrapers/Pipeline/Mediator/Scrape/ScrapeAutoMapper.js';
+import { autoMapTransaction } from '../../../../Scrapers/Pipeline/Mediator/Scrape/TxnMapper/TxnMapper.js';
 import type { ITransaction } from '../../../../Transactions.js';
 import { TransactionStatuses, TransactionTypes } from '../../../../Transactions.js';
 
