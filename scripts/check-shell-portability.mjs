@@ -46,9 +46,16 @@ import { join } from 'node:path';
 /**
  * Directories scanned for shell code, relative to the repo root.
  * `.github/actions` holds composite-action scripts; only its `.sh`
- * files are scanned.
+ * files are scanned. The ESLint canary directory holds the bash canaries
+ * that `lint:canaries` runs in the hook and in CI.
  */
-const ROOTS = ['.husky', '.github/scripts', '.github/actions', 'scripts'];
+const ROOTS = [
+  '.husky',
+  '.github/scripts',
+  '.github/actions',
+  'scripts',
+  'src/Scrapers/Pipeline/EslintCanaries',
+];
 
 /** Paths skipped: husky's generated helpers are not ours to fix. */
 const SKIP = new Set(['_', 'node_modules']);
@@ -130,6 +137,45 @@ function collect(dir, out) {
   return out;
 }
 
+/**
+ * A multi-line program passed as a double-quoted `-e` / `-c` argument. The
+ * shell expands that string before the interpreter sees it, so a backtick
+ * or `$(` anywhere in it — even inside one of the program's own comments —
+ * runs as a command. One such comment started an interactive bash that hung
+ * `npm run lint` whenever stdin was a terminal.
+ */
+const INLINE_PROGRAM = {
+  open: /\s-[ec]\s+"\s*$/,
+  // The closing quote ends the line or is followed by shell syntax; a program
+  // line such as `"use strict";` continues the program.
+  close: /^"(?:$|[\s);>|&])/,
+  expansion: /`|\$\(/,
+  why: 'a double-quoted inline program is expanded by the shell, so a backtick or $( in it runs as a command. Pass the program as a quoted heredoc (`node - "$arg" <<\'JS\'`) and its inputs as arguments.',
+};
+
+/** Index of the line that closes an inline program opened at `start`. */
+function closingLine(lines, start) {
+  const rest = lines.slice(start + 1);
+  const offset = rest.findIndex((line) => INLINE_PROGRAM.close.test(line.trimStart()));
+  return offset === -1 ? lines.length : start + 1 + offset;
+}
+
+/** True when an inline program opened at `start` contains a shell expansion. */
+function expandsInline(lines, start) {
+  const body = lines.slice(start + 1, closingLine(lines, start));
+  return body.some((line) => INLINE_PROGRAM.expansion.test(line));
+}
+
+/** Inline-program violations in one file's lines. */
+function scanInline(path, lines) {
+  const opened = lines.flatMap((line, i) =>
+    !isComment(line) && INLINE_PROGRAM.open.test(line) ? [i] : [],
+  );
+  return opened
+    .filter((i) => expandsInline(lines, i))
+    .map((i) => ({ path, line: i + 1, rule: INLINE_PROGRAM, text: lines[i].trim() }));
+}
+
 /** Every rule violation in one file, as printable records. */
 function scan(path) {
   const lines = readFileSync(path, 'utf8').split('\n');
@@ -140,7 +186,7 @@ function scan(path) {
       if (rule.pattern.test(line)) hits.push({ path, line: i + 1, rule, text: line.trim() });
     }
   });
-  return hits;
+  return [...hits, ...scanInline(path, lines)];
 }
 
 /** Prints the failure report for every violation found. */

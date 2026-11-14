@@ -1,59 +1,61 @@
 # Pre-commit hook
 
-Driven by [husky](https://typicode.github.io/husky/). Runs up to 23 quality gates in parallel before any commit lands locally. Three further gates (the test suites) are currently commented out — see [Currently disabled](#currently-disabled).
+Driven by [husky](https://typicode.github.io/husky/). Runs a small set of fast
+gates before a commit lands locally: the checks scoped to what you staged, and
+the checks that stop a leak before it enters history. Every repo-wide gate runs
+in CI on the pull request instead — see [What runs only in CI](#what-runs-only-in-ci).
 
 | Source | [`.husky/pre-commit`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/.husky/pre-commit) |
 |---|---|
 
 ## Phase 1 — Prettier autoformat
 
-Runs first and auto-fixes whitespace / quote style / trailing commas. If anything changes, the gate cache key is recomputed *after* this step so cosmetic fixes don't invalidate the cache.
+Runs first and auto-fixes whitespace / quote style / trailing commas on the
+staged `src/` files, then re-stages them. The gate cache key is computed *after*
+this step so cosmetic fixes don't invalidate the cache.
 
-## Phase 2 — 23 gates in parallel
+## Phase 2 — gates in parallel
 
-The hook spawns each gate as a background process and `wait`s for them all. Cache key per gate is `git write-tree` (the SHA of the staged tree); when the same SHA passes a gate, the next commit on the same content set skips it. `plan-refs` is the exception: it reads the staged additions, which depend on `HEAD` as well, so it always runs.
+The hook spawns each gate as a background process and `wait`s for them all.
+Cache key per gate is `git write-tree` (the SHA of the staged tree); when the
+same SHA passes a gate, the next commit on the same content set skips it. The
+cache is off while tracked files have unstaged changes. `eslint`, `biome`,
+`architecture` and `plan-refs` are never cached: they read the staged file list
+or additions, which depend on `HEAD` as well as on the staged tree.
 
-A commit that stages no source file — only docs, workflows, `.json`/`.yml` config or dotfiles — skips this phase. It still runs `plan-refs`, plus `jest-scopes` when `package.json` is staged.
+A commit that stages no source file — only docs, workflows, `.json`/`.yml`
+config or dotfiles — skips this phase and runs only `plan-refs`.
 
 | # | Gate | Hook label | What it runs |
 |---|---|---|---|
-| 1 | TypeScript | `tsc` | `type-check` |
-| 2 | ESLint (Pipeline) | `eslint:pipeline` | `npx eslint src/Scrapers/Pipeline --max-warnings=0` — Pipeline only; CI lints all of `src` |
-| 3 | Biome | `biome` | `npx biome lint src --max-diagnostics=50` |
-| 4 | npm audit | `audit` | `npm audit --audit-level=high --omit=dev` |
-| 5 | Phase isolation | `lint:phases:strict` | `lint:phases:strict` |
-| 6 | Architecture | `architecture` | `lint:architecture src` (see [architecture-linter.md](architecture-linter.md)) |
-| 7 | Build | `build` | `npm run build` + [`lint:public-surface`](public-surface.md) against the freshly built `lib/` |
-| 8 | Canaries | `canaries` | `lint:canaries` |
-| 9 | Dead code | `dead-code` | `lint:dead-code` |
-| 10 | Import cycles | `cycles` | `lint:cycles` |
-| 11 | Guideline coverage | `guideline-coverage` | `lint:guideline-coverage` (asserts `eslint.config.mjs` enforces CLEAN_CODE.md caps for every Pipeline cluster) |
-| 12 | Syntax guardrails | `syntax-guardrails` | `lint:syntax-guardrails` (asserts every armed `no-restricted-syntax` selector reaches each production Pipeline file) |
-| 13 | Test duplication | `test-duplication` | `lint:test-duplication` |
-| 14 | Bank coverage | `bank-coverage` | `lint:bank-coverage` |
-| 15 | Fixture PII | `fixtures-pii` | `lint:fixtures-pii` |
-| 16 | Staged PII | `pii-staged` | `lint:pii-staged` |
-| 17 | Plan refs | `plan-refs` | `lint:plan-refs` (fails when a staged added line cites an ID from a local, uncommitted plan: an item number, decision ID, task number or section mark; skips fixtures, captured pages, lockfiles and the changelog) |
-| 18 | Node support | `node-support` | `lint:node-support` |
-| 19 | CodeRabbit filters | `coderabbit-filters` | `lint:coderabbit-filters` (CodeRabbit path filters may skip only generated output) |
-| 20 | Jest scopes | `jest-scopes` | `lint:jest-scopes` (no test script silently widens its own scope) |
-| 21 | Docs strict | `docs-strict` | `lint:docs-strict` (only fires when `docs/**`, root `*.md`, or `mkdocs.yml` is staged; runs `PYTHONPATH=. zensical build --clean --strict` — soft-skips when `zensical` is not on PATH locally, CI is the hard gate) |
-| 22 | Docs coverage | `docs-coverage` | `.github/scripts/ci/docs-coverage.sh` (fires when any `src/Scrapers/Pipeline/**/*.ts` is staged; diffs new public exports against the merge-base with `origin/main`/`main`, as CI does, and fails if a new symbol is undocumented + un-allowlisted — soft-skips when base ref unresolvable locally, CI is the hard gate). See [Docs coverage gate](docs-coverage.md) for which export forms count. |
-| 23 | Docs staleness | `docs-staleness` | `.github/scripts/ci/docs-staleness.sh` (same merge-base as docs coverage, so commits on `main` after the branch forked never count as staged changes) |
+| 1 | TypeScript | `tsc` | `type-check` — the whole program, in seconds with the TypeScript 7 native compiler |
+| 2 | ESLint | `eslint` | `eslint --max-warnings 0` on the staged `src/` `.ts`/`.tsx`/`.js`/`.jsx`/`.mjs` files; the whole `src` tree when more than 50 are staged |
+| 3 | Biome | `biome` | `biome lint` on the same staged files |
+| 4 | Architecture | `architecture` | `lint-and-validate.ts` on the staged `src/` files; the whole `src` tree when more than 50 are staged (see [architecture-linter.md](architecture-linter.md)) |
+| 5 | Import cycles | `cycles` | `lint:cycles` — the whole import graph, about two seconds |
+| 6 | Fixture PII | `fixtures-pii` | `lint:fixtures-pii` |
+| 7 | Staged PII | `pii-staged` | `lint:pii-staged` on the staged diff |
+| 8 | Plan refs | `plan-refs` | `lint:plan-refs` on the staged additions (an item number, decision ID, task number or section mark from a local, uncommitted plan; fixtures, captured pages, lockfiles and the changelog are skipped) |
 
-### Currently disabled
+A staged `eslint.config.mjs`, `eslint/**` or `biome.json` prints a note: a lint
+config edit can change the verdict on files nobody staged, which only CI's full
+run sees.
 
-These three are commented out in the hook. They still run in CI, which is the
-gate that counts — but a local commit does **not** execute them, so do not read
-a green hook as "all tests passed".
+## What runs only in CI
 
-| Gate | Hook label | Status |
-|---|---|---|
-| Pipeline tests + coverage | `test:pipeline` | commented out |
-| Bank tests | `bank-tests` | commented out |
-| Mock suite | `test:mock` | commented out |
+Every gate below runs in the `Static checks` or `Package & E2E factory` job of
+[`pr.yml`](ci.md) on every pull request it can affect.
+`HookGatesInCi.test.ts` also fails if a gate left in the hook has no CI step.
 
-Total wall-clock: **3-5 minutes** on a modern laptop (everything is parallelised; the gate that takes the longest gates the whole run).
+| Gate | CI step |
+|---|---|
+| Full ESLint over `src`, Prettier check, both type checks | `Static checks` |
+| Restricted-syntax guardrails, architectural canaries, guideline coverage | `Static checks` |
+| Dead code, test duplication, Jest scopes, CodeRabbit filters, Node support | `Static checks` |
+| PII on the pull request's additions (`lint:pii-staged` with `BASE_SHA`) | `Static checks` |
+| npm audit, docs coverage, docs staleness, docs strict build, links | `Static checks` |
+| `tsup` build, public API surface, package exports | `Package & E2E factory` |
+| Unit, policy, mocked E2E and coverage suites | `Unit tests`, `E2E mocked` |
 
 ## Reading the output
 
@@ -65,29 +67,21 @@ Total wall-clock: **3-5 minutes** on a modern laptop (everything is parallelised
 
 ⚡ Phase 2: All gates parallel...
   ❌ tsc FAILED
-  ✅ eslint:pipeline passed
+  ✅ eslint passed
   ❌ biome FAILED
-  ✅ audit passed
   ...
 ❌ FAILED GATES: tsc biome
 ```
 
-The summary at the end names every failing gate. Detail logs are written to `.pre-commit-output.log` at repo root (overwritten each run).
+The summary at the end names every failing gate. Detail logs are written to
+`.pre-commit-output.log` at repo root (overwritten each run).
 
-## Why these particular gates?
+## Why these gates are local
 
 | Gate | Role |
 |---|---|
-| `tsc` + `eslint:pipeline` + `biome` | Static correctness — catches type errors and rule violations before they reach review |
-| `audit` | Supply-chain hygiene — fails on known CVEs in dependencies |
-| `architecture` + `canaries` + `lint:phases:strict` + `dead-code` + `cycles` | Architectural invariants — fails when a PR reaches across a layer boundary, breaks a canary fixture, leaves a dead export, or adds an import cycle |
-| `guideline-coverage` | Process invariant — fails when `eslint.config.mjs` drifts from CLEAN_CODE.md canonical caps |
-| `fixtures-pii` + `pii-staged` | Privacy — `fixtures-pii` fails on personal data in captured fixtures; `pii-staged` fails when a staged file re-adds a scrubbed value (see [Privacy gates](#privacy-gates)) |
-| `plan-refs` | Reader-facing text — fails when an added line cites an ID from a plan that is never committed, so no reader can look it up. CI runs the same check over the whole PR |
-| `test-duplication` + `bank-coverage` + `node-support` | Suite health — duplicate test bodies, uncovered banks, unsupported Node syntax |
-| `docs-strict` + `docs-staleness` | Docs build correctness and freshness |
-| `docs-coverage` | Docs/code consistency — fails when a new `src/Scrapers/Pipeline/` export ships without a `docs/` mention or allowlist entry |
-| `build` | Produces the actual `lib/` ESM + CJS bundle, ensuring `tsup` can reach a green state, and asserts the exported API still matches `api-surface.d.ts` |
+| `tsc` + `eslint` + `biome` + `architecture` + `cycles` | Fast feedback on the files you changed: type errors, rule violations, layer reach-throughs and import cycles are the commonest breaks |
+| `fixtures-pii` + `pii-staged` + `plan-refs` | A leak cannot be taken back once pushed, so these stop it before it enters history. CI runs them again over the whole pull request |
 
 ### Privacy gates
 
@@ -99,11 +93,13 @@ The summary at the end names every failing gate. Detail logs are written to `.pr
     - a client IP, plain or embedded in a bot-manager token
 - It reports at most 15 CRITICAL or HIGH hits per fixture, and counts any further hits.
 - Each hit shows only its rule, severity, line:column and match length, never the matched text, because the hook keeps its output in `.pre-commit-output.log`.
-- `pii-staged` fails when any staged file re-adds a known scrubbed value from the hashed denylist.
+- `pii-staged` fails when any staged file re-adds a known scrubbed value from the hashed denylist. In CI the same script scans the pull request's additions.
 
 ## Skipping the hook (don't)
 
-The husky hook can be bypassed with `--no-verify`. Don't. The CI re-runs the same gates and will reject the PR anyway, wasting your iteration time.
+The husky hook can be bypassed with `--no-verify`. Don't. CI runs every gate
+the hook runs and more, and will reject the PR anyway, wasting your iteration
+time.
 
 ## What happens on hook failure
 

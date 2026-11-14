@@ -207,3 +207,69 @@ describe('check-shell-portability — composite-action scripts are scanned', () 
     expect(status).toBe(0);
   });
 });
+
+/** A double-quoted inline program whose comment carries a backtick. */
+const INLINE_BACKTICK =
+  '#!/usr/bin/env bash\nnode -e "\n  // `bash -euo pipefail`\n  process.exit(0);\n"\n';
+
+/** A double-quoted inline program that embeds a command substitution. */
+const INLINE_SUBSTITUTION = '#!/usr/bin/env bash\nnode -e "\n  const x = \'$(id)\';\n"\n';
+
+/** A program line that opens with a quote does not end the program early. */
+const INLINE_AFTER_QUOTED_LINE =
+  '#!/usr/bin/env bash\nnode -e "\n  "use strict";\n  const x = \'$(id)\';\n"\n';
+
+/** The same program as a quoted heredoc, which the shell never expands. */
+const HEREDOC_PROGRAM = "#!/usr/bin/env bash\nnode - <<'JS'\n// `bash -euo pipefail`\nJS\n";
+
+/**
+ * Write a bash canary under the tree's ESLint canary directory.
+ * @param root - Tree root.
+ * @param text - File contents.
+ * @returns The written path.
+ */
+function writeCanary(root: string, text: string): string {
+  const dir = path.join(root, 'src', 'Scrapers', 'Pipeline', 'EslintCanaries');
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, 'verify-example.canary.sh');
+  fs.writeFileSync(file, text);
+  return file;
+}
+
+describe('check-shell-portability — inline programs are never shell-expanded', () => {
+  it.each([
+    ['a backtick', INLINE_BACKTICK],
+    ['a command substitution', INLINE_SUBSTITUTION],
+    ['an expansion after a quoted program line', INLINE_AFTER_QUOTED_LINE],
+  ])('SHP-INLINE-1 a double-quoted program with %s fails the gate', (_label, text) => {
+    const root = makeTree();
+    const inline = scriptPath(root, 'inline.sh');
+    fs.writeFileSync(inline, text);
+
+    const { status, output } = spawnGate(root);
+
+    expect(output).toContain('inline.sh:2');
+    expect(status).toBe(1);
+  });
+
+  it('SHP-INLINE-2 a quoted heredoc program passes the gate', () => {
+    const root = makeTree();
+    const heredoc = scriptPath(root, 'heredoc.sh');
+    fs.writeFileSync(heredoc, HEREDOC_PROGRAM);
+
+    const { status, output } = spawnGate(root);
+
+    expect(output).toContain('PASS');
+    expect(status).toBe(0);
+  });
+
+  it('SHP-ROOT-3 a bash canary under EslintCanaries is scanned', () => {
+    const root = makeTree();
+    writeCanary(root, INLINE_BACKTICK);
+
+    const { status, output } = spawnGate(root);
+
+    expect(output).toContain('verify-example.canary.sh');
+    expect(status).toBe(1);
+  });
+});

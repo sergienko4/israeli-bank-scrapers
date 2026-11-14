@@ -18,8 +18,8 @@ shortcuts.
    `release-please-config.json`);
    subject ≤ ~50 chars, body wrapped ≤72, and the trailer
    `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>`.
-   All pre-commit gates that run (up to 23) must pass — **never `--no-verify`**, never
-   weaken a gate to get green.
+   Every pre-commit gate must pass — **never `--no-verify`**, never weaken a gate
+   to get green. CI runs the full gate set on the PR.
 3. **PR body** → write `.git/PR_BODY.md` with `## Why`, `## What`, and the
    `## Guideline compliance` table; validate with
    `npm run lint:pr-body -- --file .git/PR_BODY.md` before creating the PR.

@@ -221,40 +221,27 @@ This removes unused imports automatically. Run it before committing.
 git commit
   → skip filter: no source files staged (only .md / .json / .yml /
     .yaml, LICENSE, dotfiles, .github/, .husky/, tasks/)?
-      → package.json staged → lint:jest-scopes
       → lint:plan-refs on the staged additions
       → commit succeeds ✅ (no other gate runs)
-  → T1-INVERSE: test-only branches (refactor/phase-7-*,
-    refactor/phase-9-*, chore/test-*) reject production src/ edits
   → Phase 1: prettier --write on staged src/ files, then re-stage
   → Phase 2: every gate in parallel, cached per staged tree
     (cache off while unstaged changes exist):
-      tsc, eslint:pipeline, biome, audit,
-      build (npm run lint + tsup + public-surface), canaries,
-      dead-code, cycles, guideline-coverage, syntax-guardrails,
-      test-duplication, bank-coverage, fixtures-pii, pii-staged,
-      plan-refs (not cached), node-support, coderabbit-filters,
-      jest-scopes
-      + architecture   when a src/ code file is staged
-      + docs-strict    when docs/**, mkdocs.yml or a root
-                       UPPER_CASE.md is staged (skipped if Python
-                       or mkdocs is unavailable)
-      + docs-coverage  when a src/Scrapers/Pipeline/**/*.ts is
-                       staged and origin/main or main resolves
-      + docs-staleness when origin/main or main resolves
+      tsc, cycles, fixtures-pii, pii-staged, plan-refs (not cached)
+      + eslint, biome   on the staged src/ code files (whole src
+                        above 50 files; not cached)
+      + architecture    on the staged src/ files (whole src above 50;
+                        not cached)
   → commit succeeds ✅ or lists every failed gate ❌
 ```
 
-ESLint reports only — the hook never runs `eslint --fix`. These gates are
-commented out of the hook: `test:pipeline`, `bank-tests`, `test:mock`,
-`test:e2e:mock`, `e2e-factory-tests`, Integration Mode A and live
-real-bank E2E. The executable Integration Mode B gate was removed from
-the hook. When change detection enables the relevant jobs, `pr.yml`
-covers all of these gates except `test:mock`: Unit tests runs
-`test:pipeline` (which includes the `bank-tests` suite), E2E mocked
-runs `test:e2e:mock`, Package & E2E factory covers the
-`e2e-factory-tests` gate by running `npm run test:e2e-factory-tests`,
-the Integration shards run modes A and B, and the environment-gated
-E2E Real jobs run live E2E. `test:mock` has no CI job, and its runner
-is a git-ignored local script that is not committed, so
-`npm run test:mock` cannot run from a clean checkout.
+ESLint reports only — the hook never runs `eslint --fix`. Every repo-wide
+gate runs in CI instead of the hook: the build and public-surface check,
+full ESLint and Prettier, both type checks, guardrails, canaries,
+guideline coverage, dead code, test duplication, Jest scopes, CodeRabbit
+filters, Node support, audit and the docs gates, plus the test suites
+(`test:pipeline`, `test:e2e:mock`, `test:e2e-factory-tests`), the
+Integration shards and the environment-gated E2E Real jobs.
+`HookGatesInCi.test.ts` fails if a gate left in the hook has no CI step.
+`test:mock` has no CI job, and its runner is a git-ignored local script
+that is not committed, so `npm run test:mock` cannot run from a clean
+checkout.

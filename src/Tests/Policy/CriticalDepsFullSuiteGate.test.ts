@@ -82,7 +82,6 @@ const PUBLIC_SURFACE_PATHS = [
  */
 const CHECKER_CALL_SITES = [
   ['.github/actions/build-package/action.yml', 'npm run lint:public-surface'],
-  ['.husky/pre-commit', 'npm run lint:public-surface'],
 ] as const;
 
 /**
@@ -126,6 +125,7 @@ const DEPS_GATED_STEP_NAMES = [
   'Audit production dependencies',
   'Audit all dependencies (informational)',
   'ESLint (warnings as errors)',
+  'Biome',
 ] as const;
 
 /**
@@ -136,7 +136,7 @@ const DEPS_GATED_STEP_NAMES = [
  * hand is the same hazard as one arriving via dependabot, so the run that
  * changes the rules must be the run that proves them.
  */
-const CONFIG_GATED_STEP_NAMES = ['ESLint (warnings as errors)'] as const;
+const CONFIG_GATED_STEP_NAMES = ['ESLint (warnings as errors)', 'Biome'] as const;
 
 /** Every step above, deduplicated — `ESLint` belongs to both sets. */
 const GATED_STEP_NAMES = [...DEPS_GATED_STEP_NAMES, ...CONFIG_GATED_STEP_NAMES];
@@ -156,7 +156,7 @@ const OR_ONLY_STEP_NAMES = [...new Set(GATED_STEP_NAMES)];
 /**
  * Every file that can change what ESLint enforces.
  *
- * <p>All five must set `syntax_guardrails`, or a PR can rewrite the rules
+ * <p>Every one must set `syntax_guardrails`, or a PR can rewrite the rules
  * without ever running them against `src`. `eslint.canary-scope.mjs` is the
  * non-obvious one: `eslint.config.mjs` imports it directly and it decides
  * which files the guard even sees, so editing it alone used to set no flag
@@ -171,6 +171,7 @@ const LINT_CONFIG_INPUTS = [
   String.raw`^scripts/check-syntax-guardrails\.mjs$`,
   String.raw`^package\.json$`,
   String.raw`^tsconfig\.json$`,
+  String.raw`^biome\.json$`,
 ] as const;
 
 /**
@@ -647,12 +648,34 @@ describe('CriticalDepsFullSuiteGate', () => {
     expect(checkScript).toBe(CHECK_SCRIPT_COMMAND);
   });
 
-  it('[CI-CRIT-GATE] Wiring_HuskyBuildGate_ShouldChainTheChecker', () => {
-    const hookPath = join(REPO_ROOT, '.husky/pre-commit');
-    const hook = read(hookPath);
-    const buildGate = hook.split('\n').find(line => line.includes('bg_gate "build"')) ?? '';
-    const hasCheckerChained = buildGate.trimEnd().endsWith("&& npm run lint:public-surface'");
-    expect(hasCheckerChained).toBe(true);
+  it('[CI-CRIT-GATE] Wiring_BuildPackage_ShouldCheckTheFreshBuild', () => {
+    const actionPath = join(REPO_ROOT, '.github/actions/build-package/action.yml');
+    const action = read(actionPath);
+    const buildAt = action.indexOf('run: npx tsup');
+    const checkAt = action.indexOf('run: npm run lint:public-surface');
+    expect(buildAt).toBeGreaterThanOrEqual(0);
+    expect(checkAt).toBeGreaterThan(buildAt);
+  });
+
+  it('[CI-CRIT-GATE] PrYaml_ShellPortability_ShouldRunOnCanaryOnlyChanges', () => {
+    const conditions = stepConditions(
+      STATIC_CHECKS_JOB_KEY,
+      'Shell portability (gates must run on macOS/Windows too)',
+    );
+    const condition = conditions.join('');
+    expect(conditions).toHaveLength(1);
+    expect(condition).toContain("needs.changes.outputs.full_suite == 'true'");
+    expect(condition).toContain("needs.changes.outputs.ci_scripts == 'true'");
+  });
+
+  it('[CI-CRIT-GATE] Detector_JestScopeCheckerChange_ShouldSetTestConfig', () => {
+    const script = read(DETECTOR);
+    const rule = /if has '(?<pattern>[^']+)'; then test_config=true; fi/u.exec(script);
+    const pattern = new RegExp(rule?.groups?.pattern ?? '^$', 'u');
+    const isCheckerCovered = pattern.test('scripts/check-jest-scopes.mjs');
+    const isUnrelatedCovered = pattern.test('scripts/check-doc-paths.mjs');
+    expect(isCheckerCovered).toBe(true);
+    expect(isUnrelatedCovered).toBe(false);
   });
 
   it('[CI-CRIT-GATE] Detector_HuskyChange_ShouldRunTheWiringTests', () => {
