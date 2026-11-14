@@ -10,7 +10,7 @@ import { readBodyText } from './BodyText.js';
 import { hasCloudflareChallengeHeader } from './HttpFailureClassifier.js';
 import type { IRedirectRun, IRunEnd } from './RedirectShared.js';
 import { answeredUrl, isRedirectStatus } from './RedirectShared.js';
-import type { IAnswer } from './StatusPolicy.js';
+import { type IAnswer, statusActionFor } from './StatusPolicy.js';
 
 /** Reading policy of a unit-test run that names none: plain text, not strict. */
 const DEFAULT_READING: IAnswer['reading'] = { statusPolicy: {}, responseKind: 'text' };
@@ -58,13 +58,15 @@ function isChallenge(response: Response): boolean {
 }
 
 /**
- * Whether the call's status policy names an action for this redirect.
+ * Whether the call's effective status policy names an action for this answer.
  * @param run - The run.
- * @param status - The redirect status.
+ * @param response - The redirect response.
  * @returns True when the policy must decide the answer.
  */
-function hasStatusAction(run: IRedirectRun, status: number): boolean {
-  return run.reading?.statusPolicy[status] !== undefined;
+function hasStatusAction(run: IRedirectRun, response: Response): boolean {
+  const reading = run.reading ?? DEFAULT_READING;
+  const answer: IAnswer = { response, verb: run.verb, url: run.url, reading };
+  return statusActionFor(answer).has;
 }
 
 /**
@@ -84,7 +86,7 @@ async function sendAccept(run: IRedirectRun): Promise<Procedure<IRunEnd>> {
   const responseUrl = answeredUrl(value, run.url);
   if (!isRedirectStatus(value.status)) return succeed({ response: value, responseUrl });
   if (isChallenge(value)) return succeed({ response: value, responseUrl });
-  if (hasStatusAction(run, value.status)) return succeed({ response: value, responseUrl });
+  if (hasStatusAction(run, value)) return succeed({ response: value, responseUrl });
   return acceptedRedirect(run, value, responseUrl);
 }
 

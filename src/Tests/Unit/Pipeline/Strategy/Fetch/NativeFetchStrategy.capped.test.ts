@@ -309,6 +309,64 @@ describe('capped NativeFetchStrategy', () => {
     });
   });
 
+  it.each(['empty', 'fail'] as const)(
+    'decides an accepted 302 %s without reading its broken body',
+    async action => {
+      const body = new ReadableStream<Uint8Array>({
+        /**
+         * Fail the stream before a reader can consume it.
+         * @param controller - Stream controller.
+         * @returns True once the failure is installed.
+         */
+        start(controller): boolean {
+          controller.error(new Error('ECONNRESET'));
+          return true;
+        },
+      });
+      installFetchMock(() =>
+        Promise.resolve(new Response(body, { status: 302, headers: { location: ITEMS_URL } })),
+      );
+      const policyCapped = cappedNative(BASE_URL, {
+        timeoutMs: LOWERED_CAP_MS,
+        statusPolicy: { 302: action },
+      });
+      const opts = {
+        extraHeaders: {},
+        redirect: 'accept' as const,
+        responseKind: 'text' as const,
+        responseIntegrity: { maxBytes: 100 },
+      };
+      const result = await policyCapped.fetchGet(ITEMS_URL, opts);
+      const expected =
+        action === 'empty'
+          ? { success: true, value: {} }
+          : {
+              success: false,
+              errorType: ScraperErrorTypes.Generic,
+              errorMessage: 'GET https://api.bank.example/v1/items HTTP 302',
+            };
+      expect(result).toMatchObject(expected);
+    },
+  );
+
+  it('decides an accepted 302 empty before checking the body digest', async () => {
+    installFetchMock(() =>
+      Promise.resolve(new Response('body', { status: 302, headers: { location: ITEMS_URL } })),
+    );
+    const policyCapped = cappedNative(BASE_URL, {
+      timeoutMs: LOWERED_CAP_MS,
+      statusPolicy: { 302: 'empty' },
+    });
+    const opts = {
+      extraHeaders: {},
+      redirect: 'accept' as const,
+      responseKind: 'text' as const,
+      responseIntegrity: { maxBytes: 100, sha256: '0'.repeat(64) },
+    };
+    const result = await policyCapped.fetchGet(ITEMS_URL, opts);
+    expect(result).toEqual({ success: true, value: {} });
+  });
+
   it('applies response integrity to an accepted redirect body', async () => {
     installFetchMock(() =>
       Promise.resolve(new Response('too-large', { status: 302, headers: { location: ITEMS_URL } })),

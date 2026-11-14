@@ -62,11 +62,18 @@ function boundsOf(address: string, netmask: string): INetworkBounds {
 }
 
 /**
- * The first host on a network prefix.
+ * The first host on a network prefix, or `0.0.0.0` when the mask leaves no
+ * host bit to address (/31 and /32 interfaces have no inferred gateway).
  * @param network - Dotted network address.
- * @returns The network address plus one.
+ * @param netmask - Dotted interface mask.
+ * @returns The inferred gateway or the explicit unknown.
  */
-function gatewayOf(network: string): string {
+function gatewayOf(network: string, netmask: string): string {
+  const prefixLength = octetsOf(netmask).reduce(
+    (total, octet) => total + octet.toString(2).replaceAll('0', '').length,
+    0,
+  );
+  if (prefixLength >= 31) return '0.0.0.0';
   const [a, b, c, d] = octetsOf(network);
   return [String(a), String(b), String(c), String(d + 1)].join('.');
 }
@@ -82,7 +89,7 @@ function networkFrom(item: os.NetworkInterfaceInfo): IDeviceNetwork {
     ipAddress: item.address,
     netmaskAddress: item.netmask,
     macAddress: item.mac,
-    gatewayAddress: gatewayOf(bounds.network),
+    gatewayAddress: gatewayOf(bounds.network, item.netmask),
     broadcastAddress: bounds.broadcast,
   };
 }

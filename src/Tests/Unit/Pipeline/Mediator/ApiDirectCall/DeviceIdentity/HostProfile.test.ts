@@ -12,16 +12,18 @@ import readHostProfile from '../../../../../../Scrapers/Pipeline/Mediator/ApiDir
 
 /**
  * One synthetic IPv4 interface.
+ * @param address - Host address.
+ * @param netmask - Interface mask.
  * @returns The interface facts.
  */
-function ipv4Interface(): os.NetworkInterfaceInfo {
+function ipv4Interface(address = '172.17.0.2', netmask = '255.255.0.0'): os.NetworkInterfaceInfo {
   return {
-    address: '172.17.0.2',
-    netmask: '255.255.0.0',
+    address,
+    netmask,
     family: 'IPv4',
     mac: '02:00:00:00:00:01',
     internal: false,
-    cidr: '172.17.0.2/16',
+    cidr: `${address}/16`,
   };
 }
 
@@ -36,6 +38,17 @@ describe('host profile network facts', () => {
     expect(profile.network.gatewayAddress).toBe('172.17.0.1');
     expect(profile.network.broadcastAddress).toBe('172.17.255.255');
     expect(profile.network.netmaskAddress).toBe('255.255.0.0');
+  });
+
+  it.each([
+    { label: 'a /31 interface', address: '192.0.2.1', netmask: '255.255.255.254' },
+    { label: 'a /32 interface', address: '192.0.2.7', netmask: '255.255.255.255' },
+  ])('uses the explicit unknown gateway on $label', ({ address, netmask }) => {
+    jest.spyOn(os, 'networkInterfaces').mockReturnValue({
+      eth0: [ipv4Interface(address, netmask)],
+    });
+    const profile = readHostProfile();
+    expect(profile.network.gatewayAddress).toBe('0.0.0.0');
   });
 
   it('uses loopback defaults when no non-internal IPv4 interface exists', () => {

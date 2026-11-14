@@ -116,6 +116,18 @@ describe('NativeFetchStrategy — document responses and status policy', () => {
     expect(result).toMatchObject({ success: false, errorType: ScraperErrorTypes.WafBlocked });
   });
 
+  it('accepts a 302 document when the empty policy applies to documents only', async () => {
+    const response = new Response(LANDING_HTML, {
+      status: 302,
+      headers: { location: SAFE_URL },
+    });
+    serve(response);
+    const strategy = cappedNative(BASE_URL, { statusPolicy: { 302: 'empty' } });
+    const opts = { ...MARKED, redirect: 'accept' as const };
+    const result = await getPortal(strategy, opts);
+    expect(result).toEqual({ success: true, value: {} });
+  });
+
   it('keeps the parse error for HTML on a json step', async () => {
     const response = new Response(LANDING_HTML, { status: 200 });
     serve(response);

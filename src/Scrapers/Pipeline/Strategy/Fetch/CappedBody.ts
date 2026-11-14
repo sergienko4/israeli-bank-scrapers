@@ -59,8 +59,8 @@ function needsBody(response: Response, request: ICappedRequest): boolean {
   if (releasesRedirectBody(response, request)) return false;
   if (isBoundedChallenge(response, reading)) return false;
   const action = statusActionFor({ response, reading });
-  if (!isApiSuccess(response)) return !(action.has && action.value === 'rate-limit');
   if (action.has) return false;
+  if (!isApiSuccess(response)) return true;
   return !isMediaTypeMismatch(response, reading.mediaType);
 }
 
