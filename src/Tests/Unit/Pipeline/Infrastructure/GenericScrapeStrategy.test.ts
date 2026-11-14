@@ -1,17 +1,11 @@
 /**
- * Unit tests for GenericScrapeStrategy — WellKnown field auto-mapping.
- * Tests findFieldValue, findFirstArray, autoMapTransaction.
+ * Unit tests for the generic scrape helpers — WellKnown field lookup,
+ * transaction mapping and provider date parsing.
  */
 
-import {
-  autoMapTransaction,
-  buildMonthBody,
-  extractAccountIds,
-  findFieldValue,
-  findFirstArray,
-  isMonthlyEndpoint,
-  parseAutoDate,
-} from '../../../../Scrapers/Pipeline/Mediator/Scrape/ScrapeAutoMapper.js';
+import { findFieldValue } from '../../../../Scrapers/Pipeline/Mediator/Scrape/BfsFieldSearch/BfsFieldSearch.js';
+import { parseAutoDate } from '../../../../Scrapers/Pipeline/Mediator/Scrape/Coercion/Coercion.js';
+import { autoMapTransaction } from '../../../../Scrapers/Pipeline/Mediator/Scrape/TxnMapper/TxnMapper.js';
 
 describe('findFieldValue', () => {
   it('finds a direct field match', () => {
@@ -36,59 +30,6 @@ describe('findFieldValue', () => {
     const obj = { OperationDate: null, date: '2026-01-15' };
     const result = findFieldValue(obj, ['OperationDate', 'date']);
     expect(result).toBe('2026-01-15');
-  });
-});
-
-/**
- * findFirstArray BFS-fallback cases — table-driven so the two near-
- * duplicate sibling tests share one assertion body. Per repo style
- * (config arrays mapped with `.map()` / `.forEach()`, no test-body
- * duplication — see `WRONG_DETAILS_TEXTS` for the canonical pattern;
- * CodeRabbit PR #277 follow-up Finding 3).
- *
- * Post-Phase-5 CR Finding 6: `findFirstArray`'s BFS fallback only
- * returns arrays of OBJECTS (records). Primitive arrays return `[]`
- * because downstream BFS callers expect record-like items they can
- * BFS into.
- */
-const FIND_FIRST_ARRAY_BFS_FALLBACK_CASES = [
-  {
-    name: 'PRIMITIVE array (object-array filter excludes it)',
-    fixture: { items: [1, 2, 3], name: 'test' } as Record<string, unknown>,
-    expected: [] as unknown[],
-  },
-  {
-    name: 'OBJECT array via BFS fallback',
-    fixture: { items: [{ kind: 'A' }, { kind: 'B' }], name: 'test' } as Record<string, unknown>,
-    expected: [{ kind: 'A' }, { kind: 'B' }] as unknown[],
-  },
-] as const;
-
-describe('findFirstArray', () => {
-  FIND_FIRST_ARRAY_BFS_FALLBACK_CASES.forEach(({ name, fixture, expected }): void => {
-    const label = expected.length === 0 ? 'returns empty' : 'returns matching items';
-    it(`${label} for top-level ${name}`, (): void => {
-      const result = findFirstArray(fixture);
-      expect(result).toEqual(expected);
-    });
-  });
-
-  it('finds nested array (1 level deep)', () => {
-    const obj = { data: { accounts: [{ id: '1' }] } };
-    const result = findFirstArray(obj);
-    expect(result).toEqual([{ id: '1' }]);
-  });
-
-  it('finds deeply nested array (2 levels)', () => {
-    const obj = { UserAccountsData: { UserAccounts: [{ AccountID: 'A1' }] } };
-    const result = findFirstArray(obj);
-    expect(result).toEqual([{ AccountID: 'A1' }]);
-  });
-
-  it('returns empty array when no array found', () => {
-    const obj = { name: 'test', value: 42 };
-    const result = findFirstArray(obj);
-    expect(result).toEqual([]);
   });
 });
 
@@ -164,35 +105,6 @@ describe('findFieldValue — deep BFS', () => {
   });
 });
 
-describe('extractAccountIds — nested structures', () => {
-  it('extracts from Discount-style nested response', () => {
-    const response = {
-      UserAccountsData: {
-        UserAccounts: [
-          { NewAccountInfo: { AccountID: '[REDACTED-OPER-ACCT]' } },
-          { NewAccountInfo: { AccountID: '0987654321' } },
-        ],
-      },
-    };
-    const ids = extractAccountIds(response);
-    expect(ids).toContain('[REDACTED-OPER-ACCT]');
-    expect(ids).toContain('0987654321');
-  });
-
-  it('extracts from VisaCal-style flat response', () => {
-    const response = {
-      result: {
-        cards: [
-          { cardUniqueId: 'c1', last4Digits: '1234' },
-          { cardUniqueId: 'c2', last4Digits: '5678' },
-        ],
-      },
-    };
-    const ids = extractAccountIds(response);
-    expect(ids.length).toBe(2);
-  });
-});
-
 describe('parseAutoDate', () => {
   it('parses YYYYMMDD format', () => {
     const result = parseAutoDate('20260115');
@@ -212,50 +124,5 @@ describe('parseAutoDate', () => {
   it('returns original string for unknown format', () => {
     const result = parseAutoDate('not-a-date');
     expect(result).toBe('not-a-date');
-  });
-});
-
-describe('isMonthlyEndpoint', () => {
-  it('returns true for VisaCal-style body with month + year', () => {
-    const body = JSON.stringify({ cardUniqueId: 'c1', month: '3', year: '2026' });
-    const isMonthly = isMonthlyEndpoint(body);
-    expect(isMonthly).toBe(true);
-  });
-
-  it('returns false for Discount-style (no month/year in body)', () => {
-    const isMonthly = isMonthlyEndpoint('');
-    expect(isMonthly).toBe(false);
-  });
-
-  it('returns false for invalid JSON', () => {
-    const isMonthly = isMonthlyEndpoint('not-json');
-    expect(isMonthly).toBe(false);
-  });
-
-  it('returns false when only month present (no year)', () => {
-    const body = JSON.stringify({ month: '3' });
-    const isMonthly = isMonthlyEndpoint(body);
-    expect(isMonthly).toBe(false);
-  });
-});
-
-describe('buildMonthBody', () => {
-  it('replaces cardUniqueId + month + year in template', () => {
-    const template = JSON.stringify({ cardUniqueId: 'old', month: '1', year: '2025' });
-    const body = buildMonthBody({ template, accountId: 'new-card', month: 3, year: 2026 });
-    expect(body.cardUniqueId).toBe('new-card');
-    expect(body.month).toBe('3');
-    expect(body.year).toBe('2026');
-  });
-
-  it('preserves other fields in template', () => {
-    const template = JSON.stringify({
-      cardUniqueId: 'c1',
-      month: '1',
-      year: '2025',
-      extra: 'keep',
-    });
-    const body = buildMonthBody({ template, accountId: 'c2', month: 6, year: 2026 });
-    expect(body.extra).toBe('keep');
   });
 });

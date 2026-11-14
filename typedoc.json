@@ -3,8 +3,7 @@
     "src/index.ts",
     "src/Transactions.ts",
     "src/Scrapers/Base/Interface.ts",
-    "src/Definitions.ts",
-    "src/Scrapers/Base/Errors.ts"
+    "src/Definitions.ts"
   ],
   "out": "typedoc-build",
   "name": "@sergienko4/israeli-bank-scrapers",

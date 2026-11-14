@@ -12,7 +12,7 @@
 
 import { parseAutoDate } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/Coercion/Coercion.js';
 import { assessWindowCoverage } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/WindowCoverage.js';
-import { autoMapTransaction } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/ScrapeAutoMapper.js';
+import { autoMapTransaction } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/TxnMapper/TxnMapper.js';
 
 /** Placeholder forms a provider may send for an empty date. */
 const PLACEHOLDERS = ['0001-01-01T00:00:00', '0001-01-01', '1899-12-31T00:00:00'] as const;

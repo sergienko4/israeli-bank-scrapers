@@ -17,9 +17,9 @@
  * observed loss, while a real loss signal on the same account still warns.
  */
 
-import { maskAccount } from '../../Common/ResultFormatter.js';
 import type { ITransactionsAccount } from '../../Transactions.js';
 import type { IWindowCoverage, WindowCaveat, WindowUnprovenReason } from '../../WindowCoverage.js';
+import { maskAccount } from '../Helpers/ResultFormatter.js';
 
 /** Output severity for a non-covered observation. */
 type CoverageSignal = 'warning' | 'information';

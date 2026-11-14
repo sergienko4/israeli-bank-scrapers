@@ -48,12 +48,14 @@ function isProductionSource(name: string): boolean {
 }
 
 /**
- * Collect EVERY production `.ts` file under a root.
+ * Collect EVERY production `.ts` file under a root. A root that has been
+ * retired is skipped instead of aborting the audit.
  * @param root - Directory to walk, repo-relative with forward slashes.
  * @param into - Accumulator of repo-relative file paths.
  * @returns The accumulator, so callers can chain roots.
  */
 function collectProductionFiles(root: string, into: string[]): string[] {
+  if (!fs.existsSync(root)) return into;
   const entries = fs.readdirSync(root, { withFileTypes: true });
   for (const entry of entries) {
     const full = `${root}/${entry.name}`;

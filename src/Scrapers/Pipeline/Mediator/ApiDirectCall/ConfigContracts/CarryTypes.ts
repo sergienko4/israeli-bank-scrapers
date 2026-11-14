@@ -191,13 +191,6 @@ type SeedCarryBootstrapKind =
 interface ISeedCarrySource {
   readonly field: string;
   readonly bootstrap?: SeedCarryBootstrapKind;
-  /**
-   * Name of a `config.secrets` entry used when the creds field is absent or
-   * empty and no bootstrap is configured. Lets a bank ship a captured
-   * default (a device fingerprint) while a caller may still override it
-   * through credentials. Not combinable with {@link bootstrap}.
-   */
-  readonly fallbackSecret?: string;
   /** Draw a fresh random bootstrap even when credentials supply this field. */
   readonly alwaysBootstrap?: true;
 }

@@ -89,18 +89,17 @@ Published as `@sergienko4/israeli-bank-scrapers` on npm.
 > that gate fails until this list is updated — see
 > [docs/workflow/doc-paths.md](./docs/workflow/doc-paths.md).
 
-- `src/Scrapers/Base/Errors.ts` — `WafBlockError` with structured `IWafErrorDetails` (provider, httpStatus, pageTitle, pageUrl, suggestions)
+- `src/Scrapers/Base/ErrorTypes.ts` — `ScraperErrorTypes`, the error classification carried by every result
 - `src/Scrapers/Pipeline/Core/Builder/PipelineBuilder.ts` — `withOptions` / `withApiDirect` / `build`: assembles the two-slot pipeline
 - `src/Scrapers/Pipeline/Core/Executor/PipelineExecutor.ts` — runs the phases, disposes the API mediator in `finally`
 - `src/Scrapers/Pipeline/Phases/ApiDirectCall/ApiDirectCallPhase.ts` — login slot (HTTP login, OTP, durable token)
 - `src/Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.ts` — scrape slot (accounts, transactions, balances)
 - `src/Scrapers/Pipeline/Strategy/Fetch/NativeFetchStrategy.ts` — the HTTP transport (cookies, redirects, mTLS, capped invoke)
-- `src/Scrapers/Pipeline/Mediator/Timing/TimingActions.ts` — `humanDelay(min, max)`, `raceTimeout`, `runSerial`
+- `src/Scrapers/Pipeline/Mediator/Timing/TimingActions.ts` — `raceTimeout` for bounded waits; `humanDelay`, `runSerial` and `sleep` are test-support exports
 - `src/Scrapers/Base/Interface.ts` — type definitions (`ScraperOptions`, `ScraperCredentials`, etc.)
 
 ## Changes from upstream
 
 - Transport: every bank logs in and scrapes over HTTP (`ApiDirectCall` → `ApiDirectScrape`); no browser runs at scrape time
-- `src/Scrapers/Base/Errors.ts`: `WafBlockError` carrying `IWafErrorDetails`
 - No browser runtime, browser download, page hooks or browser install patch ships
 - CI/CD: release-please + npm publish pipeline

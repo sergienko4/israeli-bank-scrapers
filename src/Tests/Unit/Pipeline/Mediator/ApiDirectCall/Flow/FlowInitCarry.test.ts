@@ -152,44 +152,6 @@ describe('FlowInitCarry.buildInitialCarry', () => {
     if (!result.success) expect(result.errorMessage).toContain('creds.phoneNumber absent');
   });
 
-  it('seeds from config.secrets when the creds field is absent', () => {
-    const config = makeConfig({
-      secrets: { deviceSignature: 'captured-default' },
-      seedCarryFromCreds: [{ field: 'deviceSignature', fallbackSecret: 'deviceSignature' }],
-    });
-    const result = buildInitialCarry(config, {}, {});
-    expect(result.success).toBe(true);
-    if (result.success) expect(result.value.deviceSignature).toBe('captured-default');
-  });
-
-  it('lets credentials override the fallback secret', () => {
-    const config = makeConfig({
-      secrets: { deviceSignature: 'captured-default' },
-      seedCarryFromCreds: [{ field: 'deviceSignature', fallbackSecret: 'deviceSignature' }],
-    });
-    const result = buildInitialCarry(config, { deviceSignature: 'caller-value' }, {});
-    expect(result.success).toBe(true);
-    if (result.success) expect(result.value.deviceSignature).toBe('caller-value');
-  });
-
-  it('fails when the fallback secret is absent or empty', () => {
-    const missing = makeConfig({
-      seedCarryFromCreds: [{ field: 'deviceSignature', fallbackSecret: 'missing' }],
-    });
-    const result = buildInitialCarry(missing, {}, {});
-    expect(result.success).toBe(false);
-    if (!result.success) expect(result.errorMessage).toContain('config.secrets.missing absent');
-  });
-
-  it('rejects an inherited object property as a fallback secret', () => {
-    const inherited = makeConfig({
-      seedCarryFromCreds: [{ field: 'deviceSignature', fallbackSecret: 'constructor' }],
-    });
-    const result = buildInitialCarry(inherited, {}, {});
-    expect(result.success).toBe(false);
-    if (!result.success) expect(result.errorMessage).toContain('config.secrets.constructor absent');
-  });
-
   it('evaluates derivedCarry parts in order with separator + truncation', () => {
     const config = makeConfig({
       seedCarryFromCreds: ['deviceId'],

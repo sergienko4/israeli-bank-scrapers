@@ -1,7 +1,7 @@
-import { maskAccount, maskAmount, maskDesc } from '../../Common/ResultFormatter.js';
-import { ScraperErrorTypes } from '../../Scrapers/Base/Errors.js';
+import { ScraperErrorTypes } from '../../Scrapers/Base/ErrorTypes.js';
 import type { IScraperScrapingResult } from '../../Scrapers/Base/Interface.js';
 import type { ITransaction, ITransactionsAccount } from '../../Transactions.js';
+import { maskAccount, maskAmount, maskDesc } from '../Helpers/ResultFormatter.js';
 import { assertWindowCoverage } from './WindowCoverageGate.js';
 
 export { SCRAPE_TIMEOUT } from '../Config/TestTimingConfig.js';

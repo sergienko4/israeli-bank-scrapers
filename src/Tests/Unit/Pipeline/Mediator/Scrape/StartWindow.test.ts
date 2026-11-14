@@ -8,7 +8,7 @@
  * rows through untouched rather than deleting them all. No PII: synthetic rows.
  */
 
-import { parseAutoDate } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/ScrapeAutoMapper.js';
+import { parseAutoDate } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/Coercion/Coercion.js';
 import { applyStartWindow } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/StartWindow.js';
 import type { ITransaction } from '../../../../../Transactions.js';
 

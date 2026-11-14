@@ -35,8 +35,6 @@ function ecdhOf(publicInto: string, privateInto: string): ICarryGenerator {
 const ECDH_KEY = ecdhOf('ecdhPublic', 'ecdhPrivate');
 const RANDOM_HEX_MSG = 'seedCarryFromCreds: random-hex needs integer bytes from 1 to 64';
 const FRESH_SEED_MSG = 'seedCarryFromCreds: alwaysBootstrap needs a random bootstrap';
-const FALLBACK_MSG =
-  'seedCarryFromCreds: fallbackSecret must be non-empty and not combined with bootstrap';
 
 /**
  * Rule input seeding `flowId` from a `random-hex` bootstrap of some length.
@@ -184,30 +182,6 @@ describe('validateApiDirectConfig — carry generators', () => {
     const input = alwaysSeededOf(bootstrap);
     const result = validateApiDirectConfig(input);
     expect(result).toEqual({ success: true, value: true });
-  });
-
-  it('accepts a fallback secret on its own', () => {
-    const input = runOf(ECDH_KEY);
-    const seed = { field: 'deviceSignature', fallbackSecret: 'deviceSignature' } as const;
-    const result = validateApiDirectConfig({
-      ...input,
-      call: { ...input.call, seedCarryFromCreds: [seed] },
-    });
-    expect(result).toEqual({ success: true, value: true });
-  });
-
-  it('rejects a fallback secret combined with a bootstrap', () => {
-    const input = runOf(ECDH_KEY);
-    const seed = {
-      field: 'deviceSignature',
-      fallbackSecret: 'deviceSignature',
-      bootstrap: { kind: 'random-uuid' },
-    } as const;
-    const result = validateApiDirectConfig({
-      ...input,
-      call: { ...input.call, seedCarryFromCreds: [seed] },
-    });
-    expect(result).toMatchObject({ success: false, errorMessage: FALLBACK_MSG });
   });
 
   it('rejects an untyped false unconditional-bootstrap flag', () => {
