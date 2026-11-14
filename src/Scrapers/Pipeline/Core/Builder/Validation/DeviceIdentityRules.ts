@@ -60,6 +60,16 @@ function isBadScope(input: IApiDirectRuleInput): boolean {
 }
 
 /**
+ * Whether the signature credential and the seed slot are the same field.
+ * @param input - Rule input.
+ * @returns True when the declaration cannot hold both values.
+ */
+function isSameField(input: IApiDirectRuleInput): boolean {
+  const config = input.call.deviceIdentity;
+  return config !== undefined && config.credential === config.seedSlot;
+}
+
+/**
  * Whether the warm start cannot carry the seed slot.
  * @param input - Rule input.
  * @returns True when the declaration is broken.
@@ -78,6 +88,10 @@ const API_DIRECT_DEVICE_IDENTITY_RULES: readonly IApiDirectRule[] = [
   { message: 'deviceIdentity.format: must be a registered format', isBroken: isUnknownFormat },
   { message: 'deviceIdentity.seedSlot: must be a plain slot name', isBroken: isBadSeedSlot },
   { message: 'deviceIdentity.scopeField: must be a plain field name', isBroken: isBadScope },
+  {
+    message: 'deviceIdentity.seedSlot: must differ from credential',
+    isBroken: isSameField,
+  },
   {
     message: 'deviceIdentity.seedSlot: warmStart must carry it',
     isBroken: isSeedNotCarried,

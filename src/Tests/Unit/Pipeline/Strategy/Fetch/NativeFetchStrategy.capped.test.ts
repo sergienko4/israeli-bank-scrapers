@@ -289,6 +289,26 @@ describe('capped NativeFetchStrategy', () => {
     expect(result).toEqual({ success: true, value: { text: 'accepted-body' } });
   });
 
+  it('applies a configured 302 action before accepting the redirect', async () => {
+    installFetchMock(() =>
+      Promise.resolve(new Response('wait', { status: 302, headers: { location: ITEMS_URL } })),
+    );
+    const policyCapped = cappedNative(BASE_URL, {
+      timeoutMs: LOWERED_CAP_MS,
+      statusPolicy: { 302: 'rate-limit' as const },
+    });
+    const opts = {
+      extraHeaders: {},
+      redirect: 'accept' as const,
+      responseKind: 'text' as const,
+    };
+    const result = await policyCapped.fetchGet(ITEMS_URL, opts);
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.WafBlocked,
+    });
+  });
+
   it('applies response integrity to an accepted redirect body', async () => {
     installFetchMock(() =>
       Promise.resolve(new Response('too-large', { status: 302, headers: { location: ITEMS_URL } })),

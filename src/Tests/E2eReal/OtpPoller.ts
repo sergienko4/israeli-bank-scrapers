@@ -315,7 +315,16 @@ function createOtpPoller(args: ICreateOtpPollerArgs): (hint?: string) => Promise
       log.info({ phoneHint: hint ?? '' }, 'OTP cache hit — reusing prior retriever value');
       return cachedCode;
     }
-    const code = await resolveOtpCode({ args, filePath, envVar, log, timeoutMs, hint });
+    const isEnvAllowed = !args.perStep || cachedCode === '';
+    const code = await resolveOtpCode({
+      args,
+      filePath,
+      envVar,
+      log,
+      timeoutMs,
+      hint,
+      isEnvAllowed,
+    });
     cachedCode = code;
     return code;
   };
@@ -329,6 +338,8 @@ interface IResolveOtpArgs {
   readonly log: ScraperLogger;
   readonly timeoutMs: number;
   readonly hint: string | undefined;
+  /** Whether the environment override may answer this acquisition. */
+  readonly isEnvAllowed: boolean;
 }
 
 /**
@@ -341,7 +352,7 @@ interface IResolveOtpArgs {
  */
 async function resolveOtpCode(args: IResolveOtpArgs): Promise<string> {
   const phoneHint = args.hint ?? '';
-  const fromEnv = process.env[args.envVar];
+  const fromEnv = args.isEnvAllowed ? process.env[args.envVar] : '';
   if (fromEnv && fromEnv.length > 0) {
     args.log.info(
       { phoneHint: phoneHint || 'unknown', envVar: args.envVar },

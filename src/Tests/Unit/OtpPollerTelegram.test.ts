@@ -221,6 +221,17 @@ describe('createOtpPoller — Telegram tier', () => {
     expect(MOCK_TELEGRAM).not.toHaveBeenCalled();
   });
 
+  it('TP-8 per-step consumes the env code once, then asks the next tier', async () => {
+    process.env.BEINLEUMI_OTP = 'FROM_ENV';
+    stageCiEnv();
+    MOCK_TELEGRAM.mockResolvedValue('FROM_TELEGRAM');
+    const retrieve = CREATE_OTP_POLLER({ ...buildFullArgs(), perStep: true });
+    const first = await retrieve('login');
+    const second = await retrieve('step-up');
+    expect([first, second]).toEqual(['FROM_ENV', 'FROM_TELEGRAM']);
+    expect(MOCK_TELEGRAM).toHaveBeenCalledTimes(1);
+  });
+
   it('TP-2 Telegram wins — when env unset and Telegram returns code', async () => {
     stageCiEnv();
     MOCK_TELEGRAM.mockResolvedValue('FROM_TELEGRAM');

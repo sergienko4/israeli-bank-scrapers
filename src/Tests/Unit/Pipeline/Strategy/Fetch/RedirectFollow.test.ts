@@ -457,6 +457,18 @@ describe('sendUnderPolicy — accept', () => {
     ]);
   });
 
+  it('keeps a 302 untouched when the status policy names an action', async () => {
+    const response = new Response('handshake', {
+      status: 302,
+      headers: { location: HOP_1 },
+    });
+    const reading = { statusPolicy: { 302: 'rate-limit' as const }, responseKind: 'text' as const };
+    const invoke = serve([response]);
+    const run = makeRun(invoke, { policy: 'accept', reading });
+    const result = await sendUnderPolicy(run);
+    expect(isOk(result) ? result.value.response : null).toBe(response);
+  });
+
   it('refuses an accepted redirect body that is not strict UTF-8', async () => {
     const body = new Uint8Array([0xff, 0xfe]);
     const response = new Response(body, { status: 302, headers: { location: HOP_1 } });

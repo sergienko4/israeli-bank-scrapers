@@ -58,6 +58,16 @@ function isChallenge(response: Response): boolean {
 }
 
 /**
+ * Whether the call's status policy names an action for this redirect.
+ * @param run - The run.
+ * @param status - The redirect status.
+ * @returns True when the policy must decide the answer.
+ */
+function hasStatusAction(run: IRedirectRun, status: number): boolean {
+  return run.reading?.statusPolicy[status] !== undefined;
+}
+
+/**
  * Send the request without following and return a 3xx as the answer. A
  * non-redirect response is returned untouched: rebuilding a 204 or 205 with a
  * body throws, which would bypass the status policy that owns them.
@@ -74,6 +84,7 @@ async function sendAccept(run: IRedirectRun): Promise<Procedure<IRunEnd>> {
   const responseUrl = answeredUrl(value, run.url);
   if (!isRedirectStatus(value.status)) return succeed({ response: value, responseUrl });
   if (isChallenge(value)) return succeed({ response: value, responseUrl });
+  if (hasStatusAction(run, value.status)) return succeed({ response: value, responseUrl });
   return acceptedRedirect(run, value, responseUrl);
 }
 

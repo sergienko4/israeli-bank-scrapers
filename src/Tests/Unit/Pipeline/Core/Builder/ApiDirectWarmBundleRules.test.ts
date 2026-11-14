@@ -79,6 +79,7 @@ interface IBundleCase {
   readonly fields?: BundleFields;
   readonly transportConfig?: TransportBlock;
   readonly steps?: readonly IStepConfig[];
+  readonly seedCarryFromCreds?: IApiDirectCallConfig['seedCarryFromCreds'];
 }
 
 /**
@@ -101,7 +102,13 @@ function bundleWarm(bundleCase: IBundleCase = {}): IApiDirectRuleInput {
     ...bundleCase.fields,
   } as const;
   const steps = bundleCase.steps ?? [REGISTER, LOGON];
-  const call: IApiDirectCallConfig = { flow: 'sms-otp', envelope: {}, steps, warmStart };
+  const call: IApiDirectCallConfig = {
+    flow: 'sms-otp',
+    envelope: {},
+    steps,
+    warmStart,
+    seedCarryFromCreds: bundleCase.seedCarryFromCreds,
+  };
   return { call, transport: bundleCase.transportConfig ?? DOMAINS };
 }
 
@@ -124,6 +131,14 @@ const BROKEN: readonly BrokenCase[] = [
     bundleWarm({ fields: { slots: ['clientId', 'otp'] } }),
     SLOTS_FILLED_MSG,
   ],
+  [
+    'a seed names another slot, leaving the kept one unfilled',
+    bundleWarm({
+      fields: { slots: ['clientId', 'deviceSeed'] },
+      seedCarryFromCreds: ['other'],
+    }),
+    SLOTS_FILLED_MSG,
+  ],
   ['the jar without a headless block', bundleWarm({ transportConfig: false }), COOKIES_MSG],
   ['the jar without cookie domains', bundleWarm({ transportConfig: SESSION_ONLY }), COOKIES_MSG],
   ['a blank provider', bundleWarm({ fields: { provider: ' ' } }), PROVIDER_MSG],
@@ -140,6 +155,20 @@ type SoundCase = readonly [string, IApiDirectRuleInput];
 
 const SOUND: readonly SoundCase[] = [
   ['an extract and a generated key', bundleWarm()],
+  [
+    'a string seed fills the kept slot',
+    bundleWarm({
+      fields: { slots: ['deviceSeed'] },
+      seedCarryFromCreds: ['deviceSeed'],
+    }),
+  ],
+  [
+    'an object seed fills the kept slot',
+    bundleWarm({
+      fields: { slots: ['deviceSeed'] },
+      seedCarryFromCreds: [{ field: 'deviceSeed' }],
+    }),
+  ],
   ['an rsa-key fingerprint slot', bundleWarm({ fields: { slots: ['spkiHex'] } })],
   [
     'a pkcs10-csr output slot',

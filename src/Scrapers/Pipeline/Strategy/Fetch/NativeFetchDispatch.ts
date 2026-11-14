@@ -72,6 +72,16 @@ async function classifyStatus<T>(answer: IAnswer): Promise<Procedure<T>> {
 }
 
 /**
+ * Whether a Response is a Cloudflare challenge, regardless of status.
+ * @param response - The fetch Response.
+ * @returns True when the edge marked it as a challenge.
+ */
+function isChallenge(response: Response): boolean {
+  const headers = Object.fromEntries(response.headers);
+  return hasCloudflareChallengeHeader(headers);
+}
+
+/**
  * Whether a Response carries an API body: a 2xx that is not an edge
  * challenge (Cloudflare does not tie its challenge header to a status).
  * @param response - The fetch Response returned by globalThis.fetch.
@@ -79,8 +89,19 @@ async function classifyStatus<T>(answer: IAnswer): Promise<Procedure<T>> {
  */
 function isApiSuccess(response: Response): boolean {
   if (!response.ok) return false;
-  const headers = Object.fromEntries(response.headers);
-  return !hasCloudflareChallengeHeader(headers);
+  return !isChallenge(response);
+}
+
+/**
+ * Decide a non-2xx answer under its status policy, else classify it.
+ * @param answer - The answered call.
+ * @returns The decided outcome or the HTTP failure.
+ */
+async function decideNonSuccess<T>(answer: IAnswer): Promise<Procedure<T>> {
+  if (isChallenge(answer.response)) return classifyStatus<T>(answer);
+  const decided = await applyStatusPolicy<T>(answer);
+  if (decided.has) return decided.value;
+  return classifyStatus<T>(answer);
 }
 
 /**
@@ -92,7 +113,7 @@ function isApiSuccess(response: Response): boolean {
 async function routeResponse<T>(answer: IAnswer): Promise<Procedure<T>> {
   const action = statusActionFor(answer);
   if (action.has && action.value === 'rate-limit') return applyRateLimit<T>(answer);
-  if (!isApiSuccess(answer.response)) return classifyStatus<T>(answer);
+  if (!isApiSuccess(answer.response)) return decideNonSuccess<T>(answer);
   const decided = await applyStatusPolicy<T>(answer);
   if (decided.has) return decided.value;
   const refused = await refuseMediaType<T>(answer);

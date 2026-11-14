@@ -33,13 +33,42 @@ function firstIpv4(): os.NetworkInterfaceInfo | false {
 }
 
 /**
- * The first three octets of an IPv4 address.
+ * The octets of a dotted IPv4 address.
  * @param address - Dotted IPv4 address.
- * @returns The `/24` network prefix.
+ * @returns Its four numeric octets.
  */
-function prefixOf(address: string): string {
-  const parts = address.split('.').map(Number);
-  return `${String(parts[0])}.${String(parts[1])}.${String(parts[2])}`;
+function octetsOf(address: string): readonly number[] {
+  return address.split('.').map(Number);
+}
+
+/** The network and broadcast addresses one interface mask defines. */
+interface INetworkBounds {
+  readonly network: string;
+  readonly broadcast: string;
+}
+
+/**
+ * The network and broadcast addresses a host and its mask define.
+ * @param address - Dotted host address.
+ * @param netmask - Dotted interface mask.
+ * @returns The network prefix and the broadcast address.
+ */
+function boundsOf(address: string, netmask: string): INetworkBounds {
+  const ip = octetsOf(address);
+  const mask = octetsOf(netmask);
+  const network = ip.map((octet, index) => octet & (mask[index] ?? 0));
+  const broadcast = ip.map((octet, index) => octet | (~(mask[index] ?? 0) & 255));
+  return { network: network.join('.'), broadcast: broadcast.join('.') };
+}
+
+/**
+ * The first host on a network prefix.
+ * @param network - Dotted network address.
+ * @returns The network address plus one.
+ */
+function gatewayOf(network: string): string {
+  const [a, b, c, d] = octetsOf(network);
+  return [String(a), String(b), String(c), String(d + 1)].join('.');
 }
 
 /**
@@ -48,13 +77,13 @@ function prefixOf(address: string): string {
  * @returns Its address, netmask, MAC and derived gateway/broadcast.
  */
 function networkFrom(item: os.NetworkInterfaceInfo): IDeviceNetwork {
-  const prefix = prefixOf(item.address);
+  const bounds = boundsOf(item.address, item.netmask);
   return {
     ipAddress: item.address,
     netmaskAddress: item.netmask,
     macAddress: item.mac,
-    gatewayAddress: `${prefix}.1`,
-    broadcastAddress: `${prefix}.255`,
+    gatewayAddress: gatewayOf(bounds.network),
+    broadcastAddress: bounds.broadcast,
   };
 }
 

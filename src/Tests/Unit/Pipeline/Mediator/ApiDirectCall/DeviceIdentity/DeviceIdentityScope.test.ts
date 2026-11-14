@@ -38,12 +38,25 @@ const WARM: IWarmStartConfig = {
 /**
  * The raw signature a successful enrichment injected.
  * @param result - Enrichment result.
- * @returns The signature, or '' on failure.
+ * @returns The signature.
  */
 function signatureOf(result: Procedure<ScraperCredentials>): string {
-  if (!result.success) return '';
+  if (!result.success) throw new ScraperError(result.errorMessage);
   const value = (result.value as { deviceSignature?: string }).deviceSignature;
-  return value ?? '';
+  if (value === undefined || value === '') throw new ScraperError('device signature missing');
+  return value;
+}
+
+/**
+ * The stable Android id inside a generated signature.
+ * @param signature - Raw RiskMinder JSON.
+ * @returns The id, or '' when the shape is wrong.
+ */
+function androidIdOf(signature: string): string {
+  const parsed = JSON.parse(signature) as {
+    deviceSignature?: { system?: { androidId?: string } };
+  };
+  return parsed.deviceSignature?.system?.androidId ?? '';
 }
 
 /**
@@ -85,9 +98,12 @@ describe('device-identity token seed', () => {
     const firstSignature = signatureOf(first);
     const againSignature = signatureOf(again);
     const otherSignature = signatureOf(other);
-    expect(firstSignature).not.toBe('');
-    expect(againSignature).toBe(firstSignature);
-    expect(otherSignature).not.toBe(firstSignature);
+    const firstId = androidIdOf(firstSignature);
+    const againId = androidIdOf(againSignature);
+    const otherId = androidIdOf(otherSignature);
+    expect(firstId).not.toBe('');
+    expect(againId).toBe(firstId);
+    expect(otherId).not.toBe(firstId);
   });
 
   it('binds the same seed to each user, so their signatures differ', () => {
@@ -108,8 +124,10 @@ describe('device-identity token seed', () => {
     });
     const firstSignature = signatureOf(first);
     const secondSignature = signatureOf(second);
-    expect(firstSignature).not.toBe('');
-    expect(firstSignature).not.toBe(secondSignature);
+    const firstId = androidIdOf(firstSignature);
+    const secondId = androidIdOf(secondSignature);
+    expect(firstId).not.toBe('');
+    expect(firstId).not.toBe(secondId);
   });
 
   it('uses a fresh seed when the token is absent', () => {
@@ -119,7 +137,9 @@ describe('device-identity token seed', () => {
     const second = enricher.value({ userCode: 'user-a', password: 'pass-a' });
     const firstSignature = signatureOf(first);
     const secondSignature = signatureOf(second);
-    expect(firstSignature).not.toBe('');
-    expect(firstSignature).not.toBe(secondSignature);
+    const firstId = androidIdOf(firstSignature);
+    const secondId = androidIdOf(secondSignature);
+    expect(firstId).not.toBe('');
+    expect(firstId).not.toBe(secondId);
   });
 });

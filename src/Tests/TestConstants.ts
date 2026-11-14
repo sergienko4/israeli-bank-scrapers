@@ -47,7 +47,11 @@ export const INVALID_CREDS_DISCOUNT = {
 export const INVALID_CREDS_HAPOALIM = {
   userCode: 'fixt-i-2e3f4a5b',
   password: 'fixt-i-6c7d8e9f',
-  deviceSignature: 'fixture-device-signature',
+  // Schema-valid RiskMinder JSON so the run reaches the bank's password check
+  // instead of failing locally in the device-signature validator.
+  deviceSignature: JSON.stringify({
+    deviceSignature: { system: { androidId: 'fixture-invalid-user' } },
+  }),
 } as const;
 
 /**
