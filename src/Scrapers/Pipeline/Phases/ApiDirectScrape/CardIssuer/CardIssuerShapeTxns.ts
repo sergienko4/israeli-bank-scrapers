@@ -36,10 +36,10 @@ import { getFutureMonths } from '../../../Types/ScraperDefaults.js';
  * 0-based offset of the billing month being fetched. Unbranded because it
  * crosses the shape boundary as a raw pagination value.
  */
-export type TMonthCursor = number | false;
+type TMonthCursor = number | false;
 
 /** 0-based offset from the window start month — branded for Rule #15. */
-export type TMonthOffset = Brand<number, 'CardMonthOffset'>;
+type TMonthOffset = Brand<number, 'CardMonthOffset'>;
 
 /** Composite `01/MM/YYYY` billing month — branded for Rule #15. */
 export type TBillingMonth = Brand<string, 'CardBillingMonth'>;

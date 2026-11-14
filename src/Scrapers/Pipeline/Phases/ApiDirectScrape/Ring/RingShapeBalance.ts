@@ -17,7 +17,7 @@ import type { ApiBody, VarsMap } from '../IApiDirectScrapeShape.js';
 import type { IRingCard } from './RingShapeCards.js';
 import { gatewayBody } from './RingShapeTxns.js';
 
-export type RingNextDebit = Brand<number, 'RingNextDebit'>;
+type RingNextDebit = Brand<number, 'RingNextDebit'>;
 type IsBalanceAbsent = Brand<boolean, 'RingIsBalanceAbsent'>;
 
 const NO_NEXT_DEBIT = 0 as RingNextDebit;

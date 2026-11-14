@@ -26,10 +26,10 @@ export const USER_DATA_PATH = '/MatafAngularRestApiService/rest/utils/userData';
 export const BFF_BASE = '/appsng/bff-balancetransactions/api/v1/transactions';
 
 /** Current account balance — branded for Rule #15. */
-export type FibiAccountBalance = Brand<number, 'FibiAccountBalance'>;
+type FibiAccountBalance = Brand<number, 'FibiAccountBalance'>;
 
 /** Correlation GUID for a `uid` query param — branded for Rule #15. */
-export type FibiUid = Brand<string, 'FibiUid'>;
+type FibiUid = Brand<string, 'FibiUid'>;
 
 /**
  * One brand's binding of the shared FIBI contract. `apiOrigin` is the only

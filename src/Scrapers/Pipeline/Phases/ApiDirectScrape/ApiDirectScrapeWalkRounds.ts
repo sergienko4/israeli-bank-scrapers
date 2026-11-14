@@ -62,7 +62,7 @@ export interface IWalkState {
 }
 
 /** One round of the walk: what the rows prove, and what to do next. */
-export interface IRound {
+interface IRound {
   /** The start the caller asked for, as the audit read it. */
   readonly requestedStart: string;
   /** Verdict for everything held at the start of this round. */
@@ -107,7 +107,7 @@ function buildMerge<TAcct, TCursor>(a: IAcctCtx<TAcct, TCursor>): PageMerge {
  * @param a - Per-account context.
  * @returns Every raw row that walk produced.
  */
-export async function fetchOnce<TAcct, TCursor>(
+async function fetchOnce<TAcct, TCursor>(
   a: IAcctCtx<TAcct, TCursor>,
 ): Promise<Procedure<IPaginatedWalk<object>>> {
   const fetchPage = buildPageFetcher(a);
