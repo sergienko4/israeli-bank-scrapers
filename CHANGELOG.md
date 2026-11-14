@@ -1,5 +1,24 @@
 # Changelog
 
+## [10.1.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v10.0.1...v10.1.0) (2026-11-14)
+
+
+### Features
+
+* gate symbol-level dead code ([#791](https://github.com/sergienko4/israeli-bank-scrapers/issues/791)) ([1dba151](https://github.com/sergienko4/israeli-bank-scrapers/commit/1dba1510eb71200acca4a019afedf18d1da94ce1))
+* use the Hapoalim app flow ([#785](https://github.com/sergienko4/israeli-bank-scrapers/issues/785)) ([f3214a9](https://github.com/sergienko4/israeli-bank-scrapers/commit/f3214a98cca8f77bc7574f19920e04c281d607b3))
+
+
+### Bug Fixes
+
+* **ci:** retain safe capture diagnostics ([#774](https://github.com/sergienko4/israeli-bank-scrapers/issues/774)) ([321c9e3](https://github.com/sergienko4/israeli-bank-scrapers/commit/321c9e3bdd85655856ce1dcca4432fecfe6d490f))
+* contain throwing body checks and patches ([#779](https://github.com/sergienko4/israeli-bank-scrapers/issues/779)) ([538e3be](https://github.com/sergienko4/israeli-bank-scrapers/commit/538e3bebadceb3427c668fd24961d5f7850e5835))
+* **fibi:** log in without the portal page ([#776](https://github.com/sergienko4/israeli-bank-scrapers/issues/776)) ([ecee5a0](https://github.com/sergienko4/israeli-bank-scrapers/commit/ecee5a0a2d20d72a1145ce22c93907c3d04facf5))
+* harden Hapoalim device identity ([#788](https://github.com/sergienko4/israeli-bank-scrapers/issues/788)) ([1312c57](https://github.com/sergienko4/israeli-bank-scrapers/commit/1312c576913fc944c72f6172e6a071577902a1dc))
+* harden run diagnostics against descriptor reuse, last-phase mediators and long fold chains ([#783](https://github.com/sergienko4/israeli-bank-scrapers/issues/783)) ([b81f34b](https://github.com/sergienko4/israeli-bank-scrapers/commit/b81f34bc14bbd9877364dff7cd58a52ac06fea71))
+* isolate run diagnostics per execution ([#782](https://github.com/sergienko4/israeli-bank-scrapers/issues/782)) ([93fbb39](https://github.com/sergienko4/israeli-bank-scrapers/commit/93fbb3922777bf14f86571e779fc6a6f88c23321))
+* scope the Hapoalim note to 10.1.0 ([#787](https://github.com/sergienko4/israeli-bank-scrapers/issues/787)) ([1e8c4ec](https://github.com/sergienko4/israeli-bank-scrapers/commit/1e8c4ec5b89a3f4a85050f0bc6fa27b8d350ce5c))
+
 ## [10.0.1](https://github.com/sergienko4/israeli-bank-scrapers/compare/v10.0.0...v10.0.1) (2026-11-10)
 
 
