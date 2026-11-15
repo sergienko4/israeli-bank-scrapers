@@ -73,6 +73,13 @@ describe('BankMonth', () => {
     expect(month).toBe(false);
   });
 
+  it('resolves a late-evening generated label before projecting its day', () => {
+    const instant = bankInstantOfLabel('2026-03-31T23:30:00.000Z');
+    if (instant === false) throw new TypeError('generated label refused');
+    const day = bankDayOfInstant(instant);
+    expect(day).toBe('2026-03-31');
+  });
+
   it('rejects an invalid generated timestamp label', () => {
     const instant = bankInstantOfLabel('2026-02-31T00:00:00.000Z');
     expect(instant).toBe(false);
