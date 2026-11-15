@@ -16,7 +16,7 @@ import * as path from 'node:path';
 
 import { CompanyTypes } from '../../../../Definitions.js';
 import type { ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
-import { executePipeline } from '../../../../Scrapers/Pipeline/Core/Executor/PipelineExecutor.js';
+import executePipeline from '../../../../Scrapers/Pipeline/Core/Executor/PipelineExecutor.js';
 import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
 import { getDebugByName } from '../../../../Scrapers/Pipeline/Logging/Debug.js';
 import type { IFileLease } from '../../../../Scrapers/Pipeline/Logging/FileLease.js';

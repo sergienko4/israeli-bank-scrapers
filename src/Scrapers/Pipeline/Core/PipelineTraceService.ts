@@ -59,5 +59,4 @@ function traceResult(ctx: ITraceResultCtx): DidTrace {
   return true as DidTrace;
 }
 
-export default buildPhaseIndex;
 export { buildPhaseIndex, traceResult, traceStart };

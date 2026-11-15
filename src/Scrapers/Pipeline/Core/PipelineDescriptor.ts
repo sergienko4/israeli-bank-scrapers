@@ -30,5 +30,4 @@ interface IPipelineDescriptor {
  */
 type PipelineFactory = (options: ScraperOptions) => Procedure<IPipelineDescriptor>;
 
-export default IPipelineDescriptor;
 export type { IPipelineDescriptor, PipelineFactory };

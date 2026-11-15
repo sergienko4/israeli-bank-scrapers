@@ -63,4 +63,3 @@ function buildInitialContext(
 }
 
 export default buildInitialContext;
-export { buildInitialContext };

@@ -186,6 +186,5 @@ function resolveApiMediator(descriptor: IPipelineDescriptor): Option<IApiMediato
   return some(apiMediator);
 }
 
-export default resolveApiMediator;
 export type { TransportKind } from './ApiWiringTypes.js';
 export { resolveApiMediator, resolveTransportKind, selectApiMediator, toApiWiring };

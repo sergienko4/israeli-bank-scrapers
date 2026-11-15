@@ -133,4 +133,3 @@ function wrapError(error: Error): Procedure<IPipelineContext> {
 }
 
 export { reducePhases, wrapError };
-export default reducePhases;

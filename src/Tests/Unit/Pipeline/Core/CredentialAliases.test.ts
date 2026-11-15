@@ -8,7 +8,7 @@
  * Every value is fabricated — no real credentials appear.
  */
 
-import { normalizeCredentials } from '../../../../Scrapers/Pipeline/Core/CredentialAliases.js';
+import normalizeCredentials from '../../../../Scrapers/Pipeline/Core/CredentialAliases.js';
 
 /** Plain string record view of a normalized credential bag. */
 type Bag = Record<string, string>;

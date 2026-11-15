@@ -14,8 +14,8 @@ import type {
 } from '../../Base/Interface.js';
 import type { VoidResult } from '../../Base/Interfaces/CallbackTypes.js';
 import { isOk, type Procedure, succeed, toLegacy } from '../Types/Procedure.js';
-import { normalizeCredentials } from './CredentialAliases.js';
-import { executePipeline } from './Executor/PipelineExecutor.js';
+import normalizeCredentials from './CredentialAliases.js';
+import executePipeline from './Executor/PipelineExecutor.js';
 import type { IPipelineDescriptor } from './PipelineDescriptor.js';
 
 /** Pipeline builder function type — returns Procedure for validation safety. */
@@ -102,5 +102,4 @@ class PipelineScraper<TCredentials extends ScraperCredentials> implements IScrap
   }
 }
 
-export type { PipelineBuildFn };
-export { PipelineScraper };
+export default PipelineScraper;
