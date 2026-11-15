@@ -129,4 +129,4 @@ function mintNonce(): string {
 }
 
 export type { ISignedRequest, ISignRequestArgs };
-export { buildHmacCanonical, hashBody, mintNonce, signCanonicalHmac, signRequest };
+export { mintNonce, signRequest };
