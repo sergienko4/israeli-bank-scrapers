@@ -39,7 +39,7 @@ import type {
   HeaderMap,
   VarsMap,
 } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
-import { serializeJsonBody } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/JsonBody.js';
+import serializeJsonBody from '../../../../../Scrapers/Pipeline/Strategy/Fetch/JsonBody.js';
 
 /** Golden packet kinds, in the order a scrape sends them. */
 const KINDS = [

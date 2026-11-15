@@ -83,5 +83,5 @@ const CAPPED_DEFAULT_HEADERS: DefaultHeadersByVerb = {
   POST: { 'content-type': 'application/json' },
 };
 
-export type { DefaultHeadersByVerb, INativeFetchOptions, ITransportSeed, TRequest };
+export type { DefaultHeadersByVerb, INativeFetchOptions, TRequest };
 export { CAPPED_DEFAULT_HEADERS, JSON_DEFAULT_HEADERS, seedTransport };
