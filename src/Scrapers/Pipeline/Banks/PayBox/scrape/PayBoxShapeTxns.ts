@@ -41,21 +41,6 @@ function walletCursorOf(cursor: IPayBoxCursor | false): IPayBoxCursor {
 }
 
 /**
- * Return only the next cursor for focused compatibility tests.
- * @param prev - Cursor used for this request.
- * @param fresh - Rows not already covered.
- * @param served - Every row PayBox returned.
- * @returns Next cursor, or false when the walk ended.
- */
-function nextWalletCursor(
-  prev: IPayBoxCursor,
-  fresh: readonly IWalletTxnRaw[],
-  served: readonly IWalletTxnRaw[],
-): IPayBoxCursor | false {
-  return walletPagination.nextWalletCursor(prev, fresh, served);
-}
-
-/**
  * Remove rows an earlier page already emitted.
  * @param cursor - Cursor used for this page.
  * @param raws - Raw rows returned by PayBox.
@@ -190,12 +175,3 @@ export function txnsExtractPage(
   const advance = walletPagination.walletAdvance({ prev: cursor, fresh: raws, served });
   return { items: mapped, ...advance };
 }
-
-/** Internals exposed for unit-test reach. */
-export const PAYBOX_TXNS_INTERNALS = {
-  nextWalletCursor,
-  walletCursorOf,
-  dropCoveredRows,
-  buildAuthEnvelope,
-  mapWalletTxn,
-} as const;

@@ -4,8 +4,6 @@
   "unusedExports": [
     "src/Definitions.ts#PASSWORD_FIELD",
     "src/Scrapers/Base/Interfaces/ErrorResult.ts#IErrorResult",
-    "src/Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxShapeTxns.ts#PAYBOX_TXNS_INTERNALS",
-    "src/Scrapers/Pipeline/Banks/Pepper/scrape/PepperShape.ts#userIdOf",
     "src/Scrapers/Pipeline/Logging/BankContext.ts#getActiveLogContext",
     "src/Scrapers/Pipeline/Logging/Debug.ts#getDebugByName",
     "src/Scrapers/Pipeline/Logging/FileLeaseClose.ts#makeLeaseCloseCallback",

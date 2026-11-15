@@ -22,10 +22,10 @@ import {
 } from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxShapeHelpers.js';
 import {
   type IPayBoxCursor,
-  PAYBOX_TXNS_INTERNALS,
   txnsExtractPage,
+  txnsVars,
 } from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxShapeTxns.js';
-import { PEPPER_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Pepper/scrape/PepperShape.js';
+import PEPPER_SHAPE from '../../../../../Scrapers/Pipeline/Banks/Pepper/scrape/PepperShape.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import { buildApiDirectScrapePhase } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
@@ -122,35 +122,36 @@ describe('PayBoxShape wallet pagination', () => {
   const walletAcct: IPayBoxAcct = { accountNumber: FIXT_UID };
   const ctx = { options: { startDate: new Date() } } as unknown as IActionContext;
 
-  it('walletCursorOf seeds first-page cursor when input is false', () => {
-    const cursor = PAYBOX_TXNS_INTERNALS.walletCursorOf(false);
-    expect(cursor).toEqual({ ts: 'null', page: 0 });
+  /**
+   * Run one wallet page through the public extractor.
+   * @param body - Response body.
+   * @param cursor - Cursor used for this request.
+   * @returns The mapped page.
+   */
+  function pageOf(
+    body: Record<string, unknown>,
+    cursor: IPayBoxCursor | false,
+  ): ReturnType<typeof txnsExtractPage> {
+    return txnsExtractPage({ body, cursor, acct: walletAcct, ctx });
+  }
+
+  it('returns a false cursor when the page is empty', () => {
+    const page = pageOf({ content: { nc: [] } }, { ts: 'null', page: 0 });
+    expect(page.nextCursor).toBe(false);
   });
 
-  it('walletCursorOf reuses existing wallet cursor on subsequent calls', () => {
-    const existing: IPayBoxCursor = { ts: '999', page: 2 };
-    const cursor = PAYBOX_TXNS_INTERNALS.walletCursorOf(existing);
-    expect(cursor).toBe(existing);
+  it('returns a false cursor when the oldest ts stalls', () => {
+    const cursor: IPayBoxCursor = { ts: '2024-01-01T00:00:00Z', page: 0 };
+    const rows = [{ ts: '2024-01-02T00:00:00Z' }, { ts: '2024-01-01T00:00:00Z' }];
+    const page = pageOf({ content: { nc: rows } }, cursor);
+    expect(page.nextCursor).toBe(false);
   });
 
-  it('nextWalletCursor returns false when items are empty', () => {
-    const seed = { ts: 'null', page: 0 };
-    const next = PAYBOX_TXNS_INTERNALS.nextWalletCursor(seed, [], []);
-    expect(next).toBe(false);
-  });
-
-  it('nextWalletCursor returns false when oldest ts stalls', () => {
-    const seed = { ts: '2024-01-01T00:00:00Z', page: 0 };
-    const items = [{ ts: '2024-01-02T00:00:00Z' }, { ts: '2024-01-01T00:00:00Z' }];
-    const next = PAYBOX_TXNS_INTERNALS.nextWalletCursor(seed, items, items);
-    expect(next).toBe(false);
-  });
-
-  it('nextWalletCursor advances to oldest ts when distinct', () => {
-    const seed = { ts: 'null', page: 0 };
-    const items = [{ ts: '2024-01-02T00:00:00Z' }, { ts: '2024-01-01T00:00:00Z' }];
-    const next = PAYBOX_TXNS_INTERNALS.nextWalletCursor(seed, items, items);
-    expect(next).toMatchObject({ ts: '2024-01-01T00:00:00Z', page: 1 });
+  it('advances to the oldest distinct ts', () => {
+    const cursor: IPayBoxCursor = { ts: 'null', page: 0 };
+    const rows = [{ ts: '2024-01-02T00:00:00Z' }, { ts: '2024-01-01T00:00:00Z' }];
+    const page = pageOf({ content: { nc: rows } }, cursor);
+    expect(page.nextCursor).toMatchObject({ ts: '2024-01-01T00:00:00Z', page: 1 });
   });
 
   it('txnsExtractPage maps wallet rows + advances cursor', () => {
@@ -176,10 +177,13 @@ describe('PayBoxShape wallet pagination', () => {
 });
 
 describe('PayBoxShape auth envelope', () => {
-  it('buildAuthEnvelope copies uId/deviceId/token from session-context', () => {
+  const walletAcct: IPayBoxAcct = { accountNumber: FIXT_UID };
+
+  it('builds auth from session-context uId/deviceId/token', () => {
     const bus = makePayBoxBus({});
     const ctx = ctxOf(bus);
-    const envelope = PAYBOX_TXNS_INTERNALS.buildAuthEnvelope(ctx);
+    const vars = txnsVars(walletAcct, false, ctx);
+    const envelope = vars.auth as Record<string, unknown>;
     expect(envelope.uId).toBe(FIXT_UID);
     expect(envelope.uuid).toBe(FIXT_DEVICE);
     expect(envelope.access_token).toBe(FIXT_TOKEN);
@@ -188,19 +192,33 @@ describe('PayBoxShape auth envelope', () => {
     expect(envelope.os).toBe('android-13');
   });
 
-  it('buildAuthEnvelope falls back to empty strings when session-context absent', () => {
-    const envelope = PAYBOX_TXNS_INTERNALS.buildAuthEnvelope({
-      apiMediator: { has: false },
-    } as unknown as IActionContext);
+  it('falls back to empty strings when session-context is absent', () => {
+    const ctx = { apiMediator: { has: false } } as unknown as IActionContext;
+    const vars = txnsVars(walletAcct, false, ctx);
+    const envelope = vars.auth as Record<string, unknown>;
     expect(envelope.uId).toBe('');
     expect(envelope.uuid).toBe('');
     expect(envelope.access_token).toBe('');
   });
 });
 
+/**
+ * Run one raw wallet row through the public page extractor.
+ * @param raw - Raw wallet row.
+ * @returns The mapped canonical transaction.
+ */
+function mapWalletTxn(raw: Record<string, unknown>): Record<string, unknown> {
+  const body = { content: { nc: [raw] } };
+  const acct: IPayBoxAcct = { accountNumber: FIXT_UID };
+  const ctx = { options: { startDate: new Date() } } as unknown as IActionContext;
+  const page = txnsExtractPage({ body, cursor: false, acct, ctx });
+  const [mapped] = page.items as readonly Record<string, unknown>[];
+  return mapped;
+}
+
 describe('PayBoxShape mapWalletTxn — sign + status branches', () => {
   it('negates the magnitude for debit-type rows (pay)', () => {
-    const mapped = PAYBOX_TXNS_INTERNALS.mapWalletTxn({
+    const mapped = mapWalletTxn({
       _id: 'fixt-0',
       ts: '2026-01-01T00:00:00.000Z',
       amt: 50,
@@ -211,7 +229,7 @@ describe('PayBoxShape mapWalletTxn — sign + status branches', () => {
   });
 
   it('negates the magnitude for a wallet purchase (money leaves the balance)', () => {
-    const mapped = PAYBOX_TXNS_INTERNALS.mapWalletTxn({
+    const mapped = mapWalletTxn({
       _id: 'fixt-0b',
       ts: '2026-01-02T00:00:00.000Z',
       amt: 30,
@@ -223,7 +241,7 @@ describe('PayBoxShape mapWalletTxn — sign + status branches', () => {
   });
 
   it('keeps credit-type amount positive and reads an absent state as Completed', () => {
-    const mapped = PAYBOX_TXNS_INTERNALS.mapWalletTxn({
+    const mapped = mapWalletTxn({
       _id: 'fixt-1',
       ts: '2026-02-02T00:00:00.000Z',
       amt: 25,
@@ -234,7 +252,7 @@ describe('PayBoxShape mapWalletTxn — sign + status branches', () => {
   });
 
   it('keeps a top-up positive (money enters the balance)', () => {
-    const mapped = PAYBOX_TXNS_INTERNALS.mapWalletTxn({
+    const mapped = mapWalletTxn({
       _id: 'fixt-1b',
       ts: '2026-02-03T00:00:00.000Z',
       amt: 200,
@@ -244,7 +262,7 @@ describe('PayBoxShape mapWalletTxn — sign + status branches', () => {
   });
 
   it('forces interest income positive even on a debit-looking type (subType wins)', () => {
-    const mapped = PAYBOX_TXNS_INTERNALS.mapWalletTxn({
+    const mapped = mapWalletTxn({
       _id: 'fixt-1c',
       ts: '2026-02-04T00:00:00.000Z',
       amt: 3,
@@ -255,7 +273,7 @@ describe('PayBoxShape mapWalletTxn — sign + status branches', () => {
   });
 
   it('maps a filtered purchase to Pending (not yet settled)', () => {
-    const mapped = PAYBOX_TXNS_INTERNALS.mapWalletTxn({
+    const mapped = mapWalletTxn({
       _id: 'fixt-2',
       ts: '2026-03-03T00:00:00.000Z',
       amt: 10,
@@ -266,7 +284,7 @@ describe('PayBoxShape mapWalletTxn — sign + status branches', () => {
   });
 
   it('maps a rejected purchase to Pending', () => {
-    const mapped = PAYBOX_TXNS_INTERNALS.mapWalletTxn({
+    const mapped = mapWalletTxn({
       _id: 'fixt-2b',
       ts: '2026-03-04T00:00:00.000Z',
       amt: 10,
@@ -277,7 +295,7 @@ describe('PayBoxShape mapWalletTxn — sign + status branches', () => {
   });
 
   it('falls back to epoch when ts is invalid (server returned a malformed date)', () => {
-    const mapped = PAYBOX_TXNS_INTERNALS.mapWalletTxn({
+    const mapped = mapWalletTxn({
       _id: 'fixt-3',
       ts: 'not-a-date',
       amt: 1,
@@ -287,7 +305,7 @@ describe('PayBoxShape mapWalletTxn — sign + status branches', () => {
   });
 
   it('falls back to epoch when ts is omitted entirely', () => {
-    const mapped = PAYBOX_TXNS_INTERNALS.mapWalletTxn({ _id: 'fixt-4', amt: 1 });
+    const mapped = mapWalletTxn({ _id: 'fixt-4', amt: 1 });
     const epochIso = new Date(0).toISOString();
     expect(mapped.date).toBe(epochIso);
   });
