@@ -4,7 +4,7 @@
  */
 
 import type { ScraperCredentials, ScraperOptions } from '../../Base/Interface.js';
-import type { BasePhase } from '../Phases/Base/BasePhase.js';
+import type BasePhase from '../Phases/Base/BasePhase.js';
 import type { Procedure } from '../Types/Procedure.js';
 
 /** Descriptor produced by PipelineBuilder, consumed by PipelineExecutor. */

@@ -7,7 +7,7 @@
  * regression that made it chatty would make it useless. No PII: counts only.
  */
 
-import { reportMapRejects } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/MapRejects.js';
+import reportMapRejects from '../../../../../Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/MapRejects.js';
 
 /**
  * Run one mapping round with a fixed label.

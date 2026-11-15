@@ -76,5 +76,5 @@ export function isKnownBankSlug(slug: string): IsKnownBank {
   return isKnown as IsKnownBank;
 }
 
-export type { BankSlugLower, IsKnownBank };
+export type { BankSlugLower };
 export { KNOWN_BANK_SLUGS };

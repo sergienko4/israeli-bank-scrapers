@@ -1,7 +1,7 @@
 /** Pipeline phase reducer — runs phases in order and short-circuits on the first failure. */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
-import type { BasePhase } from '../../Phases/Base/BasePhase.js';
+import type BasePhase from '../../Phases/Base/BasePhase.js';
 import { setActivePhase, setActiveStage } from '../../Types/ActiveState.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import type PhaseName from '../../Types/Phase.js';

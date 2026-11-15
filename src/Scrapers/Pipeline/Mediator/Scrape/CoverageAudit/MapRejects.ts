@@ -33,7 +33,7 @@ interface IMapRejectResult {
 }
 
 /** Inputs for one mapping round. */
-export interface IMapRejectArgs {
+interface IMapRejectArgs {
   /** Rows the bank shape handed to the mapper. */
   readonly extracted: number;
   /** Rows the mapper turned into transactions. */
@@ -67,7 +67,7 @@ function rejectMessage(label: string, result: IMapRejectResult): string {
  * @param args - Row counts and log identity.
  * @returns Counts for the round.
  */
-export function reportMapRejects(args: IMapRejectArgs): IMapRejectResult {
+function reportMapRejects(args: IMapRejectArgs): IMapRejectResult {
   const rejected = args.extracted - args.mapped;
   const result = { extracted: args.extracted, mapped: args.mapped, rejected };
   const message = rejectMessage(args.label, result);
@@ -76,3 +76,5 @@ export function reportMapRejects(args: IMapRejectArgs): IMapRejectResult {
   else LOG.debug({ message });
   return result;
 }
+
+export default reportMapRejects;

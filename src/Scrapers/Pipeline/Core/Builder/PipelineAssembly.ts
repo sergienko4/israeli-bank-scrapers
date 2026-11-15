@@ -16,7 +16,7 @@ import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/ConfigCo
 import { createApiDirectCallPhase } from '../../Phases/ApiDirectCall/ApiDirectCallPhase.js';
 import { buildApiDirectScrapePhase } from '../../Phases/ApiDirectScrape/ApiDirectScrapePhase.js';
 import type { IApiDirectScrapeShape } from '../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
-import type { BasePhase } from '../../Phases/Base/BasePhase.js';
+import type BasePhase from '../../Phases/Base/BasePhase.js';
 
 /** Bundled builder state for assembly. */
 interface IBuilderState {

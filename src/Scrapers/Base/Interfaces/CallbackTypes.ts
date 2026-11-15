@@ -17,4 +17,3 @@ export type VoidResult = Promise<void> extends Promise<infer R> ? R : never;
  * that bans `TSNullKeyword` in function return-type annotations.
  * Use `Nullable<string>` instead of `string | null`.
  */
-export type Nullable<T> = T | null;
