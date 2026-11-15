@@ -27,8 +27,8 @@ that calendar. Instants stay instants.**
 
 A date-only provider value denotes **midnight of that day in the bank's
 calendar**. So `29/06/2026` becomes `2026-06-28T21:00:00.000Z` — the 29th in
-Israel, expressed in UTC. The `IBankDateParts` and `IBankMonthBounds` shapes
-are internal to `BankMonth.ts`; the calendar rule above is the contract.
+Israel, expressed in UTC. The date-parts and month-bounds shapes are internal
+to `BankMonth.ts`; the calendar rule above is the contract.
 
 ## Reading the day back
 
@@ -69,24 +69,19 @@ month to an ISO-looking string and parsing it back through `Date`. The companion
 [`BankMonth.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/Scrape/BankMonth.ts)
 owns that boundary:
 
-| Export                    | What it is for                                                                                             |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `IBankDateParts`          | Validated `{ year, month, day }` components for provider wire formats                                      |
-| `IBankMonth`              | A validated `{ year, month }` value; `month` is 1-indexed to match bank request parameters                 |
-| `IBankMonthBounds`        | Start and end instants for one bank-calendar month                                                         |
-| `bankInstantOfLabel`      | Opens a generated timestamp-shaped label onto the instant its wall time names in the bank calendar         |
-| `bankMonthOfLabel`        | Strictly validates an ISO-shaped bank label and reads the month it names without treating it as an instant |
-| `bankMonthOfInstant`      | Projects a real `Date` or ISO instant into the bank's month                                                |
-| `shiftBankMonth`          | Moves a named month without host-local `Date` arithmetic                                                   |
-| `shiftBankInstant`        | Moves a resolved instant by bank-calendar months while preserving its bank-calendar wall time              |
-| `bankMonthBounds`         | Builds the first and last instants of a named month in `Asia/Jerusalem`                                    |
+| Export               | What it is for                                                                                             |
+| -------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `IBankMonth`         | A validated `{ year, month }` value; `month` is 1-indexed to match bank request parameters                 |
+| `bankMonthOfInstant` | Projects a real `Date` or ISO instant into the bank's month                                                |
+| `shiftBankMonth`     | Moves a named month without host-local `Date` arithmetic                                                   |
+| `shiftBankInstant`   | Moves a resolved instant by bank-calendar months while preserving its bank-calendar wall time              |
+| `bankMonthBounds`    | Builds the first and last instants of a named month in `Asia/Jerusalem`                                    |
 
-Generated timestamp labels must be converted before day projection:
-`bankInstantOfLabel(label)` resolves the formatting-only trailing `Z` in the bank
-calendar; handle its `false` result, then pass the instant to
-`bankDayOfInstant`. Passing the raw late-evening label to `bankDayOfInstant` can
-return the following bank day because it treats the suffix as UTC. The
-complete-label date-parts parser stays module-private.
+A generated timestamp label names a bank day; its trailing `Z` is formatting,
+not a UTC claim. Never pass the label to `new Date` for a calendar question.
+The month of a chunk already comes from the generator's bank-calendar state,
+and day projection starts from a resolved instant. Label parsing stays out of
+this module.
 
 `MatrixLoopStrategy` now consumes this object from month selection through
 request construction. The request body and URL bounds therefore describe the
@@ -242,37 +237,16 @@ _month_ it is, is not:
 | `UTC`              | 3                                                     | 3                     |
 | `America/New_York` | **2**                                                 | 3                     |
 
-Two callers built a bank request parameter that way — the billing-month body in
-`src/Scrapers/Pipeline/Strategy/Scrape/BillingFallbackStrategy.ts` and the
-`filterData` URL in
-`src/Scrapers/Pipeline/Strategy/Scrape/Account/FilterDataStrategy.ts` — so a
-scrape for March asked the bank for February on any host west of UTC. The
-provider answered successfully with the wrong month's rows, so request success
-alone did not expose the calendar error.
+Building a bank request parameter that way once asked the bank for February
+during a March scrape on any host west of UTC. The provider answered
+successfully with the wrong month's rows, so request success alone did not
+expose the calendar error.
 
-Anything that needs the month reads the label through `chunkStartMonth`.
-Anything that needs a URL-bound instant uses `bankInstantOfLabel`, so the
-formatting-only `Z` cannot move an end-of-day label into tomorrow in Jerusalem.
-`chunkStartMonth` returns an `IChunkMonth` (`year`, plus a 1-indexed `month`
-matching what bank request parameters expect), or `false` when the generated
-label is malformed:
-
-```ts
-const named = chunkStartMonth(chunk);
-if (named === false) return [];
-const { year, month } = named;
-```
-
-It delegates to `bankMonthOfLabel`, which validates the complete date/time
-shape and its calendar day without consulting ambient state. A host zone cannot
-shift the answer, and a corrupt suffix cannot be accepted merely because its
-`YYYY-MM` prefix looks plausible.
-
-> **Testing note.** A probe that swaps `process.env.TZ` at runtime cannot catch
-> this class of defect: Jest workers read `TZ` once at startup, as
-> `jest.config.js` states, so native `Date` does not move. Pick an input whose
-> label month and instant month differ instead — see
-> `src/Tests/Unit/Pipeline/Mediator/Scrape/MonthChunkLabel.test.ts`.
+The generator now derives each chunk month from bank-calendar state, so no
+consumer parses it back out of the label. A future consumer that needs a month
+must add a bank-calendar reader rather than reading the apparent UTC instant.
+The generator's month arithmetic is covered by
+`src/Tests/Unit/Pipeline/Mediator/Scrape/MonthChunking.test.ts`.
 
 ## Related
 

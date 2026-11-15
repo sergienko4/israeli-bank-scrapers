@@ -59,7 +59,7 @@ export function restoreAmbientZone(previous: IAmbientZone): IAmbientZone {
  * here changes what child processes inherit but *not* what native `Date`
  * reports in this worker. A probe that would only fail through a native `Date`
  * getter therefore proves nothing: give it an input whose correct reading
- * differs from its instant reading instead, as `MonthChunkLabel.test.ts` does.
+ * differs from its instant reading instead.
  * @param zone - Ambient zone to impersonate.
  * @param run - Probe to evaluate.
  * @returns Whatever the probe returned.

@@ -21,7 +21,6 @@ import { bankMomentOfInstant } from '../../../../../Scrapers/Pipeline/Mediator/S
 import type { IEvidenceLedger } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/EvidenceLedger.js';
 import { makeEvidenceLedger } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/EvidenceLedger.js';
 import { classifyWindowCoverage } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/WindowCoverageVerdict.js';
-import { MAX_BACKFILL_ASKS } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/WindowBackfillBlocks.js';
 import type { ICollectedRows } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeBackfill.js';
 import { collectAccountRows } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeBackfill.js';
 import type { IAcctCtx } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeTypes.js';
@@ -359,7 +358,7 @@ describe('collectAccountRows/completeness', () => {
     const seen: string[] = [];
     const bus = makeRecedingBus(seen);
     await collect(bus);
-    expect(seen).toHaveLength(MAX_BACKFILL_ASKS + 1);
+    expect(seen).toHaveLength(12 + 1);
   });
 
   it('still returns every row it did manage to collect', async () => {

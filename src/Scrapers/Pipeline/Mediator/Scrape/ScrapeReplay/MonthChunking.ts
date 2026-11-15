@@ -10,10 +10,11 @@
  *
  * <p>The `Z` a chunk carries is part of that formatting, not a claim about UTC:
  * it names a *bank day*. Treating it as a UTC instant is safe only for comparing
- * two labels written by this module. A consumer that needs a bank day, month,
- * or URL bound must validate the label through the bank-calendar provider;
+ * two labels written by this module. A consumer that needs the bank day or a
+ * URL bound must validate the label through the bank-calendar provider;
  * projecting the apparent UTC instant back into Jerusalem moves end-of-day
- * labels into tomorrow.
+ * labels into tomorrow. The chunk month already comes from the generator's
+ * bank-calendar state, so no consumer parses it back out of the label.
  */
 
 import { getDebug } from '../../../Logging/Debug.js';
@@ -23,7 +24,6 @@ import type { IBankMonth } from '../BankMonth.js';
 import {
   bankMonthBounds,
   bankMonthOfInstant,
-  bankMonthOfLabel,
   shiftBankInstant,
   shiftBankMonth,
 } from '../BankMonth.js';
@@ -174,19 +174,5 @@ function generateMonthChunks(start: Date, end: Date, futureMonths?: number): Mon
   return buildBoundedChunks(state);
 }
 
-/** Calendar year and 1-indexed month that a chunk's start names. */
-type IChunkMonth = IBankMonth;
-
-/**
- * Read the month a chunk *names*, which is the exact inverse of how
- * {@link buildChunk} writes it: the `YYYY-MM` prefix of the start label. It
- * never parses the stamp, so no host zone can shift the answer.
- * @param chunk - The chunk to read.
- * @returns Its year and 1-indexed month, or false for an invalid label.
- */
-function chunkStartMonth(chunk: IMonthChunk): IChunkMonth | false {
-  return bankMonthOfLabel(chunk.start);
-}
-
 export type { IMonthChunk };
-export { chunkStartMonth, generateMonthChunks };
+export { generateMonthChunks };
