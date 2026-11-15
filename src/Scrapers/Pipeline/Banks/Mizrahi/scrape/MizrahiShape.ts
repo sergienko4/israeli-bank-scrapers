@@ -59,4 +59,3 @@ const MIZRAHI_SHAPE: IApiDirectScrapeShape<IMizrahiAcct, IMizrahiCursor> = {
 };
 
 export default MIZRAHI_SHAPE;
-export { MIZRAHI_SHAPE };

@@ -4,7 +4,7 @@
 
 import { jest } from '@jest/globals';
 
-import { LEUMI_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Leumi/scrape/LeumiShape.js';
+import LEUMI_SHAPE from '../../../../../Scrapers/Pipeline/Banks/Leumi/scrape/LeumiShape.js';
 import { leumiBrokerUrl } from '../../../../../Scrapers/Pipeline/Banks/Leumi/scrape/LeumiShapeEnvelope.js';
 import { GET_ACCOUNTS_MODULE } from '../../../../../Scrapers/Pipeline/Banks/Leumi/scrape/LeumiShapeHelpers.js';
 import { UC_SO_27_MODULE } from '../../../../../Scrapers/Pipeline/Banks/Leumi/scrape/LeumiShapeUcSo27.js';

@@ -7,7 +7,7 @@
  */
 
 import { CompanyTypes } from '../../../../../Definitions.js';
-import { buildMizrahiPipeline } from '../../../../../Scrapers/Pipeline/Banks/Mizrahi/MizrahiPipeline.js';
+import buildMizrahiPipeline from '../../../../../Scrapers/Pipeline/Banks/Mizrahi/MizrahiPipeline.js';
 import { assertOk } from '../../../../Helpers/AssertProcedure.js';
 import { makeMockOptions } from '../../Infrastructure/MockFactories.js';
 

@@ -10,8 +10,8 @@ import type {
   ScraperCredentials,
   ScraperOptions,
 } from '../../../../../Scrapers/Base/Interface.js';
-import { buildLeumiNativePipeline } from '../../../../../Scrapers/Pipeline/Banks/Leumi/LeumiPipeline.js';
-import { LEUMI_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Leumi/scrape/LeumiShape.js';
+import buildLeumiNativePipeline from '../../../../../Scrapers/Pipeline/Banks/Leumi/LeumiPipeline.js';
+import LEUMI_SHAPE from '../../../../../Scrapers/Pipeline/Banks/Leumi/scrape/LeumiShape.js';
 import PIPELINE_REGISTRY from '../../../../../Scrapers/Pipeline/Banks/PipelineRegistry.js';
 import createPipelineBuilder from '../../../../../Scrapers/Pipeline/Core/Builder/PipelineBuilderFactory.js';
 import type { PipelineFactory } from '../../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';

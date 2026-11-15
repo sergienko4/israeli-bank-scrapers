@@ -8,7 +8,7 @@
  * alias precedence. Bodies are synthetic (fake values).
  */
 
-import { MIZRAHI_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Mizrahi/scrape/MizrahiShape.js';
+import MIZRAHI_SHAPE from '../../../../../Scrapers/Pipeline/Banks/Mizrahi/scrape/MizrahiShape.js';
 import { txnsExtractPage } from '../../../../../Scrapers/Pipeline/Banks/Mizrahi/scrape/MizrahiShapeTxns.js';
 import type { ApiRecord } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/AutoMapperFacade/AutoMapperTypes.js';
 import { autoMapTransaction } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/TxnMapper/TxnMapper.js';

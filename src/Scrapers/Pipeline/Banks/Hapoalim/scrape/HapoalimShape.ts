@@ -64,4 +64,3 @@ const HAPOALIM_SHAPE: IApiDirectScrapeShape<IHapoalimAcct, HapoalimCursor> = {
 };
 
 export default HAPOALIM_SHAPE;
-export { HAPOALIM_SHAPE };

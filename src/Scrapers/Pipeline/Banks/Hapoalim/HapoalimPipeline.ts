@@ -9,7 +9,7 @@ import createPipelineBuilder from '../../Core/Builder/PipelineBuilderFactory.js'
 import type { IPipelineDescriptor } from '../../Core/PipelineDescriptor.js';
 import { HAPOALIM_API_DIRECT_CALL } from '../../Registry/Config/PipelineBankConfigHapoalim.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { HAPOALIM_SHAPE } from './scrape/HapoalimShape.js';
+import HAPOALIM_SHAPE from './scrape/HapoalimShape.js';
 
 /**
  * Build the Hapoalim pipeline descriptor: the direct-API login
@@ -25,4 +25,3 @@ function buildHapoalimPipeline(options: ScraperOptions): Procedure<IPipelineDesc
 }
 
 export default buildHapoalimPipeline;
-export { buildHapoalimPipeline };

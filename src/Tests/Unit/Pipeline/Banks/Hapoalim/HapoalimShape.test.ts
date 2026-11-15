@@ -9,7 +9,7 @@
  * transactions[]).
  */
 
-import { HAPOALIM_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Hapoalim/scrape/HapoalimShape.js';
+import HAPOALIM_SHAPE from '../../../../../Scrapers/Pipeline/Banks/Hapoalim/scrape/HapoalimShape.js';
 import {
   accountNumberOf,
   balanceExtract,

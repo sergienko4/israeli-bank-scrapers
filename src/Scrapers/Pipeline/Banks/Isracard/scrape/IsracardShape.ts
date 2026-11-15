@@ -23,4 +23,3 @@ const ISRACARD_SHAPE = makeRingShape({
 });
 
 export default ISRACARD_SHAPE;
-export { ISRACARD_SHAPE };

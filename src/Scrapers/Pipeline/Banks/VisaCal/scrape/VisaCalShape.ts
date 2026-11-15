@@ -85,4 +85,3 @@ const VISACAL_SHAPE: IApiDirectScrapeShape<IVisaCalCard, number> = {
 };
 
 export default VISACAL_SHAPE;
-export { VISACAL_SHAPE };

@@ -5,8 +5,8 @@
  * answer check; this suite proves Mercantile binds that family unchanged.
  */
 
-import { DISCOUNT_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Discount/scrape/DiscountShape.js';
-import { MERCANTILE_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Mercantile/scrape/MercantileShape.js';
+import DISCOUNT_SHAPE from '../../../../../Scrapers/Pipeline/Banks/Discount/scrape/DiscountShape.js';
+import MERCANTILE_SHAPE from '../../../../../Scrapers/Pipeline/Banks/Mercantile/scrape/MercantileShape.js';
 
 describe('MercantileShape', () => {
   it("is Discount's Titan shape under the MercantileScrape step", () => {

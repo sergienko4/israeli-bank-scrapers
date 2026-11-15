@@ -1,11 +1,11 @@
 import { CompanyTypes } from '../../../Definitions.js';
 import type { PipelineFactory } from '../Core/PipelineDescriptor.js';
-import { buildAmexPipeline } from './Amex/AmexPipeline.js';
+import buildAmexPipeline from './Amex/AmexPipeline.js';
 import buildBeinleumiPipeline from './Beinleumi/BeinleumiPipeline.js';
-import { buildDiscountPipeline } from './Discount/DiscountPipeline.js';
-import { buildHapoalimPipeline } from './Hapoalim/HapoalimPipeline.js';
-import { buildIsracardPipeline } from './Isracard/IsracardPipeline.js';
-import { buildLeumiNativePipeline } from './Leumi/LeumiPipeline.js';
+import buildDiscountPipeline from './Discount/DiscountPipeline.js';
+import buildHapoalimPipeline from './Hapoalim/HapoalimPipeline.js';
+import buildIsracardPipeline from './Isracard/IsracardPipeline.js';
+import buildLeumiNativePipeline from './Leumi/LeumiPipeline.js';
 import buildMassadPipeline from './Massad/MassadPipeline.js';
 import buildMaxPipeline from './Max/MaxPipeline.js';
 
