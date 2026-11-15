@@ -137,4 +137,3 @@ function buildResolverFromStrategy<TCreds>(args: IBuildResolverArgs<TCreds>): IT
 }
 
 export default buildResolverFromStrategy;
-export { buildResolverFromStrategy };

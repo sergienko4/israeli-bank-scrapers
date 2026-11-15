@@ -396,7 +396,7 @@ describe('cookie-jar warm start through the strategy', () => {
     const rejected = fail(ScraperErrorTypes.Generic, 'syn resume HTTP 401');
     const run = makeRun({ responses: [rejected, STEP_OK, STEP_OK] });
     const creds = credsWith(GOOD);
-    const resolver = RESOLVER.buildResolverFromStrategy({
+    const resolver = RESOLVER.default({
       strategy: run.strategy,
       bus: run.bus,
       ctx: CTX,

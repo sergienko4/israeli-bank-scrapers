@@ -6,7 +6,7 @@
  */
 
 export { createMtlsApiMediator, createNativeApiMediator } from './ApiMediator.factories.js';
-export { createApiMediator } from './ApiMediator.factory.js';
+export { default as createApiMediator } from './ApiMediator.factory.js';
 export type {
   IApiMediator,
   IApiQueryOpts,

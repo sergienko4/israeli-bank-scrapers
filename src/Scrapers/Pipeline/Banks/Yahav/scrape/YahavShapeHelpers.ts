@@ -8,7 +8,7 @@
  */
 
 import type { SessionContext } from '../../../Mediator/Api/ApiMediator.js';
-import { resolveApiMediator } from '../../../Mediator/Api/ApiMediatorAccessor.js';
+import resolveApiMediator from '../../../Mediator/Api/ApiMediatorAccessor.js';
 import { YAHAV_NATIVE_ORIGIN } from '../../../Registry/Config/PipelineBankConfigYahavConstants.js';
 import { literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';

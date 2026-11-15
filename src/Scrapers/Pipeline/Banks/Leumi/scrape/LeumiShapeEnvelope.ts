@@ -11,7 +11,7 @@
  * onto the mediator session context; it is never hardcoded.
  */
 
-import { resolveApiMediator } from '../../../Mediator/Api/ApiMediatorAccessor.js';
+import resolveApiMediator from '../../../Mediator/Api/ApiMediatorAccessor.js';
 import type { ApiBody, VarsMap } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import { literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';

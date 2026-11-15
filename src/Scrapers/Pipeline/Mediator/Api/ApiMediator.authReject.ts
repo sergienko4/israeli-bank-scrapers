@@ -60,5 +60,4 @@ function isAuthRejectedFailure(failure: IProcedureFailure): boolean {
   );
 }
 
-export default isAuthRejectionMessage;
 export { isAuthRejectedFailure, isAuthRejectionMessage };

@@ -10,7 +10,7 @@ import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import type { IApiMediator } from '../Api/ApiMediator.js';
-import { resolveApiMediator } from '../Api/ApiMediatorAccessor.js';
+import resolveApiMediator from '../Api/ApiMediatorAccessor.js';
 import { PHASE_LABEL, safeInvoke } from './ApiDirectCallActions.shared.js';
 import type { IApiDirectCallConfig, IProbeConfig } from './ConfigContracts/index.js';
 

@@ -169,7 +169,7 @@ async function resolveScenario(
   const bus = STUB.makeStubMediator({ responses: scenario.responses, captures: [] });
   const creds = FIXTURES.pepperCreds(async (): Promise<string> => Promise.resolve(OTP_CODE));
   const ctx = FIXTURES.PEPPER_CTX;
-  const result = await RESOLVER.buildResolverFromStrategy({ strategy, bus, ctx, creds }).resolve();
+  const result = await RESOLVER.default({ strategy, bus, ctx, creds }).resolve();
   return result.success ? '' : result.errorMessage;
 }
 

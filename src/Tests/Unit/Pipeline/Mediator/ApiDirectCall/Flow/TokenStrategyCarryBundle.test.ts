@@ -18,7 +18,7 @@ import { jest } from '@jest/globals';
 import { CompanyTypes } from '../../../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js';
 import type { ScraperCredentials } from '../../../../../../Scrapers/Base/Interface.js';
-import { buildResolverFromStrategy } from '../../../../../../Scrapers/Pipeline/Mediator/Api/TokenResolverBuilder.js';
+import buildResolverFromStrategy from '../../../../../../Scrapers/Pipeline/Mediator/Api/TokenResolverBuilder.js';
 import type {
   CookieHandoff,
   IApiDirectCallConfig,

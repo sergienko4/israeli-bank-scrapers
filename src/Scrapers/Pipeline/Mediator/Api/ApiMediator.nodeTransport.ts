@@ -101,4 +101,3 @@ function buildTransportSource(args: INodeTlsMediatorArgs): ITransportSource {
 }
 
 export default buildTransportSource;
-export { buildTransportSource };
