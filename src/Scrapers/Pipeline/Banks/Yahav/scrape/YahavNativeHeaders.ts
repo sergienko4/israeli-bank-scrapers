@@ -35,6 +35,5 @@ function yahavNativeHeaders(args: IYahavHeaderArgs): HeaderMap {
   };
 }
 
-export default yahavNativeHeaders;
 export type { IYahavHeaderArgs };
 export { yahavNativeHeaders };

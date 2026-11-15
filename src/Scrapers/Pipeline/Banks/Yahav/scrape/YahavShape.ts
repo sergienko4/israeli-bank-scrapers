@@ -26,7 +26,7 @@ function accountNumberOf(acct: IYahavAcct): string {
 }
 
 /** Yahav native scrape shape. */
-export const YAHAV_SHAPE: IApiDirectScrapeShape<IYahavAcct, number> = {
+const YAHAV_SHAPE: IApiDirectScrapeShape<IYahavAcct, number> = {
   stepName: SCRAPE_LABEL,
   accountNumberOf,
   bootstrap: YAHAV_BOOTSTRAP,

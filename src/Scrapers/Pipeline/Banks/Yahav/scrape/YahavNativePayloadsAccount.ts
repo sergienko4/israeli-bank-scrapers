@@ -100,5 +100,5 @@ function yahavTxnsPayload(args: IYahavTxnsArgs): VarsMap {
   return yahavInquiry(entity, rest);
 }
 
-export type { IYahavAccountRefs, IYahavNativeDay, IYahavTxnsArgs };
+export type { IYahavNativeDay };
 export { yahavBalancePayload, yahavTxnsPayload };

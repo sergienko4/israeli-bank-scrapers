@@ -11,7 +11,7 @@ import createPipelineBuilder from '../../Core/Builder/PipelineBuilderFactory.js'
 import type { IPipelineDescriptor } from '../../Core/PipelineDescriptor.js';
 import { YAHAV_API_DIRECT_CALL } from '../../Registry/Config/PipelineBankConfigYahav.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { YAHAV_SHAPE } from './scrape/YahavShape.js';
+import YAHAV_SHAPE from './scrape/YahavShape.js';
 
 /**
  * Build the Yahav pipeline descriptor: the direct-API login runs

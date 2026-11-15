@@ -55,7 +55,7 @@ interface IBalanceResp {
  * against a live production account, so an unrecognised future category must
  * surface loudly instead of being silently dropped.
  */
-export const PEPPER_SUPPORTED_ACCOUNT_CATEGORIES = ['Ils'] as const;
+const PEPPER_SUPPORTED_ACCOUNT_CATEGORIES = ['Ils'] as const;
 
 /**
  * Decide whether Pepper's OSH resolver can serve a product.
@@ -78,7 +78,7 @@ export const PEPPER_SUPPORTED_ACCOUNT_CATEGORIES = ['Ils'] as const;
  * @param acct - Pepper account.
  * @returns True when the account should be scraped.
  */
-export function isSupportedAccount(acct: IPepperAcct): IsSupportedProduct {
+function isSupportedAccount(acct: IPepperAcct): IsSupportedProduct {
   const category = acct.accountCategory;
   if (typeof category !== 'string') return true as IsSupportedProduct;
   if (category.trim().length === 0) return true as IsSupportedProduct;

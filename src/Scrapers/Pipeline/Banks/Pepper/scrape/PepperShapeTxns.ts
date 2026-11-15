@@ -36,7 +36,7 @@ interface ITxnsResp {
 }
 
 /** Scrape window (from/to ISO strings). */
-export interface IWindow {
+interface IWindow {
   readonly from: string;
   readonly to: string;
 }

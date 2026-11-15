@@ -138,5 +138,4 @@ function yahavReadBody(args: IYahavReadBodyArgs): VarsMap {
   return { ...envelope, ...session, Payload: args.payload };
 }
 
-export type { IYahavReadBodyArgs, IYahavReadState };
 export { yahavLoginBody, yahavReadBody };
