@@ -121,4 +121,3 @@ function generatePkcs10Csr(
 }
 
 export default generatePkcs10Csr;
-export { generatePkcs10Csr };

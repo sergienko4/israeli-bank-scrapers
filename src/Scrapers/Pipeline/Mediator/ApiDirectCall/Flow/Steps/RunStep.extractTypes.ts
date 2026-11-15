@@ -65,5 +65,4 @@ function isTypeSound(value: JsonValue, rule: IExtractRule): boolean {
   return isType(value);
 }
 
-export default isTypeSound;
 export { isFiniteNumber, isTypeSound };

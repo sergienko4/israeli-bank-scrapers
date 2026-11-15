@@ -19,6 +19,4 @@ function freshIvHex(): string {
   return bytes.toString('hex');
 }
 
-export default freshIvHex;
-
-export { AES_KEY_BYTES, freshIvHex, IV_BYTES };
+export { AES_KEY_BYTES, freshIvHex };

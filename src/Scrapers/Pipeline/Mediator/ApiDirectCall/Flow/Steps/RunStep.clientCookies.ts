@@ -170,5 +170,4 @@ function bindStepCookies(args: IRunStepArgs): Procedure<IRunStepArgs> {
   return withJar(args, jar);
 }
 
-export default bindStepCookies;
 export { bindStepCookies, clientCookieOf, cookieRefOf };
