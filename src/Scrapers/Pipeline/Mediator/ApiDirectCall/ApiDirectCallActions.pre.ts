@@ -6,7 +6,7 @@ import type {
   IPersistentAuthInput,
   PersistentAuthStateCallback,
 } from '../../Types/Domain/PersistentAuthInput.js';
-import type { LoginKind } from '../../Types/LoginKind.js';
+import type LoginKind from '../../Types/LoginKind.js';
 import { none, type Option, some } from '../../Types/Option.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';

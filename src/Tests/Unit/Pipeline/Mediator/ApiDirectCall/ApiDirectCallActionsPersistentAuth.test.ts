@@ -1,3 +1,11 @@
+const LOGIN_KIND_VALUES = [
+  'stored-jwt-fresh',
+  'stored-jwt-stale',
+  'sms-otp',
+  'password-only',
+  'bearer-static',
+  'unknown',
+] as const;
 /**
  * Durable device-auth mode resolution and strategy wiring (Task 9 of the
  * Pepper durable-auth plan). One mode is chosen before any auth request; an
@@ -31,7 +39,6 @@ import {
   type PersistentAuthMode,
 } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/TokenStrategyFromConfig.js';
 import type { ITokenContext } from '../../../../../Scrapers/Pipeline/Types/Domain/TokenContext.js';
-import { LOGIN_KIND_VALUES } from '../../../../../Scrapers/Pipeline/Types/LoginKind.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IPipelineContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';

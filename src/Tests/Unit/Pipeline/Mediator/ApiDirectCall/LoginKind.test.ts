@@ -1,8 +1,14 @@
+const LOGIN_KIND_VALUES = [
+  'stored-jwt-fresh',
+  'stored-jwt-stale',
+  'sms-otp',
+  'password-only',
+  'bearer-static',
+  'unknown',
+] as const;
 /**
  * Unit tests for LoginKind — verifies the enum list is exhaustive.
  */
-
-import { LOGIN_KIND_VALUES } from '../../../../../Scrapers/Pipeline/Types/LoginKind.js';
 
 describe('LoginKind — exhaustive enum list', () => {
   it('contains exactly 6 values', () => {

@@ -7,8 +7,9 @@ import {
   errorNameOf,
   toError,
   toErrorMessage,
-  UNREPRESENTABLE_ERROR,
 } from '../../../../Scrapers/Pipeline/Types/ErrorUtils.js';
+
+const UNREPRESENTABLE_ERROR = '[unrepresentable error value]';
 
 /**
  * Custom Error subclass used by the throwing-toString / Symbol.toPrimitive

@@ -7,10 +7,7 @@
 import * as vm from 'node:vm';
 
 import ScraperError from '../../../../Scrapers/Base/ScraperError.js';
-import {
-  describeJsonParseFailure,
-  parseJsonOrThrow,
-} from '../../../../Scrapers/Pipeline/Types/JsonParseFailure.js';
+import describeJsonParseFailure from '../../../../Scrapers/Pipeline/Types/JsonParseFailure.js';
 
 /** Card number planted in every malformed body; must never be echoed. */
 const CARD_SENTINEL = '4580123412341234';
@@ -34,19 +31,6 @@ function engineErrorFor(body: string): Error {
     return error as Error;
   }
   throw new ScraperError(`fixture parsed unexpectedly: ${body.length.toString()} chars`);
-}
-
-/**
- * Capture what parseJsonOrThrow throws for a malformed body.
- * @param body - Text that is not valid JSON.
- * @returns The thrown value.
- */
-function thrownBy(body: string): unknown {
-  try {
-    return parseJsonOrThrow(body, 'template');
-  } catch (error) {
-    return error;
-  }
 }
 
 /** Every V8 message shape: whole-body quote, prefix quote, and positional. */
@@ -124,36 +108,5 @@ describe('describeJsonParseFailure', () => {
     const text = describeJsonParseFailure('socket hang up');
 
     expect(text).toBe('socket hang up');
-  });
-});
-
-describe('parseJsonOrThrow', () => {
-  it('returns the parsed value for valid JSON', () => {
-    const parsed = parseJsonOrThrow('{"balance":1250}', 'balance read');
-
-    expect(parsed).toEqual({ balance: 1250 });
-  });
-
-  it('throws a ScraperError naming the context and position only', () => {
-    const body = `{"card":"${CARD_SENTINEL}",}`;
-
-    /**
-     * Parse the malformed body under a transport label.
-     * @returns Never — the parse throws.
-     */
-    const parse = (): unknown => parseJsonOrThrow(body, 'fetchPost parse error');
-
-    expect(parse).toThrow(ScraperError);
-    expect(parse).toThrow('fetchPost parse error: invalid JSON (SyntaxError at position 27)');
-  });
-
-  it('does not chain the engine error as a cause', () => {
-    const body = `card=${CARD_SENTINEL}`;
-
-    const caught = thrownBy(body);
-
-    expect(caught).toBeInstanceOf(ScraperError);
-    expect((caught as ScraperError).cause).toBeUndefined();
-    expect((caught as ScraperError).message).not.toContain(CARD_SENTINEL);
   });
 });

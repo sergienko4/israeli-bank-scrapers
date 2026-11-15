@@ -10,7 +10,7 @@ import type { Brand } from './Brand.js';
 type FutureMonthsCount = Brand<number, 'FutureMonthsCount'>;
 
 /** Default includes current billing cycle + next open cycle. */
-export const DEFAULT_FUTURE_MONTHS = 1;
+const DEFAULT_FUTURE_MONTHS = 1;
 
 /**
  * Resolve futureMonthsToScrape with null-aware fallback.
@@ -18,6 +18,8 @@ export const DEFAULT_FUTURE_MONTHS = 1;
  * @param options - Scraper options.
  * @returns Number of future months to include in the scrape window.
  */
-export function getFutureMonths(options: ScraperOptions): FutureMonthsCount {
+function getFutureMonths(options: ScraperOptions): FutureMonthsCount {
   return (options.futureMonthsToScrape ?? DEFAULT_FUTURE_MONTHS) as FutureMonthsCount;
 }
+
+export default getFutureMonths;
