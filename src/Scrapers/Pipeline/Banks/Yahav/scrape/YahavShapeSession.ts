@@ -185,4 +185,3 @@ const YAHAV_RESPONSE_SESSION: IResponseSessionSpec = {
 };
 
 export default YAHAV_RESPONSE_SESSION;
-export { YAHAV_RESPONSE_SESSION };

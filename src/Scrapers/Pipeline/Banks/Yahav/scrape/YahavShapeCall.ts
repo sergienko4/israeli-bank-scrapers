@@ -9,7 +9,7 @@ import type { HeaderMap, VarsMap } from '../../../Phases/ApiDirectScrape/IApiDir
 import type { IActionContext } from '../../../Types/PipelineContext.js';
 import { yahavReadBody } from './YahavNativeEnvelope.js';
 import { NATIVE_EMPTY_SECTOKEN } from './YahavNativeEnvelopeStatic.js';
-import { yahavNativeHeaders } from './YahavNativeHeaders.js';
+import yahavNativeHeaders from './YahavNativeHeaders.js';
 import { sessionText, YAHAV_SESSION_KEYS, yahavSessionOf } from './YahavShapeHelpers.js';
 
 /** A header builder bound to one call's path. */

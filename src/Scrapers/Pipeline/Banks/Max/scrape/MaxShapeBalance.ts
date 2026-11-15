@@ -18,13 +18,13 @@ import ILS_CURRENCY_CODE from '../../../Registry/WK/BalanceResolveWK.js';
 import type { Brand } from '../../../Types/Brand.js';
 
 /** Outstanding ILS cycle debit of one card — branded for Rule #15. */
-export type MaxCardCycleBalance = Brand<number, 'MaxCardCycleBalance'>;
+type MaxCardCycleBalance = Brand<number, 'MaxCardCycleBalance'>;
 
 /** The 0 a card-cycle bank reports when no usable figure is on the wire. */
 const NO_CYCLE_DEBIT = 0 as MaxCardCycleBalance;
 
 /** One per-currency row of a Max card's billing-cycle summary. */
-export interface IMaxCycleRow {
+interface IMaxCycleRow {
   readonly Currency?: number;
   readonly TotalDebitSum?: number;
 }

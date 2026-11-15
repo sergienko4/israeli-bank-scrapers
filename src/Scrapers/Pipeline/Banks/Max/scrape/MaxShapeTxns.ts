@@ -23,7 +23,7 @@ import type { IExtractPageArgs } from '../../../Phases/ApiDirectScrape/IApiDirec
 import { literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import type { IPage } from '../../../Strategy/Fetch/Pagination.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
-import { filterMaxRows } from './MaxShapeExtract.js';
+import filterMaxRows from './MaxShapeExtract.js';
 import { type IMaxCard, MAX_API } from './MaxShapeHelpers.js';
 
 /**

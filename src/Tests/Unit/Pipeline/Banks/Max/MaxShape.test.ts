@@ -12,7 +12,7 @@
 
 import { jest } from '@jest/globals';
 
-import { MAX_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Max/scrape/MaxShape.js';
+import MAX_SHAPE from '../../../../../Scrapers/Pipeline/Banks/Max/scrape/MaxShape.js';
 import {
   accountNumberOf,
   customerUrl,
