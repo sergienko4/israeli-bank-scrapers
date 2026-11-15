@@ -159,5 +159,4 @@ function isYahavAccountOf(identifier: unknown, acct: IYahavAcct): boolean {
   return id === acct.id && numbersAgree(sent, acct.number ?? '');
 }
 
-export default extractYahavAccounts;
 export { countYahavAccounts, extractYahavAccounts, isYahavAccountOf, yahavEntities, yahavRefOf };

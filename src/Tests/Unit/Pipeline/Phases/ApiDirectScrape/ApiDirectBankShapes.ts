@@ -28,4 +28,4 @@ export { PAGI_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Pagi/scrape/P
 export { PAYBOX_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxShape.js';
 export { PEPPER_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Pepper/scrape/PepperShape.js';
 export { VISACAL_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/VisaCal/scrape/VisaCalShape.js';
-export { YAHAV_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Yahav/scrape/YahavShape.js';
+export { default as YAHAV_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Yahav/scrape/YahavShape.js';

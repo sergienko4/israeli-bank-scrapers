@@ -87,5 +87,3 @@ query Transactions(
 registerWkQuery('customer', HINT, USER_DATA_V2);
 registerWkQuery('balance', HINT, FETCH_ACCOUNT_BALANCE);
 registerWkQuery('transactions', HINT, TRANSACTIONS);
-
-export { FETCH_ACCOUNT_BALANCE, TRANSACTIONS, USER_DATA_V2 };

@@ -109,5 +109,4 @@ const PEPPER_SHAPE: IApiDirectScrapeShape<IPepperAcct, number> = {
   },
 };
 
-export default PEPPER_SHAPE;
 export { PEPPER_SHAPE, userIdOf };
