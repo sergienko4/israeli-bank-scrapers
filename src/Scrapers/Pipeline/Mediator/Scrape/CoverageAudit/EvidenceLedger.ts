@@ -108,5 +108,3 @@ export function makeEvidenceLedger(): IEvidenceLedger {
   const caveats = readerFor(seen);
   return { note, noteWhen, caveats };
 }
-
-export default makeEvidenceLedger;

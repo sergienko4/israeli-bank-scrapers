@@ -24,7 +24,7 @@ import type { IWindowResult } from '../../Mediator/Scrape/CoverageAudit/WindowCo
 import { assessWindowCoverage } from '../../Mediator/Scrape/CoverageAudit/WindowCoverage.js';
 import type { PageMerge } from '../../Mediator/Scrape/OverlapMerge.js';
 import { buildOverlapMerge } from '../../Mediator/Scrape/OverlapMerge.js';
-import { dropOverlap } from '../../Mediator/Scrape/RawOverlap.js';
+import dropOverlap from '../../Mediator/Scrape/RawOverlap.js';
 import type { IBackfillPlan } from '../../Mediator/Scrape/WindowBackfill.js';
 import { planBackfill } from '../../Mediator/Scrape/WindowBackfill.js';
 import type { IPaginatedWalk, PaginationTermination } from '../../Strategy/Fetch/Pagination.js';

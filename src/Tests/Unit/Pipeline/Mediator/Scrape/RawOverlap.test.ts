@@ -8,7 +8,7 @@
  * truncation the backfill exists to fix.
  */
 
-import { dropOverlap } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/RawOverlap.js';
+import dropOverlap from '../../../../../Scrapers/Pipeline/Mediator/Scrape/RawOverlap.js';
 
 /**
  * One synthetic raw row.

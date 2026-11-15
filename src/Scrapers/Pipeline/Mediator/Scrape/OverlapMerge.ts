@@ -13,7 +13,7 @@
  * neither has to know how identity is decided.
  */
 
-import { dropOverlap } from './RawOverlap.js';
+import dropOverlap from './RawOverlap.js';
 
 /** How a page joins the rows already held. */
 export type PageMerge = (held: readonly object[], incoming: readonly object[]) => readonly object[];
@@ -30,5 +30,3 @@ export function buildOverlapMerge(label: string): PageMerge {
     return [...held, ...fresh.kept];
   };
 }
-
-export default buildOverlapMerge;

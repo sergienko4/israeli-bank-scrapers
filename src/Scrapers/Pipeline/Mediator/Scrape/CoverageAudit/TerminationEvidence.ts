@@ -99,5 +99,3 @@ export function worseTermination(
   const isIncomingWorse = doubtOf(incoming) > doubtOf(held);
   return isIncomingWorse ? incoming : held;
 }
-
-export default isLossyTermination;
