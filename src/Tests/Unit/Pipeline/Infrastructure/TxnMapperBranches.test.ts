@@ -5,7 +5,7 @@
  */
 
 import { parseAutoDate } from '../../../../Scrapers/Pipeline/Mediator/Scrape/Coercion/Coercion.js';
-import { autoMapTransaction } from '../../../../Scrapers/Pipeline/Mediator/Scrape/TxnMapper/TxnMapper.js';
+import autoMapTransaction from '../../../../Scrapers/Pipeline/Mediator/Scrape/TxnMapper/TxnMapper.js';
 import type { ITransaction } from '../../../../Transactions.js';
 
 /**

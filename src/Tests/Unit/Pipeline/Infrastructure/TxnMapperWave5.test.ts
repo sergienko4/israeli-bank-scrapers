@@ -4,7 +4,7 @@
  * isMappableTxn malformed txn rejection.
  */
 
-import { autoMapTransaction } from '../../../../Scrapers/Pipeline/Mediator/Scrape/TxnMapper/TxnMapper.js';
+import autoMapTransaction from '../../../../Scrapers/Pipeline/Mediator/Scrape/TxnMapper/TxnMapper.js';
 import type { ITransaction } from '../../../../Transactions.js';
 
 /**

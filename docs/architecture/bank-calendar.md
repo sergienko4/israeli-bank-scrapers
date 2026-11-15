@@ -74,14 +74,14 @@ owns that boundary:
 | `IBankDateParts`          | Validated `{ year, month, day }` components for provider wire formats                                      |
 | `IBankMonth`              | A validated `{ year, month }` value; `month` is 1-indexed to match bank request parameters                 |
 | `IBankMonthBounds`        | Start and end instants for one bank-calendar month                                                         |
-| `bankDatePartsOfInstant`  | Projects a resolved instant into validated bank-calendar date components                                   |
-| `bankDatePartsOfLabel`    | Strictly validates a complete bank date label before exposing its numeric components                       |
 | `bankInstantOfLabel`      | Opens a generated timestamp-shaped label onto the instant its wall time names in the bank calendar         |
 | `bankMonthOfLabel`        | Strictly validates an ISO-shaped bank label and reads the month it names without treating it as an instant |
 | `bankMonthOfInstant`      | Projects a real `Date` or ISO instant into the bank's month                                                |
 | `shiftBankMonth`          | Moves a named month without host-local `Date` arithmetic                                                   |
 | `shiftBankInstant`        | Moves a resolved instant by bank-calendar months while preserving its bank-calendar wall time              |
 | `bankMonthBounds`         | Builds the first and last instants of a named month in `Asia/Jerusalem`                                    |
+
+Day-level components are read through `bankDayOfInstant`; the complete-label date-parts parser stays module-private behind the month/day entry points.
 
 `MatrixLoopStrategy` now consumes this object from month selection through
 request construction. The request body and URL bounds therefore describe the

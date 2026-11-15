@@ -14,7 +14,7 @@ import {
   type ICoverageArgs,
 } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/CoverageAudit.js';
 import { huntTransactionGroups } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/FieldHunt/TxnHunt.js';
-import { autoMapTransaction } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/TxnMapper/TxnMapper.js';
+import autoMapTransaction from '../../../../../Scrapers/Pipeline/Mediator/Scrape/TxnMapper/TxnMapper.js';
 
 /**
  * One transaction row in the shape the auto-mapper recognises.

@@ -27,7 +27,7 @@
  * silently flip a transaction's sign.
  */
 
-import { autoMapTransaction } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/TxnMapper/TxnMapper.js';
+import autoMapTransaction from '../../../../../Scrapers/Pipeline/Mediator/Scrape/TxnMapper/TxnMapper.js';
 import type { ITransaction } from '../../../../../Transactions.js';
 import { makeBankFixture } from '../../Strategy/Scrape/Fixtures/CrossBankDedup/_makeBankFixture.js';
 

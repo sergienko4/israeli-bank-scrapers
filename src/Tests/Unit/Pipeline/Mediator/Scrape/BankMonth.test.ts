@@ -4,8 +4,6 @@
 
 import { bankDayOfInstant } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/BankCalendar.js';
 import {
-  bankDatePartsOfInstant,
-  bankDatePartsOfLabel,
   bankInstantOfLabel,
   bankMonthBounds,
   bankMonthOfInstant,
@@ -15,14 +13,20 @@ import {
 } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/BankMonth.js';
 
 describe('BankMonth', () => {
-  it('reads complete date parts from a strict bank label', () => {
-    const parts = bankDatePartsOfLabel('2026-03-15T10:30:00.000Z');
-    expect(parts).toEqual({ year: 2026, month: 3, day: 15 });
+  it('reads a strict bank label as a month and a day', () => {
+    const label = '2026-03-15T10:30:00.000Z';
+    const month = bankMonthOfLabel(label);
+    const day = bankDayOfInstant(label);
+    expect(month).toEqual({ year: 2026, month: 3 });
+    expect(day).toBe('2026-03-15');
   });
 
-  it('projects an instant into complete bank date parts', () => {
-    const parts = bankDatePartsOfInstant('2026-02-28T22:30:00.000Z');
-    expect(parts).toEqual({ year: 2026, month: 3, day: 1 });
+  it('projects an instant into its bank month and day', () => {
+    const instant = '2026-02-28T22:30:00.000Z';
+    const month = bankMonthOfInstant(instant);
+    const day = bankDayOfInstant(instant);
+    expect(month).toEqual({ year: 2026, month: 3 });
+    expect(day).toBe('2026-03-01');
   });
 
   it('reads the month named by a chunk label', () => {
@@ -36,13 +40,13 @@ describe('BankMonth', () => {
   });
 
   it.each(['2024-02-29', '2000-02-29'])('accepts Gregorian leap day %s', label => {
-    const parts = bankDatePartsOfLabel(label);
-    expect(parts).not.toBe(false);
+    const month = bankMonthOfLabel(label);
+    expect(month).not.toBe(false);
   });
 
   it.each(['2026-02-29', '1900-02-29'])('rejects non-leap February day %s', label => {
-    const parts = bankDatePartsOfLabel(label);
-    expect(parts).toBe(false);
+    const month = bankMonthOfLabel(label);
+    expect(month).toBe(false);
   });
 
   it.each(['not-a-date', '2026-00-01', '2026-13-01', '2026-02-31', '2026-03-garbage'])(
@@ -53,23 +57,15 @@ describe('BankMonth', () => {
     },
   );
 
-  it.each(['not-a-date', '2026-13-01', '2026-03'])(
-    'rejects incomplete or invalid date-parts label %s',
-    label => {
-      const parts = bankDatePartsOfLabel(label);
-      expect(parts).toBe(false);
-    },
-  );
+  it.each(['not-a-date', '2026-13-01'])('rejects an invalid date-parts label %s', label => {
+    const month = bankMonthOfLabel(label);
+    expect(month).toBe(false);
+  });
 
   it('projects an instant into the bank month', () => {
     const instant = new Date('2026-02-28T22:30:00.000Z');
     const month = bankMonthOfInstant(instant);
     expect(month).toEqual({ year: 2026, month: 3 });
-  });
-
-  it('rejects invalid instants when projecting date parts', () => {
-    const parts = bankDatePartsOfInstant(new Date(Number.NaN));
-    expect(parts).toBe(false);
   });
 
   it('rejects invalid instants when projecting a month', () => {

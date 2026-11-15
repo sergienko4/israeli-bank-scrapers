@@ -108,7 +108,7 @@ trust: ISO text above any numeric or symbolic code that can appear on the same
 row. Then extend the contract test.
 
 The contract is `CrossBankCurrency.test.ts`. It maps captured-shape Amex and
-Isracard fixtures through the real `autoMapTransaction` entry point, and pins
+Isracard fixtures through the real `autoMapTransaction` entry point (the mapper module default), and pins
 the alias precedence and the blank-alias fall-through on minimal records. The
 [docs staleness gate](../workflow/docs-coverage.md) fails if `TxnCurrency.ts`,
 `TxnMapper.ts` (the `ILS` fallback and `chargedCurrency` normalisation) or
