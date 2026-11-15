@@ -9,7 +9,7 @@ import { CompanyTypes } from '../../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import { createApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
-import type { ITokenStrategy } from '../../../../../Scrapers/Pipeline/Mediator/Api/ITokenStrategy.js';
+import type ITokenStrategy from '../../../../../Scrapers/Pipeline/Mediator/Api/ITokenStrategy.js';
 import type {
   IConfigTokenStrategy,
   PersistentAuthMode,

@@ -30,7 +30,7 @@ type TokenPrimeProcedure = Promise<Procedure<string>>;
  * value installed verbatim by ApiMediator via `setRawAuth`. Methods
  * MUST NOT throw — exceptions are caught at the mediator boundary.
  */
-interface ITokenStrategy<TCreds> {
+export default interface ITokenStrategy<TCreds> {
   readonly name: string;
   primeInitial(bus: ITokenBus, ctx: ITokenContext, creds: TCreds): TokenPrimeProcedure;
   primeFresh(bus: ITokenBus, ctx: ITokenContext, creds: TCreds): TokenPrimeProcedure;
@@ -47,5 +47,3 @@ interface ITokenStrategy<TCreds> {
    */
   primeRecover?(bus: ITokenBus, ctx: ITokenContext, creds: TCreds): TokenPrimeProcedure;
 }
-
-export type { ITokenStrategy, TokenPrimeProcedure };

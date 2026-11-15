@@ -7,7 +7,7 @@ import type { PersistentAuthStateCallback } from '../../../../Types/Domain/Persi
 import type { ITokenBus } from '../../../../Types/Domain/TokenBus.js';
 import type { ITokenContext } from '../../../../Types/Domain/TokenContext.js';
 import type { Procedure } from '../../../../Types/Procedure.js';
-import type { ITokenStrategy } from '../../../Api/ITokenStrategy.js';
+import type ITokenStrategy from '../../../Api/ITokenStrategy.js';
 import type {
   IApiDirectCallConfig,
   IPersistentAuthConfig,

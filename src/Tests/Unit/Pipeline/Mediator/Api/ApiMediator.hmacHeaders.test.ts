@@ -13,7 +13,6 @@ import {
   buildHmacHeaders,
   HMAC_KEY_SLOT,
   HMAC_SIGNER_SLOT,
-  NO_HMAC_HEADERS,
 } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.hmacHeaders.js';
 import type { SessionContext } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.types.js';
 import { signRequest } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/HmacRequestSigner.js';
@@ -68,38 +67,38 @@ function signerWithout(field: string): Record<string, unknown> {
 describe('ApiMediator.hmacHeaders.buildHmacHeaders — fail-closed (edge)', () => {
   it('returns the no-headers singleton when the session carries no key', () => {
     const result = buildHmacHeaders({ session: {}, method: 'POST', url: REQUEST_URL });
-    expect(result).toBe(NO_HMAC_HEADERS);
+    expect(result).toEqual({});
   });
 
   it('returns no headers when the key slot is not a string', () => {
     const session: SessionContext = { [HMAC_KEY_SLOT]: 123 };
     const result = buildHmacHeaders({ session, method: 'GET', url: REQUEST_URL });
-    expect(result).toBe(NO_HMAC_HEADERS);
+    expect(result).toEqual({});
   });
 
   it('returns no headers when the signer directive is absent', () => {
     const session: SessionContext = { [HMAC_KEY_SLOT]: VALID_KEY_HEX };
     const result = buildHmacHeaders({ session, method: 'POST', url: REQUEST_URL });
-    expect(result).toBe(NO_HMAC_HEADERS);
+    expect(result).toEqual({});
   });
 
   it('returns no headers when the signer directive is null', () => {
     const session: SessionContext = { [HMAC_KEY_SLOT]: VALID_KEY_HEX, [HMAC_SIGNER_SLOT]: null };
     const result = buildHmacHeaders({ session, method: 'POST', url: REQUEST_URL });
-    expect(result).toBe(NO_HMAC_HEADERS);
+    expect(result).toEqual({});
   });
 
   it('returns no headers when the signer directive is not an object', () => {
     const session: SessionContext = { [HMAC_KEY_SLOT]: VALID_KEY_HEX, [HMAC_SIGNER_SLOT]: 7 };
     const result = buildHmacHeaders({ session, method: 'POST', url: REQUEST_URL });
-    expect(result).toBe(NO_HMAC_HEADERS);
+    expect(result).toEqual({});
   });
 
   it('returns no headers when the signer algorithm tag is wrong', () => {
     const signer = { algorithm: 'RSA-2048' };
     const session: SessionContext = { [HMAC_KEY_SLOT]: VALID_KEY_HEX, [HMAC_SIGNER_SLOT]: signer };
     const result = buildHmacHeaders({ session, method: 'POST', url: REQUEST_URL });
-    expect(result).toBe(NO_HMAC_HEADERS);
+    expect(result).toEqual({});
   });
 
   it('returns no headers when signing fails (key not 32 bytes)', () => {
@@ -110,7 +109,7 @@ describe('ApiMediator.hmacHeaders.buildHmacHeaders — fail-closed (edge)', () =
       url: REQUEST_URL,
       body: { k: 'v' },
     });
-    expect(result).toBe(NO_HMAC_HEADERS);
+    expect(result).toEqual({});
   });
 });
 
@@ -125,14 +124,14 @@ describe('ApiMediator.hmacHeaders.buildHmacHeaders — partial directive (edge)'
     const signer = signerWithout(field);
     const session: SessionContext = { [HMAC_KEY_SLOT]: VALID_KEY_HEX, [HMAC_SIGNER_SLOT]: signer };
     const result = buildHmacHeaders({ session, method: 'POST', url: REQUEST_URL });
-    expect(result).toBe(NO_HMAC_HEADERS);
+    expect(result).toEqual({});
   });
 
   it.each(REQUIRED_HEADER_FIELDS)('returns no headers when %s is an empty string', field => {
     const signer = { ...SIGNER, [field]: '' };
     const session: SessionContext = { [HMAC_KEY_SLOT]: VALID_KEY_HEX, [HMAC_SIGNER_SLOT]: signer };
     const result = buildHmacHeaders({ session, method: 'POST', url: REQUEST_URL });
-    expect(result).toBe(NO_HMAC_HEADERS);
+    expect(result).toEqual({});
   });
 });
 

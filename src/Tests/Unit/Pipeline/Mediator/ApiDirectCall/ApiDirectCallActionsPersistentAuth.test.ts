@@ -12,7 +12,7 @@ import pino from 'pino';
 
 import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Logging/Debug.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
-import type { ITokenStrategy } from '../../../../../Scrapers/Pipeline/Mediator/Api/ITokenStrategy.js';
+import type ITokenStrategy from '../../../../../Scrapers/Pipeline/Mediator/Api/ITokenStrategy.js';
 import {
   runApiDirectCallAction,
   runApiDirectCallPre,

@@ -37,7 +37,7 @@ import type {
   WasResolverSet,
 } from './ApiMediator.types.js';
 import type { ITokenResolver } from './ITokenResolver.js';
-import type { ITokenStrategy } from './ITokenStrategy.js';
+import type ITokenStrategy from './ITokenStrategy.js';
 
 /**
  * Bind the raw-auth setter to the given mediator state.
