@@ -60,5 +60,3 @@ const GET_ACCOUNT_BALANCE = GET_ACCOUNT_BALANCE_QUERY;
 registerWkQuery('customer', HINT, GET_CUSTOMER);
 registerWkQuery('transactions', HINT, GET_MOVEMENTS);
 registerWkQuery('balance', HINT, GET_ACCOUNT_BALANCE);
-
-export { GET_ACCOUNT_BALANCE, GET_CUSTOMER, GET_MOVEMENTS };

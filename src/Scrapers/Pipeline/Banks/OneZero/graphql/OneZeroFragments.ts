@@ -36,4 +36,3 @@ export {
 } from './OneZeroFragmentsDetails.js';
 
 export { MOVEMENTS_FRAGMENTS_2 };
-export default MOVEMENTS_FRAGMENTS_2;

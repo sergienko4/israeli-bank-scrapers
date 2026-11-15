@@ -4,7 +4,7 @@
  * the HTTP-only phase sequence.
  */
 
-import { buildOneZeroPipeline } from '../../../../../Scrapers/Pipeline/Banks/OneZero/OneZeroPipeline.js';
+import buildOneZeroPipeline from '../../../../../Scrapers/Pipeline/Banks/OneZero/OneZeroPipeline.js';
 import { assertOk } from '../../../../Helpers/AssertProcedure.js';
 import { makeMockOptions } from '../../Infrastructure/MockFactories.js';
 

@@ -11,7 +11,7 @@
  * IApiDirectScrapeBankShapeCase into ALL_BANK_CASES.
  */
 
-import { ONE_ZERO_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/OneZero/scrape/OneZeroShape.js';
+import ONE_ZERO_SHAPE from '../../../../../Scrapers/Pipeline/Banks/OneZero/scrape/OneZeroShape.js';
 import type { IOneZeroAcct } from '../../../../../Scrapers/Pipeline/Banks/OneZero/scrape/OneZeroShapeHelpers.js';
 import { PAYBOX_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxShape.js';
 import type { IPayBoxAcct } from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxShapeHelpers.js';

@@ -14,7 +14,7 @@ import { buildIsracardPipeline } from '../../../../Scrapers/Pipeline/Banks/Israc
 import { buildMassadPipeline } from '../../../../Scrapers/Pipeline/Banks/Massad/MassadPipeline.js';
 import { buildMaxPipeline } from '../../../../Scrapers/Pipeline/Banks/Max/MaxPipeline.js';
 import { buildMercantilePipeline } from '../../../../Scrapers/Pipeline/Banks/Mercantile/MercantilePipeline.js';
-import { buildOneZeroPipeline } from '../../../../Scrapers/Pipeline/Banks/OneZero/OneZeroPipeline.js';
+import buildOneZeroPipeline from '../../../../Scrapers/Pipeline/Banks/OneZero/OneZeroPipeline.js';
 import { buildOtsarHahayalPipeline } from '../../../../Scrapers/Pipeline/Banks/OtsarHahayal/OtsarHahayalPipeline.js';
 import { buildPagiPipeline } from '../../../../Scrapers/Pipeline/Banks/Pagi/PagiPipeline.js';
 import { buildPayBoxPipeline } from '../../../../Scrapers/Pipeline/Banks/PayBox/PayBoxPipeline.js';
