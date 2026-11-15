@@ -9,7 +9,7 @@
 
 import type { ITransaction } from '../../../../Transactions.js';
 import type { IWindowCoverage, WindowCaveat } from '../../../../WindowCoverage.js';
-import { reportMapRejects } from '../../Mediator/Scrape/CoverageAudit/MapRejects.js';
+import reportMapRejects from '../../Mediator/Scrape/CoverageAudit/MapRejects.js';
 import { classifyWindowCoverage } from '../../Mediator/Scrape/CoverageAudit/WindowCoverageVerdict.js';
 import applyStartWindow from '../../Mediator/Scrape/StartWindow.js';
 import collapseDuplicates from '../../Mediator/Scrape/TxnDedup.js';

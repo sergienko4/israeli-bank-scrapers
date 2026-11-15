@@ -3,10 +3,8 @@
  */
 
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
-import {
-  BasePhase,
-  type IsPrePayloadValid,
-} from '../../../../Scrapers/Pipeline/Phases/Base/BasePhase.js';
+import BasePhase from '../../../../Scrapers/Pipeline/Phases/Base/BasePhase.js';
+import type { Brand } from '../../../../Scrapers/Pipeline/Types/Brand.js';
 import type PhaseName from '../../../../Scrapers/Pipeline/Types/Phase.js';
 import type {
   IActionContext,
@@ -15,6 +13,8 @@ import type {
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockContext } from '../Infrastructure/MockFactories.js';
+
+type IsPrePayloadValid = Brand<boolean, 'IsPrePayloadValid'>;
 
 /** Concrete BasePhase subclass that records lifecycle calls. */
 class DummyPhase extends BasePhase {

@@ -43,7 +43,7 @@ export interface IWindowRequestPolicy {
 }
 
 /** Every stance that cannot close a gap by asking again. */
-export type UnbackfillableStance = Exclude<WindowNarrowing, 'windowEnd'>;
+type UnbackfillableStance = Exclude<WindowNarrowing, 'windowEnd'>;
 
 /**
  * Why each excluded stance cannot close a coverage gap by re-asking.

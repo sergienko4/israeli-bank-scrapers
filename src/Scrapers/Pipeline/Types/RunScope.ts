@@ -88,5 +88,5 @@ function openRunScope<T>(bank: string, fn: () => T): T {
   return RUN_SCOPE.run(scope, fn);
 }
 
-export type { IRunScope, IRunTrace };
+export type { IRunTrace };
 export { currentRunScope, makeRunTrace, noteRunLogFile, openRunScope };

@@ -103,7 +103,9 @@ Yahav exposes the same decision through `IWindowRequestPolicy`: an optional
 fail-closed plan validator paired with the required declaration of how its
 request window can be narrowed. Keeping that contract beside
 `WindowNarrowing` lets orchestration consume one provider-agnostic policy
-without a bank-name branch.
+without a bank-name branch. The unbackfillable-stance alias that
+`BACKFILL_EXCLUSION` keys on stays module-private; consumers use the exported
+`WindowNarrowing` union and `IWindowRequestPolicy`.
 
 ## Zone-less strings resolve in the bank zone too
 

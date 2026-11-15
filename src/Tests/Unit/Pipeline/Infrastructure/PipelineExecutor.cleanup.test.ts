@@ -11,7 +11,7 @@ import ScraperError from '../../../../Scrapers/Base/ScraperError.js';
 import executePipeline from '../../../../Scrapers/Pipeline/Core/Executor/PipelineExecutor.js';
 import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
 import type { IApiMediator } from '../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
-import type { BasePhase } from '../../../../Scrapers/Pipeline/Phases/Base/BasePhase.js';
+import type BasePhase from '../../../../Scrapers/Pipeline/Phases/Base/BasePhase.js';
 import { some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IActionContext } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';

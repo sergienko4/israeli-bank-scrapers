@@ -3,7 +3,7 @@
  * Phases built with it only need ACTION; pre/post/final are BasePhase no-ops.
  */
 
-import { BasePhase } from '../../../../Scrapers/Pipeline/Phases/Base/BasePhase.js';
+import BasePhase from '../../../../Scrapers/Pipeline/Phases/Base/BasePhase.js';
 import type PhaseName from '../../../../Scrapers/Pipeline/Types/Phase.js';
 import type { IActionContext } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';

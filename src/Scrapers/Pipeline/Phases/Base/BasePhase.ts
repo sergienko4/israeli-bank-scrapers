@@ -17,7 +17,7 @@ import { fail, succeed } from '../../Types/Procedure.js';
 import { PHASE_STAGE_EVENT, traceReason, traceTag } from './PhaseTrace.js';
 
 /** PRE-payload validation outcome — branded for Rule #15. */
-export type IsPrePayloadValid = Brand<boolean, 'IsPrePayloadValid'>;
+type IsPrePayloadValid = Brand<boolean, 'IsPrePayloadValid'>;
 
 /** Uppercase stage tag emitted in trace events + ActiveState. */
 type StageTagUpper = 'PRE' | 'ACTION' | 'POST' | 'FINAL';
@@ -193,4 +193,3 @@ abstract class BasePhase {
 }
 
 export default BasePhase;
-export { BasePhase };

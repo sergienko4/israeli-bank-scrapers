@@ -17,16 +17,13 @@ import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { Procedure } from '../../Types/Procedure.js';
 
 /** Trace tag — 'OK' or 'FAIL'. */
-export type TraceTagStr = Brand<string, 'TraceTagStr'>;
+type TraceTagStr = Brand<string, 'TraceTagStr'>;
 
 /** Pino log-event discriminator emitted by every phase-stage debug line. */
 export const PHASE_STAGE_EVENT = 'phase-stage' as const;
 
 /** Lookup for success/fail trace tags. */
-export const RESULT_TAG: Record<
-  string,
-  PipelineLogEvent['event'] extends string ? string : never
-> = {
+const RESULT_TAG: Record<string, PipelineLogEvent['event'] extends string ? string : never> = {
   true: 'OK',
   false: 'FAIL',
 };
