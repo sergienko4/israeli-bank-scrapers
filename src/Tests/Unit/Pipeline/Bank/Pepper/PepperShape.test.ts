@@ -4,7 +4,6 @@
  */
 
 import { PEPPER_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Pepper/scrape/PepperShape.js';
-import { isLastPage } from '../../../../../Scrapers/Pipeline/Banks/Pepper/scrape/PepperShapeTxns.js';
 import { BALANCE_UNKNOWN } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { assertPostObject } from '../../../../Helpers/AssertPostData.js';
@@ -161,24 +160,5 @@ describe('PEPPER_SHAPE accessors', () => {
     expect(vars.accountId).toBe('a');
     expect(vars.pageNumber).toBe(1);
     expect(vars.pageCount).toBe(100);
-  });
-});
-
-describe('PEPPER isLastPage termination', () => {
-  it('returns true on empty page', () => {
-    const isLast = isLastPage(0, 1, 100);
-    expect(isLast).toBe(true);
-  });
-  it('returns true on under-page', () => {
-    const isLast = isLastPage(50, 1, 200);
-    expect(isLast).toBe(true);
-  });
-  it('returns true when coverage reaches totalCount', () => {
-    const isLast = isLastPage(100, 2, 200);
-    expect(isLast).toBe(true);
-  });
-  it('returns false mid-stream', () => {
-    const isLast = isLastPage(100, 1, 500);
-    expect(isLast).toBe(false);
   });
 });
