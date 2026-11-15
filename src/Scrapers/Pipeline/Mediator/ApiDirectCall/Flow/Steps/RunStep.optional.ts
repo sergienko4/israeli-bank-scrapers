@@ -110,5 +110,4 @@ function extractOptional(resp: JsonValue, step: IStepConfig, prior: CarryMap): C
   return entries.reduce((acc, entry): CarryMap => absorbOptional(acc, entry, fold), empty);
 }
 
-export default extractOptional;
 export { extractOptional, optionalRawValue };

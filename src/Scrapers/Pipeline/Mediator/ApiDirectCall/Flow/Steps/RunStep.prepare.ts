@@ -253,7 +253,4 @@ function buildDispatchBundle(input: IBuildDispatchArgs): Procedure<IDispatchBund
   return finalizeDispatch(opts);
 }
 
-export default buildDispatchBundle;
-
 export { buildDispatchBundle, mergeScopeCarry };
-export type { IBuildDispatchArgs };

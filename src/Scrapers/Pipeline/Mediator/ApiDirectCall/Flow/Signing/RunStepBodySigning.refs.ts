@@ -107,11 +107,4 @@ function resolveIvBytes(ref: string, scope: ITemplateScope): Procedure<Buffer> {
   return succeed(bytes);
 }
 
-export {
-  REF_MISS,
-  resolveDottedPath,
-  resolveIvBytes,
-  resolveKeyBytes,
-  resolveRefValue,
-  stripCarryPrefix,
-};
+export { resolveIvBytes, resolveKeyBytes, stripCarryPrefix };

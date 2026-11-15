@@ -60,5 +60,4 @@ function guardBankError(step: IStepConfig, resp: JsonValue): Procedure<true> {
   return bankErrorOf(step);
 }
 
-export default guardBankError;
 export { bankErrorOf, guardBankError };

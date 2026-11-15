@@ -122,5 +122,4 @@ function sendTargetOf(input: IStepUrlInput, url: string): WKUrlOrLiteral {
   return isPlainStep(input) ? input.step.urlTag : literalUrl(url);
 }
 
-export type { IStepUrlInput };
 export { sendTargetOf, stepBaseUrlOf, stepUrlOf };

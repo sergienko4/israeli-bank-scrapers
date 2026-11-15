@@ -111,6 +111,4 @@ function writeAtPointer(doc: DocObj, pointer: string, value: DocValue): Procedur
   return descendAndWrite({ cursor: doc, parts, value, root: doc });
 }
 
-export default writeAtPointer;
-
 export { decodePointerSegments, writeAtPointer };
