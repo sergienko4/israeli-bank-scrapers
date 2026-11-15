@@ -1,6 +1,6 @@
 /**
  * ApiDirectScrape shape — generic per-bank contract consumed by the
- * createApiDirectScrapePhase factory. Pure data: WK query labels,
+ * buildApiDirectScrapePhase factory. Pure data: WK query labels,
  * variable builders, response unwrappers, pagination cursor shape.
  * Zero bank-name coupling here.
  *
@@ -448,7 +448,7 @@ export interface IResponseSessionSpec {
 }
 
 /**
- * Shape a bank plugs into createApiDirectScrapePhase.
+ * Shape a bank plugs into buildApiDirectScrapePhase.
  *
  * <p>A shape that cannot build a truthful value rejects the payload rather than
  * fabricating one, and the phase guards the seven callbacks that read a payload

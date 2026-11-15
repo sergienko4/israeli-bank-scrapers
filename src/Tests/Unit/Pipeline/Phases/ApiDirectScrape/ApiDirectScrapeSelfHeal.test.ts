@@ -10,12 +10,10 @@
  * degraded scenario runs cross-bank over the synthetic, Pepper and OneZero
  * shapes; the gating + recovery-failure edges run on the synthetic case.
  */
-
 import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
-import { createApiDirectScrapePhase } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.js';
 import type { IApiDirectScrapeShape } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import { checkResponseIntegrity } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/ResponseIntegrityCheck.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
@@ -26,6 +24,7 @@ import type {
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { assertHas, assertOk } from '../../../../Helpers/AssertProcedure.js';
+import runScrapeAction from '../../../../Helpers/ScrapeAction.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
 import {
   type AnyBankCase,
@@ -124,7 +123,7 @@ describe.each([SYN_CASE, PEPPER_CASE, ONEZERO_CASE] as readonly AnyBankCase[])(
         recover: succeed('fresh-cold-token'),
       });
       const shape = degradedShape(bankCase);
-      const phase = createApiDirectScrapePhase(shape);
+      const phase = runScrapeAction(shape);
       const ctx = ctxOf(bus, bankCase.name);
       const result = await phase(ctx);
       assertOk(result);
@@ -150,7 +149,7 @@ describe('ApiDirectScrape self-heal — gating + recovery failure (synthetic)', 
       isWarm: true,
       recover: succeed('unused'),
     });
-    const phase = createApiDirectScrapePhase(synShape);
+    const phase = runScrapeAction(synShape);
     const ctx = ctxOf(bus, SYN_CASE.name);
     const result = await phase(ctx);
     assertOk(result);
@@ -171,7 +170,7 @@ describe('ApiDirectScrape self-heal — gating + recovery failure (synthetic)', 
       recover: succeed('unused'),
     });
     const shape = degradedShape(SYN_CASE);
-    const phase = createApiDirectScrapePhase(shape);
+    const phase = runScrapeAction(shape);
     const ctx = ctxOf(bus, SYN_CASE.name);
     const result = await phase(ctx);
     assertOk(result);
@@ -190,7 +189,7 @@ describe('ApiDirectScrape self-heal — gating + recovery failure (synthetic)', 
       isWarm: true,
       recover: fail(ScraperErrorTypes.Generic, 'cold re-login failed'),
     });
-    const phase = createApiDirectScrapePhase(synShape);
+    const phase = runScrapeAction(synShape);
     const ctx = ctxOf(bus, SYN_CASE.name);
     const result = await phase(ctx);
     expect(result.success).toBe(false);
@@ -208,7 +207,7 @@ describe('ApiDirectScrape self-heal — gating + recovery failure (synthetic)', 
       recover: fail(ScraperErrorTypes.Generic, 'cold re-login failed'),
     });
     const shape = degradedShape(SYN_CASE);
-    const phase = createApiDirectScrapePhase(shape);
+    const phase = runScrapeAction(shape);
     const ctx = ctxOf(bus, SYN_CASE.name);
     const result = await phase(ctx);
     assertOk(result);
@@ -233,7 +232,7 @@ describe('ApiDirectScrape self-heal — gating + recovery failure (synthetic)', 
       recover: succeed('fresh-cold-token'),
     });
     const shape = degradedShape(SYN_CASE);
-    const phase = createApiDirectScrapePhase(shape);
+    const phase = runScrapeAction(shape);
     const ctx = ctxOf(bus, SYN_CASE.name);
     const result = await phase(ctx);
     assertOk(result);
@@ -252,7 +251,7 @@ describe('ApiDirectScrape self-heal — gating + recovery failure (synthetic)', 
       recover: succeed('fresh-cold-token'),
     });
     const shape = degradedShape(SYN_CASE);
-    const phase = createApiDirectScrapePhase(shape);
+    const phase = runScrapeAction(shape);
     const ctx = ctxOf(bus, SYN_CASE.name);
     const result = await phase(ctx);
     assertOk(result);
@@ -274,7 +273,7 @@ describe('ApiDirectScrape self-heal — gating + recovery failure (synthetic)', 
       recover: succeed('unused'),
     });
     const shape = degradedShape(SYN_CASE);
-    const phase = createApiDirectScrapePhase(shape);
+    const phase = runScrapeAction(shape);
     const ctx = ctxOf(bus, SYN_CASE.name);
     const result = await phase(ctx);
     assertOk(result);
@@ -306,7 +305,7 @@ describe('ApiDirectScrape self-heal — Pepper deployed shape (issue #550)', () 
       isWarm: true,
       recover: succeed('fresh-cold-token'),
     });
-    const phase = createApiDirectScrapePhase(pepperShape);
+    const phase = runScrapeAction(pepperShape);
 
     const ctx = ctxOf(bus, PEPPER_CASE.name);
     const result = await phase(ctx);
@@ -332,7 +331,7 @@ describe('ApiDirectScrape self-heal — Pepper deployed shape (issue #550)', () 
       isWarm: true,
       recover: fail(ScraperErrorTypes.Generic, 'cold re-login failed'),
     });
-    const phase = createApiDirectScrapePhase(pepperShape);
+    const phase = runScrapeAction(pepperShape);
 
     const ctx = ctxOf(bus, PEPPER_CASE.name);
     const result = await phase(ctx);
@@ -374,7 +373,7 @@ describe('ApiDirectScrape self-heal — response integrity refusal is terminal',
         recover: succeed('fresh-cold-token'),
       });
       const shape = degradedShape(SYN_CASE);
-      const phase = createApiDirectScrapePhase(shape);
+      const phase = runScrapeAction(shape);
       const ctx = ctxOf(bus, SYN_CASE.name);
       const result = await phase(ctx);
       expect(result).toEqual(refusal);
@@ -395,7 +394,7 @@ describe('ApiDirectScrape self-heal — response integrity refusal is terminal',
         recover: succeed('fresh-cold-token'),
       });
       const shape = degradedShape(SYN_CASE);
-      const phase = createApiDirectScrapePhase(shape);
+      const phase = runScrapeAction(shape);
       const ctx = ctxOf(bus, SYN_CASE.name);
       const result = await phase(ctx);
       expect(result).toMatchObject(INTEGRITY_REFUSED);
@@ -414,7 +413,7 @@ describe('ApiDirectScrape self-heal — response integrity refusal is terminal',
       recover: INTEGRITY_REFUSED,
     });
     const shape = degradedShape(SYN_CASE);
-    const phase = createApiDirectScrapePhase(shape);
+    const phase = runScrapeAction(shape);
     const ctx = ctxOf(bus, SYN_CASE.name);
     const result = await phase(ctx);
     expect(result).toEqual(INTEGRITY_REFUSED);
@@ -436,7 +435,7 @@ describe.each([SYN_CASE, PEPPER_CASE, ONEZERO_CASE] as readonly AnyBankCase[])(
         recover: succeed('fresh-cold-token'),
       });
       const shape = degradedShape(bankCase);
-      const phase = createApiDirectScrapePhase(shape);
+      const phase = runScrapeAction(shape);
 
       const ctx = ctxOf(bus, bankCase.name);
       const result = await phase(ctx);
@@ -452,7 +451,7 @@ describe.each([SYN_CASE, PEPPER_CASE, ONEZERO_CASE] as readonly AnyBankCase[])(
         recover: succeed('fresh-cold-token'),
       });
       const shape = degradedShape(bankCase);
-      const phase = createApiDirectScrapePhase(shape);
+      const phase = runScrapeAction(shape);
 
       const ctx = ctxOf(bus, bankCase.name);
       const result = await phase(ctx);
@@ -472,7 +471,7 @@ describe.each([SYN_CASE, PEPPER_CASE, ONEZERO_CASE] as readonly AnyBankCase[])(
         recover: EDGE_REFUSED,
       });
       const shape = degradedShape(bankCase);
-      const phase = createApiDirectScrapePhase(shape);
+      const phase = runScrapeAction(shape);
 
       const ctx = ctxOf(bus, bankCase.name);
       const result = await phase(ctx);
@@ -488,7 +487,7 @@ describe.each([SYN_CASE, PEPPER_CASE, ONEZERO_CASE] as readonly AnyBankCase[])(
         recover: EDGE_REFUSED,
       });
       const shape = degradedShape(bankCase);
-      const phase = createApiDirectScrapePhase(shape);
+      const phase = runScrapeAction(shape);
 
       const ctx = ctxOf(bus, bankCase.name);
       const result = await phase(ctx);

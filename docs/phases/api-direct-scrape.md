@@ -162,7 +162,7 @@ Each api-direct bank declares its own `IApiDirectScrapeShape`:
 
 The shape interface (`balanceVars`, `balanceExtract`, `txnVars`, `txnExtract`) is uniform; only the per-bank closures differ.
 
-Every shape goes through one factory, `buildGenericApiDirectScrape`, which turns it into the phase's scrape function. The phase builders `createApiDirectScrapePhase` and `buildApiDirectScrapePhase` call it, so no bank brings its own scrape loop.
+Every shape goes through one factory, `buildGenericApiDirectScrape`, which turns it into the phase's scrape function. The `buildApiDirectScrapePhase` builder calls it, so no bank brings its own scrape loop.
 
 ## Shared family shapes — one contract, several brands
 

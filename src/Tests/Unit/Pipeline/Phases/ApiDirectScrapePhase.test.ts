@@ -6,17 +6,19 @@
  * balances. This file pins both branches of the absent-scrape guard.
  */
 
-import { ApiDirectScrapePhase } from '../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.js';
+import { buildApiDirectScrapePhase } from '../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.js';
+import type { IApiDirectScrapeShape } from '../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import { none, some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import { isOk } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { assertHas, assertOk } from '../../../Helpers/AssertProcedure.js';
 import { makeMockContext } from '../Infrastructure/MockFactories.js';
 
+/** The phase's FINAL stage never invokes the shape's scrape action, so a stub shape is enough. */
+const PHASE = buildApiDirectScrapePhase({} as IApiDirectScrapeShape<unknown, unknown>);
+
 describe('ApiDirectScrapePhase — v6 .final balanceResolution emission', () => {
   it('FINAL: emits balanceResolution from scrape.accounts when scrape is present', async () => {
-    const phase = Reflect.construct(ApiDirectScrapePhase, [
-      (): Promise<never> => Promise.reject(new Error('action not used')),
-    ]);
+    const phase = PHASE;
     const ctx = makeMockContext({
       scrape: some({
         accounts: [
@@ -38,9 +40,7 @@ describe('ApiDirectScrapePhase — v6 .final balanceResolution emission', () => 
   });
 
   it('FINAL: passes input through unchanged when scrape is absent', async () => {
-    const phase = Reflect.construct(ApiDirectScrapePhase, [
-      (): Promise<never> => Promise.reject(new Error('action not used')),
-    ]);
+    const phase = PHASE;
     const ctx = makeMockContext({ scrape: none() });
     const result = await phase.final(ctx, ctx);
     const isSuccess = isOk(result);
@@ -51,9 +51,7 @@ describe('ApiDirectScrapePhase — v6 .final balanceResolution emission', () => 
   });
 
   it('FINAL: missing balance is OMITTED from the resolution map (default-deny)', async () => {
-    const phase = Reflect.construct(ApiDirectScrapePhase, [
-      (): Promise<never> => Promise.reject(new Error('action not used')),
-    ]);
+    const phase = PHASE;
     const ctx = makeMockContext({
       scrape: some({
         accounts: [{ accountNumber: 'ACC-NULL', txns: [] }],

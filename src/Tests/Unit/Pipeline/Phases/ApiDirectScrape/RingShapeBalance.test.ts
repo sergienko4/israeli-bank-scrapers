@@ -14,7 +14,6 @@ import type { ApiBody } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectS
 import {
   balanceIsAbsent,
   balanceVars,
-  nextDebitMonth,
   nextDebitOf,
 } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/Ring/RingShapeBalance.js';
 import type { IRingCard } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/Ring/RingShapeCards.js';
@@ -56,6 +55,10 @@ const NO_TOTAL = withVouchers({ israelAbroadVouchersList: [] });
 const NULL_TOTAL = withVouchers({ israelAbroadVouchersList: [], totalForStatement: null });
 
 describe('ring next debit month', () => {
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   it.each([
     ['2026-10-05', 10, '01/10/2026'],
     ['2026-10-10', 10, '01/10/2026'],
@@ -63,9 +66,12 @@ describe('ring next debit month', () => {
     ['2026-12-20', 2, '01/01/2027'],
     ['2026-10-29', false, '01/10/2026'],
   ] as const)('on %s with debit day %p is %s', (day, paymentDay, expected) => {
+    jest.useFakeTimers();
     const today = bankDay(day);
-    const month = nextDebitMonth(today, paymentDay);
-    expect(month).toBe(expected);
+    const todayInstant = today.toDate();
+    jest.setSystemTime(todayInstant);
+    const vars = balanceVars({ ...CARD, paymentDay });
+    expect(vars.Data).toMatchObject({ billingMonth: expected });
   });
 
   describe('balance request (frozen clock)', () => {

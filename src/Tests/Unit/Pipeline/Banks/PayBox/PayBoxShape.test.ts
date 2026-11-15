@@ -1,6 +1,6 @@
 /**
  * Integration test for the PayBox scrape shape end-to-end against
- * `createApiDirectScrapePhase`. Exercises the full PRE → ACTION → POST
+ * `runScrapeAction`. Exercises the full PRE → ACTION → POST
  * walk with a router-backed mediator covering both account variants
  * (wallet via /getUserHistory + debit via /virtualCardTranRequest).
  *
@@ -10,7 +10,6 @@
  * urlTag dispatch). Edge cases (empty pages, missing session
  * context) are unit-pinned at the end of the file.
  */
-
 import ONE_ZERO_SHAPE from '../../../../../Scrapers/Pipeline/Banks/OneZero/scrape/OneZeroShape.js';
 import PAYBOX_SHAPE from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxShape.js';
 import {
@@ -28,10 +27,7 @@ import {
 } from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxShapeTxns.js';
 import { PEPPER_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Pepper/scrape/PepperShape.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
-import {
-  buildApiDirectScrapePhase,
-  createApiDirectScrapePhase,
-} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.js';
+import { buildApiDirectScrapePhase } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
   IActionContext,
@@ -41,6 +37,7 @@ import type {
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { assertHas, assertOk } from '../../../../Helpers/AssertProcedure.js';
+import runScrapeAction from '../../../../Helpers/ScrapeAction.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
 import { ctxOf, FIXT_DEVICE, FIXT_TOKEN, FIXT_UID, makePayBoxBus } from './PayBoxBusFactory.js';
 
@@ -60,7 +57,7 @@ describe('PayBoxShape integration — wallet', () => {
         succeed({ content: { nc: [{ ts: 'null' }] } }),
       ],
     });
-    const phase = createApiDirectScrapePhase(PAYBOX_SHAPE);
+    const phase = runScrapeAction(PAYBOX_SHAPE);
     const ctx = ctxOf(bus);
     const result = await phase(ctx);
     assertOk(result);
@@ -346,7 +343,7 @@ describe('PayBoxShape result-guard (fail-closed) — PB-GUARD', () => {
    * @returns Whether the scrape refused to produce a result.
    */
   async function scrapeVerdict(bus: IApiMediator): Promise<'failed' | 'succeeded'> {
-    const scrapeFn = createApiDirectScrapePhase(PAYBOX_SHAPE);
+    const scrapeFn = runScrapeAction(PAYBOX_SHAPE);
     const ctx = ctxOf(bus);
     try {
       const scraped = await scrapeFn(ctx);
@@ -363,7 +360,7 @@ describe('PayBoxShape result-guard (fail-closed) — PB-GUARD', () => {
    * @returns POST-stage procedure (failure ⇒ guard fired).
    */
   async function postAfterScrape(bus: IApiMediator): Promise<Procedure<IPipelineContext>> {
-    const scrapeFn = createApiDirectScrapePhase(PAYBOX_SHAPE);
+    const scrapeFn = runScrapeAction(PAYBOX_SHAPE);
     const ctx = ctxOf(bus);
     const scraped = await scrapeFn(ctx);
     assertOk(scraped);
@@ -408,7 +405,7 @@ describe('PayBoxShape result-guard (fail-closed) — PB-GUARD', () => {
       balance: [succeed({ content: { userFunds: { balance: 100 } } })],
       transactions: [succeed({ content: { nc: [row] } }), succeed({ content: { nc: [] } })],
     });
-    const scrapeFn = createApiDirectScrapePhase(PAYBOX_SHAPE);
+    const scrapeFn = runScrapeAction(PAYBOX_SHAPE);
     const ctx = ctxOf(bus);
     const scraped = await scrapeFn(ctx);
     assertOk(scraped);
@@ -476,7 +473,7 @@ describe('PayBoxShape result-guard (fail-closed) — PB-GUARD', () => {
   });
 
   it('PB-GUARD-6 absent balanceDegraded reads as not-degraded (guard stays silent)', async () => {
-    const scrapeFn = createApiDirectScrapePhase(PAYBOX_SHAPE);
+    const scrapeFn = runScrapeAction(PAYBOX_SHAPE);
     const bus = makePayBoxBus({
       balance: [succeed({ content: { userFunds: { balance: 100 } } })],
       transactions: [succeed({ content: { nc: [] } })],

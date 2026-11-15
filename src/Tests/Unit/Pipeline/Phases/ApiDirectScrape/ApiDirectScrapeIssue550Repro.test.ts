@@ -21,7 +21,6 @@
  * attested only by the reporter, which is why the shape carries an ALLOW-list
  * of supported categories rather than a deny-list of reported-bad ones.
  */
-
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import { extractAccounts } from '../../../../../Scrapers/Pipeline/Banks/Pepper/scrape/PepperShapeHelpers.js';
@@ -30,7 +29,6 @@ import {} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirec
 import {
   type ApiDirectScrapeResult,
   buildApiDirectScrapePhase,
-  createApiDirectScrapePhase,
 } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.js';
 import type { IApiDirectScrapeShape } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
@@ -42,6 +40,7 @@ import type {
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { assertHas, assertOk } from '../../../../Helpers/AssertProcedure.js';
+import runScrapeAction from '../../../../Helpers/ScrapeAction.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
 import { ONEZERO_CASE, PEPPER_CASE } from './ApiDirectScrapeBankShapes.js';
 import { makeRouterBus } from './ApiDirectScrapeRouterBus.js';
@@ -173,7 +172,7 @@ function pepperContext(bus: IApiMediator): IActionContext {
  * @returns Procedure emitted by the action.
  */
 async function runPepperAction(bus: IApiMediator): Promise<Procedure<ApiDirectScrapeResult>> {
-  const phase = createApiDirectScrapePhase(PEPPER_CASE.shape);
+  const phase = runScrapeAction(PEPPER_CASE.shape);
   const ctx = pepperContext(bus);
   return phase(ctx);
 }
@@ -181,7 +180,7 @@ async function runPepperAction(bus: IApiMediator): Promise<Procedure<ApiDirectSc
 /**
  * Run the Pepper phase ACTION and then POST, so the shape's result guard —
  * `zeroAccountsGuard` for Pepper, which declares none of its own — actually
- * runs. `createApiDirectScrapePhase` alone bypasses every guard.
+ * runs. `runScrapeAction` alone bypasses every guard.
  * @param bus - Pre-loaded mediator.
  * @returns Procedure emitted after the guard stage.
  */
@@ -252,7 +251,7 @@ async function logLinesOf<TAcct, TCursor>(
   bus: IApiMediator,
   level: 'info' | 'warn',
 ): Promise<readonly LogLine[]> {
-  const phase = createApiDirectScrapePhase(shape);
+  const phase = runScrapeAction(shape);
   const base = pepperContext(bus);
   const sink: LogLine[] = [];
   /**
@@ -526,7 +525,7 @@ async function runShape(
   shape: IApiDirectScrapeShape<unknown, unknown>,
   bus: IApiMediator,
 ): Promise<Procedure<ApiDirectScrapeResult>> {
-  const phase = createApiDirectScrapePhase(shape);
+  const phase = runScrapeAction(shape);
   const ctx = pepperContext(bus);
   return phase(ctx);
 }
@@ -697,7 +696,7 @@ async function runWithBrokenWarn<TAcct, TCursor>(
   shape: IApiDirectScrapeShape<TAcct, TCursor>,
   bus: IApiMediator,
 ): Promise<Procedure<ApiDirectScrapeResult>> {
-  const phase = createApiDirectScrapePhase(shape);
+  const phase = runScrapeAction(shape);
   const base = pepperContext(bus);
   const logger = Object.create(base.logger) as IActionContext['logger'];
   logger.warn = EXPLODE;
@@ -718,7 +717,7 @@ async function warnLinesWithBrokenInfo<TAcct, TCursor>(
   shape: IApiDirectScrapeShape<TAcct, TCursor>,
   bus: IApiMediator,
 ): Promise<readonly LogLine[]> {
-  const phase = createApiDirectScrapePhase(shape);
+  const phase = runScrapeAction(shape);
   const base = pepperContext(bus);
   const sink: LogLine[] = [];
   /**

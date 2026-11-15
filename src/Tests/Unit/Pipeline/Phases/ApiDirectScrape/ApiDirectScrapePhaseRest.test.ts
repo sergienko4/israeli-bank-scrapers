@@ -25,16 +25,12 @@
  * scrape-shape signer rely on the login-flow's signer scope, which is
  * what RunStepCrypto exercises end-to-end.
  */
-
 import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import type { JsonValueTemplate } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
-import {
-  buildApiDirectScrapePhase,
-  createApiDirectScrapePhase,
-} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.js';
+import { buildApiDirectScrapePhase } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.js';
 import type { IApiDirectScrapeShape } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import { none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
@@ -45,6 +41,7 @@ import type {
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { assertHas, assertOk } from '../../../../Helpers/AssertProcedure.js';
+import runScrapeAction from '../../../../Helpers/ScrapeAction.js';
 import { makeMockContext, makeRecoverySessionStubs } from '../../Infrastructure/MockFactories.js';
 
 /** REST account ref — minimum payload the REST shape extractor returns. */
@@ -306,14 +303,14 @@ function isBalanceCapture(c: IPostCapture): boolean {
   return c.url === 'identity.otpPrepare';
 }
 
-describe('createApiDirectScrapePhase ApiDirectScrape REST flow', () => {
+describe('ApiDirectScrape ApiDirectScrape REST flow', () => {
   it('ADS-REST-1 dispatches via apiPost, hydrates template, extracts accounts', async () => {
     const captures: IPostCapture[] = [];
     const router = makeHappyRouter();
     const bus = makeRestBus(router, captures);
     const ctx = makeRestCtx(bus);
     const shape = makeRestShape();
-    const phase = createApiDirectScrapePhase(shape);
+    const phase = runScrapeAction(shape);
     const result = await phase(ctx);
     assertOk(result);
     const scr = result.value.scrape;
@@ -334,7 +331,7 @@ describe('createApiDirectScrapePhase ApiDirectScrape REST flow', () => {
     const bus = makeRestBus(router, []);
     const ctx = makeRestCtx(bus);
     const shape = makeRestShape();
-    const phase = createApiDirectScrapePhase(shape);
+    const phase = runScrapeAction(shape);
     const result = await phase(ctx);
     assertOk(result);
     const scr = result.value.scrape;
@@ -349,7 +346,7 @@ describe('createApiDirectScrapePhase ApiDirectScrape REST flow', () => {
     const bus = makeRestBus(router, captures);
     const ctx = makeRestCtx(bus);
     const shape = makeRestShape();
-    const phase = createApiDirectScrapePhase(shape);
+    const phase = runScrapeAction(shape);
     const result = await phase(ctx);
     expect(result.success).toBe(true);
     // 3 captures (customer + balance + transactions), each carrying
@@ -370,14 +367,14 @@ describe('createApiDirectScrapePhase ApiDirectScrape REST flow', () => {
     const bus = makeRestBus(router, captures);
     const ctx = makeRestCtx(bus);
     const shape = makeRestShape();
-    const phase = createApiDirectScrapePhase(shape);
+    const phase = runScrapeAction(shape);
     const result = await phase(ctx);
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errorMessage).toBe('REST transport boom');
   });
 });
 
-describe('createApiDirectScrapePhase ApiDirectScrape dynamic urlTag + skipFetch', () => {
+describe('ApiDirectScrape ApiDirectScrape dynamic urlTag + skipFetch', () => {
   it('ADS-REST-DYN-1 resolves a function-producer urlTag against the driver context', async () => {
     const captures: IPostCapture[] = [];
     const router = makeHappyRouter();
@@ -396,7 +393,7 @@ describe('createApiDirectScrapePhase ApiDirectScrape dynamic urlTag + skipFetch'
       ...baseShape,
       customer: { ...baseShape.customer, urlTag: customerUrlProducer },
     };
-    const phase = createApiDirectScrapePhase(shape);
+    const phase = runScrapeAction(shape);
     const result = await phase(ctx);
     expect(result.success).toBe(true);
     expect(captures.length).toBeGreaterThanOrEqual(1);
@@ -421,7 +418,7 @@ describe('createApiDirectScrapePhase ApiDirectScrape dynamic urlTag + skipFetch'
       ...baseShape,
       customer: { ...baseShape.customer, skipFetch: true, extractAccounts: extractFromSession },
     };
-    const phase = createApiDirectScrapePhase(shape);
+    const phase = runScrapeAction(shape);
     const result = await phase(ctx);
     expect(result.success).toBe(true);
     // 2 captures only (balance + transactions) — customer is skipped.
@@ -438,7 +435,7 @@ describe('createApiDirectScrapePhase ApiDirectScrape dynamic urlTag + skipFetch'
       ...baseShape,
       balance: { ...baseShape.balance, skipFetch: true, extract: zeroBalance },
     };
-    const phase = createApiDirectScrapePhase(shape);
+    const phase = runScrapeAction(shape);
     const result = await phase(ctx);
     assertOk(result);
     const scr = result.value.scrape;

@@ -5,7 +5,7 @@
  * dispatcher's signer pipeline (`maybeSignBody` → `buildPrimedScrapeScope`
  * → `freshIvHex`) runs against the frozen `SCRAPE_CONFIG_SENTINEL`,
  * whose `secrets` slot is empty by design — so the signer branch
- * fails fast when invoked through {@link createApiDirectScrapePhase}
+ * fails fast when invoked through {@link runScrapeAction}
  * with a shape-root signer. This file exercises that branch directly,
  * plus the `asPlainObject` failure (bodyTemplate hydrates to non-object).
  *
@@ -13,7 +13,6 @@
  * the {@link dispatchStep} surface is the public seam the scrape phase
  * delegates to, so this is the natural boundary for those edges.
  */
-
 import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';

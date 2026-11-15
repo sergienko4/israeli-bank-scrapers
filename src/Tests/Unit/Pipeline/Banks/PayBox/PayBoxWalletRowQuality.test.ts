@@ -15,15 +15,14 @@
  * Both defects survived every existing suite and only surfaced in a live
  * run, which is exactly what this file exists to prevent.
  */
-
 import PAYBOX_SHAPE from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxShape.js';
 import type { IPayBoxAcct } from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxShapeHelpers.js';
 import { mapWalletTxn } from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxShapeMap.js';
 import { txnsExtractPage } from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxShapeTxns.js';
-import { createApiDirectScrapePhase } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { assertHas, assertOk } from '../../../../Helpers/AssertProcedure.js';
+import runScrapeAction from '../../../../Helpers/ScrapeAction.js';
 import { ctxOf, FIXT_UID, makePayBoxBus } from './PayBoxBusFactory.js';
 
 /** Wallet account fixture — PayBox synthesises exactly one from `uId`. */
@@ -135,7 +134,7 @@ describe('PayBox wallet pagination — duplicate-row regression (T-PBQ-DUP)', ()
       balance: [succeed({ content: { userFunds: { balance: 100 } } })],
       transactions: [succeed(servedOnce), succeed(servedTwice), succeed(servedThrice)],
     });
-    const phase = createApiDirectScrapePhase(PAYBOX_SHAPE);
+    const phase = runScrapeAction(PAYBOX_SHAPE);
     const ctx = ctxOf(bus);
 
     const scraped = await phase(ctx);
@@ -173,7 +172,7 @@ describe('PayBox wallet pagination — duplicate-row regression (T-PBQ-DUP)', ()
       balance: [succeed({ content: { userFunds: { balance: 100 } } })],
       transactions: [succeed(firstPage), succeed(secondPage), succeed(emptyPage)],
     });
-    const phase = createApiDirectScrapePhase(PAYBOX_SHAPE);
+    const phase = runScrapeAction(PAYBOX_SHAPE);
     const ctx = ctxOf(bus);
 
     const scraped = await phase(ctx);
@@ -193,7 +192,7 @@ describe('PayBox wallet pagination — duplicate-row regression (T-PBQ-DUP)', ()
       balance: [succeed({ content: { userFunds: { balance: 100 } } })],
       transactions: [succeed(servedOnce), succeed(servedTwice)],
     });
-    const phase = createApiDirectScrapePhase(PAYBOX_SHAPE);
+    const phase = runScrapeAction(PAYBOX_SHAPE);
     const ctx = ctxOf(bus);
 
     const scraped = await phase(ctx);
@@ -222,7 +221,7 @@ describe('PayBox wallet pagination — duplicate-row regression (T-PBQ-DUP)', ()
       balance: [succeed({ content: { userFunds: { balance: 100 } } })],
       transactions: [succeed(servedOnce), succeed(servedTwice)],
     });
-    const phase = createApiDirectScrapePhase(PAYBOX_SHAPE);
+    const phase = runScrapeAction(PAYBOX_SHAPE);
     const ctx = ctxOf(bus);
 
     const scraped = await phase(ctx);
@@ -261,7 +260,7 @@ describe('PayBox wallet pagination — duplicate-row regression (T-PBQ-DUP)', ()
       balance: [succeed({ content: { userFunds: { balance: 100 } } })],
       transactions: [succeed(page0), succeed(page1), succeed(reserve)],
     });
-    const phase = createApiDirectScrapePhase(PAYBOX_SHAPE);
+    const phase = runScrapeAction(PAYBOX_SHAPE);
     const ctx = ctxOf(bus);
 
     const scraped = await phase(ctx);
@@ -324,7 +323,7 @@ describe('PayBox wallet pagination — duplicate-row regression (T-PBQ-DUP)', ()
       balance: [succeed({ content: { userFunds: { balance: 100 } } })],
       transactions: [succeed(page0), succeed(page1), succeed(reserve)],
     });
-    const phase = createApiDirectScrapePhase(PAYBOX_SHAPE);
+    const phase = runScrapeAction(PAYBOX_SHAPE);
     const ctx = ctxOf(bus);
 
     const scraped = await phase(ctx);
@@ -352,7 +351,7 @@ describe('PayBox wallet pagination — duplicate-row regression (T-PBQ-DUP)', ()
       balance: [succeed({ content: { userFunds: { balance: 100 } } })],
       transactions: [succeed(page0), succeed(page1), succeed(reserve)],
     });
-    const phase = createApiDirectScrapePhase(PAYBOX_SHAPE);
+    const phase = runScrapeAction(PAYBOX_SHAPE);
     const ctx = ctxOf(bus);
 
     const scraped = await phase(ctx);

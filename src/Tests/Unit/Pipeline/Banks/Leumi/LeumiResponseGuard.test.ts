@@ -1,17 +1,13 @@
 /**
  * Leumi WCF response checks and loss guards use synthetic provider bodies.
  */
-
 import { jest } from '@jest/globals';
 
 import LEUMI_SHAPE from '../../../../../Scrapers/Pipeline/Banks/Leumi/scrape/LeumiShape.js';
 import { leumiBrokerUrl } from '../../../../../Scrapers/Pipeline/Banks/Leumi/scrape/LeumiShapeEnvelope.js';
 import { GET_ACCOUNTS_MODULE } from '../../../../../Scrapers/Pipeline/Banks/Leumi/scrape/LeumiShapeHelpers.js';
 import { UC_SO_27_MODULE } from '../../../../../Scrapers/Pipeline/Banks/Leumi/scrape/LeumiShapeUcSo27.js';
-import {
-  buildApiDirectScrapePhase,
-  createApiDirectScrapePhase,
-} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.js';
+import { buildApiDirectScrapePhase } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.js';
 import type {
   ApiBody,
   IApiDirectScrapeGuardSummary,
@@ -21,6 +17,7 @@ import { none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { assertHas, assertOk } from '../../../../Helpers/AssertProcedure.js';
+import runScrapeAction from '../../../../Helpers/ScrapeAction.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
 import { makeRouterBus } from '../../Phases/ApiDirectScrape/ApiDirectScrapeRouterBus.js';
 
@@ -235,7 +232,7 @@ describe('Leumi WCF checks in the real scrape driver', () => {
         ...makeMockContext({ apiMediator: some(bus) }),
         windowEnd: none(),
       };
-      const outcome = createApiDirectScrapePhase(LEUMI_SHAPE)(ctx);
+      const outcome = runScrapeAction(LEUMI_SHAPE)(ctx);
       await expect(outcome).resolves.toMatchObject({
         success: false,
         errorMessage: `Leumi ${operation} WCF response failed validation`,
@@ -253,7 +250,7 @@ describe('Leumi WCF checks in the real scrape driver', () => {
       ...makeMockContext({ apiMediator: some(bus) }),
       windowEnd: none(),
     };
-    const outcome = await createApiDirectScrapePhase(LEUMI_SHAPE)(ctx);
+    const outcome = await runScrapeAction(LEUMI_SHAPE)(ctx);
     expect(outcome).toMatchObject({
       success: false,
       errorMessage: 'Leumi customer WCF response failed validation',
@@ -284,7 +281,7 @@ describe('Leumi WCF checks in the real scrape driver', () => {
       ...makeMockContext({ apiMediator: some(bus) }),
       windowEnd: none(),
     };
-    const outcome = await createApiDirectScrapePhase(LEUMI_SHAPE)(ctx);
+    const outcome = await runScrapeAction(LEUMI_SHAPE)(ctx);
     expect(outcome).toMatchObject({
       success: false,
       errorMessage: 'Leumi transactions WCF response failed validation',
@@ -304,7 +301,7 @@ describe('Leumi WCF checks in the real scrape driver', () => {
       ...makeMockContext({ apiMediator: some(bus) }),
       windowEnd: none(),
     };
-    const run = createApiDirectScrapePhase(shape);
+    const run = runScrapeAction(shape);
     const outcome = await run(ctx);
     expect(outcome).toMatchObject({
       success: false,
@@ -330,7 +327,7 @@ describe('Leumi WCF checks in the real scrape driver', () => {
       options: { ...base.options, startDate: START },
       windowEnd: none(),
     };
-    const run = createApiDirectScrapePhase(LEUMI_SHAPE);
+    const run = runScrapeAction(LEUMI_SHAPE);
     const action = await run(ctx);
     assertOk(action);
     assertHas(action.value.scrape);
@@ -369,7 +366,7 @@ describe('Leumi WCF checks in the real scrape driver', () => {
       options: { ...base.options, startDate: START },
       windowEnd: none(),
     };
-    const run = createApiDirectScrapePhase(LEUMI_SHAPE);
+    const run = runScrapeAction(LEUMI_SHAPE);
     const action = await run(ctx);
     assertOk(action);
     assertHas(action.value.scrape);
@@ -402,7 +399,7 @@ describe('Leumi WCF checks in the real scrape driver', () => {
       options: { ...base.options, startDate: START },
       windowEnd: none(),
     };
-    const run = createApiDirectScrapePhase(LEUMI_SHAPE);
+    const run = runScrapeAction(LEUMI_SHAPE);
     const outcome = await run(ctx);
     expect(outcome).toMatchObject({
       success: false,

@@ -1,17 +1,13 @@
 /**
  * Operation-specific body checks are selected before response extraction.
  */
-
 import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import { dispatchStep } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeDispatch.js';
-import {
-  type ApiDirectScrapeResult,
-  createApiDirectScrapePhase,
-} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.js';
+import { type ApiDirectScrapeResult } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.js';
 import type {
   ApiBody,
   BodyCheck,
@@ -21,6 +17,7 @@ import { none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import runScrapeAction from '../../../../Helpers/ScrapeAction.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
 import { SYN_CASE } from './ApiDirectScrapeBankShapes.js';
 import { makeRouterBus } from './ApiDirectScrapeRouterBus.js';
@@ -87,7 +84,7 @@ function runShape(
 ): Promise<Procedure<ApiDirectScrapeResult>> {
   const base = makeMockContext({ apiMediator: some(bus) });
   const ctx: IActionContext = { ...base, windowEnd: none() };
-  const run = createApiDirectScrapePhase(shape);
+  const run = runScrapeAction(shape);
   return run(ctx);
 }
 

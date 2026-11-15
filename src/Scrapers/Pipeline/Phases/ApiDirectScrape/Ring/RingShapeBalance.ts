@@ -40,7 +40,7 @@ interface IBalanceResp {
  * @param paymentDay - The card's debit day, or false when unknown.
  * @returns `01/MM/YYYY` — this month on or before the debit day, else next.
  */
-export function nextDebitMonth(today: moment.Moment, paymentDay: number | false): TBillingMonth {
+function nextDebitMonth(today: moment.Moment, paymentDay: number | false): TBillingMonth {
   const isPast = paymentDay !== false && today.date() > paymentDay;
   const month = today
     .clone()
