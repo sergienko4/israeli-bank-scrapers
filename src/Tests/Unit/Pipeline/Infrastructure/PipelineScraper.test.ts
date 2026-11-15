@@ -4,15 +4,14 @@ import { CompanyTypes, type ScraperProgressTypes } from '../../../../Definitions
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
 import type { VoidResult } from '../../../../Scrapers/Base/Interfaces/CallbackTypes.js';
 import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
-import {
-  type PipelineBuildFn,
-  PipelineScraper,
-} from '../../../../Scrapers/Pipeline/Core/PipelineScraper.js';
+import PipelineScraper from '../../../../Scrapers/Pipeline/Core/PipelineScraper.js';
 import type { IActionContext } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockCredentials, makeMockDescriptor, makeMockOptions } from './MockFactories.js';
 import { SimplePhase } from './SimplePhase.js';
+
+type PipelineBuildFn = ConstructorParameters<typeof PipelineScraper>[1];
 
 const MOCK_OPTIONS = makeMockOptions({ companyId: CompanyTypes.Beinleumi });
 const MOCK_CREDENTIALS = makeMockCredentials();

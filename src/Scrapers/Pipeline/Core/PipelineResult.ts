@@ -96,4 +96,3 @@ function toResult(result: Procedure<IPipelineContext>): IScraperScrapingResult {
 }
 
 export default toResult;
-export { toResult };

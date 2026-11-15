@@ -1,7 +1,7 @@
 import { type IScraper, type ScraperCredentials, type ScraperOptions } from '../Base/Interface.js';
 import ScraperError from '../Base/ScraperError.js';
 import PIPELINE_REGISTRY from '../Pipeline/Banks/PipelineRegistry.js';
-import { PipelineScraper } from '../Pipeline/Core/PipelineScraper.js';
+import PipelineScraper from '../Pipeline/Core/PipelineScraper.js';
 
 /**
  * Create a scraper instance for the given company.

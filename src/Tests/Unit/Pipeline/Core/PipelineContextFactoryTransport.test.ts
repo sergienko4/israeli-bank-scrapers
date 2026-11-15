@@ -5,7 +5,7 @@
 
 import { CompanyTypes } from '../../../../Definitions.js';
 import type { ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
-import { buildInitialContext } from '../../../../Scrapers/Pipeline/Core/PipelineContextFactory.js';
+import buildInitialContext from '../../../../Scrapers/Pipeline/Core/PipelineContextFactory.js';
 import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
 
 /** Synthetic, unregistered bank — exercises the "no config" branch. */

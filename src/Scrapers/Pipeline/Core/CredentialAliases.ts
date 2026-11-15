@@ -59,4 +59,4 @@ function normalizeCredentials<T extends ScraperCredentials>(credentials: T): T {
   return filled as T;
 }
 
-export { LEGACY_CREDENTIAL_ALIASES, normalizeCredentials };
+export default normalizeCredentials;

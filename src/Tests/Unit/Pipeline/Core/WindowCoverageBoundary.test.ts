@@ -10,7 +10,7 @@
  * through both branches of that rebuild.
  */
 
-import { toResult } from '../../../../Scrapers/Pipeline/Core/PipelineResult.js';
+import toResult from '../../../../Scrapers/Pipeline/Core/PipelineResult.js';
 import { some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IPipelineContext } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';

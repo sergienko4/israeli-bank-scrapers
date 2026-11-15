@@ -8,9 +8,9 @@ import { retireRunLogger } from '../../Logging/RootLogger.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isKnownBankSlug } from '../../Types/TraceConfig.js';
-import { buildInitialContext } from '../PipelineContextFactory.js';
+import buildInitialContext from '../PipelineContextFactory.js';
 import type { IPipelineDescriptor } from '../PipelineDescriptor.js';
-import { toResult } from '../PipelineResult.js';
+import toResult from '../PipelineResult.js';
 import { reportCleanupFailure } from './CleanupDiagnostic.js';
 import { type IContextTracker, reducePhases, wrapError } from './PipelineReducer.js';
 
@@ -147,5 +147,4 @@ async function executePipeline(
   return toResult(await runInBankContext(tracker, initialCtx));
 }
 
-export { executePipeline };
 export default executePipeline;
