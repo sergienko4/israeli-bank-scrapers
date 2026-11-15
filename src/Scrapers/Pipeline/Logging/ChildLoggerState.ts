@@ -11,9 +11,7 @@
 import type { Bindings, ChildLoggerOptions, Logger } from 'pino';
 
 /** Pino `formatters.bindings` function signature. */
-export type BindingsFormatter = NonNullable<
-  NonNullable<ChildLoggerOptions['formatters']>['bindings']
->;
+type BindingsFormatter = NonNullable<NonNullable<ChildLoggerOptions['formatters']>['bindings']>;
 
 /** Deferred child specification — parent resolver + bindings + optional options. */
 export interface IDeferredChildSpec {

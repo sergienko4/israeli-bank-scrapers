@@ -35,10 +35,9 @@ type LoggerProperty = Logger[keyof Logger];
  * Lazy-resolve handler for the JS Proxy used by `getDebug`. On first
  * property access, builds the real pino child (which by then has the
  * file transport of the running execution's destination) and forwards every method
- * call there. Exported so callers wiring custom diagnostics into the
- * same proxy shape can re-use the type instead of re-deriving it.
+ * call there.
  */
-export interface IProxyHandler {
+interface IProxyHandler {
   get: (target: object, prop: string | symbol) => LoggerProperty;
   set?: (target: object, prop: string | symbol, value: LoggerProperty) => boolean;
 }
@@ -279,6 +278,8 @@ function createDeferredProxy(spec: IDeferredChildSpec): Logger {
  *   the verbatim legacy string passed by Common-side callers).
  * @returns A pino-shaped logger that defers child creation.
  */
-export function buildDeferredLogger(name: string): Logger {
+function buildDeferredLogger(name: string): Logger {
   return createDeferredProxy({ resolveParent: getRootLogger, bindings: { module: name } });
 }
+
+export default buildDeferredLogger;

@@ -19,14 +19,11 @@ import pino, { type Logger } from 'pino';
 import ScraperError from '../../../../Scrapers/Base/ScraperError.js';
 import { type IFileLease } from '../../../../Scrapers/Pipeline/Logging/FileLease.js';
 import { closeFileLeaseAsync } from '../../../../Scrapers/Pipeline/Logging/FileLeaseClose.js';
-import {
-  type IPinoStreamCandidate,
-  scheduleStreamClose,
-} from '../../../../Scrapers/Pipeline/Logging/RetireTransport.js';
-import {
-  requestWorkerEnd,
-  type WorkerEndOutcome,
-} from '../../../../Scrapers/Pipeline/Logging/RetireWorkerEnd.js';
+import { scheduleStreamClose } from '../../../../Scrapers/Pipeline/Logging/RetireTransport.js';
+import requestWorkerEnd from '../../../../Scrapers/Pipeline/Logging/RetireWorkerEnd.js';
+
+type IPinoStreamCandidate = Parameters<typeof scheduleStreamClose>[0];
+type WorkerEndOutcome = ReturnType<typeof requestWorkerEnd>;
 
 const RECORD_COUNT = 40;
 

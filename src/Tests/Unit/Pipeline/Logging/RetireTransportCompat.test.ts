@@ -22,11 +22,12 @@ import pino, { type Logger } from 'pino';
 import ScraperError from '../../../../Scrapers/Base/ScraperError.js';
 import {
   type IFileLease,
-  type ILeasedLoggerHooks,
   instantiateLeasedFileLogger,
 } from '../../../../Scrapers/Pipeline/Logging/FileLease.js';
 import { retireSupersededLogger } from '../../../../Scrapers/Pipeline/Logging/RetireTransport.js';
-import { requestWorkerEnd } from '../../../../Scrapers/Pipeline/Logging/RetireWorkerEnd.js';
+import requestWorkerEnd from '../../../../Scrapers/Pipeline/Logging/RetireWorkerEnd.js';
+
+type ILeasedLoggerHooks = Parameters<typeof instantiateLeasedFileLogger>[0];
 
 /** Worker end marker `RetireWorkerEnd` stores at `WRITE_INDEX`. */
 const END_MARKER = -1;

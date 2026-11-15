@@ -21,10 +21,10 @@ import {
   type IRetirementState,
   makeRetiredErrorListener,
 } from './RetireWarnings.js';
-import { requestWorkerEnd } from './RetireWorkerEnd.js';
+import requestWorkerEnd from './RetireWorkerEnd.js';
 
 /** Branded boolean returned when a superseded worker transport was scheduled for retirement. */
-export type DidRetireLogger = Brand<boolean, 'DidRetireLogger'>;
+type DidRetireLogger = Brand<boolean, 'DidRetireLogger'>;
 
 /** Poll interval (ms) while waiting for a retired stream to become idle. */
 const RETIRE_POLL_MS = 5;
@@ -38,7 +38,7 @@ const RETIRED_FLUSH_TIMEOUT_MS = 5_000;
  * expose `.flush()` (fallback drain) + `.worker.terminate()`, whereas Pino's
  * default stdout `SonicBoom` carries `fd: 1` and must never be closed.
  */
-export interface IPinoStreamCandidate {
+interface IPinoStreamCandidate {
   readonly fd?: number;
   readonly closed?: boolean;
   readonly destroyed?: boolean;

@@ -24,7 +24,7 @@
  */
 
 /** Outcome of asking a retired worker to end its destinations. */
-export type WorkerEndOutcome = 'ended' | 'busy' | 'unsupported';
+type WorkerEndOutcome = 'ended' | 'busy' | 'unsupported';
 
 /** `WRITE_INDEX` word inside `ThreadStream`'s shared `Int32Array` state. */
 const WRITE_INDEX = 4;
@@ -114,7 +114,7 @@ function storeEndMarker(impl: IWorkerEndState): true {
  * @returns `ended` when the marker was stored, `busy` when the caller must
  * retry, or `unsupported` when the private state is unavailable.
  */
-export function requestWorkerEnd(stream: object): WorkerEndOutcome {
+function requestWorkerEnd(stream: object): WorkerEndOutcome {
   const impl = readWorkerEndState(stream);
   if (!impl) return 'unsupported';
   if (impl.flushing || impl.buf.length > 0) return 'busy';
@@ -122,3 +122,5 @@ export function requestWorkerEnd(stream: object): WorkerEndOutcome {
   storeEndMarker(impl);
   return 'ended';
 }
+
+export default requestWorkerEnd;

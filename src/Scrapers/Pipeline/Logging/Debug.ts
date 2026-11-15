@@ -13,8 +13,8 @@
 
 import type { Logger } from 'pino';
 
-import { buildDeferredLogger } from './ChildLoggerProxy.js';
-import { deriveLogName } from './LoggerNaming.js';
+import buildDeferredLogger from './ChildLoggerProxy.js';
+import deriveLogName from './LoggerNaming.js';
 
 export type ScraperLogger = Logger;
 

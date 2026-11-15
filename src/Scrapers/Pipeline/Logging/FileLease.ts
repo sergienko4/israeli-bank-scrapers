@@ -39,7 +39,7 @@ export interface IFileLease {
 }
 
 /** Callbacks supplied by `RootLogger` to construct a leased file-backed Pino instance. */
-export interface ILeasedLoggerHooks {
+interface ILeasedLoggerHooks {
   readonly logFile: string;
   readonly buildPreferredOptions: (fd: number) => pino.LoggerOptions;
   readonly buildFallbackOptions: (fd: number) => pino.LoggerOptions;
@@ -235,7 +235,7 @@ export function instantiateLeasedFileLogger(cfg: ILeasedLoggerHooks): ILeasedLog
 }
 
 /** Branded boolean returned when `awaitLeaseFlush` schedules a poll or settles. */
-export type DidAwaitLeaseFlush = Brand<boolean, 'DidAwaitLeaseFlush'>;
+type DidAwaitLeaseFlush = Brand<boolean, 'DidAwaitLeaseFlush'>;
 
 /** Lease (or `false` when terminal-only), poll interval, and completion callback. */
 export interface ILeaseFlushWait {
