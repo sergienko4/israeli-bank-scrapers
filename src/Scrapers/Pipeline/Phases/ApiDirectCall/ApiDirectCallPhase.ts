@@ -77,4 +77,4 @@ function createApiDirectCallPhase(config: IApiDirectCallConfig): ApiDirectCallPh
   return Reflect.construct(ApiDirectCallPhase, [config]);
 }
 
-export { ApiDirectCallPhase, createApiDirectCallPhase };
+export default createApiDirectCallPhase;

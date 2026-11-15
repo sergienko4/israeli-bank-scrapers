@@ -89,7 +89,7 @@ function verdictOf(body: unknown): RingVerdict {
  * @param body - Successful response body.
  * @returns The body, or a Generic failure for an expired or refused call.
  */
-export function checkRingBody(body: ApiBody): Procedure<ApiBody> {
+function checkRingBody(body: ApiBody): Procedure<ApiBody> {
   const verdict = verdictOf(body);
   if (verdict === 'ok') return succeed(body);
   return fail(ScraperErrorTypes.Generic, REFUSAL_MESSAGE[verdict]);
@@ -192,7 +192,7 @@ function ringSteps(args: IRingShapeArgs): RingSteps {
  * @param args - Brand binding: ring constants, step name, backfill stance.
  * @returns Shape passed to `.withApiDirect(...)`.
  */
-export function makeRingShape(args: IRingShapeArgs): RingShape {
+function makeRingShape(args: IRingShapeArgs): RingShape {
   // A card issuer: charges arrive positive and the mapper flips them.
   return {
     stepName: args.stepName,
@@ -202,3 +202,5 @@ export function makeRingShape(args: IRingShapeArgs): RingShape {
     ...ringSteps(args),
   };
 }
+
+export default makeRingShape;

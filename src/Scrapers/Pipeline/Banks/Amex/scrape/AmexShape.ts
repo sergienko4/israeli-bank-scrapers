@@ -12,7 +12,7 @@
  * keeps seeing a conscious per-bank decision.
  */
 
-import { makeRingShape } from '../../../Phases/ApiDirectScrape/Ring/RingShape.js';
+import makeRingShape from '../../../Phases/ApiDirectScrape/Ring/RingShape.js';
 import { AMEX_RING } from '../../../Registry/Config/PipelineBankConfigRingConstants.js';
 
 /** Amex hard-model shape. */
