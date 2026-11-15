@@ -22,8 +22,9 @@ import { jest } from '@jest/globals';
 
 import ScraperError from '../../../../Scrapers/Base/ScraperError.js';
 import type { IFileLease } from '../../../../Scrapers/Pipeline/Logging/FileLease.js';
-import type { IPinoStreamCandidate } from '../../../../Scrapers/Pipeline/Logging/RetireTransport.js';
 import { scheduleStreamClose } from '../../../../Scrapers/Pipeline/Logging/RetireTransport.js';
+
+type IPinoStreamCandidate = Parameters<typeof scheduleStreamClose>[0];
 import { awaitCondition } from '../Infrastructure/LogDrain.js';
 
 const STATE_WORDS = 32;

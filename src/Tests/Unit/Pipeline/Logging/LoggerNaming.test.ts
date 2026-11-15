@@ -3,7 +3,7 @@
  * URL→kebab transformation, no pino instantiation.
  */
 
-import { deriveLogName } from '../../../../Scrapers/Pipeline/Logging/LoggerNaming.js';
+import deriveLogName from '../../../../Scrapers/Pipeline/Logging/LoggerNaming.js';
 
 describe('Feature — deriveLogName', () => {
   it('kebab-cases a PascalCase basename (.ts)', () => {

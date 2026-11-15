@@ -118,5 +118,4 @@ function retireRunSlot(logFile: string | false): boolean {
   return logFile !== false && logFile.length > 0 && retireSlot(logFile);
 }
 
-export type { ILoggerSlot, ISlotRequest, SlotBuilder };
 export { generationFor, leaseFor, retireRunSlot, slotFor };

@@ -12,7 +12,7 @@ import type { Brand } from '../Types/Brand.js';
 /** URL basename string — branded for Rule #15. */
 type UrlBasename = Brand<string, 'UrlBasename'>;
 /** Kebab-cased logger name derived from a source filename. */
-export type LoggerNameKebab = Brand<string, 'LoggerNameKebab'>;
+type LoggerNameKebab = Brand<string, 'LoggerNameKebab'>;
 
 /** File-extension regex used by `deriveLogName` (non-capturing). */
 const FILE_EXT_RE = /\.(?:ts|js|tsx|jsx|mjs|cjs)$/;
@@ -40,9 +40,11 @@ function basenameFromUrl(metaUrl: string): UrlBasename {
  * @param metaUrl - The caller's `import.meta.url`.
  * @returns Kebab-cased module name.
  */
-export function deriveLogName(metaUrl: string): LoggerNameKebab {
+function deriveLogName(metaUrl: string): LoggerNameKebab {
   const last = basenameFromUrl(metaUrl);
   const stem = last.replace(FILE_EXT_RE, '');
   const kebab = stem.replaceAll(PASCAL_SPLIT_RE, '$1-$2').toLowerCase();
   return kebab as LoggerNameKebab;
 }
+
+export default deriveLogName;

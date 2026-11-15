@@ -38,7 +38,7 @@ type LoggerProperty = Logger[keyof Logger];
  * call there. Exported so callers wiring custom diagnostics into the
  * same proxy shape can re-use the type instead of re-deriving it.
  */
-export interface IProxyHandler {
+interface IProxyHandler {
   get: (target: object, prop: string | symbol) => LoggerProperty;
   set?: (target: object, prop: string | symbol, value: LoggerProperty) => boolean;
 }
@@ -279,6 +279,8 @@ function createDeferredProxy(spec: IDeferredChildSpec): Logger {
  *   the verbatim legacy string passed by Common-side callers).
  * @returns A pino-shaped logger that defers child creation.
  */
-export function buildDeferredLogger(name: string): Logger {
+function buildDeferredLogger(name: string): Logger {
   return createDeferredProxy({ resolveParent: getRootLogger, bindings: { module: name } });
 }
+
+export default buildDeferredLogger;

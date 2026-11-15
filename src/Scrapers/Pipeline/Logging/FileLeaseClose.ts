@@ -15,7 +15,7 @@ import type { Brand } from '../Types/Brand.js';
 import type { IFileLease } from './FileLease.js';
 
 /** Branded boolean returned when `closeFileLeaseAsync` schedules `fs.close`. */
-export type DidCloseLease = Brand<boolean, 'DidCloseLease'>;
+type DidCloseLease = Brand<boolean, 'DidCloseLease'>;
 
 /**
  * Check whether `lease.fd` still names the file this lease opened.

@@ -10,7 +10,7 @@ import * as path from 'node:path';
 import { jest } from '@jest/globals';
 import type pino from 'pino';
 
-import { buildDeferredLogger } from '../../../../Scrapers/Pipeline/Logging/ChildLoggerProxy.js';
+import buildDeferredLogger from '../../../../Scrapers/Pipeline/Logging/ChildLoggerProxy.js';
 import { getRootLoggerGeneration } from '../../../../Scrapers/Pipeline/Logging/RootLogger.js';
 
 /** Upper bound on the property reads one `LOG.info(...)` triggers — pino
@@ -291,7 +291,7 @@ describe('Feature — deferred proxy invalidates its child on root upgrade', () 
     const trace = await import('../../../../Scrapers/Pipeline/Types/TraceConfig.js');
     const proxy = await import('../../../../Scrapers/Pipeline/Logging/ChildLoggerProxy.js');
     trace.resetTraceConfigCache();
-    const log = proxy.buildDeferredLogger('proxy-upgrade');
+    const log = proxy.default('proxy-upgrade');
     const preBankLevel = log.level;
     expect(preBankLevel).toBe('silent');
     trace.setActiveBank('pepper');
@@ -310,7 +310,7 @@ describe('Feature — deferred proxy invalidates its child on root upgrade', () 
     const root = await import('../../../../Scrapers/Pipeline/Logging/RootLogger.js');
     const proxy = await import('../../../../Scrapers/Pipeline/Logging/ChildLoggerProxy.js');
     trace.resetTraceConfigCache();
-    const log = proxy.buildDeferredLogger('proxy-sub');
+    const log = proxy.default('proxy-sub');
     const sub = log.child({ correlationId: 'corr-1' });
     const nested = sub.child({ step: 'step-1' });
     expect(nested.level).toBe('silent');
@@ -347,7 +347,7 @@ describe('Feature — deferred proxy invalidates its child on root upgrade', () 
     const root = await import('../../../../Scrapers/Pipeline/Logging/RootLogger.js');
     const proxy = await import('../../../../Scrapers/Pipeline/Logging/ChildLoggerProxy.js');
     trace.resetTraceConfigCache();
-    const log = proxy.buildDeferredLogger('proxy-mutable');
+    const log = proxy.default('proxy-mutable');
     const sub = createMutatedChild(log);
     trace.setActiveBank('pepper');
     applyMutatedBindingsAndLevel(sub);
@@ -383,7 +383,7 @@ describe('Feature — deferred proxy invalidates its child on root upgrade', () 
     const root = await import('../../../../Scrapers/Pipeline/Logging/RootLogger.js');
     const proxy = await import('../../../../Scrapers/Pipeline/Logging/ChildLoggerProxy.js');
     trace.resetTraceConfigCache();
-    const log = proxy.buildDeferredLogger('proxy-fmt');
+    const log = proxy.default('proxy-fmt');
     trace.setActiveBank('pepper');
     const sub = log.child(
       { tenant: 'bank-a' },
