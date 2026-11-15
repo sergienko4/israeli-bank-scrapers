@@ -9,7 +9,7 @@
  * 33 distinct rows in captured traffic. No PII: synthetic rows.
  */
 
-import { collapseDuplicates } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/TxnDedup.js';
+import collapseDuplicates from '../../../../../Scrapers/Pipeline/Mediator/Scrape/TxnDedup.js';
 import type { ITransaction } from '../../../../../Transactions.js';
 
 /** Canonical key most banks would reach for first. */

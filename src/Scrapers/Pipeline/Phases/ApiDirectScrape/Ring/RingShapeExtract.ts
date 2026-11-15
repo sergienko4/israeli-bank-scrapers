@@ -119,5 +119,3 @@ export function mergeRingRows(body: object): readonly object[] {
   const outOfStatement = outOfStatementRows(data);
   return [...approved, ...vouchers, ...outOfStatement];
 }
-
-export default mergeRingRows;

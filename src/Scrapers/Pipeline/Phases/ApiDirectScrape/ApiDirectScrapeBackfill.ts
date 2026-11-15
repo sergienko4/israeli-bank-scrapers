@@ -203,5 +203,3 @@ function seedWalk<TAcct, TCursor>(
   const end = a.ctx.windowEnd;
   return { rows: first.items, end, attempt: 0, termination: first.termination };
 }
-
-export default collectAccountRows;

@@ -9,7 +9,7 @@
  */
 
 import type { ScalarFieldHit } from '../AutoMapperFacade/AutoMapperTypes.js';
-import { flattenObjectTree } from './BfsFieldSearch.Flatten.js';
+import flattenObjectTree from './BfsFieldSearch.Flatten.js';
 import { matchFieldInRecord } from './BfsFieldSearch.Match.js';
 
 /**
@@ -123,5 +123,5 @@ function findAllFieldValues(
 
 export { isSearchableObject, matchField } from './BfsFieldSearch.Match.js';
 export { findAllFieldValues, findFieldValue };
-export { flattenObjectTree } from './BfsFieldSearch.Flatten.js';
+export { default as flattenObjectTree } from './BfsFieldSearch.Flatten.js';
 export { matchFieldInRecord } from './BfsFieldSearch.Match.js';

@@ -35,7 +35,7 @@ const LOG = getDebug(import.meta.url);
 const KEY_SEP = '\u0000';
 
 /** Inputs for one dedup round. */
-export interface IDedupArgs {
+interface IDedupArgs {
   /** Mapped transactions for one account, in the order the pages arrived. */
   readonly txns: readonly ITransaction[];
   /** Canonical field names the shape declares as a row key. Empty ⇒ disabled. */
@@ -176,7 +176,7 @@ function reportDedup(label: string, result: IDedupResult): true {
  * @param args - Transactions, declared key fields and log identity.
  * @returns Surviving transactions plus collapse and collision counts.
  */
-export function collapseDuplicates(args: IDedupArgs): IDedupResult {
+function collapseDuplicates(args: IDedupArgs): IDedupResult {
   const isEnabled = args.keyFields.length > 0;
   if (!isEnabled) return { kept: args.txns, collapsed: 0, collisions: 0 };
   const seen: Seen = new Map();
@@ -186,3 +186,5 @@ export function collapseDuplicates(args: IDedupArgs): IDedupResult {
   reportDedup(args.label, result);
   return result;
 }
+
+export default collapseDuplicates;

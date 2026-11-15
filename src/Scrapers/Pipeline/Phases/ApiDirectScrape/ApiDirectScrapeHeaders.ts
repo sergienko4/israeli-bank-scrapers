@@ -78,5 +78,4 @@ function accountlessOpts(ctx: IActionContext, extra?: ApiDirectScrapeHeadersLike
   return headerOpts(ctx, noAccount, extra);
 }
 
-export default headerOpts;
 export { accountlessOpts, headerOpts };

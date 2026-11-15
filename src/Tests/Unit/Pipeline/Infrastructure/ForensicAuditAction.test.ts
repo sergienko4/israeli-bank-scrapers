@@ -4,7 +4,7 @@
  */
 
 import logForensicAudit from '../../../../Scrapers/Pipeline/Mediator/Scrape/ForensicAuditAction.js';
-import { logWindowCompleteness } from '../../../../Scrapers/Pipeline/Mediator/Scrape/WindowCompletenessAudit.js';
+import logWindowCompleteness from '../../../../Scrapers/Pipeline/Mediator/Scrape/WindowCompletenessAudit.js';
 import type { IScrapeState } from '../../../../Scrapers/Pipeline/Types/Domain/ScrapeState.js';
 import { some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type { ITransactionsAccount } from '../../../../Transactions.js';

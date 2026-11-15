@@ -19,7 +19,7 @@ interface ICardSignContext {
 }
 
 /** The two raw amounts of one record, plus the institution's convention. */
-export interface ICardSignArgs {
+interface ICardSignArgs {
   readonly raw: ApiRecord;
   readonly amount: number;
   readonly original: number;
@@ -231,9 +231,11 @@ function signCardAmount(amount: number, ctx: ICardSignContext): number {
  * @param args - Both raw amounts plus the institution's convention.
  * @returns Signed amounts ready to assign to the mapped txn.
  */
-export function signCardAmounts(args: ICardSignArgs): ISignedAmounts {
+function signCardAmounts(args: ICardSignArgs): ISignedAmounts {
   const isCredit = args.isCard && isPartiallySignedCredit(args.amount, args.original);
   const ctx: ICardSignContext = { raw: args.raw, isCard: args.isCard, isCredit };
   const amtNum = signCardAmount(args.amount, ctx);
   return { amtNum, origNum: signCardAmount(args.original, ctx) };
 }
+
+export default signCardAmounts;

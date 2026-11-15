@@ -56,5 +56,4 @@ function logWindowCompleteness(scrape: IScrapeState): WindowAuditVerdict {
   return 'EXHAUSTED';
 }
 
-export type { WindowAuditVerdict };
-export { logWindowCompleteness };
+export default logWindowCompleteness;
