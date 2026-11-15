@@ -5,10 +5,10 @@ import { buildMizrahiPipeline } from './Mizrahi/MizrahiPipeline.js';
 import buildOneZeroPipeline from './OneZero/OneZeroPipeline.js';
 import { buildOtsarHahayalPipeline } from './OtsarHahayal/OtsarHahayalPipeline.js';
 import { buildPagiPipeline } from './Pagi/PagiPipeline.js';
-import { buildPayBoxPipeline } from './PayBox/PayBoxPipeline.js';
-import { buildPepperPipeline } from './Pepper/PepperPipeline.js';
+import buildPayBoxPipeline from './PayBox/PayBoxPipeline.js';
+import buildPepperPipeline from './Pepper/PepperPipeline.js';
 import { buildVisaCalPipeline } from './VisaCal/VisaCalPipeline.js';
-import { buildYahavPipeline } from './Yahav/YahavPipeline.js';
+import buildYahavPipeline from './Yahav/YahavPipeline.js';
 
 /**
  * Pipeline registry for banks Mercantile through VisaCal (alphabetical second

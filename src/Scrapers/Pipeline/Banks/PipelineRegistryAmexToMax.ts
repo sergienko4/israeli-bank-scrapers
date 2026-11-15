@@ -7,7 +7,7 @@ import { buildHapoalimPipeline } from './Hapoalim/HapoalimPipeline.js';
 import { buildIsracardPipeline } from './Isracard/IsracardPipeline.js';
 import { buildLeumiNativePipeline } from './Leumi/LeumiPipeline.js';
 import { buildMassadPipeline } from './Massad/MassadPipeline.js';
-import { buildMaxPipeline } from './Max/MaxPipeline.js';
+import buildMaxPipeline from './Max/MaxPipeline.js';
 
 /**
  * Pipeline registry for banks Amex through Max (alphabetical first half).

@@ -27,4 +27,3 @@ function buildPayBoxPipeline(options: ScraperOptions): Procedure<IPipelineDescri
 }
 
 export default buildPayBoxPipeline;
-export { buildPayBoxPipeline };

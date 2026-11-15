@@ -27,4 +27,3 @@ function buildYahavPipeline(options: ScraperOptions): Procedure<IPipelineDescrip
 }
 
 export default buildYahavPipeline;
-export { buildYahavPipeline };

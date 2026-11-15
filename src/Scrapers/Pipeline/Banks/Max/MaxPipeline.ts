@@ -25,4 +25,3 @@ function buildMaxPipeline(options: ScraperOptions): Procedure<IPipelineDescripto
 }
 
 export default buildMaxPipeline;
-export { buildMaxPipeline };
