@@ -7,7 +7,7 @@ import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, succeed } from '../../../Types/Procedure.js';
 import { activeElements, attribute, isExecutableScript, scriptText } from './ActiveHtml.js';
 import { hasDuplicateJsonField } from './JsonUnique.js';
-import { scriptJsonLiterals } from './ScriptJsonExpressions.js';
+import scriptJsonLiterals from './ScriptJsonExpressions.js';
 
 interface IScriptJsonInput {
   readonly html: string;
@@ -136,4 +136,3 @@ function captureScriptJson(input: IScriptJsonInput): Procedure<string> {
 }
 
 export default captureScriptJson;
-export { captureScriptJson };

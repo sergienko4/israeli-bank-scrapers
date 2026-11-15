@@ -2,7 +2,7 @@
  * Active SDK references come from document syntax without executing scripts.
  */
 
-import { captureSdkReference } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Parsing/SdkReference.js';
+import captureSdkReference from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Parsing/SdkReference.js';
 import type { IUrlRule } from '../../../../../../Scrapers/Pipeline/Types/Domain/FetchPolicy.js';
 
 const ANSWER_URL = 'https://bank.example/gatekeeper/he/';

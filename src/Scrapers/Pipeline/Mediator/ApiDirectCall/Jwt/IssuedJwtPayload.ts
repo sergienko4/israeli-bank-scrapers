@@ -99,4 +99,3 @@ function issuedJwtPayload(token: string, maxChars: number): IJsonObject | false 
 }
 
 export default issuedJwtPayload;
-export { issuedJwtPayload };

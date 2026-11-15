@@ -2,7 +2,7 @@
  * Serialized root fields are read without running page scripts.
  */
 
-import { captureScriptJson } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Parsing/ScriptJsonCapture.js';
+import captureScriptJson from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Parsing/ScriptJsonCapture.js';
 
 const SESSION = '0123456789ABCDEF0123456789ABCDEF';
 const OTHER = 'ABCDEF0123456789ABCDEF0123456789';
