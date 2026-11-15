@@ -15,7 +15,7 @@
 
 import type { Procedure } from '../../Types/Procedure.js';
 import type { IFetchOpts, IFetchStrategy, PostData } from './FetchStrategy.js';
-import { overlayHeaders } from './HeaderOverlay.js';
+import overlayHeaders from './HeaderOverlay.js';
 
 /** Immutable default-header bag installed under every call. */
 type DefaultHeaders = Readonly<Record<string, string>>;

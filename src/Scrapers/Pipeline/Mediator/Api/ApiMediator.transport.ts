@@ -4,7 +4,7 @@
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
-import { overlayHeaders } from '../../Strategy/Fetch/HeaderOverlay.js';
+import overlayHeaders from '../../Strategy/Fetch/HeaderOverlay.js';
 import { emptyAnswer } from '../../Strategy/Fetch/StatusPolicy.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';

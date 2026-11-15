@@ -7,7 +7,7 @@
 
 import { CompanyTypes } from '../../../../../../Definitions.js';
 import ScraperError from '../../../../../../Scrapers/Base/ScraperError.js';
-import { resolveClientCert } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/ClientCertRegistry.js';
+import resolveClientCert from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/ClientCertRegistry.js';
 
 describe('resolveClientCert', () => {
   it('fails fast, naming the bank, when the bank registered no certificate', () => {

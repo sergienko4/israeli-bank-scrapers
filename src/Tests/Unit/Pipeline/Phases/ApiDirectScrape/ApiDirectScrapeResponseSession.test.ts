@@ -30,7 +30,7 @@ import type {
   SessionContextPatch,
 } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import { literalUrl } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
-import { emitResponseHeaders } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/ResponseHeaderSink.js';
+import emitResponseHeaders from '../../../../../Scrapers/Pipeline/Strategy/Fetch/ResponseHeaderSink.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';

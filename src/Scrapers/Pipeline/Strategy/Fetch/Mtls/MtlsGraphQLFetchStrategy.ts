@@ -26,4 +26,3 @@ class MtlsGraphQLFetchStrategy extends GraphQLFetchStrategy {
 }
 
 export default MtlsGraphQLFetchStrategy;
-export { MtlsGraphQLFetchStrategy };

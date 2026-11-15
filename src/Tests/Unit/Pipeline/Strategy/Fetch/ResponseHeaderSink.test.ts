@@ -6,7 +6,7 @@
 
 import { jest } from '@jest/globals';
 
-import { emitResponseHeaders } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/ResponseHeaderSink.js';
+import emitResponseHeaders from '../../../../../Scrapers/Pipeline/Strategy/Fetch/ResponseHeaderSink.js';
 import type { IResponseHeaderSink } from '../../../../../Scrapers/Pipeline/Types/Domain/FetchPolicy.js';
 
 const ANSWERED_URL = 'https://bank.test/portal/landing';

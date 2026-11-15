@@ -15,7 +15,7 @@ import {
   createClientCertHolder,
   type IClientCertHolder,
 } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/ClientCertHolder.js';
-import { MtlsFetchStrategy } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsFetchStrategy.js';
+import MtlsFetchStrategy from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsFetchStrategy.js';
 import {
   makeMtlsInvoke,
   setMtlsFetchFallback,

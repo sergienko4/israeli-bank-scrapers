@@ -14,8 +14,8 @@ import {
   type AgentSource,
   fixedAgentSource,
 } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsAgentSource.js';
-import { MtlsFetchStrategy } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsFetchStrategy.js';
-import { MtlsGraphQLFetchStrategy } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsGraphQLFetchStrategy.js';
+import MtlsFetchStrategy from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsFetchStrategy.js';
+import MtlsGraphQLFetchStrategy from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsGraphQLFetchStrategy.js';
 import {
   MTLS_REQUEST_TIMEOUT_MS,
   setMtlsRequestTimeoutMs,

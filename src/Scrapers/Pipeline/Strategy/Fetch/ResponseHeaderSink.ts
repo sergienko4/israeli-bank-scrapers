@@ -42,4 +42,3 @@ function emitResponseHeaders(
 }
 
 export default emitResponseHeaders;
-export { emitResponseHeaders };

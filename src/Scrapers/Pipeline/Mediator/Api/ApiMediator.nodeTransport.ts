@@ -11,7 +11,7 @@ import {
   type AgentBuilder,
   createClientCertHolder,
 } from '../../Strategy/Fetch/Mtls/ClientCertHolder.js';
-import { resolveClientCert } from '../../Strategy/Fetch/Mtls/ClientCertRegistry.js';
+import resolveClientCert from '../../Strategy/Fetch/Mtls/ClientCertRegistry.js';
 import {
   type AgentSource,
   fixedAgentSource,

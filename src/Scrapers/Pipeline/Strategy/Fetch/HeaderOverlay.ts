@@ -34,4 +34,3 @@ function overlayHeaders(base: HeaderMap, top: HeaderMap): Record<string, string>
 }
 
 export default overlayHeaders;
-export { overlayHeaders };
