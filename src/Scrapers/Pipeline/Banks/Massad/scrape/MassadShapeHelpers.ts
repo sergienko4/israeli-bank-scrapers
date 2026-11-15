@@ -29,13 +29,13 @@ export {
 } from '../../../Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeHelpers.js';
 
 /** Massad BFF origin — post-login API host (same-origin as login). */
-export const MASSAD_API = 'https://online.bankmassad.co.il';
+const MASSAD_API = 'https://online.bankmassad.co.il';
 
 /** Massad's binding of the shared FIBI contract. */
 export const MASSAD_CONFIG: IFibiGroupConfig = { apiOrigin: MASSAD_API };
 
 /** Massad account reference — the shared FIBI account shape. */
-export type IMassadAcct = IFibiAcct;
+type IMassadAcct = IFibiAcct;
 
 /**
  * Balance URL — balances/<accountType> on the Massad origin.

@@ -72,4 +72,3 @@ const MAX_SHAPE: IApiDirectScrapeShape<IMaxCard, number> = {
 };
 
 export default MAX_SHAPE;
-export { MAX_SHAPE };

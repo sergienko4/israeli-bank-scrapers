@@ -20,9 +20,7 @@ import {
 import {
   balanceExtract,
   balanceUrl,
-  BEINLEUMI_API,
   BFF_BASE,
-  type IBeinleumiAcct,
   USER_DATA_PATH,
 } from '../../../../../Scrapers/Pipeline/Banks/Beinleumi/scrape/BeinleumiShapeHelpers.js';
 import {
@@ -37,6 +35,9 @@ import type {
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { AMBIENT_ZONE_CASES, underZone } from '../../../../Helpers/AmbientZone.js';
+
+const BEINLEUMI_API = 'https://online.fibi.co.il';
+type IBeinleumiAcct = Parameters<typeof balanceUrl>[0];
 
 const ACCT: IBeinleumiAcct = { accountNumber: '555001', branch: '770', accountType: 105 };
 

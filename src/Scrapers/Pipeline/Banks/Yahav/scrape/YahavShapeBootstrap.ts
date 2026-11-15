@@ -144,4 +144,3 @@ const YAHAV_BOOTSTRAP: readonly IApiDirectScrapeBootstrapStep[] = [
 ];
 
 export default YAHAV_BOOTSTRAP;
-export { YAHAV_BOOTSTRAP };

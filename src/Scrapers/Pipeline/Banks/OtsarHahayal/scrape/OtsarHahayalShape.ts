@@ -36,4 +36,3 @@ const OTSAR_HAHAYAL_SHAPE = makeFibiGroupShape({
 });
 
 export default OTSAR_HAHAYAL_SHAPE;
-export { OTSAR_HAHAYAL_SHAPE };

@@ -24,7 +24,7 @@ import {
   yahavLoginBody,
   yahavReadBody,
 } from '../../../../../Scrapers/Pipeline/Banks/Yahav/scrape/YahavNativeEnvelope.js';
-import { yahavNativeHeaders } from '../../../../../Scrapers/Pipeline/Banks/Yahav/scrape/YahavNativeHeaders.js';
+import yahavNativeHeaders from '../../../../../Scrapers/Pipeline/Banks/Yahav/scrape/YahavNativeHeaders.js';
 import {
   type IYahavNativeRef,
   yahavAccountsPayload,

@@ -29,13 +29,13 @@ export {
 } from '../../../Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeHelpers.js';
 
 /** Otsar Hahayal BFF origin — post-login API host (same registrable domain as login). */
-export const OTSAR_HAHAYAL_API = 'https://online.bankotsar.co.il';
+const OTSAR_HAHAYAL_API = 'https://online.bankotsar.co.il';
 
 /** Otsar Hahayal's binding of the shared FIBI contract. */
 export const OTSAR_HAHAYAL_CONFIG: IFibiGroupConfig = { apiOrigin: OTSAR_HAHAYAL_API };
 
 /** Otsar Hahayal account reference — the shared FIBI account shape. */
-export type IOtsarHahayalAcct = IFibiAcct;
+type IOtsarHahayalAcct = IFibiAcct;
 
 /**
  * Balance URL — balances/<accountType> on the Otsar Hahayal origin.

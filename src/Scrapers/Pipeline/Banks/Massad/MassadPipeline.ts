@@ -11,7 +11,7 @@ import createPipelineBuilder from '../../Core/Builder/PipelineBuilderFactory.js'
 import type { IPipelineDescriptor } from '../../Core/PipelineDescriptor.js';
 import { MASSAD_API_DIRECT_CALL } from '../../Registry/Config/PipelineBankConfigMassad.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { MASSAD_SHAPE } from './scrape/MassadShape.js';
+import MASSAD_SHAPE from './scrape/MassadShape.js';
 
 /**
  * Build the Massad pipeline descriptor: the direct-API login
@@ -27,4 +27,3 @@ function buildMassadPipeline(options: ScraperOptions): Procedure<IPipelineDescri
 }
 
 export default buildMassadPipeline;
-export { buildMassadPipeline };

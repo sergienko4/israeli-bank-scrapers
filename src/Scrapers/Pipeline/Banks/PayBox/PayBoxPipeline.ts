@@ -12,7 +12,7 @@ import createPipelineBuilder from '../../Core/Builder/PipelineBuilderFactory.js'
 import type { IPipelineDescriptor } from '../../Core/PipelineDescriptor.js';
 import { PAYBOX_API_DIRECT_CALL } from '../../Registry/Config/PipelineBankConfigPayBox.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { PAYBOX_SHAPE } from './scrape/PayBoxShape.js';
+import PAYBOX_SHAPE from './scrape/PayBoxShape.js';
 
 /**
  * Build the PayBox pipeline descriptor.
@@ -27,4 +27,3 @@ function buildPayBoxPipeline(options: ScraperOptions): Procedure<IPipelineDescri
 }
 
 export default buildPayBoxPipeline;
-export { buildPayBoxPipeline };

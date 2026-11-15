@@ -9,9 +9,9 @@ import { NATIVE_EMPTY_SECTOKEN } from '../../../../../Scrapers/Pipeline/Banks/Ya
 import { yahavAccountsPayload } from '../../../../../Scrapers/Pipeline/Banks/Yahav/scrape/YahavNativePayloads.js';
 import { yahavBalancePayload } from '../../../../../Scrapers/Pipeline/Banks/Yahav/scrape/YahavNativePayloadsAccount.js';
 import YAHAV_SHAPE from '../../../../../Scrapers/Pipeline/Banks/Yahav/scrape/YahavShape.js';
-import { YAHAV_BOOTSTRAP } from '../../../../../Scrapers/Pipeline/Banks/Yahav/scrape/YahavShapeBootstrap.js';
+import YAHAV_BOOTSTRAP from '../../../../../Scrapers/Pipeline/Banks/Yahav/scrape/YahavShapeBootstrap.js';
 import type { IYahavAcct } from '../../../../../Scrapers/Pipeline/Banks/Yahav/scrape/YahavShapeHelpers.js';
-import { YAHAV_RESPONSE_SESSION } from '../../../../../Scrapers/Pipeline/Banks/Yahav/scrape/YahavShapeSession.js';
+import YAHAV_RESPONSE_SESSION from '../../../../../Scrapers/Pipeline/Banks/Yahav/scrape/YahavShapeSession.js';
 import type {
   ApiBody,
   ApiDirectScrapeHeadersLike,

@@ -11,7 +11,7 @@ import createPipelineBuilder from '../../Core/Builder/PipelineBuilderFactory.js'
 import type { IPipelineDescriptor } from '../../Core/PipelineDescriptor.js';
 import { PAGI_API_DIRECT_CALL } from '../../Registry/Config/PipelineBankConfigPagi.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { PAGI_SHAPE } from './scrape/PagiShape.js';
+import PAGI_SHAPE from './scrape/PagiShape.js';
 
 /**
  * Build the Pagi pipeline descriptor: the direct-API login runs
@@ -27,4 +27,3 @@ function buildPagiPipeline(options: ScraperOptions): Procedure<IPipelineDescript
 }
 
 export default buildPagiPipeline;
-export { buildPagiPipeline };

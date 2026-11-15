@@ -4,7 +4,7 @@
  * completeness check every answer — the login included — must pass.
  */
 
-import { YAHAV_RESPONSE_SESSION } from '../../../../../Scrapers/Pipeline/Banks/Yahav/scrape/YahavShapeSession.js';
+import YAHAV_RESPONSE_SESSION from '../../../../../Scrapers/Pipeline/Banks/Yahav/scrape/YahavShapeSession.js';
 import type { SessionContext } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import type {
   ApiBody,

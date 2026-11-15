@@ -22,8 +22,6 @@ import {
   balanceExtract,
   balanceUrl,
   BFF_BASE,
-  type IMassadAcct,
-  MASSAD_API,
   USER_DATA_PATH,
 } from '../../../../../Scrapers/Pipeline/Banks/Massad/scrape/MassadShapeHelpers.js';
 import {
@@ -36,6 +34,9 @@ import type {
   IExtractAccountsArgs,
 } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+
+const MASSAD_API = 'https://online.bankmassad.co.il';
+type IMassadAcct = Parameters<typeof balanceUrl>[0];
 
 const ACCT: IMassadAcct = { accountNumber: '555001', branch: '770', accountType: 105 };
 

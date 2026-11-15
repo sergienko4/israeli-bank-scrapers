@@ -88,4 +88,3 @@ const YAHAV_TXNS: IApiDirectScrapeTxnsStep<IYahavAcct, number> = {
 };
 
 export default YAHAV_TXNS;
-export { YAHAV_TXNS };

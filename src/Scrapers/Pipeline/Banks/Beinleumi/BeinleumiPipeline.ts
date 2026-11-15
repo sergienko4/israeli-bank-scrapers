@@ -10,7 +10,7 @@ import createPipelineBuilder from '../../Core/Builder/PipelineBuilderFactory.js'
 import type { IPipelineDescriptor } from '../../Core/PipelineDescriptor.js';
 import { BEINLEUMI_API_DIRECT_CALL } from '../../Registry/Config/PipelineBankConfigBeinleumi.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { BEINLEUMI_SHAPE } from './scrape/BeinleumiShape.js';
+import BEINLEUMI_SHAPE from './scrape/BeinleumiShape.js';
 
 /**
  * Build the Beinleumi pipeline descriptor: the direct-API login
@@ -26,4 +26,3 @@ function buildBeinleumiPipeline(options: ScraperOptions): Procedure<IPipelineDes
 }
 
 export default buildBeinleumiPipeline;
-export { buildBeinleumiPipeline };

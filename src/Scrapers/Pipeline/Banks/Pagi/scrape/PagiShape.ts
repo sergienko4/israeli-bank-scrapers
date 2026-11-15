@@ -36,4 +36,3 @@ const PAGI_SHAPE = makeFibiGroupShape({
 });
 
 export default PAGI_SHAPE;
-export { PAGI_SHAPE };

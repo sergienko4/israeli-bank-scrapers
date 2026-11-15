@@ -59,7 +59,7 @@ function matchesCard(row: MaxTxn, last4: string): boolean {
  * @param last4 - Account card last-4.
  * @returns Rows belonging to the card.
  */
-export function filterMaxRows(body: object, last4: string): readonly object[] {
+function filterMaxRows(body: object, last4: string): readonly object[] {
   const resp = body as ITxnsResp;
   const rows = allRows(resp);
   return rows.filter((r): boolean => matchesCard(r, last4));

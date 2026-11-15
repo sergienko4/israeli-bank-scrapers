@@ -35,4 +35,3 @@ const BEINLEUMI_SHAPE = makeFibiGroupShape({
 });
 
 export default BEINLEUMI_SHAPE;
-export { BEINLEUMI_SHAPE };

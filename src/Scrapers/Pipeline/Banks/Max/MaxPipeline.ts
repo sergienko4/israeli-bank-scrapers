@@ -10,7 +10,7 @@ import createPipelineBuilder from '../../Core/Builder/PipelineBuilderFactory.js'
 import type { IPipelineDescriptor } from '../../Core/PipelineDescriptor.js';
 import { MAX_API_DIRECT_CALL } from '../../Registry/Config/PipelineBankConfigMax.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { MAX_SHAPE } from './scrape/MaxShape.js';
+import MAX_SHAPE from './scrape/MaxShape.js';
 
 /**
  * Build the Max pipeline descriptor.
@@ -25,4 +25,3 @@ function buildMaxPipeline(options: ScraperOptions): Procedure<IPipelineDescripto
 }
 
 export default buildMaxPipeline;
-export { buildMaxPipeline };

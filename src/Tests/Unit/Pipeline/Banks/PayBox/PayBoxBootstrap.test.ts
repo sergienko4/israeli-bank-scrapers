@@ -13,7 +13,7 @@ import {
   extractHmacKeyPatch,
   getKeyVars,
 } from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxBootstrap.js';
-import { PAYBOX_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxShape.js';
+import PAYBOX_SHAPE from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxShape.js';
 import {
   HMAC_KEY_SLOT,
   HMAC_SIGNER_SLOT,

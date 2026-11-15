@@ -11,7 +11,7 @@ import createPipelineBuilder from '../../Core/Builder/PipelineBuilderFactory.js'
 import type { IPipelineDescriptor } from '../../Core/PipelineDescriptor.js';
 import { OTSAR_HAHAYAL_API_DIRECT_CALL } from '../../Registry/Config/PipelineBankConfigOtsarHahayal.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { OTSAR_HAHAYAL_SHAPE } from './scrape/OtsarHahayalShape.js';
+import OTSAR_HAHAYAL_SHAPE from './scrape/OtsarHahayalShape.js';
 
 /**
  * Build the Otsar Hahayal pipeline descriptor: the direct-API
@@ -27,4 +27,3 @@ function buildOtsarHahayalPipeline(options: ScraperOptions): Procedure<IPipeline
 }
 
 export default buildOtsarHahayalPipeline;
-export { buildOtsarHahayalPipeline };

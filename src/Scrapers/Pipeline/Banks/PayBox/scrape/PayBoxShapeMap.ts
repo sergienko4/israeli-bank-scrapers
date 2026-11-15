@@ -109,7 +109,7 @@ const STATE_STATUS: ReadonlyMap<string, TransactionStatuses> = new Map([
  * @param raw - Raw wallet row.
  * @returns Canonical status.
  */
-export function statusOf(raw: IWalletTxnRaw): TransactionStatuses {
+function statusOf(raw: IWalletTxnRaw): TransactionStatuses {
   const state = typeof raw.state === 'string' ? raw.state : '';
   return STATE_STATUS.get(state) ?? TransactionStatuses.Completed;
 }

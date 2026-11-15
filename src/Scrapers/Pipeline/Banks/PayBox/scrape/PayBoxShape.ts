@@ -29,7 +29,7 @@ import {
   PAYBOX_SECRETS,
 } from '../../../Registry/Config/PipelineBankConfigPayBoxCrypto.js';
 import { extractHmacKeyPatch, getKeyVars } from './PayBoxBootstrap.js';
-import { payBoxResultGuard } from './PayBoxResultGuard.js';
+import payBoxResultGuard from './PayBoxResultGuard.js';
 import {
   accountNumberOf,
   balanceExtract,
@@ -73,4 +73,3 @@ const PAYBOX_SHAPE: IApiDirectScrapeShape<IPayBoxAcct, IPayBoxCursor> = {
 };
 
 export default PAYBOX_SHAPE;
-export { PAYBOX_SHAPE };

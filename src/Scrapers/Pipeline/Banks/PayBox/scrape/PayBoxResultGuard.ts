@@ -76,9 +76,9 @@ function isDegradedEmpty(summary: IApiDirectScrapeGuardSummary): boolean {
  * @returns Failure when the zero-txns + degraded-balance signature is
  *   present; otherwise a pass-through success.
  */
-export function payBoxResultGuard(summary: IApiDirectScrapeGuardSummary): Procedure<void> {
+function payBoxResultGuard(summary: IApiDirectScrapeGuardSummary): Procedure<void> {
   if (isDegradedEmpty(summary)) return fail(ScraperErrorTypes.Generic, PAYBOX_DEGRADED_SCRAPE_MSG);
   return succeed(undefined);
 }
 
-export { PAYBOX_DEGRADED_SCRAPE_MSG };
+export default payBoxResultGuard;

@@ -10,11 +10,11 @@
 import type { IApiDirectScrapeShape } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import { YAHAV_BODY_DIGEST } from '../../../Registry/Config/PipelineBankConfigYahavConstants.js';
 import { YAHAV_BALANCE, YAHAV_CUSTOMER } from './YahavShapeAccounts.js';
-import { YAHAV_BOOTSTRAP } from './YahavShapeBootstrap.js';
+import YAHAV_BOOTSTRAP from './YahavShapeBootstrap.js';
 import type { IYahavAcct } from './YahavShapeHelpers.js';
 import { SCRAPE_LABEL } from './YahavShapeHelpers.js';
-import { YAHAV_RESPONSE_SESSION } from './YahavShapeSession.js';
-import { YAHAV_TXNS } from './YahavShapeTxns.js';
+import YAHAV_RESPONSE_SESSION from './YahavShapeSession.js';
+import YAHAV_TXNS from './YahavShapeTxns.js';
 
 /**
  * User-facing account number — the BaNCS account id.

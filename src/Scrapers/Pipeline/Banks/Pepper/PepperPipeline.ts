@@ -29,4 +29,3 @@ function buildPepperPipeline(options: ScraperOptions): Procedure<IPipelineDescri
 }
 
 export default buildPepperPipeline;
-export { buildPepperPipeline };

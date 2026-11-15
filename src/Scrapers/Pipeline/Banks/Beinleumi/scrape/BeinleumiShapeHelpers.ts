@@ -29,13 +29,13 @@ export {
 } from '../../../Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeHelpers.js';
 
 /** Beinleumi BFF origin — post-login API host (same registrable domain as login). */
-export const BEINLEUMI_API = 'https://online.fibi.co.il';
+const BEINLEUMI_API = 'https://online.fibi.co.il';
 
 /** Beinleumi's binding of the shared FIBI contract. */
 export const BEINLEUMI_CONFIG: IFibiGroupConfig = { apiOrigin: BEINLEUMI_API };
 
 /** Beinleumi account reference — the shared FIBI account shape. */
-export type IBeinleumiAcct = IFibiAcct;
+type IBeinleumiAcct = IFibiAcct;
 
 /**
  * Balance URL — balances/<accountType> on the Beinleumi origin.
