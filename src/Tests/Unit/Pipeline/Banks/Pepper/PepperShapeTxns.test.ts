@@ -94,31 +94,58 @@ describe('PepperShapeTxns.txnsExtractPage', () => {
     expect(page.nextCursor).toBe(false);
   });
 
-  it('returns nextCursor = page+1 when more results remain', () => {
-    // Build a "full page" worth of rows so under-page exit does not fire.
-    const transactions = Array.from({ length: 100 }, (_v, i): { id: string } => ({
+  it.each<{
+    title: string;
+    cursor: number | false;
+    rows: number;
+    total: number;
+    nextCursor: number | false;
+  }>([
+    {
+      title: 'continues on a full page with more results',
+      cursor: false,
+      rows: 100,
+      total: 9999,
+      nextCursor: 2,
+    },
+    {
+      title: 'terminates on a full page at the total',
+      cursor: false,
+      rows: 100,
+      total: 50,
+      nextCursor: false,
+    },
+    {
+      title: 'terminates on a short page with a large total',
+      cursor: false,
+      rows: 5,
+      total: 9999,
+      nextCursor: false,
+    },
+    {
+      title: 'terminates when a later full page exactly reaches the total',
+      cursor: 2,
+      rows: 100,
+      total: 200,
+      nextCursor: false,
+    },
+    {
+      title: 'advances the incoming cursor',
+      cursor: 2,
+      rows: 100,
+      total: 9999,
+      nextCursor: 3,
+    },
+  ])('$title', ({ cursor, rows, total, nextCursor }) => {
+    const transactions = Array.from({ length: rows }, (_v, i): { id: string } => ({
       id: `t${String(i)}`,
     }));
     const body = {
-      accounts: { oshTransactionsNew: { transactions, totalCount: 9999 } },
+      accounts: { oshTransactionsNew: { transactions, totalCount: total } },
     };
-    const args = pageArgs(body, false);
+    const args = pageArgs(body, cursor);
     const page = txnsExtractPage(args);
-    expect(page.items.length).toBe(100);
-    // First page processed → nextCursor = 2.
-    expect(page.nextCursor).toBe(2);
-  });
-
-  it('terminates when a full page meets totalCount', () => {
-    const transactions = Array.from({ length: 100 }, (_v, i): { id: string } => ({
-      id: `t${String(i)}`,
-    }));
-    const body = {
-      accounts: { oshTransactionsNew: { transactions, totalCount: 50 } },
-    };
-    const args = pageArgs(body, false);
-    const page = txnsExtractPage(args);
-    expect(page.items.length).toBe(100);
-    expect(page.nextCursor).toBe(false);
+    expect(page.items).toHaveLength(rows);
+    expect(page.nextCursor).toBe(nextCursor);
   });
 });
