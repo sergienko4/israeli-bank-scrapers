@@ -61,4 +61,3 @@ async function readBodyText(answer: IAnswer): Promise<Procedure<string>> {
 }
 
 export default readBodyText;
-export { readBodyText };

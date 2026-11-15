@@ -86,4 +86,3 @@ function encodeLatin1Form(pairs: readonly FormPair[]): Procedure<string> {
 }
 
 export default encodeLatin1Form;
-export { encodeLatin1Form };

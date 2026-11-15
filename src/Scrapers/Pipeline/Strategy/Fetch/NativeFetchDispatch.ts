@@ -9,9 +9,9 @@ import { getDebug } from '../../Logging/Debug.js';
 import type { IResponseReading, ResponseKind } from '../../Types/Domain/FetchPolicy.js';
 import type { IProcedureFailure, Procedure } from '../../Types/Procedure.js';
 import { isOk } from '../../Types/Procedure.js';
-import { readDocument } from './DocumentResponse.js';
+import readDocument from './DocumentResponse.js';
 import { classifyHttpFailure, hasCloudflareChallengeHeader } from './HttpFailureClassifier.js';
-import { parseJsonResponse } from './JsonResponse.js';
+import parseJsonResponse from './JsonResponse.js';
 import type { IRedirectRun, IRunEnd } from './RedirectFollow.js';
 import { sendUnderPolicy } from './RedirectFollow.js';
 import { emitSetCookies } from './RedirectShared.js';
@@ -20,7 +20,7 @@ import { refuseMediaType } from './ResponsePolicyCheck.js';
 import { safeUrlForLog } from './SafeUrlForLog.js';
 import type { IAnswer } from './StatusPolicy.js';
 import { applyRateLimit, applyStatusPolicy, statusActionFor } from './StatusPolicy.js';
-import { readText } from './TextResponse.js';
+import readText from './TextResponse.js';
 
 /** A run plus how its answer is read. */
 interface IDispatch extends IRedirectRun {

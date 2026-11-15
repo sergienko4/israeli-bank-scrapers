@@ -22,11 +22,11 @@ import { none, some } from '../../Types/Option.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import type { HttpVerb, IFetchInvokePolicy, ISessionHeaders } from './FetchStrategy.js';
-import { sendAccept } from './RedirectAccept.js';
+import sendAccept from './RedirectAccept.js';
 import { droppedOnHop, followedAfter, hopHeaders, postStatusesOf } from './RedirectHopRules.js';
 import type { IRedirectRun, IRunEnd } from './RedirectShared.js';
 import { answeredUrl, emitSetCookies, isRedirectStatus } from './RedirectShared.js';
-import { cancelResponseBody } from './ResponseBody.js';
+import cancelResponseBody from './ResponseBody.js';
 import { safeUrlForLog } from './SafeUrlForLog.js';
 import { matchesAnyUrlRule } from './UrlRule.js';
 

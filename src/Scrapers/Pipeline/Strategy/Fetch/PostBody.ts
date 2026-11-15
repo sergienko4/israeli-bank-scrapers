@@ -17,7 +17,7 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import type { PostData } from './FetchStrategy.js';
 import serializeJsonBody from './JsonBody.js';
-import { encodeLatin1Form } from './Latin1Form.js';
+import encodeLatin1Form from './Latin1Form.js';
 
 /** Content-type every form body is sent under. */
 const FORM_CONTENT_TYPE = 'application/x-www-form-urlencoded';
