@@ -113,5 +113,5 @@ function refuseBody<T>(
   return fail(refusal.errorType, `POST ${safeUrl} ${refusal.errorMessage}`);
 }
 
-export { INVOKE_NATIVE_FETCH, invokeFetch, refuseBody, resolveFetchUrl, toNetworkFailure };
+export { INVOKE_NATIVE_FETCH, refuseBody, resolveFetchUrl, toNetworkFailure };
 export type { FullyQualifiedUrl };

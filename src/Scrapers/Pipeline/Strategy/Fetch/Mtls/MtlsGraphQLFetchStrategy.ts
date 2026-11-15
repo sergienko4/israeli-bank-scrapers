@@ -6,8 +6,7 @@
  * unchanged. Used for the OneZero GraphQL host behind Cloudflare mTLS.
  */
 
-import type { DefaultHeaders } from '../DefaultHeadersFetchStrategy.js';
-import { GraphQLFetchStrategy } from '../GraphQLFetchStrategy.js';
+import GraphQLFetchStrategy from '../GraphQLFetchStrategy.js';
 import type { AgentSource } from './MtlsAgentSource.js';
 import { makeMtlsInvoke } from './MtlsTransport.js';
 
@@ -19,7 +18,11 @@ class MtlsGraphQLFetchStrategy extends GraphQLFetchStrategy {
    * @param source - Picks the HTTPS agent (client cert + key) per request.
    * @param defaultHeaders - Headers merged under each call's extraHeaders.
    */
-  constructor(baseUrl: string, source: AgentSource, defaultHeaders: DefaultHeaders = {}) {
+  constructor(
+    baseUrl: string,
+    source: AgentSource,
+    defaultHeaders: Readonly<Record<string, string>> = {},
+  ) {
     super(baseUrl, defaultHeaders);
     this._invoke = makeMtlsInvoke(source);
   }

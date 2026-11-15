@@ -16,7 +16,7 @@
  */
 
 import { ScraperErrorTypes } from '../../../../../Base/ErrorTypes.js';
-import { matchesAnyUrlRule } from '../../../../Strategy/Fetch/UrlRule.js';
+import matchesAnyUrlRule from '../../../../Strategy/Fetch/UrlRule.js';
 import type { IProcedureFailure, Procedure } from '../../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../../Types/Procedure.js';
 import type { IExtractRule, IStepConfig } from '../../ConfigContracts/index.js';

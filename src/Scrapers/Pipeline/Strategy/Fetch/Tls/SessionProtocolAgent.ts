@@ -82,4 +82,4 @@ class SessionProtocolAgent extends Agent {
 }
 
 export type { SessionProtocol };
-export { guardSessionProtocol, SESSION_PROTOCOL_REASON, SessionProtocolAgent };
+export { SessionProtocolAgent };

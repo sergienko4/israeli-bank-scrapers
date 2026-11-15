@@ -192,4 +192,4 @@ function withCookieSession(transport: IFetchStrategy, args: ISessionCookieArgs):
 }
 
 export type { ISessionTransport };
-export { SessionCookieFetchStrategy, withCookieSession, withSessionCookies };
+export { withCookieSession };

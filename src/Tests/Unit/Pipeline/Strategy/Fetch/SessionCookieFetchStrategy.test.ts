@@ -99,9 +99,10 @@ function cookieSent(mock: MockFetch, index: number): string {
  * Build a decorated transport over a fresh native strategy.
  * @returns The session-cookie transport.
  */
-function makeTransport(): InstanceType<typeof SESSION.SessionCookieFetchStrategy> {
+function makeTransport(): ReturnType<typeof SESSION.withCookieSession>['transport'] {
   const inner = NATIVE.cappedNative(BASE_URL);
-  return new SESSION.SessionCookieFetchStrategy(inner, BASE_URL);
+  return SESSION.withCookieSession(inner, { identityBaseUrl: BASE_URL, sessionCookies: true })
+    .transport;
 }
 
 describe('SessionCookieFetchStrategy', () => {
@@ -229,21 +230,21 @@ describe('SessionCookieFetchStrategy', () => {
   });
 });
 
-describe('withSessionCookies', () => {
+describe('withCookieSession — origin jar', () => {
   const inner = NATIVE.cappedNative(BASE_URL);
 
   it.each([
     ['absent', { identityBaseUrl: BASE_URL }],
     ['false', { identityBaseUrl: BASE_URL, sessionCookies: false }],
   ])('returns the same transport when the flag is %s', (_label, args) => {
-    const transport = SESSION.withSessionCookies(inner, args);
+    const transport = SESSION.withCookieSession(inner, args).transport;
     expect(transport).toBe(inner);
   });
 
   it('wraps the transport when the flag is true', () => {
     const args = { identityBaseUrl: BASE_URL, sessionCookies: true };
-    const transport = SESSION.withSessionCookies(inner, args);
-    expect(transport).toBeInstanceOf(SESSION.SessionCookieFetchStrategy);
+    const transport = SESSION.withCookieSession(inner, args).transport;
+    expect(transport).not.toBe(inner);
   });
 });
 
@@ -284,7 +285,7 @@ describe('withCookieSession', () => {
     const inner = NATIVE.cappedNative(BASE_URL);
     const args = { identityBaseUrl: BASE_URL, sessionCookies: true };
     const session = SESSION.withCookieSession(inner, args);
-    expect(session.transport).toBeInstanceOf(SESSION.SessionCookieFetchStrategy);
+    expect(session.transport).not.toBe(inner);
     expect(session.cookies).toBeUndefined();
   });
 

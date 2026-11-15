@@ -15,10 +15,12 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { Agent, createServer, type Server } from 'node:https';
 import type { TLSSocket } from 'node:tls';
 
-import { MTLS_MAX_RESPONSE_BYTES } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsResponse.js';
 import type { ICertBundle } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/OneZeroClientCert.js';
 import { CLOUDFLARE_CHALLENGE_HEADERS } from '../../../../../Helpers/EdgeBlockPages.js';
 import { MTLS_TEST_CERT_B64, MTLS_TEST_KEY_B64 } from './MtlsTestCertData.js';
+
+/** Same 8 MiB ceiling the transport enforces. */
+const MTLS_MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
 
 /** A running gate server plus the URLs + teardown callers need. */
 interface IGateServer {

@@ -296,11 +296,4 @@ function resolveOneZeroClientCert(): ICertBundle {
 }
 
 export type { ICertBundle };
-export {
-  emitExpiryWarning,
-  EXPIRED_MSG,
-  expiryMessage,
-  NEAR_EXPIRY_MSG,
-  resolveOneZeroClientCert,
-  warnIfExpiring,
-};
+export { resolveOneZeroClientCert };

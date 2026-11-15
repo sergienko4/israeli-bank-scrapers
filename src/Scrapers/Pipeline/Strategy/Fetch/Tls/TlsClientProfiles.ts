@@ -210,5 +210,5 @@ function warnIfTlsProfileUnsupported(kind: TlsClientProfileKind, openssl: string
   return true;
 }
 
-export type { ITlsClientProfile, TlsClientProfileKind, TlsProfileOptions };
-export { getTlsClientProfile, isTlsProfileSupported, warnIfTlsProfileUnsupported };
+export type { TlsClientProfileKind };
+export { getTlsClientProfile, warnIfTlsProfileUnsupported };

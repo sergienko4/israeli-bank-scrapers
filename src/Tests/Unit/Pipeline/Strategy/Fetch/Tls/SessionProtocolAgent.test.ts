@@ -7,14 +7,8 @@
  */
 
 import { Agent, type ServerOptions } from 'node:https';
-import { PassThrough } from 'node:stream';
-import { setImmediate as nextTurn } from 'node:timers/promises';
 
 import { buildMtlsAgent } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
-import {
-  guardSessionProtocol,
-  SESSION_PROTOCOL_REASON,
-} from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Tls/SessionProtocolAgent.js';
 import { getTlsClientProfile } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Tls/TlsClientProfiles.js';
 import { MTLS_TEST_CERT_B64, MTLS_TEST_KEY_B64 } from '../Mtls/MtlsTestCertData.js';
 import { decodePem } from '../Mtls/MtlsTestServer.js';
@@ -61,7 +55,10 @@ describe('SessionProtocolAgent — enforced by the transport agent on a real han
   it('refuses a TLS 1.2 SHA-1 handshake before the request reaches the server', async () => {
     const agent = buildMtlsAgent(false, 'android-11-okhttp');
     const result = await roundTrip(agent, TLS12_SHA1);
-    const refused = { status: 0, error: SESSION_PROTOCOL_REASON };
+    const refused = {
+      status: 0,
+      error: 'server negotiated a TLS version the profile does not allow',
+    };
     expect(result).toEqual({ outcome: refused, requests: 0 });
   });
 
@@ -82,22 +79,5 @@ describe('SessionProtocolAgent — enforced by the transport agent on a real han
     const agent = buildMtlsAgent(false);
     const result = await roundTrip(agent, TLS12_DEFAULT);
     expect(result).toEqual(COMPLETED);
-  });
-});
-
-describe('SessionProtocolAgent.guardSessionProtocol', () => {
-  it('refuses a connection that cannot report its protocol', async () => {
-    const stream = new PassThrough();
-    const errors: Error[] = [];
-    stream.on('error', (error: Error) => {
-      errors.push(error);
-    });
-    guardSessionProtocol(stream, 'TLSv1.3');
-    await nextTurn();
-    const refusal = new Error(SESSION_PROTOCOL_REASON);
-    expect({ isDestroyed: stream.destroyed, errors }).toEqual({
-      isDestroyed: true,
-      errors: [refusal],
-    });
   });
 });

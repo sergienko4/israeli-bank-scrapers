@@ -16,11 +16,11 @@ import {
 } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsAgentSource.js';
 import MtlsFetchStrategy from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsFetchStrategy.js';
 import MtlsGraphQLFetchStrategy from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsGraphQLFetchStrategy.js';
-import {
-  MTLS_REQUEST_TIMEOUT_MS,
-  setMtlsRequestTimeoutMs,
-} from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
+import { setMtlsRequestTimeoutMs } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
 import { isOk } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
+
+/** Default per-request timeout the suite resets to. */
+const MTLS_REQUEST_TIMEOUT_MS = 30_000;
 import type { IGateServer } from './MtlsTestServer.js';
 import {
   buildCertAgent,

@@ -23,7 +23,6 @@
  * (`substituteCookieHeadersBy`).
  */
 
-import type { Brand } from '../../Types/Brand.js';
 import type { Option } from '../../Types/Option.js';
 import { isSome, none, some } from '../../Types/Option.js';
 import type { Procedure } from '../../Types/Procedure.js';
@@ -39,17 +38,8 @@ const STRICT_COOKIE_HEADER_SENTINEL_PREFIX = '@cookie-strict:';
 /** Ends a sentinel's cookie name; the text after it is the fallback. */
 const FALLBACK_SEPARATOR = '?';
 
-/** Minimal cookie record — the subset the resolver reads. */
-interface INamedCookie {
-  readonly name: string;
-  readonly value: string;
-}
-
-/** Live cookie jar: the name/value records the resolver reads. */
-export type CookieJar = readonly INamedCookie[];
-
 /** Reads one cookie's stored value by name, or none when the cookie is absent. */
-export type CookieLookup = (name: string) => Option<string>;
+type CookieLookup = (name: string) => Option<string>;
 
 /** Turns a stored cookie value into the text a `@cookie:` header sends. */
 type CookieDecode = (raw: string) => string;
@@ -74,9 +64,6 @@ const SENTINEL_KINDS = [
   { prefix: STRICT_COOKIE_HEADER_SENTINEL_PREFIX, isStrict: true },
   { prefix: COOKIE_HEADER_SENTINEL_PREFIX, isStrict: false },
 ] as const;
-
-/** Predicate result: whether a header map carries a cookie-echo sentinel. */
-type HasCookieSentinel = Brand<boolean, 'HasCookieSentinel'>;
 
 /**
  * Split a sentinel body into its cookie name and optional fallback.
@@ -112,17 +99,6 @@ function parseCookieSentinel(value: string): Option<ICookieSentinel> {
 function isCookieSentinel(value: string): boolean {
   const sentinel = parseCookieSentinel(value);
   return isSome(sentinel);
-}
-
-/**
- * Whether any header value is a cookie-echo sentinel. Lets callers skip
- * the (async) cookie read entirely when no substitution is needed.
- * @param headers - Outgoing header map.
- * @returns True when at least one value is a sentinel.
- */
-export function hasCookieSentinel(headers: Readonly<Record<string, string>>): HasCookieSentinel {
-  const isPresent = Object.values(headers).some(isCookieSentinel);
-  return isPresent as HasCookieSentinel;
 }
 
 /**
@@ -256,41 +232,4 @@ export function substituteCookieHeadersBy(
     (acc, entry): Procedure<Record<string, string>> => addResolved(acc, entry, reader),
     start,
   );
-}
-
-/**
- * The first cookie of a live jar with this name.
- * @param jar - Live cookie jar.
- * @param name - Cookie name.
- * @returns Its value, or none when the jar has no such cookie.
- */
-function findInJar(jar: CookieJar, name: string): Option<string> {
-  const hit = jar.find((c): boolean => c.name === name);
-  if (hit === undefined) return none();
-  return some(hit.value);
-}
-
-/**
- * A `@cookie:` value from a supplied cookie list is sent raw.
- * @param raw - Stored cookie value.
- * @returns The same value.
- */
-function keepRaw(raw: string): string {
-  return raw;
-}
-
-/**
- * Rebuild a header map with every sentinel resolved against a live jar;
- * `@cookie:` values are sent raw.
- * @param headers - Outgoing header map (may contain sentinels).
- * @param jar - Live cookie jar.
- * @returns New header map with sentinels resolved, or the failure that stops
- *   the request before dispatch.
- */
-export function substituteCookieHeaders(
-  headers: Readonly<Record<string, string>>,
-  jar: CookieJar,
-): Procedure<Record<string, string>> {
-  const lookup = findInJar.bind(null, jar);
-  return substituteCookieHeadersBy(headers, { lookup, loose: keepRaw });
 }

@@ -28,7 +28,7 @@ import type { IRedirectRun, IRunEnd } from './RedirectShared.js';
 import { answeredUrl, emitSetCookies, isRedirectStatus } from './RedirectShared.js';
 import cancelResponseBody from './ResponseBody.js';
 import { safeUrlForLog } from './SafeUrlForLog.js';
-import { matchesAnyUrlRule } from './UrlRule.js';
+import matchesAnyUrlRule from './UrlRule.js';
 
 /** One request of a manual run and the hops still allowed after it. */
 interface IHop {

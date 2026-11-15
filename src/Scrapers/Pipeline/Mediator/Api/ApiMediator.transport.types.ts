@@ -5,7 +5,7 @@
  */
 
 import type { CompanyTypes } from '../../../../Definitions.js';
-import type { GraphQLFetchStrategy } from '../../Strategy/Fetch/GraphQLFetchStrategy.js';
+import type GraphQLFetchStrategy from '../../Strategy/Fetch/GraphQLFetchStrategy.js';
 import type { NativeFetchStrategy } from '../../Strategy/Fetch/NativeFetchStrategy.js';
 import type { TlsClientProfileKind } from '../../Strategy/Fetch/Tls/TlsClientProfiles.js';
 import type { IDynamicClientCert } from '../../Types/Domain/ClientCertControl.js';

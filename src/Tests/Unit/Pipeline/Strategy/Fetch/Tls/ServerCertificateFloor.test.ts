@@ -10,11 +10,7 @@ import { X509Certificate } from 'node:crypto';
 import { Agent } from 'node:https';
 
 import { buildMtlsAgent } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
-import {
-  type IChainLink,
-  isServerChainAboveFloor,
-  SERVER_CERT_FLOOR_REASON,
-} from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Tls/ServerCertificateFloor.js';
+import { isServerChainAboveFloor } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Tls/ServerCertificateFloor.js';
 import { getTlsClientProfile } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Tls/TlsClientProfiles.js';
 import { decodePem } from '../Mtls/MtlsTestServer.js';
 import {
@@ -32,6 +28,8 @@ import {
   FLOOR_WEAK_KEY_KEY_B64,
 } from './ServerCertificateFloorTestData.js';
 import { fetchOutcome, startLeafServer } from './TlsLoopbackServer.js';
+
+type IChainLink = Parameters<typeof isServerChainAboveFloor>[0];
 
 /** A chain link the tests can close into a loop after creation. */
 interface IOpenLink {
@@ -181,7 +179,10 @@ describe('ServerCertificateFloor — enforced by the transport agent on a real h
       const outcome = await fetchOutcome(server.port, agent, TRUST_CA);
       const requests = server.requests();
       await server.close();
-      const refused = { status: 0, error: SERVER_CERT_FLOOR_REASON };
+      const refused = {
+        status: 0,
+        error: 'server certificate chain is below the TLS security floor (weak key or signature)',
+      };
       expect({ outcome, requests }).toEqual({ outcome: refused, requests: 0 });
     },
   );

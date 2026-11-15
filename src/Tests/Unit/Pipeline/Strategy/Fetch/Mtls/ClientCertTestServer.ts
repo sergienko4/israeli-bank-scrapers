@@ -16,10 +16,9 @@ import { Agent, createServer, type Server } from 'node:https';
 import type { TLSSocket } from 'node:tls';
 
 import type { IPresentedCert } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsAgentSource.js';
-import {
-  type MtlsFallback,
-  setMtlsFetchFallback,
-} from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
+import { setMtlsFetchFallback } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
+
+type MtlsFallback = NonNullable<Parameters<typeof setMtlsFetchFallback>[0]>;
 import type { ICertBundle } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/OneZeroClientCert.js';
 import type { Procedure } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';

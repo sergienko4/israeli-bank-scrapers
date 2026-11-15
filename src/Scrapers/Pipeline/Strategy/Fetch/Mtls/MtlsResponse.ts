@@ -155,4 +155,4 @@ function toResponse(message: IncomingMessage, body: Buffer): Response {
   return new Response(responseBody, { status, headers });
 }
 
-export { collectBody, MTLS_MAX_RESPONSE_BYTES, RESPONSE_TOO_LARGE_REASON, toResponse };
+export { collectBody, toResponse };
