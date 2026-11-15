@@ -14,10 +14,7 @@ import {
   BALANCE_UNKNOWN,
   type IExtractAccountsArgs,
 } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
-import {
-  checkRingBody,
-  makeRingShape,
-} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/Ring/RingShape.js';
+import makeRingShape from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/Ring/RingShape.js';
 import {
   accountNumberOf,
   buildExtractCards,
@@ -32,6 +29,9 @@ import {
   txnsVars,
 } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/Ring/RingShapeTxns.js';
 import { none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
+
+const CHECK_RING_BODY = ISRACARD_SHAPE.checkBody;
+if (CHECK_RING_BODY === undefined) throw new TypeError('Ring shape has no body check');
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
@@ -244,7 +244,7 @@ describe('ring headers', () => {
 
 describe('ring reply envelope check', () => {
   it.each([['-2'], [-2]])('fails Header.Status %p as an expired session', status => {
-    const result = checkRingBody({ Header: { Status: status } });
+    const result = CHECK_RING_BODY({ Header: { Status: status } });
     const isPassed = isOk(result);
     expect(isPassed).toBe(false);
     expect(result).toMatchObject({ errorType: 'GENERIC', errorMessage: 'ring session expired' });
@@ -253,7 +253,7 @@ describe('ring reply envelope check', () => {
   it.each([[{ Header: { Status: '1' } }], [{ Header: { Status: 1 } }], [{ isSuccess: true }]])(
     'passes the confirmed reply %p through',
     body => {
-      const result = checkRingBody(body);
+      const result = CHECK_RING_BODY(body);
       expect(result).toEqual({ success: true, value: body });
     },
   );
@@ -266,7 +266,7 @@ describe('ring reply envelope check', () => {
     [{ isSuccess: false, errorCode: '9' }],
     [{ data: {} }],
   ])('fails the unconfirmed reply %p without echoing its code', body => {
-    const result = checkRingBody(body);
+    const result = CHECK_RING_BODY(body);
     expect(result).toMatchObject({
       success: false,
       errorType: 'GENERIC',
@@ -277,7 +277,7 @@ describe('ring reply envelope check', () => {
   // The fetch strategy parses any JSON, so a 200 can carry a non-object.
   it.each([[null], [[]], ['ok'], [7]])('fails the non-object reply %p as refused', raw => {
     const body = raw as unknown as ApiBody;
-    const result = checkRingBody(body);
+    const result = CHECK_RING_BODY(body);
     expect(result).toMatchObject({
       success: false,
       errorType: 'GENERIC',
@@ -296,7 +296,7 @@ describe('ring shape wiring', () => {
   it('is a card issuer with the session-expiry check', () => {
     expect(shape.stepName).toBe('RingScrape');
     expect(shape.isCardIssuer).toBe(true);
-    expect(shape.checkBody).toBe(checkRingBody);
+    expect(shape.checkBody).toBe(CHECK_RING_BODY);
   });
 
   it('posts cards to the service endpoint and months to GatewayV2', () => {
@@ -337,7 +337,7 @@ describe('ring shape wiring', () => {
     'binds $step to its ring host, with the session-expiry check',
     ({ instance, step, origin }) => {
       expect(instance.stepName).toBe(step);
-      expect(instance.checkBody).toBe(checkRingBody);
+      expect(instance.checkBody).toBe(CHECK_RING_BODY);
       expect(instance.transactions.urlTag).toBe(`${origin}/GatewayV2`);
     },
   );
