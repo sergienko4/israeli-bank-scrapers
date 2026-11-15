@@ -12,8 +12,7 @@
  */
 
 import ONE_ZERO_SHAPE from '../../../../../Scrapers/Pipeline/Banks/OneZero/scrape/OneZeroShape.js';
-import { PAYBOX_DEGRADED_SCRAPE_MSG } from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxResultGuard.js';
-import { PAYBOX_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxShape.js';
+import PAYBOX_SHAPE from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxShape.js';
 import {
   accountNumberOf,
   balanceExtract,
@@ -44,6 +43,11 @@ import { succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { assertHas, assertOk } from '../../../../Helpers/AssertProcedure.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
 import { ctxOf, FIXT_DEVICE, FIXT_TOKEN, FIXT_UID, makePayBoxBus } from './PayBoxBusFactory.js';
+
+const PAYBOX_DEGRADED_SCRAPE_MSG =
+  'PayBox scrape returned zero transactions while the balance fetch fell back ' +
+  'to its default, so a rejected request cannot be told apart from a ' +
+  'genuinely empty page.';
 
 describe('PayBoxShape integration — wallet', () => {
   it('synthesises one wallet account from session-context and walks pagination once', async () => {

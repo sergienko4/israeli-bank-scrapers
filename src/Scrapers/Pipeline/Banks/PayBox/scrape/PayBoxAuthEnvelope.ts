@@ -87,7 +87,7 @@ function resolveToken(ctx: IActionContext): string {
  * @param ctx - Action context (used to read session-context + creds).
  * @returns Auth envelope object.
  */
-export function buildAuthEnvelope(ctx: IActionContext): Record<string, string> {
+function buildAuthEnvelope(ctx: IActionContext): Record<string, string> {
   const session = readSessionContext(ctx);
   return {
     ...PAYBOX_AUTH_ENVELOPE_DEFAULTS,
@@ -98,5 +98,4 @@ export function buildAuthEnvelope(ctx: IActionContext): Record<string, string> {
   };
 }
 
-/** Internals exposed for unit-test reach. */
-export const PAYBOX_AUTH_ENVELOPE_INTERNALS = { readSessionContext, resolveToken } as const;
+export default buildAuthEnvelope;

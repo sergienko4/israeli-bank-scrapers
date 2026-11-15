@@ -36,7 +36,7 @@ import {
 import type { IActionContext } from '../../../Types/PipelineContext.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
-import { buildAuthEnvelope } from './PayBoxAuthEnvelope.js';
+import buildAuthEnvelope from './PayBoxAuthEnvelope.js';
 
 /** Derived-key length (bytes) — HMAC-SHA256 uses a 32-byte key. */
 const HMAC_KEY_LEN = 32;

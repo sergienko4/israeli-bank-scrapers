@@ -13,10 +13,7 @@
  * degraded balance step) and asserts the guard stays silent there, so a
  * future tightening cannot start failing healthy scrapes.
  */
-import {
-  PAYBOX_DEGRADED_SCRAPE_MSG,
-  payBoxResultGuard,
-} from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxResultGuard.js';
+import payBoxResultGuard from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxResultGuard.js';
 import type { IApiDirectScrapeGuardSummary } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 
 /**
@@ -27,6 +24,11 @@ import type { IApiDirectScrapeGuardSummary } from '../../../../../Scrapers/Pipel
 function summaryOf(over: Partial<IApiDirectScrapeGuardSummary>): IApiDirectScrapeGuardSummary {
   return { accountCount: 1, totalTxns: 5, balanceDegraded: false, ...over };
 }
+
+const PAYBOX_DEGRADED_SCRAPE_MSG =
+  'PayBox scrape returned zero transactions while the balance fetch fell back ' +
+  'to its default, so a rejected request cannot be told apart from a ' +
+  'genuinely empty page.';
 
 describe('payBoxResultGuard', () => {
   it('T-PBG-1: fails on the observed CI signature (1 acct, 0 txns, degraded)', () => {

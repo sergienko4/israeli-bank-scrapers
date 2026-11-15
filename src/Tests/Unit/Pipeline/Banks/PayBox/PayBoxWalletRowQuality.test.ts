@@ -16,7 +16,7 @@
  * run, which is exactly what this file exists to prevent.
  */
 
-import { PAYBOX_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxShape.js';
+import PAYBOX_SHAPE from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxShape.js';
 import type { IPayBoxAcct } from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxShapeHelpers.js';
 import { mapWalletTxn } from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxShapeMap.js';
 import { txnsExtractPage } from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxShapeTxns.js';

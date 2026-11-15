@@ -25,7 +25,7 @@ export { MIZRAHI_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Mizrahi/sc
 export { default as ONE_ZERO_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/OneZero/scrape/OneZeroShape.js';
 export { OTSAR_HAHAYAL_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/OtsarHahayal/scrape/OtsarHahayalShape.js';
 export { PAGI_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Pagi/scrape/PagiShape.js';
-export { PAYBOX_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxShape.js';
+export { default as PAYBOX_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxShape.js';
 export { PEPPER_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Pepper/scrape/PepperShape.js';
 export { VISACAL_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/VisaCal/scrape/VisaCalShape.js';
 export { default as YAHAV_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Yahav/scrape/YahavShape.js';

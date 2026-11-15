@@ -17,7 +17,7 @@ import type {
 import type { WKUrlGroup } from '../../../Registry/WK/UrlsWK.js';
 import type { IPage } from '../../../Strategy/Fetch/Pagination.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
-import { buildAuthEnvelope } from './PayBoxAuthEnvelope.js';
+import buildAuthEnvelope from './PayBoxAuthEnvelope.js';
 import type { IPayBoxAcct } from './PayBoxShapeHelpers.js';
 import type { IWalletTxnRaw } from './PayBoxShapeMap.js';
 import { mapWalletTxn } from './PayBoxShapeMap.js';
