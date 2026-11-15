@@ -22,7 +22,7 @@ export { MASSAD_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Massad/scra
 export { MAX_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Max/scrape/MaxShape.js';
 export { MERCANTILE_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Mercantile/scrape/MercantileShape.js';
 export { MIZRAHI_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Mizrahi/scrape/MizrahiShape.js';
-export { ONE_ZERO_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/OneZero/scrape/OneZeroShape.js';
+export { default as ONE_ZERO_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/OneZero/scrape/OneZeroShape.js';
 export { OTSAR_HAHAYAL_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/OtsarHahayal/scrape/OtsarHahayalShape.js';
 export { PAGI_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Pagi/scrape/PagiShape.js';
 export { PAYBOX_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxShape.js';

@@ -14,7 +14,7 @@ import createPipelineBuilder from '../../Core/Builder/PipelineBuilderFactory.js'
 import type { IPipelineDescriptor } from '../../Core/PipelineDescriptor.js';
 import ONEZERO_API_DIRECT_CALL from '../../Registry/Config/PipelineBankConfigOneZero.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { ONE_ZERO_SHAPE } from './scrape/OneZeroShape.js';
+import ONE_ZERO_SHAPE from './scrape/OneZeroShape.js';
 
 /**
  * Build the OneZero pipeline descriptor.
@@ -29,4 +29,3 @@ function buildOneZeroPipeline(options: ScraperOptions): Procedure<IPipelineDescr
 }
 
 export default buildOneZeroPipeline;
-export { buildOneZeroPipeline };

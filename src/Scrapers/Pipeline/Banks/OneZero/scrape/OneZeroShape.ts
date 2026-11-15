@@ -32,4 +32,3 @@ const ONE_ZERO_SHAPE: IApiDirectScrapeShape<IOneZeroAcct, string> = {
 };
 
 export default ONE_ZERO_SHAPE;
-export { ONE_ZERO_SHAPE };

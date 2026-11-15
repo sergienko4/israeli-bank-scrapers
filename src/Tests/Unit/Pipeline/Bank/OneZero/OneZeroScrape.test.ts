@@ -5,7 +5,7 @@
  * OneZeroScrapeBranches.test.ts (shared helpers in OneZeroScrapeTestHelpers.ts).
  */
 
-import { ONE_ZERO_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/OneZero/scrape/OneZeroShape.js';
+import ONE_ZERO_SHAPE from '../../../../../Scrapers/Pipeline/Banks/OneZero/scrape/OneZeroShape.js';
 import buildGenericApiDirectScrape from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeActions.js';
 import { none } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';

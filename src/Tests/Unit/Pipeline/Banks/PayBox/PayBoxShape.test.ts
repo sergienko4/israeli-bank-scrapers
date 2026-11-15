@@ -11,7 +11,7 @@
  * context) are unit-pinned at the end of the file.
  */
 
-import { ONE_ZERO_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/OneZero/scrape/OneZeroShape.js';
+import ONE_ZERO_SHAPE from '../../../../../Scrapers/Pipeline/Banks/OneZero/scrape/OneZeroShape.js';
 import { PAYBOX_DEGRADED_SCRAPE_MSG } from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxResultGuard.js';
 import { PAYBOX_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxShape.js';
 import {
