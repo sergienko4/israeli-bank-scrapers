@@ -21,7 +21,7 @@ import type {
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
 import { BasePhase } from '../Base/BasePhase.js';
-import { buildGenericApiDirectScrape } from './ApiDirectScrapeActions.js';
+import buildGenericApiDirectScrape from './ApiDirectScrapeActions.js';
 import type { ApiDirectScrapeFn } from './ApiDirectScrapeTypes.js';
 import type {
   IApiDirectScrapeGuardSummary,

@@ -16,7 +16,7 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
 import type { IAccountTxns } from './ApiDirectScrapeAccountTxns.js';
 import { fetchAccountTxns } from './ApiDirectScrapeAccountTxns.js';
-import { fetchBalance } from './ApiDirectScrapeBalance.js';
+import fetchBalance from './ApiDirectScrapeBalance.js';
 import type { IAcctCtx, IDriverCtx } from './ApiDirectScrapeTypes.js';
 import type { IBalanceOutcome } from './IApiDirectScrapeShape.js';
 

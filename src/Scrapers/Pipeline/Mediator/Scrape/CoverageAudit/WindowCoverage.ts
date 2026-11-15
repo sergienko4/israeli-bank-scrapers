@@ -48,7 +48,7 @@ const LOG = getDebug(import.meta.url);
 type WindowVerdict = 'covered' | 'unproven';
 
 /** Inputs for one window-coverage reconciliation. */
-export interface IWindowArgs {
+interface IWindowArgs {
   /** Requested window start, as the caller asked for it. */
   readonly requestedStart: string;
   /** Every row the account has yielded so far, across all asks. */

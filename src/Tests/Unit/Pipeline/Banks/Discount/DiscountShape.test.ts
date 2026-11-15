@@ -13,7 +13,7 @@ import type {
   ApiBody,
   IExtractAccountsArgs,
 } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
-import { checkTitanBody } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/TelebankGroup/TelebankGroupShapeCheck.js';
+import checkTitanBody from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/TelebankGroup/TelebankGroupShapeCheck.js';
 import {
   accountNumberOf,
   balanceExtract,

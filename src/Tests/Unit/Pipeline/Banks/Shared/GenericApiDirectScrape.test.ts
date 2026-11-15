@@ -8,7 +8,7 @@ import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
-import { buildGenericApiDirectScrape } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeActions.js';
+import buildGenericApiDirectScrape from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeActions.js';
 import type { IApiDirectScrapeShape } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { IPage } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/Pagination.js';
 import type { IScrapeState } from '../../../../../Scrapers/Pipeline/Types/Domain/ScrapeState.js';

@@ -147,4 +147,3 @@ function checkTitanBody(body: ApiBody): Procedure<ApiBody> {
 }
 
 export default checkTitanBody;
-export { checkTitanBody };

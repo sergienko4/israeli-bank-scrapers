@@ -13,9 +13,10 @@
 
 import {
   auditDeclaredRows,
-  type IDeclaredArgs,
   type IDeclaredRowSpec,
 } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/DeclaredRows.js';
+
+type IDeclaredArgs = Parameters<typeof auditDeclaredRows>[0];
 
 /** The Isracard/Amex declaration, the only shape measured in the wild. */
 const SPEC: IDeclaredRowSpec = {

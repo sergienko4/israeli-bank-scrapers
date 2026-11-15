@@ -16,7 +16,7 @@
  */
 
 import type { IApiDirectScrapeShape, WindowNarrowing } from '../IApiDirectScrapeShape.js';
-import { checkTitanBody } from './TelebankGroupShapeCheck.js';
+import checkTitanBody from './TelebankGroupShapeCheck.js';
 import {
   accountNumberOf,
   balanceExtract,
