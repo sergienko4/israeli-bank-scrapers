@@ -35,8 +35,7 @@ type LoggerProperty = Logger[keyof Logger];
  * Lazy-resolve handler for the JS Proxy used by `getDebug`. On first
  * property access, builds the real pino child (which by then has the
  * file transport of the running execution's destination) and forwards every method
- * call there. Exported so callers wiring custom diagnostics into the
- * same proxy shape can re-use the type instead of re-deriving it.
+ * call there.
  */
 interface IProxyHandler {
   get: (target: object, prop: string | symbol) => LoggerProperty;
