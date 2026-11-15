@@ -47,7 +47,7 @@ export interface IDeclaredRowSpec {
 }
 
 /** Inputs for one declared-row reconciliation. */
-export interface IDeclaredArgs {
+interface IDeclaredArgs {
   /** Raw response body, exactly as received. */
   readonly body: object;
   /** Declarations this bank's response carries. Empty disables the check. */

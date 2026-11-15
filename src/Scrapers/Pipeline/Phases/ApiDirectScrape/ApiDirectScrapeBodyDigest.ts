@@ -30,4 +30,3 @@ function withBodyDigest(
 }
 
 export default withBodyDigest;
-export { withBodyDigest };

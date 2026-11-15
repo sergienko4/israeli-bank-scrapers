@@ -16,9 +16,10 @@
 
 import {
   assessWindowCoverage,
-  type IWindowArgs,
   type IWindowResult,
 } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/WindowCoverage.js';
+
+type IWindowArgs = Parameters<typeof assessWindowCoverage>[0];
 
 /**
  * A row dated through `eventDate`, the numeric alias Hapoalim's rows carry.

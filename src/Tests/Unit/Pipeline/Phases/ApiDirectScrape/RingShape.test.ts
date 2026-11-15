@@ -16,7 +16,6 @@ import {
 } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import {
   checkRingBody,
-  type IRingShapeArgs,
   makeRingShape,
 } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/Ring/RingShape.js';
 import {
@@ -36,7 +35,7 @@ import { none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
-type RingConstants = IRingShapeArgs['ring'];
+type RingConstants = Parameters<typeof makeRingShape>[0]['ring'];
 
 const RING: RingConstants = {
   base: 'https://ring.example.test',

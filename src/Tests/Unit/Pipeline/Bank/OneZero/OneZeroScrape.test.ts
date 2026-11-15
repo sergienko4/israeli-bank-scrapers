@@ -6,7 +6,7 @@
  */
 
 import { ONE_ZERO_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/OneZero/scrape/OneZeroShape.js';
-import { buildGenericApiDirectScrape } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeActions.js';
+import buildGenericApiDirectScrape from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeActions.js';
 import { none } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';

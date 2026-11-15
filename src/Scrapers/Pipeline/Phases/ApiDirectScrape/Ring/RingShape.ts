@@ -44,7 +44,7 @@ import { buildRingHeaders, type RingHeaders } from './RingShapeHeaders.js';
 import { gatewayUrl, txnsExtractPage, txnsVars } from './RingShapeTxns.js';
 
 /** A ring shape: one card per account, month cursor. */
-export type RingShape = IApiDirectScrapeShape<IRingCard, number>;
+type RingShape = IApiDirectScrapeShape<IRingCard, number>;
 
 type RingVerdict = 'ok' | 'expired' | 'refused';
 
@@ -96,7 +96,7 @@ export function checkRingBody(body: ApiBody): Procedure<ApiBody> {
 }
 
 /** One ring brand's binding of the shared family contract. */
-export interface IRingShapeArgs {
+interface IRingShapeArgs {
   /** Pipeline step name, e.g. `IsracardScrape`. */
   readonly stepName: string;
   /** The brand's own coverage-backfill stance. */

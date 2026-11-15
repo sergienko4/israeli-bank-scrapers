@@ -5,7 +5,7 @@
  */
 
 import type { ApiBody } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
-import { checkTitanBody } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/TelebankGroup/TelebankGroupShapeCheck.js';
+import checkTitanBody from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/TelebankGroup/TelebankGroupShapeCheck.js';
 import { titanHeaders } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/TelebankGroup/TelebankGroupShapeHelpers.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 

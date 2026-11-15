@@ -14,7 +14,7 @@ import type { IApiMediator, IApiQueryOpts } from '../../Mediator/Api/ApiMediator
 import type { IActionContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
-import { mergeSessionContext } from './ApiDirectScrapeSessionMerge.js';
+import mergeSessionContext from './ApiDirectScrapeSessionMerge.js';
 import type {
   ApiBody,
   IResponseSessionSpec,

@@ -105,7 +105,7 @@ async function dispatchBalance<TAcct, TCursor>(
  * @param a - Per-account context.
  * @returns Balance outcome procedure (value + degraded flag).
  */
-export async function fetchBalance<TAcct, TCursor>(
+async function fetchBalance<TAcct, TCursor>(
   a: IAcctCtx<TAcct, TCursor>,
 ): Promise<Procedure<IBalanceOutcome>> {
   const resp = await dispatchBalance(a);

@@ -21,7 +21,7 @@ import type { IActionContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import { maybeSignBody, resolveStepBody } from './ApiDirectScrapeBody.js';
-import { withBodyDigest } from './ApiDirectScrapeBodyDigest.js';
+import withBodyDigest from './ApiDirectScrapeBodyDigest.js';
 import {
   captureAnswer,
   type IAnswerCapture,

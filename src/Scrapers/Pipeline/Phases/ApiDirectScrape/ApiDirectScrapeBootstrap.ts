@@ -14,7 +14,7 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import { dispatchStep } from './ApiDirectScrapeDispatch.js';
 import { buildBootstrapDispatchArgs } from './ApiDirectScrapeDispatchArgs.js';
-import { mergeSessionContext } from './ApiDirectScrapeSessionMerge.js';
+import mergeSessionContext from './ApiDirectScrapeSessionMerge.js';
 import type { IDriverCtx } from './ApiDirectScrapeTypes.js';
 import type {
   ApiBody,

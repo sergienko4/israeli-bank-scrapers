@@ -22,4 +22,3 @@ function mergeSessionContext(bus: IApiMediator, patch: SessionContextPatch): boo
 }
 
 export default mergeSessionContext;
-export { mergeSessionContext };
