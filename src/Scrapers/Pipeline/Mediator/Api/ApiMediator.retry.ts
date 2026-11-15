@@ -263,4 +263,3 @@ async function recoverSessionOp(state: IMediatorState): Promise<Procedure<string
 }
 
 export { recoverSessionOp, retryOn401Op };
-export type { IRetryOn401Args };

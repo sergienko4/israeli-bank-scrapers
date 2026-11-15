@@ -202,4 +202,4 @@ function assembleMediator(self: IApiMediator, ctx: IApiCallContext): IApiMediato
   return Object.assign(base, recovery);
 }
 
-export { assembleMediator, buildAuthMethods, buildCallMethods, buildResolverMethods };
+export default assembleMediator;

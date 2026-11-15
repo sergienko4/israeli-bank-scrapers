@@ -147,7 +147,7 @@ function selectFresh(incoming: readonly object[], budget: Map<string, number>): 
  * @param args - Rows held, rows just returned, and log identity.
  * @returns The fresh rows plus how many were re-served.
  */
-export function dropOverlap(args: IOverlapArgs): IOverlapResult {
+export default function dropOverlap(args: IOverlapArgs): IOverlapResult {
   const budget = tally(args.collected);
   const kept = selectFresh(args.incoming, budget);
   const dropped = args.incoming.length - kept.length;
@@ -155,5 +155,3 @@ export function dropOverlap(args: IOverlapArgs): IOverlapResult {
   LOG.debug({ message: `overlap ${args.label}: ${counts}` });
   return { kept, dropped };
 }
-
-export default dropOverlap;

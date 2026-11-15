@@ -1,7 +1,7 @@
 /**
  * Transaction hunt — depth-first iterative walk that collects
  * every txn-like array in a nested API response. Powers
- * `huntTransactions`, used by the coverage audit.
+ * `huntTransactionGroups`, used by the coverage audit.
  *
  * Sub-split out of FieldHunt.ts during Phase 5 to keep both files
  * under the per-cluster max-lines:150 eff cap (master plan
@@ -20,8 +20,8 @@ const MAX_HUNT_DEPTH = 20;
  * Grouping is what lets a caller distinguish the same transaction cross-listed
  * in two containers — one transaction — from two genuinely distinct
  * transactions sitting side by side in one container. Flattening erases that
- * difference, so the walk keeps it and {@link huntTransactions} discards it
- * only for callers that never needed it.
+ * difference, so the walk keeps it for callers that need to distinguish the
+ * two cases.
  */
 export type TxnGroup = readonly ApiRecord[];
 
@@ -232,14 +232,3 @@ export function huntTransactionGroups(responseBody: ApiRecord): readonly TxnGrou
   const stack: IHuntEntry[] = [{ val: responseBody, depth: 0 }];
   return drainHuntStack(stack, []);
 }
-
-/**
- * Every transaction-like item in the response, container boundaries discarded.
- * @param responseBody - Raw API response.
- * @returns Flat array of transaction-like items.
- */
-function huntTransactions(responseBody: ApiRecord): readonly ApiRecord[] {
-  return huntTransactionGroups(responseBody).flat();
-}
-
-export default huntTransactions;

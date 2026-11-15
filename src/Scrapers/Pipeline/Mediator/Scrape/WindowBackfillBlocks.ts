@@ -187,5 +187,3 @@ export function blockOf(args: IBackfillPlanArgs): IBackfillBlock | false {
   if (rule === undefined) return false;
   return { stop: rule.stop, reason: rule.reason(args) };
 }
-
-export default blockOf;

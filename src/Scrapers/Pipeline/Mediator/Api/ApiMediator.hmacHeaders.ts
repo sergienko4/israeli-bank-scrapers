@@ -166,4 +166,3 @@ function buildHmacHeaders(args: IHmacHeadersArgs): Record<string, string> {
 }
 
 export { buildHmacHeaders, HMAC_KEY_SLOT, HMAC_SIGNER_SLOT, NO_HMAC_HEADERS };
-export type { IHmacHeadersArgs };

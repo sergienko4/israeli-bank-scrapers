@@ -5,7 +5,7 @@
 import type { CompanyTypes } from '../../../../Definitions.js';
 import type { IFetchStrategy } from '../../Strategy/Fetch/FetchStrategy.js';
 import type { GraphQLFetchStrategy } from '../../Strategy/Fetch/GraphQLFetchStrategy.js';
-import { assembleMediator } from './ApiMediator.builders.js';
+import assembleMediator from './ApiMediator.builders.js';
 import { makeInitialMediatorState } from './ApiMediator.state.js';
 import type { IApiCallContext, IApiMediator, IApiMediatorDeps } from './ApiMediator.types.js';
 

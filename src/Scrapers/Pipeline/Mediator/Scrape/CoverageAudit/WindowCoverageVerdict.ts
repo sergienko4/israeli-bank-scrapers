@@ -90,5 +90,3 @@ export function classifyWindowCoverage(args: IClassifyArgs): IWindowCoverage {
   if (args.stop !== 'covered') return unproven(args, args.stop);
   return reached(args);
 }
-
-export default classifyWindowCoverage;
