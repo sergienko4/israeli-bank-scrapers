@@ -79,4 +79,4 @@ function reportCleanupFailure(ctx: IPipelineContext, error: unknown): true {
   return true;
 }
 
-export { buildCleanupWarning, reportCleanupFailure };
+export default reportCleanupFailure;
