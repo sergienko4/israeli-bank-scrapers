@@ -17,7 +17,6 @@ import {
   monthAt,
   nextCursorOf,
   offsetOf,
-  startMonth,
   validateCardIssuerPlan,
 } from '../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/CardIssuer/CardIssuerShapeTxns.js';
 import { some } from '../../../../Scrapers/Pipeline/Types/Option.js';
@@ -70,7 +69,7 @@ function shapeRejectsOversizedPlan(shape: (typeof CARD_ISSUER_SHAPES)[number]): 
 describe('CardIssuer cursor policy — calendar helpers', () => {
   it('startMonth floors the window start to the first of its month', () => {
     const ctx = ctxWith(START, END);
-    const month = startMonth(ctx);
+    const month = monthAt(ctx, 0);
     const iso = month.format(ISO_DAY);
     expect(iso).toBe('2026-01-01');
   });

@@ -18,7 +18,7 @@
  * (C:\tmp\runs\pipeline\beinleumi\04-07-2026_11221970).
  */
 
-import { makeFibiGroupShape } from '../../../Phases/ApiDirectScrape/FibiGroup/FibiGroupShape.js';
+import makeFibiGroupShape from '../../../Phases/ApiDirectScrape/FibiGroup/FibiGroupShape.js';
 import { customerUrl, secondaryUrl } from './MassadShapeAccounts.js';
 import { balanceUrl } from './MassadShapeHelpers.js';
 import { txnsUrl } from './MassadShapeTxns.js';

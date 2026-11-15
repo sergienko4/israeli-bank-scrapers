@@ -7,7 +7,7 @@
  */
 
 import type { IApiDirectScrapeGuardSummary } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
-import { zeroAccountsGuard } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ZeroAccountsGuard.js';
+import withZeroAccountsFloor from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ZeroAccountsGuard.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
 /**
@@ -42,7 +42,7 @@ describe('zeroAccountsGuard', () => {
     },
   ])('$name', ({ accountCount, totalTxns, isPass }) => {
     const input = summary(accountCount, totalTxns);
-    const result = zeroAccountsGuard(input);
+    const result = withZeroAccountsFloor()(input);
     const isSuccess = isOk(result);
     expect(isSuccess).toBe(isPass);
   });

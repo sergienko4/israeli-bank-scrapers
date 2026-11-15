@@ -26,10 +26,7 @@ import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import { extractAccounts } from '../../../../../Scrapers/Pipeline/Banks/Pepper/scrape/PepperShapeHelpers.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
-import {
-  ACCOUNTS_FILTERED_LOG,
-  EXCLUSION_REPORT_FAILED,
-} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeExclusions.js';
+import {} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeExclusions.js';
 import {
   type ApiDirectScrapeResult,
   buildApiDirectScrapePhase,
@@ -50,6 +47,9 @@ import { ONEZERO_CASE, PEPPER_CASE } from './ApiDirectScrapeBankShapes.js';
 import { makeRouterBus } from './ApiDirectScrapeRouterBus.js';
 
 /** Pepper's dynamic headers read `ctx.credentials.phoneNumber`. */
+const ACCOUNTS_FILTERED_LOG = 'api-direct-scrape.accounts.filtered';
+const EXCLUSION_REPORT_FAILED = 'api-direct-scrape.accounts.filtered.failed';
+
 const PEPPER_TEST_CREDENTIALS = {
   username: 'pepper-test-user',
   password: 'pepper-test-pass',

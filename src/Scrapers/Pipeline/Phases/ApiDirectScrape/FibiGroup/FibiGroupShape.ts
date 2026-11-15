@@ -24,7 +24,7 @@ import { balanceExtract, type IFibiAcct, noVars } from './FibiGroupShapeHelpers.
 import { txnsExtractPage, txnsVars } from './FibiGroupShapeTxns.js';
 
 /** One FIBI brand's binding of the shared family contract. */
-export interface IFibiGroupShapeArgs {
+interface IFibiGroupShapeArgs {
   /** Pipeline step name, e.g. `MassadScrape`. */
   readonly stepName: string;
   /** The brand's own coverage-backfill stance. */
@@ -95,7 +95,7 @@ function transactionsOf(args: IFibiGroupShapeArgs): FibiShape['transactions'] {
  * @param args - Brand binding: URL providers, step name, backfill stance.
  * @returns Shape passed to `.withApiDirect(...)`.
  */
-export function makeFibiGroupShape(args: IFibiGroupShapeArgs): FibiShape {
+function makeFibiGroupShape(args: IFibiGroupShapeArgs): FibiShape {
   return {
     stepName: args.stepName,
     accountNumberOf,
@@ -104,3 +104,5 @@ export function makeFibiGroupShape(args: IFibiGroupShapeArgs): FibiShape {
     transactions: transactionsOf(args),
   };
 }
+
+export default makeFibiGroupShape;
