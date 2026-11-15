@@ -12,7 +12,7 @@ import { captureForm } from '../Captures/RunStep.formCapture.js';
 import { captureLocation } from '../Captures/RunStep.locationCapture.js';
 import { captureStructured } from '../Captures/RunStep.structuredCapture.js';
 import { captureText } from '../Captures/RunStep.textCapture.js';
-import { carryFinalUrl } from './RunStep.finalUrl.js';
+import carryFinalUrl from './RunStep.finalUrl.js';
 import { carryHeaders } from './RunStep.headerCarry.js';
 import type { CarryMap, IDispatchBundle, IRunStepArgs, JsonValue } from './RunStep.types.js';
 
@@ -113,4 +113,3 @@ function answerSlots(bundle: IDispatchBundle, resp: JsonValue): Procedure<CarryM
 }
 
 export default answerSlots;
-export { answerSlots };

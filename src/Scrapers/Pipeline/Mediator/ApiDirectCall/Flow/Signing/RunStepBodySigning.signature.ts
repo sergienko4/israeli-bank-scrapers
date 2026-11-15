@@ -136,5 +136,3 @@ function attachBodySignature(args: IAttachBodySignatureArgs): Procedure<DocObj> 
 }
 
 export default attachBodySignature;
-
-export { attachBodySignature };

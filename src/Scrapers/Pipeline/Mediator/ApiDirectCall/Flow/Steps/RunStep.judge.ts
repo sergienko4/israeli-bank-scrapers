@@ -8,8 +8,8 @@
 import type { Procedure } from '../../../../Types/Procedure.js';
 import { isOk } from '../../../../Types/Procedure.js';
 import type { IStepConfig } from '../../ConfigContracts/index.js';
-import { classifyAnswer } from './RunStep.classify.js';
-import { judgeStepOutcome } from './RunStep.outcome.js';
+import classifyAnswer from './RunStep.classify.js';
+import judgeStepOutcome from './RunStep.outcome.js';
 import type { CarryMap, JsonValue } from './RunStep.types.js';
 
 /**
@@ -25,5 +25,3 @@ function judgeAnswer(step: IStepConfig, resp: JsonValue): Procedure<CarryMap> {
 }
 
 export default judgeAnswer;
-
-export { judgeAnswer };

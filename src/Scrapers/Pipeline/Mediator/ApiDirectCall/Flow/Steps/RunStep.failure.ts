@@ -144,4 +144,3 @@ function sanitiseStepFailure(step: FailedStep, failure: IProcedureFailure): IPro
 }
 
 export default sanitiseStepFailure;
-export { sanitiseStepFailure };

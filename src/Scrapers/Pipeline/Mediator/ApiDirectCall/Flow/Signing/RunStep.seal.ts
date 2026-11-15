@@ -198,4 +198,3 @@ function applySeal(step: IStepConfig, prepared: IPreparedBody): Procedure<IPrepa
 }
 
 export default applySeal;
-export { applySeal };

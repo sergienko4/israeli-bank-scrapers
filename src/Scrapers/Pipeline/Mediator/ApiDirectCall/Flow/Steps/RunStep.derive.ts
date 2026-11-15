@@ -48,4 +48,3 @@ function deriveStepCarry(step: IStepConfig, scope: ITemplateScope): Procedure<IT
 }
 
 export default deriveStepCarry;
-export { deriveStepCarry };

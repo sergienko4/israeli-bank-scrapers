@@ -150,5 +150,3 @@ function answerShape(value: JsonValue): JsonValue {
 }
 
 export default answerShape;
-
-export { answerShape };
