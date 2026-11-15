@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
-import { GraphQLFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/GraphQLFetchStrategy.js';
+import GraphQLFetchStrategy from '../../../../../Scrapers/Pipeline/Strategy/Fetch/GraphQLFetchStrategy.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
 type MockFetchImpl = (url: string, init: RequestInit) => Promise<Response>;

@@ -4,8 +4,7 @@
  */
 
 import { NETWORK_FETCH_TIMEOUT_MS } from '../../Scrapers/Pipeline/Mediator/Network/FetchConfig.js';
-import type { DefaultHeaders } from '../../Scrapers/Pipeline/Strategy/Fetch/DefaultHeadersFetchStrategy.js';
-import { GraphQLFetchStrategy } from '../../Scrapers/Pipeline/Strategy/Fetch/GraphQLFetchStrategy.js';
+import GraphQLFetchStrategy from '../../Scrapers/Pipeline/Strategy/Fetch/GraphQLFetchStrategy.js';
 import type { INativeFetchOptions } from '../../Scrapers/Pipeline/Strategy/Fetch/NativeFetchStrategy.js';
 import {
   CAPPED_DEFAULT_HEADERS,
@@ -37,7 +36,7 @@ function cappedNative(baseUrl: string, options: INativeFetchOptions = {}): Nativ
  */
 function cappedGraphQL(
   baseUrl: string,
-  defaultHeaders: DefaultHeaders = {},
+  defaultHeaders: Readonly<Record<string, string>> = {},
   options: INativeFetchOptions = {},
 ): GraphQLFetchStrategy {
   const capped = { ...CAP_DEFAULTS, capOnlyWithIntegrity: true, ...options };

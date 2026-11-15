@@ -110,5 +110,5 @@ function createClientCertHolder(origin: string, buildAgent: AgentBuilder): IClie
   return { source, control: { install, clear } };
 }
 
-export type { AgentBuilder, IClientCertHolder };
+export type { AgentBuilder };
 export { createClientCertHolder };

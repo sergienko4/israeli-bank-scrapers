@@ -43,14 +43,14 @@ describe('isTlsProfileSupported — android-11-okhttp needs OpenSSL 3.5+', () =>
     ['', false],
     ['BoringSSL', false],
   ])('OpenSSL %p → supported %p', (openssl, expected) => {
-    const isSupported = PROFILES.isTlsProfileSupported('android-11-okhttp', openssl);
+    const isSupported = !PROFILES.warnIfTlsProfileUnsupported('android-11-okhttp', openssl);
     expect(isSupported).toBe(expected);
   });
 
   it.each(['3.0.15', '1.1.1w', '', 'BoringSSL'])(
     'node-default is supported on OpenSSL %p',
     openssl => {
-      const isSupported = PROFILES.isTlsProfileSupported('node-default', openssl);
+      const isSupported = !PROFILES.warnIfTlsProfileUnsupported('node-default', openssl);
       expect(isSupported).toBe(true);
     },
   );

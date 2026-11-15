@@ -69,9 +69,6 @@ interface IFetchOpts
   readonly sessionHeadersFor?: (url: string) => Procedure<ISessionHeaders>;
 }
 
-/** Default fetch options — no extra headers. */
-const DEFAULT_FETCH_OPTS: IFetchOpts = { extraHeaders: {} };
-
 /** JSON-serializable POST body — an object or a top-level array. */
 type PostData = ApiPostData;
 
@@ -94,4 +91,3 @@ export type {
   OnSetCookie,
   PostData,
 };
-export { DEFAULT_FETCH_OPTS };

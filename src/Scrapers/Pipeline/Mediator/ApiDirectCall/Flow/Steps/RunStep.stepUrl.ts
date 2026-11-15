@@ -7,7 +7,7 @@
 
 import { ScraperErrorTypes } from '../../../../../Base/ErrorTypes.js';
 import { literalUrl, resolveWkUrl, type WKUrlOrLiteral } from '../../../../Registry/WK/UrlsWK.js';
-import { matchesAnyUrlRule } from '../../../../Strategy/Fetch/UrlRule.js';
+import matchesAnyUrlRule from '../../../../Strategy/Fetch/UrlRule.js';
 import type { Procedure } from '../../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../../Types/Procedure.js';
 import type { IJoinTemplate } from '../../ConfigContracts/index.js';

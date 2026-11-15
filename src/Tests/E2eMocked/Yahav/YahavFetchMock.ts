@@ -6,9 +6,10 @@
  * Rule #18: every value here is SYNTHETIC. No real PII.
  */
 
-import type { MtlsFallback } from '../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
 import { setMtlsFetchFallback } from '../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
-import { invokeFetch } from '../../../Scrapers/Pipeline/Strategy/Fetch/NativeFetchStrategy.js';
+
+type MtlsFallback = NonNullable<Parameters<typeof setMtlsFetchFallback>[0]>;
+import { INVOKE_NATIVE_FETCH } from '../../../Scrapers/Pipeline/Strategy/Fetch/NativeFetchNetwork.js';
 import type { CallKind, IMockHandle, IRecordedCall } from '../Helpers/FetchMockKit.js';
 import { errorReply, installFetchMock } from '../Helpers/FetchMockKit.js';
 import { AUTH_ROUTES } from './YahavAuthRoutes.js';
@@ -67,7 +68,7 @@ function viaMockedFetch(state: IYahavMockState): MtlsFallback {
   return request => {
     state.presented = request.presented;
     state.presentedLog.push(request.presented);
-    return invokeFetch({ url: request.url, init: request.init, verb: request.verb });
+    return INVOKE_NATIVE_FETCH(request.url, request.init, { verb: request.verb });
   };
 }
 

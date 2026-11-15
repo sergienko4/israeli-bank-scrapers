@@ -3,7 +3,7 @@
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
-import { matchesAnyUrlRule } from '../../../Strategy/Fetch/UrlRule.js';
+import matchesAnyUrlRule from '../../../Strategy/Fetch/UrlRule.js';
 import type { IUrlRule } from '../../../Types/Domain/FetchPolicy.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, succeed } from '../../../Types/Procedure.js';

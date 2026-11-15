@@ -20,7 +20,7 @@ import { createApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api
 import type { ITokenStrategy } from '../../../../../Scrapers/Pipeline/Mediator/Api/ITokenStrategy.js';
 import { registerWkUrl } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import type { IFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js';
-import type { GraphQLFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/GraphQLFetchStrategy.js';
+import type GraphQLFetchStrategy from '../../../../../Scrapers/Pipeline/Strategy/Fetch/GraphQLFetchStrategy.js';
 import { classifyHttpFailure } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/HttpFailureClassifier.js';
 import type { ITokenBus } from '../../../../../Scrapers/Pipeline/Types/Domain/TokenBus.js';
 import type { IPipelineContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';

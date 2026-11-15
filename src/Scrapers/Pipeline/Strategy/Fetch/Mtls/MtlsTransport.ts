@@ -303,13 +303,5 @@ function makeMtlsInvoke(source: AgentSource): FetchInvoke {
   return invoke;
 }
 
-export type { IMtlsFallbackRequest, IMtlsRequest, MtlsFallback };
 export type { HttpVerb } from '../NativeFetchStrategy.js';
-export {
-  buildMtlsAgent,
-  makeMtlsInvoke,
-  MTLS_REQUEST_TIMEOUT_MS,
-  mtlsInvoke,
-  setMtlsFetchFallback,
-  setMtlsRequestTimeoutMs,
-};
+export { buildMtlsAgent, makeMtlsInvoke, setMtlsFetchFallback, setMtlsRequestTimeoutMs };

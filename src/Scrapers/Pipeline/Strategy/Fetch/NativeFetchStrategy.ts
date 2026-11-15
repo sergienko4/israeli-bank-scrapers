@@ -310,6 +310,6 @@ export type { FetchInvoke, HttpVerb } from './FetchStrategy.js';
 export type { IDispatch } from './NativeFetchDispatch.js';
 export { isApiSuccess } from './NativeFetchDispatch.js';
 export type { FullyQualifiedUrl } from './NativeFetchNetwork.js';
-export { invokeFetch, resolveFetchUrl, toNetworkFailure } from './NativeFetchNetwork.js';
+export { resolveFetchUrl, toNetworkFailure } from './NativeFetchNetwork.js';
 export type { DefaultHeadersByVerb, INativeFetchOptions, TRequest } from './NativeFetchOptions.js';
 export { CAPPED_DEFAULT_HEADERS } from './NativeFetchOptions.js';

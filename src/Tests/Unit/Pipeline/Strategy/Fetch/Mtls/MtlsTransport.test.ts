@@ -20,18 +20,20 @@ import readBodyText from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Bod
 import { fixedAgentSource } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsAgentSource.js';
 import {
   collectBody,
-  MTLS_MAX_RESPONSE_BYTES,
   toResponse,
 } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsResponse.js';
 import {
   buildMtlsAgent,
   makeMtlsInvoke,
-  MTLS_REQUEST_TIMEOUT_MS,
-  mtlsInvoke,
   setMtlsFetchFallback,
   setMtlsRequestTimeoutMs,
 } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
 import { sendUnderPolicy } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/RedirectFollow.js';
+
+/** Same 8 MiB ceiling the transport enforces. */
+const MTLS_MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
+/** Default per-request timeout. */
+const MTLS_REQUEST_TIMEOUT_MS = 30_000;
 import { checkServerCertificate } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Tls/ServerCertificateFloor.js';
 import type { IResponseReading } from '../../../../../../Scrapers/Pipeline/Types/Domain/FetchPolicy.js';
 import { isOk, succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
@@ -103,6 +105,32 @@ describe('MtlsTransport.buildMtlsAgent', () => {
   );
 });
 
+/**
+ * Invoke one request through the same seam the mTLS strategy uses.
+ * @param request - Agent, URL, init and verb for one request.
+ * @param request.agent - HTTPS agent that presents the certificate.
+ * @param request.url - Fully-qualified target URL.
+ * @param request.init - Native fetch request options.
+ * @param request.verb - HTTP verb.
+ * @returns The transport Procedure.
+ */
+function invoke(request: {
+  agent: Agent;
+  url: string;
+  init: RequestInit;
+  verb: 'GET' | 'POST';
+}): ReturnType<ReturnType<typeof makeMtlsInvoke>> {
+  /**
+   * Pick the agent for this request.
+   * @returns The request's agent and no presented-certificate metadata.
+   */
+  const source = (): { agent: Agent; presented: false } => ({
+    agent: request.agent,
+    presented: false,
+  });
+  return makeMtlsInvoke(source)(request.url, request.init, { verb: request.verb });
+}
+
 describe('MtlsTransport.mtlsInvoke — against the simulated mTLS gate', () => {
   let server: IGateServer;
   let certAgent: Agent;
@@ -130,7 +158,7 @@ describe('MtlsTransport.mtlsInvoke — against the simulated mTLS gate', () => {
       headers: { 'content-type': 'application/json' },
       body: '{"a":1}',
     };
-    const result = await mtlsInvoke({ agent: certAgent, url: server.restUrl, init, verb: 'POST' });
+    const result = await invoke({ agent: certAgent, url: server.restUrl, init, verb: 'POST' });
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(true);
     if (isOk(result)) {
@@ -145,7 +173,7 @@ describe('MtlsTransport.mtlsInvoke — against the simulated mTLS gate', () => {
 
   it('exposes every Set-Cookie line via Response.getSetCookie()', async () => {
     const init: RequestInit = { method: 'POST', headers: {}, body: '{}' };
-    const result = await mtlsInvoke({ agent: certAgent, url: server.restUrl, init, verb: 'POST' });
+    const result = await invoke({ agent: certAgent, url: server.restUrl, init, verb: 'POST' });
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(true);
     if (isOk(result)) {
@@ -156,7 +184,7 @@ describe('MtlsTransport.mtlsInvoke — against the simulated mTLS gate', () => {
 
   it('normalises array-form headers and sends a bodyless GET (200)', async () => {
     const init: RequestInit = { method: 'GET', headers: [['x-test', '1']] };
-    const result = await mtlsInvoke({ agent: certAgent, url: server.restUrl, init, verb: 'GET' });
+    const result = await invoke({ agent: certAgent, url: server.restUrl, init, verb: 'GET' });
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(true);
     if (isOk(result)) expect(result.value.status).toBe(200);
@@ -164,7 +192,7 @@ describe('MtlsTransport.mtlsInvoke — against the simulated mTLS gate', () => {
 
   it('tolerates undefined headers on a POST (200)', async () => {
     const init: RequestInit = { method: 'POST', body: '{}' };
-    const result = await mtlsInvoke({ agent: certAgent, url: server.restUrl, init, verb: 'POST' });
+    const result = await invoke({ agent: certAgent, url: server.restUrl, init, verb: 'POST' });
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(true);
     if (isOk(result)) expect(result.value.status).toBe(200);
@@ -173,7 +201,7 @@ describe('MtlsTransport.mtlsInvoke — against the simulated mTLS gate', () => {
   it('normalises a Headers instance into a plain record (200)', async () => {
     const headers = new Headers({ 'x-h': '1' });
     const init: RequestInit = { method: 'POST', headers, body: '{}' };
-    const result = await mtlsInvoke({ agent: certAgent, url: server.restUrl, init, verb: 'POST' });
+    const result = await invoke({ agent: certAgent, url: server.restUrl, init, verb: 'POST' });
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(true);
     if (isOk(result)) expect(result.value.status).toBe(200);
@@ -181,7 +209,7 @@ describe('MtlsTransport.mtlsInvoke — against the simulated mTLS gate', () => {
 
   it('returns the raw 403 Response (no classification) when no cert is presented', async () => {
     const init: RequestInit = { method: 'POST', headers: {}, body: '{}' };
-    const result = await mtlsInvoke({
+    const result = await invoke({
       agent: noCertAgent,
       url: server.restUrl,
       init,
@@ -194,7 +222,7 @@ describe('MtlsTransport.mtlsInvoke — against the simulated mTLS gate', () => {
 
   it('fails with an "mtls error" Procedure when the socket cannot connect', async () => {
     const init: RequestInit = { method: 'GET', headers: {} };
-    const result = await mtlsInvoke({
+    const result = await invoke({
       agent: certAgent,
       url: 'https://127.0.0.1:1/',
       init,
@@ -207,7 +235,7 @@ describe('MtlsTransport.mtlsInvoke — against the simulated mTLS gate', () => {
 
   it('names origin + path only — the query string never reaches the message', async () => {
     const init: RequestInit = { method: 'GET', headers: {} };
-    const result = await mtlsInvoke({
+    const result = await invoke({
       agent: certAgent,
       url: 'https://127.0.0.1:1/auth?did=SECRET-DEVICE-ID',
       init,
@@ -224,7 +252,7 @@ describe('MtlsTransport.mtlsInvoke — against the simulated mTLS gate', () => {
   it('scrubs the query string an engine error quotes back', async () => {
     const agent = makeUrlQuotingAgent();
     const init: RequestInit = { method: 'GET', headers: {} };
-    const result = await mtlsInvoke({ agent, url: QUERY_URL, init, verb: 'GET' });
+    const result = await invoke({ agent, url: QUERY_URL, init, verb: 'GET' });
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(false);
     if (!isOk(result)) {
@@ -307,7 +335,7 @@ describe('MtlsTransport.makeMtlsInvoke', () => {
   });
 });
 
-describe('MtlsTransport.mtlsInvoke — timeout + premature close', () => {
+describe('MtlsTransport.invoke — timeout + premature close', () => {
   let server: IGateServer;
   let certAgent: Agent;
 
@@ -330,7 +358,7 @@ describe('MtlsTransport.mtlsInvoke — timeout + premature close', () => {
   it('fails with an "mtls error" Procedure when the server never responds (timeout)', async () => {
     setMtlsRequestTimeoutMs(150);
     const init: RequestInit = { method: 'GET', headers: {} };
-    const result = await mtlsInvoke({
+    const result = await invoke({
       agent: certAgent,
       url: `${server.baseUrl}hang`,
       init,
@@ -343,7 +371,7 @@ describe('MtlsTransport.mtlsInvoke — timeout + premature close', () => {
 
   it('fails with an "mtls error" Procedure on a premature close mid-body', async () => {
     const init: RequestInit = { method: 'GET', headers: {} };
-    const result = await mtlsInvoke({
+    const result = await invoke({
       agent: certAgent,
       url: `${server.baseUrl}premature`,
       init,
@@ -358,7 +386,7 @@ describe('MtlsTransport.mtlsInvoke — timeout + premature close', () => {
 /** A body with Hebrew, a euro sign and an astral emoji: 2-, 3- and 4-byte UTF-8. */
 const NON_ASCII_BODY = '{"name":"שלום","sum":"€5","mood":"\u{1F600}"}';
 
-describe('MtlsTransport.mtlsInvoke — framing and response cap', () => {
+describe('MtlsTransport.invoke — framing and response cap', () => {
   let server: IGateServer;
   let certAgent: Agent;
 
@@ -384,7 +412,7 @@ describe('MtlsTransport.mtlsInvoke — framing and response cap', () => {
   async function postEcho(headers: Record<string, string>): Promise<IBodyEcho> {
     const init: RequestInit = { method: 'POST', headers, body: NON_ASCII_BODY };
     const url = `${server.baseUrl}echo`;
-    const result = await mtlsInvoke({ agent: certAgent, url, init, verb: 'POST' });
+    const result = await invoke({ agent: certAgent, url, init, verb: 'POST' });
     if (!isOk(result)) throw new ScraperError(result.errorMessage);
     return (await result.value.json()) as IBodyEcho;
   }
@@ -402,7 +430,7 @@ describe('MtlsTransport.mtlsInvoke — framing and response cap', () => {
     const bytes = new TextEncoder().encode(text);
     const init: RequestInit = { method: 'POST', headers: {}, body: bytes };
     const url = `${server.baseUrl}echo`;
-    const result = await mtlsInvoke({ agent: certAgent, url, init, verb: 'POST' });
+    const result = await invoke({ agent: certAgent, url, init, verb: 'POST' });
     if (!isOk(result)) throw new ScraperError(result.errorMessage);
     const echo = (await result.value.json()) as IBodyEcho;
     expect(echo).toEqual({
@@ -423,7 +451,7 @@ describe('MtlsTransport.mtlsInvoke — framing and response cap', () => {
   it('accepts an answer of exactly MTLS_MAX_RESPONSE_BYTES', async () => {
     const init: RequestInit = { method: 'GET', headers: {} };
     const url = `${server.baseUrl}at-cap`;
-    const result = await mtlsInvoke({ agent: certAgent, url, init, verb: 'GET' });
+    const result = await invoke({ agent: certAgent, url, init, verb: 'GET' });
     if (!isOk(result)) throw new ScraperError(result.errorMessage);
     const text = await result.value.text();
     expect(text).toHaveLength(MTLS_MAX_RESPONSE_BYTES);
@@ -432,7 +460,7 @@ describe('MtlsTransport.mtlsInvoke — framing and response cap', () => {
   it('fails an answer over MTLS_MAX_RESPONSE_BYTES with response too large', async () => {
     const init: RequestInit = { method: 'GET', headers: {} };
     const url = `${server.baseUrl}over-cap`;
-    const result = await mtlsInvoke({ agent: certAgent, url, init, verb: 'GET' });
+    const result = await invoke({ agent: certAgent, url, init, verb: 'GET' });
     const message = `GET ${url} mtls error: response too large`;
     const errorType = ScraperErrorTypes.Generic;
     expect(result).toMatchObject({ success: false, errorType, errorMessage: message });

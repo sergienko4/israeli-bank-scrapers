@@ -11,7 +11,7 @@
 import { createHash } from 'node:crypto';
 
 import { ScraperErrorTypes } from '../../../../../Base/ErrorTypes.js';
-import { matchesAnyUrlRule } from '../../../../Strategy/Fetch/UrlRule.js';
+import matchesAnyUrlRule from '../../../../Strategy/Fetch/UrlRule.js';
 import type { Procedure } from '../../../../Types/Procedure.js';
 import { fail, succeed } from '../../../../Types/Procedure.js';
 import type {

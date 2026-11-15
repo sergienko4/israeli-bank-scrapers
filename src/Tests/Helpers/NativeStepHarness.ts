@@ -9,7 +9,7 @@ import {
   createApiMediator,
   type IApiMediator,
 } from '../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
-import type { GraphQLFetchStrategy } from '../../Scrapers/Pipeline/Strategy/Fetch/GraphQLFetchStrategy.js';
+import type GraphQLFetchStrategy from '../../Scrapers/Pipeline/Strategy/Fetch/GraphQLFetchStrategy.js';
 import { cappedNative } from './CappedTransport.js';
 import { fakeFetch } from './FakeFetch.js';
 

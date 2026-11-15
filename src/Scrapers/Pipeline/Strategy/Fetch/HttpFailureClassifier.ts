@@ -143,11 +143,9 @@ function classifyHttpFailure<T>(failure: IHttpFailure): Procedure<T> {
   return fail(ScraperErrorTypes.Generic, prefix + snippet);
 }
 
-export type { IHttpFailure };
 export {
   classifyHttpFailure,
   CLOUDFLARE_BLOCK_REASON,
-  CLOUDFLARE_CHALLENGE_REASON,
   hasCloudflareChallengeHeader,
   isCloudflareBlock,
 };

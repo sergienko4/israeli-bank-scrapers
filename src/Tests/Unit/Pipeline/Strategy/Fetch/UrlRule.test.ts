@@ -4,7 +4,7 @@
  * case-insensitive exact path, and the query rules. Pure — no transport.
  */
 
-import { matchesAnyUrlRule } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/UrlRule.js';
+import matchesAnyUrlRule from '../../../../../Scrapers/Pipeline/Strategy/Fetch/UrlRule.js';
 import type { IUrlRule } from '../../../../../Scrapers/Pipeline/Types/Domain/FetchPolicy.js';
 
 const ORIGIN = 'https://mto.bank.example';

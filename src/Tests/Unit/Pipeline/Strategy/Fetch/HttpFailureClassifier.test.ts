@@ -9,7 +9,6 @@ import { isAuthRejectionMessage } from '../../../../../Scrapers/Pipeline/Mediato
 import {
   classifyHttpFailure,
   CLOUDFLARE_BLOCK_REASON,
-  CLOUDFLARE_CHALLENGE_REASON,
 } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/HttpFailureClassifier.js';
 import {
   BLOCK_PAGE_CLIENT_IP,
@@ -158,7 +157,7 @@ describe('classifyHttpFailure', () => {
       const headers = CLOUDFLARE_CHALLENGE_HEADERS;
       const failure = { verb: 'POST', url: TARGET_URL, status: 403, body, headers, omitBankText };
       const result = classifyHttpFailure(failure);
-      const expectedMessage = `POST ${TARGET_URL} 403: ${CLOUDFLARE_CHALLENGE_REASON}`;
+      const expectedMessage = `POST ${TARGET_URL} 403: challenged by Cloudflare edge (WAF) before reaching the API`;
       expect(result).toMatchObject({ success: false, errorMessage: expectedMessage });
       const serialized = JSON.stringify(result);
       expect(serialized).not.toContain(BLOCK_PAGE_RAY_ID);

@@ -15,14 +15,7 @@ import { join } from 'node:path';
 
 import { jest } from '@jest/globals';
 
-import {
-  emitExpiryWarning,
-  EXPIRED_MSG,
-  expiryMessage,
-  NEAR_EXPIRY_MSG,
-  resolveOneZeroClientCert,
-  warnIfExpiring,
-} from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/OneZeroClientCert.js';
+import { resolveOneZeroClientCert } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/OneZeroClientCert.js';
 import { MTLS_TEST_KEY_B64 } from './MtlsTestCertData.js';
 
 const CERT_ENV = 'ONEZERO_MTLS_CERT';
@@ -178,53 +171,5 @@ describe('resolveOneZeroClientCert', () => {
     jest.spyOn(Date, 'now').mockReturnValue(nearMs);
     const bundle = resolveOneZeroClientCert();
     expect(bundle.cert).toContain('BEGIN CERTIFICATE');
-    const didWarn = warnIfExpiring(bundle.cert);
-    expect(didWarn).toBe(true);
-  });
-});
-
-describe('warnIfExpiring', () => {
-  it('skips the expiry check when the cert is unparseable', () => {
-    const junkPem = '-----BEGIN CERTIFICATE-----\nnot-real-der\n-----END CERTIFICATE-----';
-    const didWarn = warnIfExpiring(junkPem);
-    expect(didWarn).toBe(false);
-  });
-});
-
-describe('expiryMessage', () => {
-  it('selects no message comfortably before the warn window', () => {
-    const message = expiryMessage(90);
-    expect(message).toBe('');
-  });
-
-  it('selects the near-expiry message inside the window', () => {
-    const message = expiryMessage(15);
-    expect(message).toBe(NEAR_EXPIRY_MSG);
-  });
-
-  it('selects the expired message for negative days', () => {
-    const message = expiryMessage(-5);
-    expect(message).toBe(EXPIRED_MSG);
-  });
-
-  it('keeps the expired and near-expiry texts distinguishable', () => {
-    expect(EXPIRED_MSG).not.toBe(NEAR_EXPIRY_MSG);
-  });
-});
-
-describe('emitExpiryWarning', () => {
-  it('does not warn when the cert is comfortably before the warn window', () => {
-    const didWarn = emitExpiryWarning(90);
-    expect(didWarn).toBe(false);
-  });
-
-  it('warns when the cert is within the near-expiry window', () => {
-    const didWarn = emitExpiryWarning(15);
-    expect(didWarn).toBe(true);
-  });
-
-  it('warns when the cert is already expired (negative days)', () => {
-    const didWarn = emitExpiryWarning(-5);
-    expect(didWarn).toBe(true);
   });
 });

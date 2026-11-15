@@ -7,9 +7,10 @@
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import {
   fetchPaginated,
-  type IFetchPaginatedArgs,
   type IPage,
 } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/Pagination.js';
+
+type IFetchPaginatedArgs<TItem, TCursor> = Parameters<typeof fetchPaginated<TItem, TCursor>>[0];
 import {
   fail,
   isOk,

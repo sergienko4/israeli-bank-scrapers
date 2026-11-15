@@ -7,10 +7,7 @@
 import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
-import {
-  CLOUDFLARE_BLOCK_REASON,
-  CLOUDFLARE_CHALLENGE_REASON,
-} from '../../../../../Scrapers/Pipeline/Strategy/Fetch/HttpFailureClassifier.js';
+import { CLOUDFLARE_BLOCK_REASON } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/HttpFailureClassifier.js';
 import { NativeFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/NativeFetchStrategy.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import {
@@ -328,7 +325,7 @@ describe('NativeFetchStrategy — failure paths', () => {
       const strategy = new NativeFetchStrategy('https://api.example');
       const result = await strategy.fetchGet('https://api.example/x', { extraHeaders: {} });
       const statusText = String(status);
-      const expectedMessage = `GET https://api.example/x ${statusText}: ${CLOUDFLARE_CHALLENGE_REASON}`;
+      const expectedMessage = `GET https://api.example/x ${statusText}: challenged by Cloudflare edge (WAF) before reaching the API`;
       expect(result).toMatchObject({
         success: false,
         errorType: ScraperErrorTypes.WafBlocked,

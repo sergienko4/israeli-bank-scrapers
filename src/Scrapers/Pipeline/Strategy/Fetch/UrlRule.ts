@@ -127,4 +127,3 @@ function matchesAnyUrlRule(target: URL, rules: readonly IUrlRule[]): boolean {
 }
 
 export default matchesAnyUrlRule;
-export { matchesAnyUrlRule };

@@ -8,17 +8,61 @@
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import {
   COOKIE_HEADER_SENTINEL_PREFIX,
-  type CookieJar,
   cookieSentinelHeaders,
-  hasCookieSentinel,
-  substituteCookieHeaders,
+  substituteCookieHeadersBy,
 } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/CookieHeaderSentinel.js';
+import type { Option } from '../../../../../Scrapers/Pipeline/Types/Option.js';
+import { none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import { succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
 const JAR = [
   { name: 'XSRF-TOKEN', value: 'tok-123' },
   { name: 'JSESSIONID', value: 'sess-abc' },
 ] as const;
+
+type CookieJar = readonly { readonly name: string; readonly value: string }[];
+
+/**
+ * Whether a header map carries at least one sentinel.
+ * @param headers - Outgoing header map.
+ * @returns True when a sentinel header is present.
+ */
+function hasCookieSentinel(headers: Readonly<Record<string, string>>): boolean {
+  const sentinels = cookieSentinelHeaders(headers);
+  return Object.keys(sentinels).length > 0;
+}
+
+/**
+ * Resolve sentinels against a supplied cookie list, the way the transport does.
+ * @param headers - Outgoing header map.
+ * @param jar - Supplied cookie list.
+ * @returns The resolved headers, or the stopping failure.
+ */
+function substituteCookieHeaders(
+  headers: Readonly<Record<string, string>>,
+  jar: CookieJar,
+): ReturnType<typeof substituteCookieHeadersBy> {
+  /**
+   * Read one cookie from the supplied list.
+   * @param name - Cookie name.
+   * @returns Its value, or none when the list has no such cookie.
+   */
+  function lookup(name: string): Option<string> {
+    const hit = jar.find((cookie): boolean => cookie.name === name);
+    return hit === undefined ? none() : some(hit.value);
+  }
+
+  /**
+   * Keep a supplied cookie value exactly as stored.
+   * @param raw - Stored cookie value.
+   * @returns The same value.
+   */
+  function keepRaw(raw: string): string {
+    return raw;
+  }
+
+  return substituteCookieHeadersBy(headers, { lookup, loose: keepRaw });
+}
 
 describe('CookieHeaderSentinel/hasCookieSentinel', () => {
   it('is true when a header value carries the sentinel prefix', () => {

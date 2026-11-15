@@ -33,7 +33,7 @@ import type {
   IFetchStrategy,
   PostData,
 } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js';
-import { GraphQLFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/GraphQLFetchStrategy.js';
+import GraphQLFetchStrategy from '../../../../../Scrapers/Pipeline/Strategy/Fetch/GraphQLFetchStrategy.js';
 import type { INativeFetchOptions } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/NativeFetchStrategy.js';
 import type { IApiQueryOpts } from '../../../../../Scrapers/Pipeline/Types/Domain/ApiQueryOpts.js';
 import type { IResponseHeaderSink } from '../../../../../Scrapers/Pipeline/Types/Domain/FetchPolicy.js';

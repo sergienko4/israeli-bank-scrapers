@@ -201,5 +201,4 @@ function checkServerCertificate(
   return new Error(SERVER_CERT_FLOOR_REASON);
 }
 
-export type { IChainLink };
-export { checkServerCertificate, isServerChainAboveFloor, SERVER_CERT_FLOOR_REASON };
+export { checkServerCertificate, isServerChainAboveFloor };

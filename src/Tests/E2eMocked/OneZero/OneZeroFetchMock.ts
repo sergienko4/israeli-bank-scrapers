@@ -20,11 +20,10 @@
  * here while failing in production — the blind spot behind issue #576.
  */
 
-import {
-  type MtlsFallback,
-  setMtlsFetchFallback,
-} from '../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
-import { invokeFetch } from '../../../Scrapers/Pipeline/Strategy/Fetch/NativeFetchStrategy.js';
+import { setMtlsFetchFallback } from '../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
+
+type MtlsFallback = NonNullable<Parameters<typeof setMtlsFetchFallback>[0]>;
+import { INVOKE_NATIVE_FETCH } from '../../../Scrapers/Pipeline/Strategy/Fetch/NativeFetchNetwork.js';
 import { makeJwtExpiringIn, makeJwtExpiringInWithClaims } from '../../Helpers/Jwt.js';
 
 /** Tally values returned alongside dispose for wiring assertions. */
@@ -581,7 +580,7 @@ function makeMockFetch(tally: ICallTally): MockFetch {
  * @returns Procedure carrying the mocked Response.
  */
 const VIA_MOCKED_FETCH: MtlsFallback = request =>
-  invokeFetch({ url: request.url, init: request.init, verb: request.verb });
+  INVOKE_NATIVE_FETCH(request.url, request.init, { verb: request.verb });
 
 /**
  * Install the synthetic fetch override. Dispose restores the original.

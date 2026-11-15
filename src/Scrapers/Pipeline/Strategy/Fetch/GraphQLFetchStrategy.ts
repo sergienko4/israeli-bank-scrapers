@@ -13,11 +13,24 @@
  */
 
 import type { Procedure } from '../../Types/Procedure.js';
-import type { DefaultHeaders } from './DefaultHeadersFetchStrategy.js';
-import { mergeUnder } from './DefaultHeadersFetchStrategy.js';
 import type { IFetchOpts, PostData } from './FetchStrategy.js';
+import overlayHeaders from './HeaderOverlay.js';
 import type { INativeFetchOptions } from './NativeFetchStrategy.js';
 import { NativeFetchStrategy } from './NativeFetchStrategy.js';
+
+/** Immutable default-header bag merged under each call's headers. */
+type DefaultHeaders = Readonly<Record<string, string>>;
+
+/**
+ * Merge the default header bag under a call's per-call headers.
+ * @param defaults - Default headers (the floor).
+ * @param opts - Per-call fetch options.
+ * @returns Opts whose extraHeaders layer per-call over defaults.
+ */
+function mergeUnder(defaults: DefaultHeaders, opts: IFetchOpts): IFetchOpts {
+  const extraHeaders = overlayHeaders(defaults, opts.extraHeaders);
+  return { ...opts, extraHeaders };
+}
 
 /** Default opts used when the caller passes no extraHeaders. */
 const EMPTY_OPTS: IFetchOpts = { extraHeaders: {} };
@@ -63,4 +76,3 @@ class GraphQLFetchStrategy extends NativeFetchStrategy {
 }
 
 export default GraphQLFetchStrategy;
-export { GraphQLFetchStrategy };

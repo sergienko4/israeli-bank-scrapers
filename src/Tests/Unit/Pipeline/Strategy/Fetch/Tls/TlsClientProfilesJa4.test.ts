@@ -12,7 +12,7 @@
 import { buildMtlsAgent } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
 import {
   getTlsClientProfile,
-  isTlsProfileSupported,
+  warnIfTlsProfileUnsupported,
 } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Tls/TlsClientProfiles.js';
 import { testCertBundle } from '../Mtls/MtlsTestServer.js';
 import { captureJa4 } from './Ja4Fingerprint.js';
@@ -27,7 +27,7 @@ describe('TLS ClientHello profiles — JA4 oracle', () => {
     const ja4 = await captureJa4(agent);
     agent.destroy();
     const { expectedJa4 } = getTlsClientProfile('android-11-okhttp');
-    const isSupported = isTlsProfileSupported('android-11-okhttp', RUNTIME_OPENSSL);
+    const isSupported = !warnIfTlsProfileUnsupported('android-11-okhttp', RUNTIME_OPENSSL);
     const isPinMatched = ja4 === expectedJa4;
     expect({ ja4, isPinMatched }).toEqual({ ja4, isPinMatched: isSupported });
   });

@@ -6,7 +6,7 @@ import type { CompanyTypes } from '../../../../Definitions.js';
 import type { WKQueryOperation } from '../../Registry/WK/QueriesWK.js';
 import type { WKUrlOrLiteral } from '../../Registry/WK/UrlsWK.js';
 import type { IFetchStrategy, PostData } from '../../Strategy/Fetch/FetchStrategy.js';
-import type { GraphQLFetchStrategy } from '../../Strategy/Fetch/GraphQLFetchStrategy.js';
+import type GraphQLFetchStrategy from '../../Strategy/Fetch/GraphQLFetchStrategy.js';
 import type { IApiQueryOpts } from '../../Types/Domain/ApiQueryOpts.js';
 import type { IMediatorAuthPolicy } from '../../Types/Domain/MediatorAuthPolicy.js';
 import type { ITokenBus } from '../../Types/Domain/TokenBus.js';

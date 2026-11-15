@@ -280,5 +280,5 @@ async function fetchPaginated<TItem, TCursor>(
   return paginateStep(args, initial);
 }
 
-export type { IFetchPaginatedArgs, IPage, IPaginatedWalk, PaginationTermination };
+export type { IPage, IPaginatedWalk, PaginationTermination };
 export { fetchPaginated };

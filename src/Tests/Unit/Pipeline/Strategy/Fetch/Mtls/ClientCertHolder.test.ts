@@ -13,9 +13,10 @@ import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js
 import {
   type AgentBuilder,
   createClientCertHolder,
-  type IClientCertHolder,
 } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/ClientCertHolder.js';
 import MtlsFetchStrategy from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsFetchStrategy.js';
+
+type IClientCertHolder = ReturnType<typeof createClientCertHolder>;
 import {
   makeMtlsInvoke,
   setMtlsFetchFallback,

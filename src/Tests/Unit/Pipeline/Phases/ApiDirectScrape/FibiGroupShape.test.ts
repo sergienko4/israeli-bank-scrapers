@@ -29,7 +29,7 @@ import type {
   ApiDirectScrapeHeadersLike,
   HeaderMap,
 } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
-import { mergeUnder } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/DefaultHeadersFetchStrategy.js';
+import overlayHeaders from '../../../../../Scrapers/Pipeline/Strategy/Fetch/HeaderOverlay.js';
 import { none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
@@ -206,7 +206,7 @@ it('replaces a browser-captured lower-case transaction id with a fresh one', () 
   const ctx = sessionCtx({});
   const headers = stepHeaders(BRANDS[0], 'transactions', ctx);
   const defaults = { 'x-fibi-transaction-id': 'syn-captured-id' };
-  const opts = mergeUnder(defaults, { extraHeaders: headers });
+  const opts = { extraHeaders: overlayHeaders(defaults, headers) };
   const ids = Object.entries(opts.extraHeaders).filter(
     ([name]) => name.toLowerCase() === TXN_ID.toLowerCase(),
   );
