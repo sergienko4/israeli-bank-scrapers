@@ -40,5 +40,4 @@ function buildCollectionResult(
 }
 
 export type { ICollectionResult } from '../Template/RefResolver.js';
-export default buildCollectionResult;
 export { buildCollectionResult };

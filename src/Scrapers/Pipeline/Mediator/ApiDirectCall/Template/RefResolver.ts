@@ -260,4 +260,3 @@ function resolveRefText(token: RefToken, scope: ITemplateScope): string | false 
 
 export type { ICollectionResult, ITemplateScope };
 export { resolveRef, resolveRefText };
-export default resolveRef;

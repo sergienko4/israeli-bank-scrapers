@@ -115,5 +115,4 @@ function hasDuplicateJsonKeys(json: string): boolean {
   return hasDuplicateNode(expression);
 }
 
-export default hasDuplicateJsonField;
 export { hasDuplicateJsonField, hasDuplicateJsonKeys };
