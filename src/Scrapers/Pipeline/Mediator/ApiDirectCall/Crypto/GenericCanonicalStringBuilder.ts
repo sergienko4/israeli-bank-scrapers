@@ -210,6 +210,5 @@ function buildCanonical(args: IBuildCanonicalArgs): Procedure<string> {
   return succeed(joined);
 }
 
-export type { IBuildCanonicalArgs };
 export default buildCanonical;
 export { buildCanonical };

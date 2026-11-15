@@ -134,5 +134,5 @@ function decryptExchangedHmacKey(args: IDecryptExchangeArgs): Procedure<Buffer> 
   return ensureHmacKeyLength(hmacKey);
 }
 
-export type { IDecryptExchangeArgs, IDeriveExchangeKeyArgs };
+export type { IDeriveExchangeKeyArgs };
 export { decryptExchangedHmacKey, deriveExchangeKey };

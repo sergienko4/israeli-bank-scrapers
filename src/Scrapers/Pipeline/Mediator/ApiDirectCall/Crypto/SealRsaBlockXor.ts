@@ -204,5 +204,5 @@ function sealRsaBlockXor(input: ISealInput, drawSeed: SeedSource = randomSeed): 
   return sealWithKey(keyProc.value, input, seed);
 }
 
-export type { ISealInput, SeedSource };
+export type { SeedSource };
 export { sealRsaBlockXor };
