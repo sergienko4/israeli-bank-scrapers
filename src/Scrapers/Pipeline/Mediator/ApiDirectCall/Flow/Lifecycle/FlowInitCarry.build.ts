@@ -9,7 +9,7 @@ import { isOk } from '../../../../Types/Procedure.js';
 import type { IApiDirectCallConfig } from '../../ConfigContracts/index.js';
 import type { JsonValue } from '../../Envelope/JsonPointer.js';
 import { applyDerivedCarry } from './FlowInitCarry.derived.js';
-import { applySeedCarry } from './FlowInitCarry.seed.js';
+import applySeedCarry from './FlowInitCarry.seed.js';
 import type { CarryMut, Creds } from './FlowInitCarry.types.js';
 
 /** Public initial-carry shape (frozen view over the mutable accumulator). */
@@ -52,4 +52,3 @@ function buildInitialCarry(
 export default buildInitialCarry;
 
 export { buildInitialCarry };
-export type { InitialCarry };

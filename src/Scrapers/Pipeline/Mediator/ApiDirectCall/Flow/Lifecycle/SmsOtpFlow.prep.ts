@@ -218,4 +218,4 @@ function prepareSmsOtpFlow(args: IRunSmsOtpArgs): Procedure<ISmsOtpPrep> {
   return succeed({ ...coreProc.value, initialCarry: carryProc.value });
 }
 
-export { prepareFingerprint, prepareKeypairs, prepareSmsOtpFlow, seedScope, signerSlotOf };
+export { prepareSmsOtpFlow, seedScope, signerSlotOf };

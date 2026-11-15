@@ -50,5 +50,4 @@ function omitFlowFailureText(failure: IProcedureFailure): IProcedureFailure {
   return { ...failure, errorMessage: 'persistent auth failed: flow', errorDetails: none() };
 }
 
-export default scrubPersistedValues;
 export { omitFlowFailureText, scrubPersistedValues };

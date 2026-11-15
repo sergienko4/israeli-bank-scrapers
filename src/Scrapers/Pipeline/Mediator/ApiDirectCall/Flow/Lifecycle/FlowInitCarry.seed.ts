@@ -134,5 +134,4 @@ function applySeedCarry(args: IApplySeedCarryArgs): Procedure<CarryMut> {
   );
 }
 
-export { applySeedCarry };
-export type { IApplySeedCarryArgs };
+export default applySeedCarry;

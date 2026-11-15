@@ -152,4 +152,4 @@ function resolveDerivedPart(args: IResolveDerivedPartArgs): Procedure<string> {
   return rule.resolve(rest, args) as Procedure<string>;
 }
 
-export { carryString, configString, credsString, resolveDerivedPart };
+export default resolveDerivedPart;

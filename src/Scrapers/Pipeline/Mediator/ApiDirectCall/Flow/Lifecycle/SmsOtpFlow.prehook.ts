@@ -27,16 +27,6 @@ const CARRY_PREFIX = 'carry.';
 const OTP_TIMEOUT_MESSAGE = 'OTP timeout — code not received';
 
 /**
- * Build the standard preHook missing-function failure procedure.
- * @param hook - Pre-step hook config.
- * @returns Procedure failure.
- */
-function preHookMissingFnFail(hook: IPreStepHook): Procedure<ITemplateScope> {
-  const msg = `preHook: creds.${hook.awaitCredsField} is not a function`;
-  return fail(ScraperErrorTypes.TwoFactorRetrieverMissing, msg);
-}
-
-/**
  * Build the missing-fn failure used by the resolver.
  * @param hook - Pre-step hook config.
  * @returns Procedure failure typed for the resolver caller.
@@ -134,7 +124,7 @@ async function applyPreHook(args: IApplyPreHookArgs): Promise<Procedure<ITemplat
   return succeed({ ...args.scope, carry: nextCarry });
 }
 
-export { applyPreHook, preHookMissingFnFail };
+export { applyPreHook };
 
 // Re-export for parity with the original surface (used by an internal test).
 export { default as invokePreHookFn } from './SmsOtpFlow.prehookInvoke.js';
