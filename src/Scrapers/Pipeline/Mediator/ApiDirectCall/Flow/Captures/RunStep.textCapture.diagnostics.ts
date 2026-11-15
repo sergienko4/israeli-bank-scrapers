@@ -43,4 +43,3 @@ function logCaptureRefusal(input: ICaptureDiagnosticInput, slot: string, reason:
 }
 
 export default logCaptureRefusal;
-export { logCaptureRefusal };

@@ -112,5 +112,4 @@ function readCaptures(input: ICaptureInput, matched: IAnswerCase): Procedure<Car
   return succeed(captured);
 }
 
-export type { ICaptureInput };
-export { readCaptures };
+export default readCaptures;
