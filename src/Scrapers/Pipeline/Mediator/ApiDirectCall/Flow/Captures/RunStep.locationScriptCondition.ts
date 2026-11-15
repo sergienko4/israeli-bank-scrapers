@@ -57,4 +57,3 @@ function readMarker(walk: IScriptWalk): string | false {
 }
 
 export default readMarker;
-export { readMarker };

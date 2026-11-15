@@ -117,5 +117,4 @@ function captureStructured(
   return captureToCarry(capture, resp, answerUrl);
 }
 
-export default captureStructured;
 export { captureStructured, structuredSlotsOf };

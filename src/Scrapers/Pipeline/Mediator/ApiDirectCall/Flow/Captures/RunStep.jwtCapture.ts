@@ -23,4 +23,3 @@ function applyJwtCapture(step: IStepConfig, scope: ITemplateScope): Procedure<IT
 }
 
 export default applyJwtCapture;
-export { applyJwtCapture };

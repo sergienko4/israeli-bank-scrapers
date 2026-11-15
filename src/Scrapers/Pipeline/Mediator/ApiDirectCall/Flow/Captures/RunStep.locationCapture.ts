@@ -16,7 +16,7 @@ import { fail, succeed } from '../../../../Types/Procedure.js';
 import type { ILocationCapture, IStepConfig } from '../../ConfigContracts/index.js';
 import type { CarryMap, IRunStepArgs, JsonValue } from '../Steps/RunStep.types.js';
 import { tokenizeScript } from './RunStep.locationScriptLexer.js';
-import { selectedTargets } from './RunStep.locationScriptWalk.js';
+import selectedTargets from './RunStep.locationScriptWalk.js';
 import { answerText } from './RunStep.textCapture.js';
 
 const OPEN_HEAD = /<script\b/gi;
@@ -147,4 +147,3 @@ function captureLocation(args: IRunStepArgs, resp: JsonValue, url: string): Proc
 }
 
 export default captureLocation;
-export { captureLocation };

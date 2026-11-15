@@ -6,7 +6,7 @@
  * branch is skipped unread. Anything else on the path refuses the script.
  */
 
-import { readMarker } from './RunStep.locationScriptCondition.js';
+import readMarker from './RunStep.locationScriptCondition.js';
 import {
   type IScriptWalk,
   isEndAt,
@@ -18,7 +18,7 @@ import {
 } from './RunStep.locationScriptCursor.js';
 import type { IScriptToken } from './RunStep.locationScriptLexer.js';
 import { skipBranch } from './RunStep.locationScriptSkip.js';
-import { walkChain } from './RunStep.locationScriptStatement.js';
+import walkChain from './RunStep.locationScriptStatement.js';
 
 /** Walks or skips one branch. */
 type BranchWalker = (walk: IScriptWalk, depth: number) => boolean;
@@ -120,4 +120,3 @@ function selectedTargets(
 }
 
 export default selectedTargets;
-export { selectedTargets };

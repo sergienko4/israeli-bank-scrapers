@@ -165,4 +165,3 @@ function captureForm(args: IRunStepArgs, resp: JsonValue, answerUrl: string): Pr
 }
 
 export default captureForm;
-export { captureForm };

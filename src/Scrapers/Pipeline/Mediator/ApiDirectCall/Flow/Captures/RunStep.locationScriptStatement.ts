@@ -120,4 +120,3 @@ function walkChain(walk: IScriptWalk): boolean {
 }
 
 export default walkChain;
-export { walkChain };

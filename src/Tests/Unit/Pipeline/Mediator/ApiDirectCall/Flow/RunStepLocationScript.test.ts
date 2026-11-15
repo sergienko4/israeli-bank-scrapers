@@ -7,7 +7,7 @@
  */
 
 import { tokenizeScript } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Captures/RunStep.locationScriptLexer.js';
-import { selectedTargets } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Captures/RunStep.locationScriptWalk.js';
+import selectedTargets from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Captures/RunStep.locationScriptWalk.js';
 
 const APP_AGENT = 'Mozilla/5.0 MatafMobile/2.1';
 const WEB_AGENT = 'Mozilla/5.0 (research)';
