@@ -1,13 +1,9 @@
 /**
  * Loss evidence survives the real account walk and reaches the result guard.
  */
-
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
-import {
-  buildApiDirectScrapePhase,
-  createApiDirectScrapePhase,
-} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.js';
+import { buildApiDirectScrapePhase } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.js';
 import type { IApiDirectScrapeGuardSummary } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import { none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
@@ -18,6 +14,7 @@ import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure
 import { fail, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import type { WindowCaveat } from '../../../../../WindowCoverage.js';
 import { assertHas, assertOk } from '../../../../Helpers/AssertProcedure.js';
+import runScrapeAction from '../../../../Helpers/ScrapeAction.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
 import { SYN_CASE } from './ApiDirectScrapeBankShapes.js';
 import { makeRouterBus } from './ApiDirectScrapeRouterBus.js';
@@ -116,7 +113,7 @@ async function runPages(
     declaredRowSpecs: [{ groups: 'groups', rows: 'rows', count: 'count' }],
   };
   const shape = { ...SYN_CASE.shape, transactions, resultGuard: strictGuard };
-  const action = await createApiDirectScrapePhase(shape)(ctx);
+  const action = await runScrapeAction(shape)(ctx);
   assertOk(action);
   assertHas(action.value.scrape);
   const phase = buildApiDirectScrapePhase(shape);

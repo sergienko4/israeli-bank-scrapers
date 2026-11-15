@@ -1,6 +1,6 @@
 /**
  * PayBox scrape shape — pure data declaration consumed by the generic
- * createApiDirectScrapePhase factory.
+ * buildApiDirectScrapePhase factory.
  *
  * Customer step: `skipFetch: true` — accounts synthesised from the
  * post-login session-context (uId). PayBox has no `/getAccounts`
@@ -40,7 +40,7 @@ import {
 } from './PayBoxShapeHelpers.js';
 import { type IPayBoxCursor, TXNS_URL_TAG, txnsExtractPage, txnsVars } from './PayBoxShapeTxns.js';
 
-/** PayBox shape declaration — plugged into createApiDirectScrapePhase. */
+/** PayBox shape declaration — plugged into buildApiDirectScrapePhase. */
 const PAYBOX_SHAPE: IApiDirectScrapeShape<IPayBoxAcct, IPayBoxCursor> = {
   stepName: 'PayBoxScrape',
   signer: PAYBOX_SCRAPE_SIGNER,

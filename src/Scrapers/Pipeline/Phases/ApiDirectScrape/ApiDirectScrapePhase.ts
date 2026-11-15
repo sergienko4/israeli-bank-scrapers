@@ -195,20 +195,6 @@ function commitIfKnownBalance(
 }
 
 /**
- * Bind a SHAPE to the ApiDirectScrape phase, returning the bound
- * function the phase invokes per scrape run.
- *
- * @param shape - Bank-supplied shape declaration (data only).
- * @returns Phase function that performs the scrape against the
- *   supplied shape and emits the structured trace events.
- */
-function createApiDirectScrapePhase<TAcct, TCursor>(
-  shape: IApiDirectScrapeShape<TAcct, TCursor>,
-): ApiDirectScrapeFn {
-  return buildGenericApiDirectScrape(shape);
-}
-
-/**
  * Build an ApiDirectScrape BasePhase bound to a shape literal.
  * Used by PipelineBuilder.withApiDirect(call, shape) to wire the phase
  * into the chain.
@@ -218,10 +204,10 @@ function createApiDirectScrapePhase<TAcct, TCursor>(
  */
 function buildApiDirectScrapePhase<TAcct, TCursor>(
   shape: IApiDirectScrapeShape<TAcct, TCursor>,
-): ApiDirectScrapePhase {
+): BasePhase {
   const fn = buildGenericApiDirectScrape(shape);
   const guard = withZeroAccountsFloor(shape.resultGuard);
   return Reflect.construct(ApiDirectScrapePhase, [fn, guard]);
 }
 
-export { ApiDirectScrapePhase, buildApiDirectScrapePhase, createApiDirectScrapePhase };
+export { buildApiDirectScrapePhase };

@@ -1,7 +1,6 @@
 /**
  * Bank-default and step response integrity reach real native dispatch paths.
  */
-
 import { CompanyTypes } from '../../../../../Definitions.js';
 import type { ScraperOptions } from '../../../../../Scrapers/Base/Interface.js';
 import LEUMI_SHAPE from '../../../../../Scrapers/Pipeline/Banks/Leumi/scrape/LeumiShape.js';
@@ -10,7 +9,6 @@ import type { IPipelineDescriptor } from '../../../../../Scrapers/Pipeline/Core/
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import type { IStepConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { runStep } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/RunStep.js';
-import { createApiDirectScrapePhase } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.js';
 import {
   registerWkQuery,
   resetWkRegistryForTest as resetWkQueriesForTest,
@@ -21,6 +19,7 @@ import {
 } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import { isSome, none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import { fakeFetch } from '../../../../Helpers/FakeFetch.js';
+import runScrapeAction from '../../../../Helpers/ScrapeAction.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
 
 const ORIGIN = 'https://bank.example';
@@ -66,7 +65,7 @@ describe('response integrity routing', () => {
       executor: none(),
       windowEnd: none(),
     };
-    const outcome = await createApiDirectScrapePhase(LEUMI_SHAPE)(ctx);
+    const outcome = await runScrapeAction(LEUMI_SHAPE)(ctx);
     expect(outcome).toMatchObject({
       success: false,
       errorMessage: 'response exceeds integrity byte limit',

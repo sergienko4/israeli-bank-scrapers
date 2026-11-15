@@ -9,13 +9,11 @@
  * Scenarios with no per-bank variance (driver guards, accumulator
  * short-circuit) stay on the synthetic case to keep the suite lean.
  */
-
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import {
   type ApiDirectScrapeResult,
   buildApiDirectScrapePhase,
-  createApiDirectScrapePhase,
 } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.js';
 import type { IApiDirectScrapeShape } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import { none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
@@ -27,6 +25,7 @@ import type {
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { assertHas, assertOk } from '../../../../Helpers/AssertProcedure.js';
+import runScrapeAction from '../../../../Helpers/ScrapeAction.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
 import {
   ALL_BANK_CASES,
@@ -82,12 +81,12 @@ async function runPhase(
   bankCase: AnyBankCase,
   bus: IApiMediator,
 ): Promise<Procedure<ApiDirectScrapeResult>> {
-  const phase = createApiDirectScrapePhase(bankCase.shape);
+  const phase = runScrapeAction(bankCase.shape);
   const ctx = ctxOf(bus, bankCase.name);
   return phase(ctx);
 }
 
-describe.each(ALL_BANK_CASES)('createApiDirectScrapePhase — $name', bankCase => {
+describe.each(ALL_BANK_CASES)('runScrapeAction — $name', bankCase => {
   it('ADS-PRE-1 — resolves mediator + extracts accounts', async () => {
     const bus = busForHappyPath(bankCase);
     const result = await runPhase(bankCase, bus);
@@ -127,7 +126,7 @@ describe.each(ALL_BANK_CASES)('createApiDirectScrapePhase — $name', bankCase =
 });
 
 describe.each([SYN_CASE] as readonly AnyBankCase[])(
-  'createApiDirectScrapePhase ADS-ACT-3 — $name (no fallback)',
+  'runScrapeAction ADS-ACT-3 — $name (no fallback)',
   bankCase => {
     it('balance fail without fallback propagates', async () => {
       const balFail = fail(ScraperErrorTypes.Generic, 'bal bad');
@@ -141,7 +140,7 @@ describe.each([SYN_CASE] as readonly AnyBankCase[])(
   },
 );
 
-describe('createApiDirectScrapePhase ADS-ACT-3b — BALANCE_UNKNOWN fallback', () => {
+describe('ApiDirectScrape ADS-ACT-3b — BALANCE_UNKNOWN fallback', () => {
   // Pepper used to be parameterized into ADS-ACT-3 above. It no longer belongs
   // there: issue #550 gave its balance step `fallbackOnFail: BALANCE_UNKNOWN`,
   // so a rejected balance call must NOT discard a scrape whose transactions
@@ -168,7 +167,7 @@ describe('createApiDirectScrapePhase ADS-ACT-3b — BALANCE_UNKNOWN fallback', (
 });
 
 describe.each([SYN_CASE, ONEZERO_CASE] as readonly AnyBankCase[])(
-  'createApiDirectScrapePhase ADS-ACT-4 — $name (with fallback)',
+  'runScrapeAction ADS-ACT-4 — $name (with fallback)',
   bankCase => {
     it('balance fail with fallback yields balance from fallbackOnFail', async () => {
       const balFail = fail(ScraperErrorTypes.Generic, 'bal bad');
@@ -187,7 +186,7 @@ describe.each([SYN_CASE, ONEZERO_CASE] as readonly AnyBankCase[])(
           fallbackOnFail: bankCase.fixtures.fallbackBalance ?? 0,
         },
       };
-      const phase = createApiDirectScrapePhase(shapeWithFallback);
+      const phase = runScrapeAction(shapeWithFallback);
       const ctx = ctxOf(bus, bankCase.name);
       const result = await phase(ctx);
       assertOk(result);
@@ -198,15 +197,13 @@ describe.each([SYN_CASE, ONEZERO_CASE] as readonly AnyBankCase[])(
   },
 );
 
-describe('createApiDirectScrapePhase (synthetic-only edge cases)', () => {
+describe('ApiDirectScrape (synthetic-only edge cases)', () => {
   /**
    * ADS-PRE-2 covers the driver-level guard before any shape is consulted,
    * so a single synthetic case proves the contract.
    */
   it('ADS-PRE-2 — fails with "ApiMediator missing" when slot empty', async () => {
-    const phase = createApiDirectScrapePhase(
-      SYN_CASE.shape as IApiDirectScrapeShape<unknown, unknown>,
-    );
+    const phase = runScrapeAction(SYN_CASE.shape as IApiDirectScrapeShape<unknown, unknown>);
     const base = makeMockContext({ apiMediator: none() });
     const ctx = base;
     const result = await phase(ctx);

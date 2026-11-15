@@ -6,7 +6,6 @@
  * a refused merge, or an answer the header sink never saw fails the call,
  * named after the call.
  */
-
 import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
@@ -20,7 +19,6 @@ import {
   dispatchStep,
   type IDispatchArgs,
 } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeDispatch.js';
-import { createApiDirectScrapePhase } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.js';
 import type { IDriverCtx } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeTypes.js';
 import type {
   ApiBody,
@@ -35,6 +33,7 @@ import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import runScrapeAction from '../../../../Helpers/ScrapeAction.js';
 import { makeMockContext, makeRecoverySessionStubs } from '../../Infrastructure/MockFactories.js';
 import { SYN_CASE } from './ApiDirectScrapeBankShapes.js';
 
@@ -376,7 +375,7 @@ describe('ApiDirectScrapeResponseSession/bootstrap', () => {
 
 /** The scrape phase on a warm session, and the recovery call it would make. */
 interface IWarmPhase {
-  readonly scrape: ReturnType<typeof createApiDirectScrapePhase>;
+  readonly scrape: ReturnType<typeof runScrapeAction>;
   readonly ctx: IActionContext;
   readonly recover: jest.Mock<Promise<Procedure<string>>, []>;
 }
@@ -427,7 +426,7 @@ function warmPhase(patch: PatchFn): IWarmPhase {
   const bus: IApiMediator = { ...sb.bus, ...makeRecoverySessionStubs(), ...warm };
   const spec = sessionSpec(patch);
   const shape = { ...SYN_CASE.shape, bootstrap: LOGIN_STEP, responseSession: spec };
-  return { scrape: createApiDirectScrapePhase(shape), ctx: ctxFor(bus), recover };
+  return { scrape: runScrapeAction(shape), ctx: ctxFor(bus), recover };
 }
 
 const PATCH_FAILURE = new Error('patch exploded');

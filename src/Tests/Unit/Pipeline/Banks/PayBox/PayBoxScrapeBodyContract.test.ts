@@ -21,13 +21,11 @@
  * not just the handling of the RESPONSE — is what pins both halves of
  * the contract.
  */
-
 import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import PAYBOX_SHAPE from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxShape.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
-import { createApiDirectScrapePhase } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
   IActionContext,
@@ -36,6 +34,7 @@ import type {
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { assertOk } from '../../../../Helpers/AssertProcedure.js';
+import runScrapeAction from '../../../../Helpers/ScrapeAction.js';
 import { makeMockContext, makeRecoverySessionStubs } from '../../Infrastructure/MockFactories.js';
 import { FIXT_GETKEY_TSIV, FIXT_GETKEY_TSKEY, FIXT_PHONE } from './PayBoxBusFactory.js';
 
@@ -155,7 +154,7 @@ describe('PayBox post-login body contract', () => {
     const base = makeMockContext(overrides);
     const credentials = { phoneNumber: FIXT_PHONE } as unknown as typeof base.credentials;
     const ctx = { ...base, credentials } as unknown as IActionContext;
-    const phase = createApiDirectScrapePhase(PAYBOX_SHAPE);
+    const phase = runScrapeAction(PAYBOX_SHAPE);
     const result = await phase(ctx);
     assertOk(result);
   });
@@ -219,7 +218,7 @@ describe('PayBox bootstrap merge is fail-closed', () => {
     const base = makeMockContext(overrides);
     const credentials = { phoneNumber: FIXT_PHONE } as unknown as typeof base.credentials;
     const ctx = { ...base, credentials } as unknown as IActionContext;
-    const phase = createApiDirectScrapePhase(PAYBOX_SHAPE);
+    const phase = runScrapeAction(PAYBOX_SHAPE);
     const result = await phase(ctx);
     expect(result.success).toBe(false);
   });

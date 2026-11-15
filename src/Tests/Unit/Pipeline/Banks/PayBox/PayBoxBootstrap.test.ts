@@ -8,7 +8,6 @@
  * the shape integration test; here we pin the crypto vector, the
  * fail-closed contract, and the never-log-the-key invariant.
  */
-
 import {
   extractHmacKeyPatch,
   getKeyVars,
@@ -18,10 +17,10 @@ import {
   HMAC_KEY_SLOT,
   HMAC_SIGNER_SLOT,
 } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.hmacHeaders.js';
-import { createApiDirectScrapePhase } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { assertOk } from '../../../../Helpers/AssertProcedure.js';
+import runScrapeAction from '../../../../Helpers/ScrapeAction.js';
 import {
   ctxOf,
   ctxOfNoPhone,
@@ -102,7 +101,7 @@ describe('PayBoxBootstrap — session deposit (integration)', () => {
     const page = succeed({ content: { nc: [{ ts: 'null' }] } });
     const bus = makePayBoxBus({ transactions: [page] });
     const ctx = ctxOf(bus);
-    const phase = createApiDirectScrapePhase(PAYBOX_SHAPE);
+    const phase = runScrapeAction(PAYBOX_SHAPE);
     const result = await phase(ctx);
     assertOk(result);
     const session = bus.getSessionContext() as Record<string, unknown>;

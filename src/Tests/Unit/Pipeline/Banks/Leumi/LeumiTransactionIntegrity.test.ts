@@ -2,11 +2,11 @@ import LEUMI_SHAPE from '../../../../../Scrapers/Pipeline/Banks/Leumi/scrape/Leu
 import { leumiBrokerUrl } from '../../../../../Scrapers/Pipeline/Banks/Leumi/scrape/LeumiShapeEnvelope.js';
 import { GET_ACCOUNTS_MODULE } from '../../../../../Scrapers/Pipeline/Banks/Leumi/scrape/LeumiShapeHelpers.js';
 import { UC_SO_27_MODULE } from '../../../../../Scrapers/Pipeline/Banks/Leumi/scrape/LeumiShapeUcSo27.js';
-import { createApiDirectScrapePhase } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.js';
 import { none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { assertHas, assertOk } from '../../../../Helpers/AssertProcedure.js';
+import runScrapeAction from '../../../../Helpers/ScrapeAction.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
 import { makeRouterBus } from '../../Phases/ApiDirectScrape/ApiDirectScrapeRouterBus.js';
 
@@ -58,7 +58,7 @@ describe('Leumi transaction source integrity', () => {
     ['a nested identifier without a root identifier', { ...ROW, FITID: undefined, aux: { id: 8 } }],
   ])('refuses %s before returning financial data', async (_label, row) => {
     const ctx = transactionContext(row);
-    const run = createApiDirectScrapePhase(LEUMI_SHAPE);
+    const run = runScrapeAction(LEUMI_SHAPE);
     const outcome = await run(ctx);
     expect(outcome).toMatchObject({
       success: false,
@@ -71,7 +71,7 @@ describe('Leumi transaction source integrity', () => {
     async primary => {
       const row = { ...ROW, FITID: primary, ReferenceNumberLong: 781 };
       const ctx = transactionContext(row);
-      const run = createApiDirectScrapePhase(LEUMI_SHAPE);
+      const run = runScrapeAction(LEUMI_SHAPE);
       const outcome = await run(ctx);
       assertOk(outcome);
       assertHas(outcome.value.scrape);
@@ -84,7 +84,7 @@ describe('Leumi transaction source integrity', () => {
   it('preserves the FITID when the fallback also exists', async () => {
     const row = { ...ROW, ReferenceNumberLong: 781 };
     const ctx = transactionContext(row);
-    const run = createApiDirectScrapePhase(LEUMI_SHAPE);
+    const run = runScrapeAction(LEUMI_SHAPE);
     const outcome = await run(ctx);
     assertOk(outcome);
     assertHas(outcome.value.scrape);
@@ -97,7 +97,7 @@ describe('Leumi transaction source integrity', () => {
     'accepts a complete source date (%s)',
     async date => {
       const ctx = transactionContext({ ...ROW, DateUTC: date });
-      const run = createApiDirectScrapePhase(LEUMI_SHAPE);
+      const run = runScrapeAction(LEUMI_SHAPE);
       const outcome = await run(ctx);
       assertOk(outcome);
       assertHas(outcome.value.scrape);
@@ -113,7 +113,7 @@ describe('Leumi transaction source integrity', () => {
     ['2026-03-01T04:30:00+02:00', '2026-03-01T02:30:00.000Z'],
   ])('returns an unambiguous UTC instant for %s', async (date, expected) => {
     const ctx = transactionContext({ ...ROW, DateUTC: date });
-    const outcome = await createApiDirectScrapePhase(LEUMI_SHAPE)(ctx);
+    const outcome = await runScrapeAction(LEUMI_SHAPE)(ctx);
     assertOk(outcome);
     assertHas(outcome.value.scrape);
     expect(outcome.value.scrape.value.accounts[0].txns).toMatchObject([{ date: expected }]);
@@ -122,7 +122,7 @@ describe('Leumi transaction source integrity', () => {
   it('normalizes an equal higher-priority date alias too', async () => {
     const date = '2026-03-01T00:00:00.000';
     const ctx = transactionContext({ ...ROW, DateUTC: date, purchaseDate: date });
-    const outcome = await createApiDirectScrapePhase(LEUMI_SHAPE)(ctx);
+    const outcome = await runScrapeAction(LEUMI_SHAPE)(ctx);
     assertOk(outcome);
     assertHas(outcome.value.scrape);
     expect(outcome.value.scrape.value.accounts[0].txns).toMatchObject([

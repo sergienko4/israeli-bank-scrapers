@@ -10,20 +10,19 @@
  * <p>Each case has a control that proves the callback is reached, so a throw that
  * is never invoked cannot read as a pass.
  */
-
 import { jest } from '@jest/globals';
 
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import {
   type ApiDirectScrapeResult,
   buildApiDirectScrapePhase,
-  createApiDirectScrapePhase,
 } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.js';
 import type { IApiDirectScrapeShape } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import { none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IScrapeState } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import runScrapeAction from '../../../../Helpers/ScrapeAction.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
 import { SYN_CASE } from './ApiDirectScrapeBankShapes.js';
 import { makeRouterBus } from './ApiDirectScrapeRouterBus.js';
@@ -80,7 +79,7 @@ function warmBusWithRow(): IWarmBus {
 function scrapeWith(bus: IApiMediator, shape: SynShape): Promise<Procedure<ApiDirectScrapeResult>> {
   const base = makeMockContext({ apiMediator: some(bus) });
   const ctx = { ...base, windowEnd: none() };
-  const scrape = createApiDirectScrapePhase(shape);
+  const scrape = runScrapeAction(shape);
   return scrape(ctx);
 }
 

@@ -7,13 +7,11 @@
  * other failure, a degraded success and a WAF block stand. Without the flag
  * the warm-session rule is unchanged.
  */
-
 import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
-import { createApiDirectScrapePhase } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.js';
 import type { ApiDirectScrapeResult } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeTypes.js';
 import type {
   IApiDirectScrapeBootstrapStep,
@@ -24,6 +22,7 @@ import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { assertHas, assertOk } from '../../../../Helpers/AssertProcedure.js';
+import runScrapeAction from '../../../../Helpers/ScrapeAction.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
 import { SYN_CASE } from './ApiDirectScrapeBankShapes.js';
 import { makeRouterBus, type RouterQueues } from './ApiDirectScrapeRouterBus.js';
@@ -155,7 +154,7 @@ async function scrapeOver(
   shape = BOOT_SHAPE,
 ): Promise<Procedure<ApiDirectScrapeResult>> {
   const ctx = makeMockContext({ apiMediator: some(bus) });
-  const phase = createApiDirectScrapePhase(shape);
+  const phase = runScrapeAction(shape);
   return phase(ctx);
 }
 

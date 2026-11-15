@@ -1,18 +1,15 @@
 /**
  * Synthetic Leumi WCF peer for the native login-to-scrape flow.
  */
-
 import { CompanyTypes } from '../../../../../Definitions.js';
 import LEUMI_SHAPE from '../../../../../Scrapers/Pipeline/Banks/Leumi/scrape/LeumiShape.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
-import {
-  buildApiDirectScrapePhase,
-  createApiDirectScrapePhase,
-} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.js';
+import { buildApiDirectScrapePhase } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.js';
 import type { JsonUnknownRecord } from '../../../../../Scrapers/Pipeline/Types/JsonValue.js';
 import { none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IPipelineContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import runScrapeAction from '../../../../Helpers/ScrapeAction.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
 
 type WcfStage = 'customer' | 'balance' | 'transactions';
@@ -150,7 +147,7 @@ async function scrapeWcf(bus: IApiMediator): Promise<Procedure<IPipelineContext>
   const base = makeMockContext({ apiMediator: some(bus), companyId: CompanyTypes.Leumi });
   const options = { ...base.options, startDate: new Date('2026-01-01') };
   const ctx = { ...base, options, executor: none(), windowEnd: none() };
-  const action = await createApiDirectScrapePhase(LEUMI_SHAPE)(ctx);
+  const action = await runScrapeAction(LEUMI_SHAPE)(ctx);
   if (!action.success) return action;
   const updated = { ...ctx, scrape: action.value.scrape };
   return buildApiDirectScrapePhase(LEUMI_SHAPE).post(ctx, updated);
