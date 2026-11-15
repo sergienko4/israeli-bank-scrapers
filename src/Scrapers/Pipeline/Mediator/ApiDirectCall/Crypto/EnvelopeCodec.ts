@@ -128,4 +128,4 @@ function sealEnvelope(session: IEnvelopeSession, body: JsonValue): Procedure<IJs
 }
 
 export type { IEnvelopeSession };
-export { isSessionId, sealEnvelope, sealEnvelopeWithIv, toSession };
+export { isSessionId, sealEnvelope, toSession };

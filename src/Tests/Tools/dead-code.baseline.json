@@ -25,7 +25,6 @@
     "src/Scrapers/Pipeline/Mediator/Api/ApiMediator.transport.ts#mergeHeaders",
     "src/Scrapers/Pipeline/Mediator/Api/ITokenStrategy.ts#TokenPrimeProcedure",
     "src/Scrapers/Pipeline/Mediator/ApiDirectCall/ApiDirectCallActions.pre.ts#readPersistentAuthInput",
-    "src/Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/EnvelopeCodec.ts#sealEnvelopeWithIv",
     "src/Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/HmacRequestSigner.ts#buildHmacCanonical",
     "src/Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/HmacRequestSigner.ts#hashBody",
     "src/Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/HmacRequestSigner.ts#signCanonicalHmac",

@@ -10,7 +10,6 @@ import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js
 import {
   type IEnvelopeSession,
   sealEnvelope,
-  sealEnvelopeWithIv,
   toSession,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/EnvelopeCodec.js';
 import openEnvelope from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/EnvelopeCodec.open.js';
@@ -18,7 +17,6 @@ import type { JsonValue } from '../../../../../../Scrapers/Pipeline/Types/JsonVa
 import {
   aesOpen,
   aesSeal,
-  ENVELOPE_IV,
   ENVELOPE_IV_TEXT,
   ENVELOPE_KEY_TEXT,
   ENVELOPE_SESSION_ID,
@@ -85,50 +83,6 @@ describe('toSession', () => {
   ])('refuses %s', (_label: string, keyText: string, id: string) => {
     const session = toSession(keyText, id);
     expect(session).toBe(false);
-  });
-});
-
-describe('sealEnvelopeWithIv (sealed)', () => {
-  it('matches the openssl goldens, one IV for every part', () => {
-    const session = syntheticSession();
-    const body = { headers: [FLOW_HEADER], data: GREETING };
-    const sealed = sealEnvelopeWithIv(session, body, ENVELOPE_IV);
-    expect(sealed).toEqual({
-      success: true,
-      value: {
-        headers: [ENCRYPTION],
-        enc_headers: [OPENSSL_GOLDENS.flowHeader.cipher],
-        data: OPENSSL_GOLDENS.greeting.cipher,
-      },
-    });
-  });
-
-  it('writes the data as UTF-8 JSON', () => {
-    const session = syntheticSession();
-    const body = { headers: [], data: { note: 'שלום' } };
-    const sealed = sealEnvelopeWithIv(session, body, ENVELOPE_IV);
-    if (!sealed.success) throw new TypeError(sealed.errorMessage);
-    expect(sealed.value.data).toBe(OPENSSL_GOLDENS.hebrew.cipher);
-    expect(sealed.value.enc_headers).toEqual([]);
-  });
-
-  it.each([
-    ['a non-record body', ['headers']],
-    ['a body with an extra field', { headers: [], data: {}, extra: 1 }],
-    ['a body without data', { headers: [] }],
-    ['a body without headers', { data: {} }],
-    ['non-array headers', { headers: {}, data: {} }],
-    ['a non-record header', { headers: ['flow_id'], data: {} }],
-    ['seventeen headers', { headers: Array.from({ length: 17 }, () => FLOW_HEADER), data: {} }],
-    ['non-record data', { headers: [], data: 'text' }],
-  ])('refuses %s, naming no value', (_label: string, body: JsonValue) => {
-    const session = syntheticSession();
-    const sealed = sealEnvelopeWithIv(session, body, ENVELOPE_IV);
-    expect(sealed).toMatchObject({
-      success: false,
-      errorType: ScraperErrorTypes.Generic,
-      errorMessage: 'envelope body invalid',
-    });
   });
 });
 
