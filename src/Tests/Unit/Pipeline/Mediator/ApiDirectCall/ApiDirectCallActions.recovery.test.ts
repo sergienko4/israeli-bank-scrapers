@@ -14,7 +14,7 @@ import type {
   IApiMediator,
   SessionContext,
 } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
-import { makeRecoveryHook } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ApiDirectCallActions.recovery.js';
+import makeRecoveryHook from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ApiDirectCallActions.recovery.js';
 import type { IConfigTokenStrategy } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/TokenStrategyFromConfig.js';
 import type { IPipelineContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 

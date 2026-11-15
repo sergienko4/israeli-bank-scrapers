@@ -150,5 +150,4 @@ function signAesCbcPkcs7(args: ISignAesArgs): Procedure<string> {
   return succeed(`${base64}${postfix}`);
 }
 
-export type { ISignAesArgs };
-export { signAesCbcPkcs7 };
+export default signAesCbcPkcs7;

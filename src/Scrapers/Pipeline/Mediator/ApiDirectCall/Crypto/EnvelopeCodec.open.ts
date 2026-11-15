@@ -170,4 +170,3 @@ function openEnvelope(session: IEnvelopeSession, answer: JsonValue): Procedure<I
 }
 
 export default openEnvelope;
-export { openEnvelope };

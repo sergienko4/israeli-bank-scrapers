@@ -196,5 +196,4 @@ function exportEcP256Pkcs8(keypair: IGenericKeypair): Procedure<string> {
 }
 
 export type { IGenericKeypair };
-export default generateKeypair;
 export { exportEcP256Pkcs8, generateKeypair, importEcP256Pkcs8, isKeypairFor };

@@ -43,4 +43,4 @@ function generateEcdhKey(generator: IEcdhKeyGenerator): Promise<Procedure<Genera
   return Promise.resolve(made);
 }
 
-export { generateEcdhKey, paddedPrivateKey };
+export default generateEcdhKey;

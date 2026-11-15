@@ -17,7 +17,7 @@ import {
   runApiDirectCallAction,
   runApiDirectCallPre,
 } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ApiDirectCallActions.js';
-import { resolvePersistentAuthMode } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ApiDirectCallActions.persistent.js';
+import resolvePersistentAuthMode from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ApiDirectCallActions.persistent.js';
 import {
   readPersistentAuthInput,
   resolveContextAuthMode,

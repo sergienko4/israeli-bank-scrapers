@@ -10,8 +10,8 @@ import { carriedUrlRulesOf } from '../Steps/RunStep.carriedUrlRules.js';
 import generateStepCarry from '../Steps/RunStep.generate.js';
 import type { IRunStepArgs } from './RunStep.js';
 import { runStep } from './RunStep.js';
-import { applyGuardedPreHook } from './SmsOtpFlow.prehookGuard.js';
-import { isStepSkipped } from './SmsOtpFlow.runIf.js';
+import applyGuardedPreHook from './SmsOtpFlow.prehookGuard.js';
+import isStepSkipped from './SmsOtpFlow.runIf.js';
 import type { IMakeRunStepArgs, IReduceStepsArgs, IStepReduceArgs } from './SmsOtpFlow.types.js';
 
 /**
@@ -155,5 +155,3 @@ function reduceSteps(args: IReduceStepsArgs): Promise<Procedure<ITemplateScope>>
 }
 
 export default reduceSteps;
-
-export { reduceSteps };

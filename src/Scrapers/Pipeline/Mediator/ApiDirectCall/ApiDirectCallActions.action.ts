@@ -12,18 +12,18 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
 import type { IApiMediator } from '../Api/ApiMediator.js';
 import resolveApiMediator from '../Api/ApiMediatorAccessor.js';
-import { invokeAuthFlowComplete } from './ApiDirectCallActions.callback.js';
-import { withNormalisedCreds } from './ApiDirectCallActions.phone.js';
+import invokeAuthFlowComplete from './ApiDirectCallActions.callback.js';
+import withNormalisedCreds from './ApiDirectCallActions.phone.js';
 import { mergeOptionsIntoCreds } from './ApiDirectCallActions.pre.js';
 import { applyAuthPolicy, primeAndCheck } from './ApiDirectCallActions.prime.js';
-import { makeRecoveryHook } from './ApiDirectCallActions.recovery.js';
+import makeRecoveryHook from './ApiDirectCallActions.recovery.js';
 import {
   COLD_FALLBACK_STALE,
   COLD_FALLBACK_WARM_FAILED,
   coldFallbackDetail,
   PHASE_LABEL,
 } from './ApiDirectCallActions.shared.js';
-import { createContextStrategy } from './ApiDirectCallActions.strategy.js';
+import createContextStrategy from './ApiDirectCallActions.strategy.js';
 import type { IApiDirectCallConfig } from './ConfigContracts/index.js';
 import type { IAuthModePolicy } from './Flow/AuthModePolicy.js';
 import type {
@@ -300,5 +300,3 @@ async function runApiDirectCallAction(
 }
 
 export default runApiDirectCallAction;
-
-export { runApiDirectCallAction };

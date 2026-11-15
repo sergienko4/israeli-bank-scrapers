@@ -7,10 +7,8 @@
 import { createPublicKey, generateKeyPairSync } from 'node:crypto';
 
 import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js';
-import {
-  importSealKey,
-  sealRsaPkcs1,
-} from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/SealRsaPkcs1.js';
+import type { SealRefText } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/SealPlan.js';
+import planRsaPkcs1 from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/SealRsaPkcs1.js';
 import { makePkcs1Key, openPkcs1 } from '../../../../../Helpers/SealOpener.js';
 
 const KEY = makePkcs1Key();
@@ -21,16 +19,31 @@ const EC_PAIR = generateKeyPairSync('ec', { namedCurve: 'P-256' });
 const EC_PEM = EC_PAIR.publicKey.export({ type: 'spki', format: 'pem' });
 const EC_DER = EC_PAIR.publicKey.export({ type: 'spki', format: 'der' }).toString('base64');
 
+/** Fixed one-field seal config shared by the helper. */
+const SEAL_CONFIG = {
+  kind: 'rsa-pkcs1-v15',
+  keyRef: 'carry.key',
+  fields: [{ sourceRef: 'creds.source', writeTo: '/sealed' }],
+} as const;
+
 /**
  * Seal a source under a key text.
  * @param keyText - Key text, as carry holds it.
  * @param source - Credential text.
  * @returns The seal procedure.
  */
-function sealUnder(keyText: string, source: string): ReturnType<typeof sealRsaPkcs1> {
-  const key = importSealKey(keyText);
-  if (!key.success) return key;
-  return sealRsaPkcs1(key.value, source);
+function sealUnder(keyText: string, source: string): ReturnType<typeof planRsaPkcs1> {
+  /**
+   * Read one seal ref as test text.
+   * @param ref - Ref the planner asks for.
+   * @returns The key, the source, or false for an unknown ref.
+   */
+  const refText: SealRefText = (ref): string | false => {
+    if (ref === 'carry.key') return keyText;
+    if (ref === 'creds.source') return source;
+    return false;
+  };
+  return planRsaPkcs1(SEAL_CONFIG, refText);
 }
 
 /**
@@ -42,7 +55,8 @@ function sealUnder(keyText: string, source: string): ReturnType<typeof sealRsaPk
 function sealedText(keyText: string, source: string): string {
   const result = sealUnder(keyText, source);
   if (!result.success) throw new TypeError(result.errorMessage);
-  return result.value;
+  const write = result.value[0];
+  return write.value;
 }
 
 /**
@@ -95,7 +109,7 @@ describe('sealRsaPkcs1', () => {
     ['an EC DER key', EC_DER],
     ['a text over 16384 characters', `${KEY.pem}${' '.repeat(16_384)}`],
   ])('refuses %s as "seal key invalid"', (_label, keyText) => {
-    const result = importSealKey(keyText);
+    const result = sealUnder(keyText, SOURCE);
     expect(result).toMatchObject({
       success: false,
       errorType: ScraperErrorTypes.Generic,
@@ -127,7 +141,7 @@ describe('sealRsaPkcs1', () => {
   });
 
   it('keeps every failure free of the key and the source', () => {
-    const results = [importSealKey('syn-secret-key'), sealUnder(KEY.pem, 'syn-סוד')];
+    const results = [sealUnder('syn-secret-key', SOURCE), sealUnder(KEY.pem, 'syn-סוד')];
     const text = JSON.stringify(results);
     expect(text).not.toContain('syn-secret-key');
     expect(text).not.toContain('סוד');

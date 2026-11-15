@@ -11,7 +11,7 @@ import { none, type Option, some } from '../../Types/Option.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
-import { resolvePersistentAuthMode } from './ApiDirectCallActions.persistent.js';
+import resolvePersistentAuthMode from './ApiDirectCallActions.persistent.js';
 import type { IApiDirectCallConfig } from './ConfigContracts/index.js';
 import type { GenericCreds, PersistentAuthMode } from './Flow/Lifecycle/TokenStrategyFromConfig.js';
 import { isJwtFresh } from './Jwt/GenericJwtClaims.js';

@@ -211,4 +211,3 @@ function buildCanonical(args: IBuildCanonicalArgs): Procedure<string> {
 }
 
 export default buildCanonical;
-export { buildCanonical };

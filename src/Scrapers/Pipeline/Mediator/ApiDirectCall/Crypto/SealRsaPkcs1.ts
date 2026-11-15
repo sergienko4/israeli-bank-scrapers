@@ -164,4 +164,4 @@ function planRsaPkcs1(seal: ISealRsaPkcs1Config, refText: SealRefText): SealPlan
   return seal.fields.reduce<SealPlan>((plan, field) => nextPlan(plan, field, sealing), empty);
 }
 
-export { importSealKey, planRsaPkcs1, sealRsaPkcs1 };
+export default planRsaPkcs1;

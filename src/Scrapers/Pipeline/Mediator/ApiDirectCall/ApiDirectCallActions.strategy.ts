@@ -32,5 +32,3 @@ function createContextStrategy(
 }
 
 export default createContextStrategy;
-
-export { createContextStrategy };

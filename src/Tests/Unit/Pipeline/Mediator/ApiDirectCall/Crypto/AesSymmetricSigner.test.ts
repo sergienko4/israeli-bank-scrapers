@@ -4,7 +4,7 @@
  * on stable ciphertext for the bank-supplied signature contract.
  */
 
-import { signAesCbcPkcs7 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/AesSymmetricSigner.js';
+import signAesCbcPkcs7 from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/AesSymmetricSigner.js';
 
 /** 32-byte deterministic key for the test vectors. */
 const KEY_32 = Buffer.from('0123456789abcdef0123456789abcdef', 'utf8');

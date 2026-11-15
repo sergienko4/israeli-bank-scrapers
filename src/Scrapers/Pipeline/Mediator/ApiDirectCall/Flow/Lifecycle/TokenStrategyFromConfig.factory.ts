@@ -7,13 +7,13 @@ import type { Procedure } from '../../../../Types/Procedure.js';
 import { isOk, succeed } from '../../../../Types/Procedure.js';
 import type { IApiDirectCallConfig } from '../../ConfigContracts/index.js';
 import type { JsonValue } from '../../Envelope/JsonPointer.js';
-import { mayEscalateWarmFailureImpl } from './TokenStrategyFromConfig.fallback.js';
+import mayEscalateWarmFailureImpl from './TokenStrategyFromConfig.fallback.js';
 import {
   hasWarmStateImpl,
   primeFreshImpl,
   primeInitialImpl,
 } from './TokenStrategyFromConfig.flow.js';
-import { primeRecoverImpl } from './TokenStrategyFromConfig.recover.js';
+import primeRecoverImpl from './TokenStrategyFromConfig.recover.js';
 import { gateFlowKind, STRATEGY_NAME_DEFAULT } from './TokenStrategyFromConfig.shared.js';
 import type {
   IConfigTokenStrategy,
@@ -241,5 +241,3 @@ function createTokenStrategyFromConfig(
 }
 
 export default createTokenStrategyFromConfig;
-
-export { createTokenStrategyFromConfig };

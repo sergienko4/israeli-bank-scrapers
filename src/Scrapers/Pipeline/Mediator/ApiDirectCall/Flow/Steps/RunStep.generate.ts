@@ -14,7 +14,7 @@ import type {
   ICarryGenerator,
   IStepConfig,
 } from '../../ConfigContracts/index.js';
-import { generateEcdhKey } from '../../Crypto/EcdhKeypair.js';
+import generateEcdhKey from '../../Crypto/EcdhKeypair.js';
 import { type GeneratedCarry, generateRsaKey } from '../../Crypto/RsaKeyGenerator.js';
 import type { ITemplateScope } from '../../Template/RefResolver.js';
 import generatePkcs10Csr from './RunStep.generate.csr.js';

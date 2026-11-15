@@ -16,7 +16,7 @@ import {
   generateKeypair,
   importEcP256Pkcs8,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/CryptoKeyFactory.js';
-import { signCanonical } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/GenericCryptoSigner.js';
+import signCanonical from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/GenericCryptoSigner.js';
 
 /** Minimal canonical config satisfying the new ISignerConfig requirement. */
 const CANONICAL_STUB: ICanonicalStringConfig = {

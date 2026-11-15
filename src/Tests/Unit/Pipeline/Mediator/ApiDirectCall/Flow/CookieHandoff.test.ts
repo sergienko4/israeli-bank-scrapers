@@ -9,7 +9,7 @@ import type {
   CookieHandoff,
   IApiDirectCallConfig,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
-import { handOffCookies } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/CookieHandoff.js';
+import handOffCookies from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/CookieHandoff.js';
 import type { ILongTermTokenSlot } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/TokenStrategyFromConfig.types.js';
 import type { ITokenBus } from '../../../../../../Scrapers/Pipeline/Types/Domain/TokenBus.js';
 import { makeStubMediator } from './StubMediator.js';

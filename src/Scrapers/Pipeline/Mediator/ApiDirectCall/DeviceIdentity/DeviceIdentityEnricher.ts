@@ -55,6 +55,5 @@ function deviceIdentityEnricherOf(
   return some(enrich);
 }
 
-export default deviceIdentityEnricherOf;
 export { deviceIdentityEnricherOf };
 export type { CredentialEnricher };

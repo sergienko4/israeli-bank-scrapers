@@ -7,7 +7,7 @@
  * An `ecdh-key` generator writes a secp256k1 pair the same way.
  */
 
-import { createECDH, createPrivateKey, createPublicKey } from 'node:crypto';
+import { createECDH, createHash, createPrivateKey, createPublicKey } from 'node:crypto';
 
 import { CompanyTypes } from '../../../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js';
@@ -16,7 +16,6 @@ import type {
   ICarryGenerator,
   IStepConfig,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
-import { spkiSha256Hex } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/RsaKeyGenerator.js';
 import { runSmsOtpFlow } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/SmsOtpFlow.js';
 import { registerWkUrl } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import type { JsonValue } from '../../../../../../Scrapers/Pipeline/Types/JsonValue.js';
@@ -28,18 +27,6 @@ const HINT = CompanyTypes.OneZero;
 const STEP_URL = 'https://bank.example/connect/device/register';
 
 /** A test-only RSA public key; its golden comes from `openssl dgst -sha256` over the SPKI DER. */
-const FIXED_PUBLIC_PEM = [
-  '-----BEGIN PUBLIC KEY-----',
-  'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnQwhkUYWaxtF7GvVxAgB',
-  'n+ibAb9GaKMlWoo0AmQ4tjBSH8usiJnrJFZdIqG65QhbVm7xDBlt3Nm2xs/T1J0I',
-  '80fxa9uTib7U4WlvhQoMKBhFJlR5Jq1iiQkLx9jcoGBI6kMu4kxbc2Hj7t6Gr4gA',
-  'VLjcVBk5v7eVEWjZksKyNFkRRJTQrsTKSmmTXDdDcO7xFikUdVbm3uu8kEmnDyZm',
-  'hhEEjbNLqYO52+4fbt0nGQ5e8+fHALVeiIAPgxYGo4weRuqD/gRzKACUlyKls9Wo',
-  '0Wm1OiiMXhzeMHsB6fUC5V6HjZ8+9bO3W5AgOp8F9wxfpFUviI5BXsazBJz+LagK',
-  '8wIDAQAB',
-  '-----END PUBLIC KEY-----',
-].join('\n');
-const FIXED_SPKI_SHA256 = '49ba5a804e98e8638b9d3717be0c0a47965cdd8f041e88ac6b0e1908878d35b4';
 
 const RSA_KEY: ICarryGenerator = {
   kind: 'rsa-key',
@@ -109,12 +96,6 @@ describe('SmsOtpFlow — rsa-key generator', () => {
     registerWkUrl(WARM_STEP_TAG, HINT, STEP_URL);
   });
 
-  it('hashes the SPKI DER of a fixed key to its golden', () => {
-    const publicKey = createPublicKey(FIXED_PUBLIC_PEM);
-    const hex = spkiSha256Hex(publicKey);
-    expect(hex).toBe(FIXED_SPKI_SHA256);
-  });
-
   it('writes a 2048-bit PKCS#8 key and its SPKI hash before the body is hydrated', async () => {
     const run = await runWith('register');
     if (!run.result.success) throw new TypeError(run.result.errorMessage);
@@ -124,7 +105,8 @@ describe('SmsOtpFlow — rsa-key generator', () => {
     const privateKey = createPrivateKey(pem);
     expect(privateKey.asymmetricKeyDetails?.modulusLength).toBe(2048);
     const publicKey = createPublicKey(privateKey);
-    const expected = spkiSha256Hex(publicKey);
+    const der = publicKey.export({ type: 'spki', format: 'der' });
+    const expected = createHash('sha256').update(der).digest('hex');
     expect(carry.deviceId).toBe(expected);
     expect(expected).toMatch(/^[\da-f]{64}$/);
     expect(run.captures[1].body).toEqual({ deviceId: expected });

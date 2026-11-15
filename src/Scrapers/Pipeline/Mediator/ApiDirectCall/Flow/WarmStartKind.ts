@@ -56,5 +56,4 @@ function boundWarmOf(config: IApiDirectCallConfig): BoundWarmStart | false {
   return carryBundleWarmOf(config);
 }
 
-export type { BoundWarmStart };
 export { boundWarmOf, carryBundleWarmOf, cookieJarWarmOf, warmCarryField };

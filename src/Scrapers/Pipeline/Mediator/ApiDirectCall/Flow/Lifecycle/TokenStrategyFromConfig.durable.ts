@@ -5,7 +5,7 @@
 
 import type { Procedure } from '../../../../Types/Procedure.js';
 import type { PersistentAuthKind } from '../../ConfigContracts/index.js';
-import { primeDeviceMemory } from './TokenStrategyFromConfig.deviceMemory.js';
+import primeDeviceMemory from './TokenStrategyFromConfig.deviceMemory.js';
 import { primeBoundDevice } from './TokenStrategyFromConfig.persistent.js';
 import type {
   DurableAuthMode,

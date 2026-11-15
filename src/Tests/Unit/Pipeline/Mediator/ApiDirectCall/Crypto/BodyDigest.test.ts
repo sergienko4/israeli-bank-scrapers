@@ -5,7 +5,7 @@
  */
 
 import type { IBodyDigestConfig } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
-import { computeBodyDigest } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/BodyDigest.js';
+import computeBodyDigest from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/BodyDigest.js';
 import serializeJsonBody from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/JsonBody.js';
 
 const BD_IDENT_KEY: IBodyDigestConfig = {

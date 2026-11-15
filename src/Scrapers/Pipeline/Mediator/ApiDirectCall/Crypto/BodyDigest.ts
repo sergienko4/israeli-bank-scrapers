@@ -54,4 +54,3 @@ function computeBodyDigest(bytes: Buffer, digest: IBodyDigestConfig): string {
 }
 
 export default computeBodyDigest;
-export { computeBodyDigest };

@@ -77,4 +77,3 @@ function checkRequiredCreds(config: IApiDirectCallConfig, creds: GenericCreds): 
 }
 
 export default checkRequiredCreds;
-export { checkRequiredCreds };

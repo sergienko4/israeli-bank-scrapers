@@ -201,5 +201,3 @@ function evalBootstrap(bootstrap: SeedCarryBootstrapKind, creds: Creds): Procedu
 }
 
 export default evalBootstrap;
-
-export { evalBootstrap };

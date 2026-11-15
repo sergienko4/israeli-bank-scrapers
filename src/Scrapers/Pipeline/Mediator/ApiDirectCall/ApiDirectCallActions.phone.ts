@@ -117,5 +117,3 @@ function withNormalisedCreds(ctx: IPipelineContext): Procedure<IPipelineContext>
 }
 
 export default withNormalisedCreds;
-
-export { withNormalisedCreds };

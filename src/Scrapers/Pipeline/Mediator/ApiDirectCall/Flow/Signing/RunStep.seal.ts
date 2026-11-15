@@ -9,7 +9,7 @@ import { ScraperErrorTypes } from '../../../../../Base/ErrorTypes.js';
 import type { JsonUnknown, JsonUnknownRecord } from '../../../../Types/JsonValue.js';
 import type { Procedure } from '../../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../../Types/Procedure.js';
-import { planSeal } from '../../Crypto/SealKinds.js';
+import planSeal from '../../Crypto/SealKinds.js';
 import type { ISealedWrite, SealRef, SealRefText } from '../../Crypto/SealPlan.js';
 import { type JsonValue, walkPointer } from '../../Envelope/JsonPointer.js';
 import { type ITemplateScope, resolveRefText } from '../../Template/RefResolver.js';

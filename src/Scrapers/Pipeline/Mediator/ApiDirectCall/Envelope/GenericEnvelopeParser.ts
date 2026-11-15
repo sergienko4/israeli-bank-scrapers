@@ -163,5 +163,4 @@ function extractFields(
 }
 
 export type { ExtractedFields };
-export default extractFields;
 export { extractFields };

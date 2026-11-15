@@ -60,4 +60,3 @@ function handOffCookies(args: IHandoffArgs, slot: ILongTermTokenSlot): true {
 }
 
 export default handOffCookies;
-export { handOffCookies };

@@ -123,4 +123,3 @@ function runUrlCompose(input: IComposeInput, op: IUrlComposeOp): Procedure<strin
 }
 
 export default runUrlCompose;
-export { runUrlCompose };

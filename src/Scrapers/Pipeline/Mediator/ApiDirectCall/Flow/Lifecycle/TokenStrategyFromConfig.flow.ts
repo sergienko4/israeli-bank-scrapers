@@ -9,7 +9,7 @@ import { getDebug } from '../../../../Logging/Debug.js';
 import type { Procedure } from '../../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../../Types/Procedure.js';
 import { formatAuthValue } from '../AuthModePolicy.js';
-import { handOffCookies } from '../CookieHandoff.js';
+import handOffCookies from '../CookieHandoff.js';
 import { boundWarmOf } from '../WarmStartKind.js';
 import { runSmsOtpFlow } from './SmsOtpFlow.js';
 import { admitFlow, isColdStart } from './TokenStrategyFromConfig.budget.js';
@@ -94,8 +94,7 @@ function finishFlow(input: IFinishFlowArgs): string {
  * Told to the caller when the run has nothing left to offer: the one cold
  * login it was entitled to has been spent and did not yield a session.
  *
- * <p>Exported so the real-E2E harness and downstream consumers can recognise
- * a policy refusal without matching on a substring.
+ * <p>Recognisable by the real-E2E harness without matching on a substring.
  */
 const BUDGET_SPENT_MESSAGE =
   'this scrape has already spent its one cold login; the session cannot ' +
@@ -273,10 +272,4 @@ function hasWarmStateImpl(slot: ILongTermTokenSlot): boolean {
   return slot.usedWarmPath === true;
 }
 
-export {
-  BUDGET_SPENT_MESSAGE,
-  hasWarmStateImpl,
-  primeFreshImpl,
-  primeInitialImpl,
-  runConfiguredFlow,
-};
+export { hasWarmStateImpl, primeFreshImpl, primeInitialImpl, runConfiguredFlow };

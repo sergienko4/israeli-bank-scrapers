@@ -221,7 +221,7 @@ function walkPointer(doc: JsonValue, pointer: string): Procedure<JsonValue> {
   return reduceParts({ cursor: doc, parts, pointer });
 }
 
-export type { JsonPrimitive };
 export type { IJsonObject, JsonArray, JsonValue } from '../../../Types/JsonValue.js';
-export default walkPointer;
 export { isPlainObject, walkPointer };
+
+export type { JsonPrimitive };

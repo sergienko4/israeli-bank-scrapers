@@ -144,4 +144,3 @@ async function primeDeviceMemory(run: DeviceMemoryRun): Promise<Procedure<string
 }
 
 export default primeDeviceMemory;
-export { primeDeviceMemory };

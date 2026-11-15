@@ -90,5 +90,3 @@ async function runApiDirectCallPost(
 }
 
 export default runApiDirectCallPost;
-
-export { runApiDirectCallPost };
