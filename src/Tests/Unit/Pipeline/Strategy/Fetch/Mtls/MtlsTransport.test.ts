@@ -16,7 +16,7 @@ import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js';
 import ScraperError from '../../../../../../Scrapers/Base/ScraperError.js';
-import { readBodyText } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/BodyText.js';
+import readBodyText from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/BodyText.js';
 import { fixedAgentSource } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsAgentSource.js';
 import {
   collectBody,

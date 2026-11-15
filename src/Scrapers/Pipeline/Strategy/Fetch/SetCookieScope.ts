@@ -128,4 +128,3 @@ function parseSetCookie(line: string, context: ISetCookieContext): IStoredCookie
 }
 
 export default parseSetCookie;
-export { parseSetCookie };

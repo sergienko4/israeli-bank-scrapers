@@ -9,7 +9,7 @@ import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { DOCUMENT_UNVERIFIED_REASON } from '../../Types/Domain/FetchPolicy.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk } from '../../Types/Procedure.js';
-import { readBodyText } from './BodyText.js';
+import readBodyText from './BodyText.js';
 import { safeUrlForLog } from './SafeUrlForLog.js';
 import type { IAnswer } from './StatusPolicy.js';
 import { emptyAnswer } from './StatusPolicy.js';
@@ -30,4 +30,3 @@ async function readDocument<T>(answer: IAnswer): Promise<Procedure<T>> {
 }
 
 export default readDocument;
-export { readDocument };

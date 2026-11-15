@@ -49,4 +49,3 @@ async function cancelResponseBody(response: Response, request: IRequestContext):
 }
 
 export default cancelResponseBody;
-export { cancelResponseBody };

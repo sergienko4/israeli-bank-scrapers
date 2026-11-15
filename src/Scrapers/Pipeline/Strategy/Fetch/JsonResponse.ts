@@ -7,7 +7,7 @@ import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { describeJsonParseFailure } from '../../Types/JsonParseFailure.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
-import { readBodyText } from './BodyText.js';
+import readBodyText from './BodyText.js';
 import { safeUrlForLog } from './SafeUrlForLog.js';
 import type { IAnswer } from './StatusPolicy.js';
 
@@ -40,4 +40,3 @@ async function parseJsonResponse<T>(answer: IAnswer): Promise<Procedure<T>> {
 }
 
 export default parseJsonResponse;
-export { parseJsonResponse };

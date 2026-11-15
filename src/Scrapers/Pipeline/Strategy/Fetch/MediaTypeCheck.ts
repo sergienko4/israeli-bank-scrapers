@@ -13,7 +13,7 @@ import type { Option } from '../../Types/Option.js';
 import { none, some } from '../../Types/Option.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail } from '../../Types/Procedure.js';
-import { cancelResponseBody } from './ResponseBody.js';
+import cancelResponseBody from './ResponseBody.js';
 import { safeUrlForLog } from './SafeUrlForLog.js';
 import type { IAnswer } from './StatusPolicy.js';
 

@@ -6,7 +6,7 @@
 
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
-import { readBodyText } from './BodyText.js';
+import readBodyText from './BodyText.js';
 import { hasCloudflareChallengeHeader } from './HttpFailureClassifier.js';
 import type { IRedirectRun, IRunEnd } from './RedirectShared.js';
 import { answeredUrl, isRedirectStatus } from './RedirectShared.js';
@@ -91,4 +91,3 @@ async function sendAccept(run: IRedirectRun): Promise<Procedure<IRunEnd>> {
 }
 
 export default sendAccept;
-export { sendAccept };

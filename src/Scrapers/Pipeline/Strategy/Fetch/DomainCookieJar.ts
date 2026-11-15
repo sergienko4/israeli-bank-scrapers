@@ -18,7 +18,7 @@ import type { ICookieTarget } from './CookieMatch.js';
 import { cookieApplies, isExpired, nowEpochS, SESSION_EXPIRY, targetOf } from './CookieMatch.js';
 import { isSendableCookie } from './HeaderText.js';
 import type { IOriginCookieJar } from './OriginCookieJar.js';
-import { parseSetCookie } from './SetCookieScope.js';
+import parseSetCookie from './SetCookieScope.js';
 
 /** The domain jar: the origin jar's add/header plus the session operations. */
 interface IDomainCookieJar extends IOriginCookieJar {

@@ -11,7 +11,7 @@ import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { TEXT_TOO_LONG_REASON } from '../../Types/Domain/FetchPolicy.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
-import { readBodyText } from './BodyText.js';
+import readBodyText from './BodyText.js';
 import { safeUrlForLog } from './SafeUrlForLog.js';
 import type { IAnswer } from './StatusPolicy.js';
 
@@ -34,4 +34,3 @@ async function readText<T>(answer: IAnswer): Promise<Procedure<T>> {
 }
 
 export default readText;
-export { readText };
