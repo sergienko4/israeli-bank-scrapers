@@ -13,7 +13,7 @@ import type { ITokenBus } from '../../Types/Domain/TokenBus.js';
 import type { ITokenContext } from '../../Types/Domain/TokenContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import type { ITokenResolver } from './ITokenResolver.js';
-import type { ITokenStrategy } from './ITokenStrategy.js';
+import type ITokenStrategy from './ITokenStrategy.js';
 
 /** Return value of withTokenResolver — signals the registration completed. */
 type WasResolverSet = true;

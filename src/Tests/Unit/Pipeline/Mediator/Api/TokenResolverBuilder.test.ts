@@ -10,7 +10,7 @@ import { jest } from '@jest/globals';
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import type { ITokenResolver } from '../../../../../Scrapers/Pipeline/Mediator/Api/ITokenResolver.js';
-import type { ITokenStrategy } from '../../../../../Scrapers/Pipeline/Mediator/Api/ITokenStrategy.js';
+import type ITokenStrategy from '../../../../../Scrapers/Pipeline/Mediator/Api/ITokenStrategy.js';
 import buildResolverFromStrategy from '../../../../../Scrapers/Pipeline/Mediator/Api/TokenResolverBuilder.js';
 import type { ITokenBus } from '../../../../../Scrapers/Pipeline/Types/Domain/TokenBus.js';
 import type { ITokenContext } from '../../../../../Scrapers/Pipeline/Types/Domain/TokenContext.js';

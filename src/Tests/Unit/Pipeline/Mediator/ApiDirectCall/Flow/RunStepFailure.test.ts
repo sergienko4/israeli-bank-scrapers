@@ -20,7 +20,7 @@ import {
   runWithBankContext,
 } from '../../../../../../Scrapers/Pipeline/Logging/BankContext.js';
 import { buildSilentOptions } from '../../../../../../Scrapers/Pipeline/Logging/RootLogger.js';
-import type { ITokenStrategy } from '../../../../../../Scrapers/Pipeline/Mediator/Api/ITokenStrategy.js';
+import type ITokenStrategy from '../../../../../../Scrapers/Pipeline/Mediator/Api/ITokenStrategy.js';
 import type {
   IApiDirectCallConfig,
   IStepConfig,

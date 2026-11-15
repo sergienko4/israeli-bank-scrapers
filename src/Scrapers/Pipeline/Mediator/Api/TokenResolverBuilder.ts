@@ -22,7 +22,7 @@ import type { ITokenContext } from '../../Types/Domain/TokenContext.js';
 import type { IProcedureFailure, Procedure } from '../../Types/Procedure.js';
 import { isOk, isTerminalFailure } from '../../Types/Procedure.js';
 import type { ITokenResolver } from './ITokenResolver.js';
-import type { ITokenStrategy } from './ITokenStrategy.js';
+import type ITokenStrategy from './ITokenStrategy.js';
 
 /** Closure-only deps packed by the builder — never exported. */
 interface IBuilderDeps<TCreds> {

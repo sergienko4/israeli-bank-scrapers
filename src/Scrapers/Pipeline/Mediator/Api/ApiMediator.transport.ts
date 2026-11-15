@@ -247,4 +247,4 @@ async function fireQuery<T>(args: IFireQueryArgs): Promise<Procedure<T>> {
   return unwrapGraphql<T>(envelopeProc.value, operation);
 }
 
-export { appendQuery, fireGet, firePost, fireQuery, mergeHeaders, NO_EXTRA_HEADERS };
+export { fireGet, firePost, fireQuery, NO_EXTRA_HEADERS };

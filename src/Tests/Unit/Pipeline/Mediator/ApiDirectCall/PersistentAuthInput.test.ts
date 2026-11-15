@@ -11,7 +11,7 @@ import { PassThrough } from 'node:stream';
 import pino from 'pino';
 
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
-import type { ITokenStrategy } from '../../../../../Scrapers/Pipeline/Mediator/Api/ITokenStrategy.js';
+import type ITokenStrategy from '../../../../../Scrapers/Pipeline/Mediator/Api/ITokenStrategy.js';
 import { runApiDirectCallAction } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ApiDirectCallActions.js';
 import {
   mergeOptionsIntoCreds,
