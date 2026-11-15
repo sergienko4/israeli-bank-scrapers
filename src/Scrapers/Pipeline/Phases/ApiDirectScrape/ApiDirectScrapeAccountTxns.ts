@@ -13,7 +13,7 @@ import reportMapRejects from '../../Mediator/Scrape/CoverageAudit/MapRejects.js'
 import { classifyWindowCoverage } from '../../Mediator/Scrape/CoverageAudit/WindowCoverageVerdict.js';
 import applyStartWindow from '../../Mediator/Scrape/StartWindow.js';
 import collapseDuplicates from '../../Mediator/Scrape/TxnDedup.js';
-import { autoMapTransaction } from '../../Mediator/Scrape/TxnMapper/TxnMapper.js';
+import autoMapTransaction from '../../Mediator/Scrape/TxnMapper/TxnMapper.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
 import type { ICollectedRows } from './ApiDirectScrapeBackfill.js';

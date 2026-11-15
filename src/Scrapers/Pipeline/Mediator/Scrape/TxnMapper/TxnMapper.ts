@@ -43,22 +43,6 @@ function coerceIdentifier(val: ScalarFieldHit): string | number | false {
 }
 
 /**
- * Check if a raw transaction is voided/summary (should be filtered
- * out). Matches old scraper's filterValidTransactions logic:
- * dealSumType === '1' is voided, voucherNumberRatz === '000000000'
- * is invalid.
- * @param raw - Raw transaction record.
- * @returns True if the transaction should be excluded.
- */
-function isVoidedTransaction(raw: ApiRecord): boolean {
-  const voidVal = findFieldValue(raw, WK.voidIndicators);
-  if (voidVal === '1') return true;
-  const voucher = findFieldValue(raw, WK.voucherFields);
-  if (voucher === '000000000') return true;
-  return false;
-}
-
-/**
  * Resolve amount — single field or split debit/credit netting.
  * Generic: if WK.amount not found, falls back to credit - debit.
  * @param raw - Raw transaction record.
@@ -332,4 +316,4 @@ function autoMapTransaction(raw: ApiRecord, isCardIssuer?: boolean): ITransactio
   return buildMappedTxn({ dates: { date: dateStr, processedDate: procStr }, amounts, fields, raw });
 }
 
-export { autoMapTransaction, isVoidedTransaction };
+export default autoMapTransaction;

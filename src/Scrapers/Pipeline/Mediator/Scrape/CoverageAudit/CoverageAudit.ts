@@ -21,7 +21,7 @@ import { getDebug } from '../../../Logging/Debug.js';
 import type { ApiRecord } from '../AutoMapperFacade/AutoMapperTypes.js';
 import { huntTransactionGroups, type TxnGroup } from '../FieldHunt/TxnHunt.js';
 import { maxMerge, tallyBy } from '../Multiset.js';
-import { autoMapTransaction } from '../TxnMapper/TxnMapper.js';
+import autoMapTransaction from '../TxnMapper/TxnMapper.js';
 
 const LOG = getDebug(import.meta.url);
 

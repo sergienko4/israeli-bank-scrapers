@@ -131,20 +131,6 @@ function bankDatePartsOfLabel(value: string): IBankDateParts | false {
 }
 
 /**
- * Project an instant into complete bank-calendar date parts.
- * @param value - Resolved instant.
- * @returns Bank date parts, or false for invalid input.
- */
-function bankDatePartsOfInstant(value: string | Date): IBankDateParts | false {
-  const inBank = bankMomentOfInstant(value);
-  if (!inBank.isValid()) return false;
-  const year = inBank.year();
-  const month = inBank.month() + 1;
-  const day = inBank.date();
-  return { year, month, day };
-}
-
-/**
  * Project an instant into the bank's month.
  * @param value - Resolved instant.
  * @returns Bank month, or false for an invalid instant.
@@ -220,8 +206,6 @@ function bankMonthBounds(value: IBankMonth): IBankMonthBounds {
 
 export type { IBankMonth };
 export {
-  bankDatePartsOfInstant,
-  bankDatePartsOfLabel,
   bankInstantOfLabel,
   bankMonthBounds,
   bankMonthOfInstant,

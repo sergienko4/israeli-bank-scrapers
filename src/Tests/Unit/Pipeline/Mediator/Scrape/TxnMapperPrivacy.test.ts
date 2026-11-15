@@ -13,7 +13,7 @@ jest.unstable_mockModule('../../../../../Scrapers/Pipeline/Logging/Debug.js', as
   getDebug: jest.fn(() => LOG),
 }));
 
-const { autoMapTransaction: AUTO_MAP_TRANSACTION } =
+const { default: AUTO_MAP_TRANSACTION } =
   await import('../../../../../Scrapers/Pipeline/Mediator/Scrape/TxnMapper/TxnMapper.js');
 
 describe('transaction rejection privacy', () => {

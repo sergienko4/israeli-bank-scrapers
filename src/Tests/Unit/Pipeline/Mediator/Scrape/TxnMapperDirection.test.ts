@@ -4,7 +4,7 @@
  * Back-compat: records without a direction field keep their sign unchanged.
  */
 
-import { autoMapTransaction } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/TxnMapper/TxnMapper.js';
+import autoMapTransaction from '../../../../../Scrapers/Pipeline/Mediator/Scrape/TxnMapper/TxnMapper.js';
 import type { ITransaction } from '../../../../../Transactions.js';
 
 /**

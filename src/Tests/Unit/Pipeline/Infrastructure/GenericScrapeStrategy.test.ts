@@ -5,7 +5,7 @@
 
 import { findFieldValue } from '../../../../Scrapers/Pipeline/Mediator/Scrape/BfsFieldSearch/BfsFieldSearch.js';
 import { parseAutoDate } from '../../../../Scrapers/Pipeline/Mediator/Scrape/Coercion/Coercion.js';
-import { autoMapTransaction } from '../../../../Scrapers/Pipeline/Mediator/Scrape/TxnMapper/TxnMapper.js';
+import autoMapTransaction from '../../../../Scrapers/Pipeline/Mediator/Scrape/TxnMapper/TxnMapper.js';
 
 describe('findFieldValue', () => {
   it('finds a direct field match', () => {
