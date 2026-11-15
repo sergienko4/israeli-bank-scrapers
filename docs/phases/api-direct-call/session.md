@@ -106,8 +106,8 @@ Cleanup is requested without waiting for a stream's cancellation promise.
 A missing policy preserves ordinary transport behavior.
 
 The shared `isResponseIntegrity` validator checks the same bounds at build and
-transport boundaries. `toApiWiring` and `selectApiMediator` pass the
-bank default into the native transport, while `checkResponseIntegrity`
+transport boundaries. The mediator wiring passes the bank default into the
+native transport, while `checkResponseIntegrity`
 refuses unsupported paths. `makeInvokeCapped` and `verifyResponseIntegrity`
 enforce the per-call policy; The capped GraphQL transport uses that same
 reader for opted-in GraphQL calls.

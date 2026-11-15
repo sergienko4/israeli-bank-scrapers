@@ -11,10 +11,7 @@ import { jest } from '@jest/globals';
 
 import { CompanyTypes } from '../../../../Definitions.js';
 import type { ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
-import {
-  resolveApiMediator,
-  resolveTransportKind,
-} from '../../../../Scrapers/Pipeline/Core/ApiMediatorWiring.js';
+import { resolveApiMediator } from '../../../../Scrapers/Pipeline/Core/ApiMediatorWiring.js';
 import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
 import { isSome } from '../../../../Scrapers/Pipeline/Types/Option.js';
 
@@ -95,12 +92,5 @@ describe('resolveApiMediator — PayBox native transport', () => {
     expect(url).toBe(PHONE_VALIDATE_URL);
     expect(init?.method).toBe('POST');
     expect(init?.body).toBe(expectedBody);
-  });
-});
-
-describe('resolveTransportKind — Pepper and PayBox', () => {
-  it.each([CompanyTypes.Pepper, CompanyTypes.PayBox])('selects native for %s', companyId => {
-    const kind = resolveTransportKind(companyId);
-    expect(kind).toBe('native');
   });
 });
