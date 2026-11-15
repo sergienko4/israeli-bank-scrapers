@@ -200,5 +200,3 @@ function resolvePersistentAuthMode(
 }
 
 export default resolvePersistentAuthMode;
-
-export { resolvePersistentAuthMode };

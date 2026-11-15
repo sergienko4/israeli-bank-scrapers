@@ -7,7 +7,7 @@
 
 import { jest } from '@jest/globals';
 
-import { invokeAuthFlowComplete } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ApiDirectCallActions.callback.js';
+import invokeAuthFlowComplete from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ApiDirectCallActions.callback.js';
 import type { IPipelineContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
 

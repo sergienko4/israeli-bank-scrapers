@@ -13,7 +13,7 @@
 
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { IApiMediator, RecoveredHook } from '../Api/ApiMediator.js';
-import { invokeAuthFlowComplete } from './ApiDirectCallActions.callback.js';
+import invokeAuthFlowComplete from './ApiDirectCallActions.callback.js';
 import { COLD_FALLBACK_DEGRADED, PHASE_LABEL } from './ApiDirectCallActions.shared.js';
 import type { IConfigTokenStrategy } from './Flow/Lifecycle/TokenStrategyFromConfig.js';
 import { projectSessionCarry } from './SessionCarryProjection.js';
@@ -88,5 +88,3 @@ function makeRecoveryHook(args: IRecoveryHookArgs): RecoveredHook {
 }
 
 export default makeRecoveryHook;
-
-export { makeRecoveryHook };

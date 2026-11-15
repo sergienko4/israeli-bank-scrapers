@@ -108,5 +108,3 @@ async function invokeAuthFlowComplete(
 }
 
 export default invokeAuthFlowComplete;
-
-export { invokeAuthFlowComplete };
