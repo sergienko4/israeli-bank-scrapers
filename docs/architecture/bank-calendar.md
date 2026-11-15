@@ -81,7 +81,12 @@ owns that boundary:
 | `shiftBankInstant`        | Moves a resolved instant by bank-calendar months while preserving its bank-calendar wall time              |
 | `bankMonthBounds`         | Builds the first and last instants of a named month in `Asia/Jerusalem`                                    |
 
-Day-level components are read through `bankDayOfInstant`; the complete-label date-parts parser stays module-private behind the month/day entry points.
+Generated timestamp labels must be converted before day projection:
+`bankInstantOfLabel(label)` resolves the formatting-only trailing `Z` in the bank
+calendar; handle its `false` result, then pass the instant to
+`bankDayOfInstant`. Passing the raw late-evening label to `bankDayOfInstant` can
+return the following bank day because it treats the suffix as UTC. The
+complete-label date-parts parser stays module-private.
 
 `MatrixLoopStrategy` now consumes this object from month selection through
 request construction. The request body and URL bounds therefore describe the
