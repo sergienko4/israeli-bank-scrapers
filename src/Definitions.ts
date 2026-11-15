@@ -1,6 +1,6 @@
 // NOTICE: avoid changing exported keys as they are part of the public api
 
-const PASSWORD_FIELD = 'password';
+export const PASSWORD_FIELD = 'password';
 
 export enum CompanyTypes {
   Hapoalim = 'hapoalim',

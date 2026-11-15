@@ -2,6 +2,7 @@
   "note": "Frozen symbol-level dead code. New items fail; remove items only as they are deleted. Refresh with `npm run lint:dead-code -- --update-baseline` after a deliberate burn-down.",
   "unreachableFiles": [],
   "unusedExports": [
+    "src/Definitions.ts#PASSWORD_FIELD",
     "src/Scrapers/Base/Interfaces/ErrorResult.ts#IErrorResult",
     "src/Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxShapeTxns.ts#PAYBOX_TXNS_INTERNALS",
     "src/Scrapers/Pipeline/Banks/Pepper/scrape/PepperShape.ts#userIdOf",
