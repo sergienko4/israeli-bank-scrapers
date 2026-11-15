@@ -26,7 +26,7 @@ type ExcludedProductCount = Brand<number, 'ExcludedProductCount'>;
  * <p>Exported so specs assert the exact production string rather than
  * re-declaring it and drifting.
  */
-export const ACCOUNTS_FILTERED_LOG = 'api-direct-scrape.accounts.filtered';
+const ACCOUNTS_FILTERED_LOG = 'api-direct-scrape.accounts.filtered';
 
 /**
  * Log message reporting a FAILURE of the exclusion report itself.
@@ -35,7 +35,7 @@ export const ACCOUNTS_FILTERED_LOG = 'api-direct-scrape.accounts.filtered';
  * healthy scrape alive, but a diagnostics channel that has stopped working
  * is itself an operational fact an operator has to be able to see.
  */
-export const EXCLUSION_REPORT_FAILED = 'api-direct-scrape.accounts.filtered.failed';
+const EXCLUSION_REPORT_FAILED = 'api-direct-scrape.accounts.filtered.failed';
 
 /** Counts describing one filtered discovery pass. */
 interface IExclusionCounts {

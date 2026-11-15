@@ -57,7 +57,7 @@ const ZERO_ACCOUNTS_MSG =
  * @param summary - PII-free scrape summary from the POST stage.
  * @returns Failure when zero accounts were resolved; otherwise a pass-through.
  */
-export function zeroAccountsGuard(summary: IApiDirectScrapeGuardSummary): Procedure<void> {
+function zeroAccountsGuard(summary: IApiDirectScrapeGuardSummary): Procedure<void> {
   if (summary.accountCount === 0) return fail(ScraperErrorTypes.Generic, ZERO_ACCOUNTS_MSG);
   return succeed(undefined);
 }
@@ -72,7 +72,7 @@ export function zeroAccountsGuard(summary: IApiDirectScrapeGuardSummary): Proced
  * @param shapeGuard - The shape's own guard, when it declares one.
  * @returns The floor alone, or the floor followed by the shape's guard.
  */
-export function withZeroAccountsFloor(shapeGuard?: ScrapeResultGuard): ScrapeResultGuard {
+function withZeroAccountsFloor(shapeGuard?: ScrapeResultGuard): ScrapeResultGuard {
   if (shapeGuard === undefined) return zeroAccountsGuard;
   return function guardWithFloor(summary: IApiDirectScrapeGuardSummary): Procedure<void> {
     const floor = zeroAccountsGuard(summary);
@@ -80,3 +80,5 @@ export function withZeroAccountsFloor(shapeGuard?: ScrapeResultGuard): ScrapeRes
     return shapeGuard(summary);
   };
 }
+
+export default withZeroAccountsFloor;

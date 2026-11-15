@@ -10,7 +10,7 @@
  * so the WINDOW-CANARY gate keeps seeing a conscious per-bank decision.
  */
 
-import { makeTelebankGroupShape } from '../../../Phases/ApiDirectScrape/TelebankGroup/TelebankGroupShape.js';
+import makeTelebankGroupShape from '../../../Phases/ApiDirectScrape/TelebankGroup/TelebankGroupShape.js';
 
 /** Discount hard-model shape — passed to `.withApiDirect(...)`. */
 const DISCOUNT_SHAPE = makeTelebankGroupShape({

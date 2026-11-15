@@ -57,7 +57,7 @@ export type TBillingMonth = Brand<string, 'CardBillingMonth'>;
  * @param ctx - Action context.
  * @returns Start-of-month moment for the window start.
  */
-export function startMonth(ctx: IActionContext): moment.Moment {
+function startMonth(ctx: IActionContext): moment.Moment {
   return bankMomentOfInstant(ctx.options.startDate).startOf('month');
 }
 

@@ -31,7 +31,7 @@ import {
 import { txnsExtractPage, txnsUrl, txnsVars } from './TelebankGroupShapeTxns.js';
 
 /** One Telebank brand's binding of the shared family contract. */
-export interface ITelebankGroupShapeArgs {
+interface ITelebankGroupShapeArgs {
   /** Pipeline step name, e.g. `DiscountScrape`. */
   readonly stepName: string;
   /** The brand's own coverage-backfill stance. */
@@ -92,7 +92,7 @@ function brandSteps(
  * @param args - Brand binding: step name and backfill stance.
  * @returns Shape passed to `.withApiDirect(...)`.
  */
-export function makeTelebankGroupShape(args: ITelebankGroupShapeArgs): TelebankShape {
+function makeTelebankGroupShape(args: ITelebankGroupShapeArgs): TelebankShape {
   return {
     stepName: args.stepName,
     accountNumberOf,
@@ -101,3 +101,5 @@ export function makeTelebankGroupShape(args: ITelebankGroupShapeArgs): TelebankS
     ...brandSteps(args),
   };
 }
+
+export default makeTelebankGroupShape;

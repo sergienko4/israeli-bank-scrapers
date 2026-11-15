@@ -17,7 +17,6 @@ import {
   monthAt,
   nextCursorOf,
   offsetOf,
-  startMonth,
   validateCardIssuerPlan,
 } from '../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/CardIssuer/CardIssuerShapeTxns.js';
 import { some } from '../../../../Scrapers/Pipeline/Types/Option.js';
@@ -68,25 +67,14 @@ function shapeRejectsOversizedPlan(shape: (typeof CARD_ISSUER_SHAPES)[number]): 
 }
 
 describe('CardIssuer cursor policy — calendar helpers', () => {
-  it('startMonth floors the window start to the first of its month', () => {
+  it.each([
+    { offset: 0, iso: '2026-01-01' },
+    { offset: 3, iso: '2026-04-01' },
+  ])('monthAt at offset $offset renders $iso', ({ offset, iso }) => {
     const ctx = ctxWith(START, END);
-    const month = startMonth(ctx);
-    const iso = month.format(ISO_DAY);
-    expect(iso).toBe('2026-01-01');
-  });
-
-  it('monthAt advances the start month by the offset', () => {
-    const ctx = ctxWith(START, END);
-    const month = monthAt(ctx, 3);
-    const iso = month.format(ISO_DAY);
-    expect(iso).toBe('2026-04-01');
-  });
-
-  it('monthAt at offset 0 is the start month', () => {
-    const ctx = ctxWith(START, END);
-    const month = monthAt(ctx, 0);
-    const iso = month.format(ISO_DAY);
-    expect(iso).toBe('2026-01-01');
+    const month = monthAt(ctx, offset);
+    const isoDay = month.format(ISO_DAY);
+    expect(isoDay).toBe(iso);
   });
 
   it('billingMonthAt renders the composite first-of-month form', () => {

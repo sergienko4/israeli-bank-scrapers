@@ -27,7 +27,7 @@ import type {
   IApiDirectScrapeGuardSummary,
   IApiDirectScrapeShape,
 } from './IApiDirectScrapeShape.js';
-import { withZeroAccountsFloor } from './ZeroAccountsGuard.js';
+import withZeroAccountsFloor from './ZeroAccountsGuard.js';
 
 export type { ApiDirectScrapeFn, ApiDirectScrapeResult } from './ApiDirectScrapeTypes.js';
 

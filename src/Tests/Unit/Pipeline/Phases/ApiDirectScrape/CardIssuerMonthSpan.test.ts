@@ -19,7 +19,7 @@ import { jest } from '@jest/globals';
 
 import {
   lastOffset,
-  startMonth,
+  monthAt,
 } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/CardIssuer/CardIssuerShapeTxns.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { underZone } from '../../../../Helpers/AmbientZone.js';
@@ -85,7 +85,7 @@ describe('cardIssuer/month span', () => {
 
   it('names the caller\u2019s own month as offset zero', () => {
     const ctx = ctxFrom('2026-02-09T22:30:00Z');
-    const month = startMonth(ctx);
+    const month = monthAt(ctx, 0);
     const label = month.format('YYYY-MM');
     expect(label).toBe('2026-02');
   });
