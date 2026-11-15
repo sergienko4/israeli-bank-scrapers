@@ -72,4 +72,3 @@ const LEUMI_SHAPE: IApiDirectScrapeShape<ILeumiAcct, never> = {
 };
 
 export default LEUMI_SHAPE;
-export { LEUMI_SHAPE };

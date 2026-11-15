@@ -8,7 +8,7 @@
  * AccountInfoAndBalance, CurrentAccountLastTransactions.OperationEntry).
  */
 
-import { DISCOUNT_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Discount/scrape/DiscountShape.js';
+import DISCOUNT_SHAPE from '../../../../../Scrapers/Pipeline/Banks/Discount/scrape/DiscountShape.js';
 import type {
   ApiBody,
   IExtractAccountsArgs,

@@ -19,4 +19,3 @@ const DISCOUNT_SHAPE = makeTelebankGroupShape({
 });
 
 export default DISCOUNT_SHAPE;
-export { DISCOUNT_SHAPE };

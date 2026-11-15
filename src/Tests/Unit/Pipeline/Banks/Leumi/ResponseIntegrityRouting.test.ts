@@ -3,7 +3,7 @@
  */
 
 import { CompanyTypes } from '../../../../../Definitions.js';
-import { LEUMI_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Leumi/scrape/LeumiShape.js';
+import LEUMI_SHAPE from '../../../../../Scrapers/Pipeline/Banks/Leumi/scrape/LeumiShape.js';
 import {
   selectApiMediator,
   toApiWiring,

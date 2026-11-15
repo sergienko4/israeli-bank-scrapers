@@ -14,16 +14,15 @@
  * than no guard at all.
  */
 
-import {
-  assessWalkOrder,
-  type IWalkOrderArgs,
-} from '../../../../../Scrapers/Pipeline/Banks/Hapoalim/scrape/HapoalimWalkGuard.js';
+import { assessWalkOrder } from '../../../../../Scrapers/Pipeline/Banks/Hapoalim/scrape/HapoalimWalkGuard.js';
 
 /** Requested window start shared by every case here. */
 const START = '20260601';
 
 /** A day comfortably older than every `newest` used below, so pages advance. */
 const ADVANCED = '20260605';
+
+type IWalkOrderArgs = Parameters<typeof assessWalkOrder>[0];
 
 /**
  * Build guard inputs for a page reached through a cursor.

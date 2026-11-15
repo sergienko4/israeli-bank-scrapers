@@ -84,7 +84,7 @@ const LOG = getDebug(import.meta.url);
 export type WalkOrderVerdict = 'honoured' | 'violated' | 'beyond' | 'stalled' | 'unknown';
 
 /** Inputs for one ordering check. Days only — never row content. */
-export interface IWalkOrderArgs {
+interface IWalkOrderArgs {
   /** Day the request ended on (`YYYYMMDD`), or false on the first page. */
   readonly asked: string | false;
   /** Newest usable day on the page (`YYYYMMDD`), or empty when none. */

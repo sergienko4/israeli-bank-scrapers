@@ -12,7 +12,7 @@ import createPipelineBuilder from '../../Core/Builder/PipelineBuilderFactory.js'
 import type { IPipelineDescriptor } from '../../Core/PipelineDescriptor.js';
 import { MERCANTILE_API_DIRECT_CALL } from '../../Registry/Config/PipelineBankConfigMercantile.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { MERCANTILE_SHAPE } from './scrape/MercantileShape.js';
+import MERCANTILE_SHAPE from './scrape/MercantileShape.js';
 
 /**
  * Build the Mercantile pipeline descriptor: the direct-API login
@@ -28,4 +28,3 @@ function buildMercantilePipeline(options: ScraperOptions): Procedure<IPipelineDe
 }
 
 export default buildMercantilePipeline;
-export { buildMercantilePipeline };

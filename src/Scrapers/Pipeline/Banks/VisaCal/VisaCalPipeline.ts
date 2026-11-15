@@ -11,7 +11,7 @@ import createPipelineBuilder from '../../Core/Builder/PipelineBuilderFactory.js'
 import type { IPipelineDescriptor } from '../../Core/PipelineDescriptor.js';
 import VISACAL_API_DIRECT_CALL from '../../Registry/Config/PipelineBankConfigVisaCal.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { VISACAL_SHAPE } from './scrape/VisaCalShape.js';
+import VISACAL_SHAPE from './scrape/VisaCalShape.js';
 
 /**
  * Build the VisaCal pipeline descriptor.
@@ -26,4 +26,3 @@ function buildVisaCalPipeline(options: ScraperOptions): Procedure<IPipelineDescr
 }
 
 export default buildVisaCalPipeline;
-export { buildVisaCalPipeline };

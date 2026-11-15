@@ -6,19 +6,19 @@
  */
 
 import { CompanyTypes } from '../../../../Definitions.js';
-import { buildAmexPipeline } from '../../../../Scrapers/Pipeline/Banks/Amex/AmexPipeline.js';
+import buildAmexPipeline from '../../../../Scrapers/Pipeline/Banks/Amex/AmexPipeline.js';
 import buildBeinleumiPipeline from '../../../../Scrapers/Pipeline/Banks/Beinleumi/BeinleumiPipeline.js';
-import { buildDiscountPipeline } from '../../../../Scrapers/Pipeline/Banks/Discount/DiscountPipeline.js';
-import { buildHapoalimPipeline } from '../../../../Scrapers/Pipeline/Banks/Hapoalim/HapoalimPipeline.js';
-import { buildIsracardPipeline } from '../../../../Scrapers/Pipeline/Banks/Isracard/IsracardPipeline.js';
+import buildDiscountPipeline from '../../../../Scrapers/Pipeline/Banks/Discount/DiscountPipeline.js';
+import buildHapoalimPipeline from '../../../../Scrapers/Pipeline/Banks/Hapoalim/HapoalimPipeline.js';
+import buildIsracardPipeline from '../../../../Scrapers/Pipeline/Banks/Isracard/IsracardPipeline.js';
 import buildMassadPipeline from '../../../../Scrapers/Pipeline/Banks/Massad/MassadPipeline.js';
 import buildMaxPipeline from '../../../../Scrapers/Pipeline/Banks/Max/MaxPipeline.js';
-import { buildMercantilePipeline } from '../../../../Scrapers/Pipeline/Banks/Mercantile/MercantilePipeline.js';
+import buildMercantilePipeline from '../../../../Scrapers/Pipeline/Banks/Mercantile/MercantilePipeline.js';
 import buildOneZeroPipeline from '../../../../Scrapers/Pipeline/Banks/OneZero/OneZeroPipeline.js';
 import buildOtsarHahayalPipeline from '../../../../Scrapers/Pipeline/Banks/OtsarHahayal/OtsarHahayalPipeline.js';
 import buildPagiPipeline from '../../../../Scrapers/Pipeline/Banks/Pagi/PagiPipeline.js';
 import buildPayBoxPipeline from '../../../../Scrapers/Pipeline/Banks/PayBox/PayBoxPipeline.js';
-import { buildVisaCalPipeline } from '../../../../Scrapers/Pipeline/Banks/VisaCal/VisaCalPipeline.js';
+import buildVisaCalPipeline from '../../../../Scrapers/Pipeline/Banks/VisaCal/VisaCalPipeline.js';
 import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockOptions } from '../Infrastructure/MockFactories.js';

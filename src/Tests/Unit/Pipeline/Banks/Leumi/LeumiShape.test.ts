@@ -8,7 +8,7 @@
  * Leumi fixtures (AccountsItems, BalanceDisplay, HistoryTransactionsItems).
  */
 
-import { LEUMI_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Leumi/scrape/LeumiShape.js';
+import LEUMI_SHAPE from '../../../../../Scrapers/Pipeline/Banks/Leumi/scrape/LeumiShape.js';
 import {
   leumiBrokerUrl,
   sessionHeader,

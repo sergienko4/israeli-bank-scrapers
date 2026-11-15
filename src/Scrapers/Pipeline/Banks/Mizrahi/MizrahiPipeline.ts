@@ -11,7 +11,7 @@ import createPipelineBuilder from '../../Core/Builder/PipelineBuilderFactory.js'
 import type { IPipelineDescriptor } from '../../Core/PipelineDescriptor.js';
 import { MIZRAHI_API_DIRECT_CALL } from '../../Registry/Config/PipelineBankConfigMizrahi.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { MIZRAHI_SHAPE } from './scrape/MizrahiShape.js';
+import MIZRAHI_SHAPE from './scrape/MizrahiShape.js';
 
 /**
  * Build the Mizrahi pipeline descriptor.
@@ -26,4 +26,3 @@ function buildMizrahiPipeline(options: ScraperOptions): Procedure<IPipelineDescr
 }
 
 export default buildMizrahiPipeline;
-export { buildMizrahiPipeline };

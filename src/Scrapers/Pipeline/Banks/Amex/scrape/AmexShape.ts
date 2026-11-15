@@ -23,4 +23,3 @@ const AMEX_SHAPE = makeRingShape({
 });
 
 export default AMEX_SHAPE;
-export { AMEX_SHAPE };

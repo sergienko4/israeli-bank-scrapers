@@ -8,7 +8,7 @@ import createPipelineBuilder from '../../Core/Builder/PipelineBuilderFactory.js'
 import type { IPipelineDescriptor } from '../../Core/PipelineDescriptor.js';
 import { LEUMI_API_DIRECT_CALL } from '../../Registry/Config/PipelineBankConfigLeumi.js';
 import { fail, type Procedure } from '../../Types/Procedure.js';
-import { LEUMI_SHAPE } from './scrape/LeumiShape.js';
+import LEUMI_SHAPE from './scrape/LeumiShape.js';
 
 /**
  * Checks whether scraper options carry a finite startDate.
@@ -39,4 +39,3 @@ function buildLeumiNativePipeline(options: ScraperOptions): Procedure<IPipelineD
 }
 
 export default buildLeumiNativePipeline;
-export { buildLeumiNativePipeline };

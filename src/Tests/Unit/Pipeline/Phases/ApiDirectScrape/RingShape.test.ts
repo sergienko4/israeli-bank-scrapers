@@ -7,8 +7,8 @@
 
 import { jest } from '@jest/globals';
 
-import { AMEX_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Amex/scrape/AmexShape.js';
-import { ISRACARD_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Isracard/scrape/IsracardShape.js';
+import AMEX_SHAPE from '../../../../../Scrapers/Pipeline/Banks/Amex/scrape/AmexShape.js';
+import ISRACARD_SHAPE from '../../../../../Scrapers/Pipeline/Banks/Isracard/scrape/IsracardShape.js';
 import {
   type ApiBody,
   BALANCE_UNKNOWN,

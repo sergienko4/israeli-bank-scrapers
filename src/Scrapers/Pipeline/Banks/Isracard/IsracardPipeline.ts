@@ -11,7 +11,7 @@ import createPipelineBuilder from '../../Core/Builder/PipelineBuilderFactory.js'
 import type { IPipelineDescriptor } from '../../Core/PipelineDescriptor.js';
 import { ISRACARD_API_DIRECT_CALL } from '../../Registry/Config/PipelineBankConfigIsracard.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { ISRACARD_SHAPE } from './scrape/IsracardShape.js';
+import ISRACARD_SHAPE from './scrape/IsracardShape.js';
 
 /**
  * Build the Isracard pipeline descriptor.
@@ -26,4 +26,3 @@ function buildIsracardPipeline(options: ScraperOptions): Procedure<IPipelineDesc
 }
 
 export default buildIsracardPipeline;
-export { buildIsracardPipeline };

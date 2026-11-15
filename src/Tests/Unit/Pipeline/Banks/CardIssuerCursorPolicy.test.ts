@@ -7,10 +7,10 @@
  * self-contained, carries zero PII, and never reads the clock.
  */
 
-import { AMEX_SHAPE } from '../../../../Scrapers/Pipeline/Banks/Amex/scrape/AmexShape.js';
-import { ISRACARD_SHAPE } from '../../../../Scrapers/Pipeline/Banks/Isracard/scrape/IsracardShape.js';
+import AMEX_SHAPE from '../../../../Scrapers/Pipeline/Banks/Amex/scrape/AmexShape.js';
+import ISRACARD_SHAPE from '../../../../Scrapers/Pipeline/Banks/Isracard/scrape/IsracardShape.js';
 import MAX_SHAPE from '../../../../Scrapers/Pipeline/Banks/Max/scrape/MaxShape.js';
-import { VISACAL_SHAPE } from '../../../../Scrapers/Pipeline/Banks/VisaCal/scrape/VisaCalShape.js';
+import VISACAL_SHAPE from '../../../../Scrapers/Pipeline/Banks/VisaCal/scrape/VisaCalShape.js';
 import {
   billingMonthAt,
   lastOffset,

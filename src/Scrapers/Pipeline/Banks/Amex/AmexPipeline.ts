@@ -11,7 +11,7 @@ import createPipelineBuilder from '../../Core/Builder/PipelineBuilderFactory.js'
 import type { IPipelineDescriptor } from '../../Core/PipelineDescriptor.js';
 import { AMEX_API_DIRECT_CALL } from '../../Registry/Config/PipelineBankConfigAmex.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { AMEX_SHAPE } from './scrape/AmexShape.js';
+import AMEX_SHAPE from './scrape/AmexShape.js';
 
 /**
  * Build the Amex pipeline descriptor.
@@ -26,4 +26,3 @@ function buildAmexPipeline(options: ScraperOptions): Procedure<IPipelineDescript
 }
 
 export default buildAmexPipeline;
-export { buildAmexPipeline };

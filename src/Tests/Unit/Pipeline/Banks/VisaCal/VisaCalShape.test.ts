@@ -12,7 +12,7 @@
 
 import { jest } from '@jest/globals';
 
-import { VISACAL_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/VisaCal/scrape/VisaCalShape.js';
+import VISACAL_SHAPE from '../../../../../Scrapers/Pipeline/Banks/VisaCal/scrape/VisaCalShape.js';
 import {
   accountNumberOf,
   customerUrl,

@@ -21,7 +21,7 @@ import type { Brand } from '../../../Types/Brand.js';
 import { CAL_API, type IVisaCalCard } from './VisaCalShapeHelpers.js';
 
 /** A card's next ILS debit — branded for Rule #15. */
-export type VisaCalNextDebit = Brand<number, 'VisaCalNextDebit'>;
+type VisaCalNextDebit = Brand<number, 'VisaCalNextDebit'>;
 /** Whether a card's next-debit figure is missing — branded for Rule #15. */
 type IsBalanceAbsent = Brand<boolean, 'VisaCalIsBalanceAbsent'>;
 

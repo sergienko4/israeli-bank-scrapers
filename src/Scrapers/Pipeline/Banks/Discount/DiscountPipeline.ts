@@ -11,7 +11,7 @@ import createPipelineBuilder from '../../Core/Builder/PipelineBuilderFactory.js'
 import type { IPipelineDescriptor } from '../../Core/PipelineDescriptor.js';
 import { DISCOUNT_API_DIRECT_CALL } from '../../Registry/Config/PipelineBankConfigDiscount.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { DISCOUNT_SHAPE } from './scrape/DiscountShape.js';
+import DISCOUNT_SHAPE from './scrape/DiscountShape.js';
 
 /**
  * Build the Discount pipeline descriptor: the direct-API login
@@ -27,4 +27,3 @@ function buildDiscountPipeline(options: ScraperOptions): Procedure<IPipelineDesc
 }
 
 export default buildDiscountPipeline;
-export { buildDiscountPipeline };

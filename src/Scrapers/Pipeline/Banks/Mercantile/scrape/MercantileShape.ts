@@ -20,4 +20,3 @@ const MERCANTILE_SHAPE = makeTelebankGroupShape({
 });
 
 export default MERCANTILE_SHAPE;
-export { MERCANTILE_SHAPE };
