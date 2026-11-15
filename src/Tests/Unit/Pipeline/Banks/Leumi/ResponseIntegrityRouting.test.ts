@@ -3,11 +3,10 @@
  */
 
 import { CompanyTypes } from '../../../../../Definitions.js';
+import type { ScraperOptions } from '../../../../../Scrapers/Base/Interface.js';
 import LEUMI_SHAPE from '../../../../../Scrapers/Pipeline/Banks/Leumi/scrape/LeumiShape.js';
-import {
-  selectApiMediator,
-  toApiWiring,
-} from '../../../../../Scrapers/Pipeline/Core/ApiMediatorWiring.js';
+import { resolveApiMediator } from '../../../../../Scrapers/Pipeline/Core/ApiMediatorWiring.js';
+import type { IPipelineDescriptor } from '../../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import type { IStepConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { runStep } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/RunStep.js';
@@ -20,14 +19,19 @@ import {
   registerWkUrl,
   resetWkRegistryForTest as resetWkUrlsForTest,
 } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
-import { none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
+import { isSome, none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import { fakeFetch } from '../../../../Helpers/FakeFetch.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
 
 const ORIGIN = 'https://bank.example';
+
+/** Leumi's bank-default response-integrity cap is 4 MiB; one byte more breaches it. */
+const OVER_LEUMI_LIMIT = 'x'.repeat(4_194_305);
+
 const ACCOUNT_BODY = {
   ProcessRequestResult: 0,
   jsonResp: JSON.stringify({ AccountsItems: [{ AccountIndex: 0, MaskedNumber: '99-12345/88' }] }),
+  padding: OVER_LEUMI_LIMIT,
 };
 
 /**
@@ -35,15 +39,11 @@ const ACCOUNT_BODY = {
  * @returns The native mediator.
  */
 function mediator(): IApiMediator {
-  const transport = {
-    identityBase: ORIGIN,
-    graphql: `${ORIGIN}/graphql`,
-    paths: {},
-    nativeFetch: true,
-    responseIntegrity: { maxBytes: 32 },
-  };
-  const wiring = toApiWiring(transport);
-  return selectApiMediator(CompanyTypes.Leumi, wiring);
+  const options = { companyId: CompanyTypes.Leumi } as unknown as ScraperOptions;
+  const descriptor: IPipelineDescriptor = { options, phases: [] };
+  const option = resolveApiMediator(descriptor);
+  if (!isSome(option)) throw new TypeError('Leumi resolved no mediator');
+  return option.value;
 }
 
 describe('response integrity routing', () => {
@@ -97,7 +97,7 @@ describe('response integrity routing', () => {
 
   it('enforces the same default on GraphQL calls', async () => {
     registerWkQuery('customer', CompanyTypes.Leumi, 'query Customer { me { id } }');
-    const fake = fakeFetch(() => Response.json({ data: { id: 'x'.repeat(64) } }));
+    const fake = fakeFetch(() => Response.json({ data: { id: OVER_LEUMI_LIMIT } }));
     globalThis.fetch = fake.fetchImpl as typeof globalThis.fetch;
     const result = await mediator().apiQuery('customer', {});
     expect(result).toMatchObject({

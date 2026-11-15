@@ -104,14 +104,12 @@ fails the same way (`Missing headless transport`): there is no default
 transport, so a bank can never reach the network over an unintended one.
 `assertSingleTransport` enforces both; `pickTransportKind` walks the table above.
 
-`resolveTransportKind(companyId)` returns the kind these rules pick
-without building a mediator. The public options contract carries no
-page-engine settings and no separate warning path.
-
-| Symbol                 | Module                 | Role                                                             |
-| ---------------------- | ---------------------- | ---------------------------------------------------------------- |
-| `TransportKind`        | `ApiWiringTypes.ts`    | The `Kind` column above — the rule a `transport` block matches   |
-| `resolveTransportKind` | `ApiMediatorWiring.ts` | The kind for a bank, or `false` when it has no `transport` block |
+`resolveApiMediator(descriptor)` is the module's public entry point: it
+decodes the block, applies the rules, and builds the matching mediator.
+`pickTransportKind` and the factory table stay inside the wiring module, so
+callers configure a bank through the registry rather than naming a transport.
+The public options contract carries no page-engine settings and no separate
+warning path.
 
 The native transport is [`NativeFetchStrategy`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/NativeFetchStrategy.ts). The API-mediator factory installs the capped request seam through constructor options, so the class carries no transport-policy subclass:
 

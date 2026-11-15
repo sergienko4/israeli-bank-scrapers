@@ -144,23 +144,6 @@ const MEDIATOR_FACTORIES: Readonly<Record<TransportKind, (args: TMediatorArgs) =
 };
 
 /**
- * Resolve the identity transport a bank's transport block selects, without
- * building a mediator. Shares {@link pickTransportKind} with
- * {@link selectApiMediator}, so a caller asking which transport a bank
- * runs gets the answer the runtime acts on.
- * @param companyId - Target bank company type.
- * @returns The transport kind, or false when the bank has no transport block.
- * @throws ScraperError when the transport block declares conflicting transports
- *   or none at all.
- */
-function resolveTransportKind(companyId: CompanyTypes): TransportKind | false {
-  const wiring = resolveApiWiring(companyId);
-  if (wiring === false) return false;
-  assertSingleTransport(companyId, wiring);
-  return pickTransportKind(companyId, wiring);
-}
-
-/**
  * Select + invoke the API-mediator factory for the resolved wiring.
  * @param companyId - Target bank company type.
  * @param wiring - Resolved wiring entry (URLs + flags).
@@ -187,4 +170,4 @@ function resolveApiMediator(descriptor: IPipelineDescriptor): Option<IApiMediato
 }
 
 export type { TransportKind } from './ApiWiringTypes.js';
-export { resolveApiMediator, resolveTransportKind, selectApiMediator, toApiWiring };
+export { resolveApiMediator };
