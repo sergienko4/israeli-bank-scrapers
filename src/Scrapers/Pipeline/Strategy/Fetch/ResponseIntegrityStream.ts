@@ -226,5 +226,4 @@ function consume(state: IReaderState): Promise<Procedure<void>> {
   });
 }
 
-export type { IReaderState };
 export { consume, integrityStateOf };

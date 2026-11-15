@@ -195,4 +195,4 @@ async function dispatchFetch<T>(run: IDispatch): Promise<Procedure<T>> {
 }
 
 export { dispatchFetch, isApiSuccess };
-export type { IDispatch, Reader };
+export type { IDispatch };

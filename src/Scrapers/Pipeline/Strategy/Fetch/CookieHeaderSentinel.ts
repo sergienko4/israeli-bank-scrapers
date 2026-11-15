@@ -34,13 +34,13 @@ import { decodeCookieStrict } from './CookieValueDecode.js';
 export const COOKIE_HEADER_SENTINEL_PREFIX = '@cookie:';
 
 /** Header-value prefix marking a cookie-echo sentinel that decodes strictly. */
-export const STRICT_COOKIE_HEADER_SENTINEL_PREFIX = '@cookie-strict:';
+const STRICT_COOKIE_HEADER_SENTINEL_PREFIX = '@cookie-strict:';
 
 /** Ends a sentinel's cookie name; the text after it is the fallback. */
 const FALLBACK_SEPARATOR = '?';
 
 /** Minimal cookie record — the subset the resolver reads. */
-export interface INamedCookie {
+interface INamedCookie {
   readonly name: string;
   readonly value: string;
 }
@@ -52,10 +52,10 @@ export type CookieJar = readonly INamedCookie[];
 export type CookieLookup = (name: string) => Option<string>;
 
 /** Turns a stored cookie value into the text a `@cookie:` header sends. */
-export type CookieDecode = (raw: string) => string;
+type CookieDecode = (raw: string) => string;
 
 /** How one transport reads the cookies its sentinels name. */
-export interface ICookieReader {
+interface ICookieReader {
   /** Reads one cookie's stored value. */
   readonly lookup: CookieLookup;
   /** Decodes a `@cookie:` value; `@cookie-strict:` always decodes strictly. */
@@ -76,7 +76,7 @@ const SENTINEL_KINDS = [
 ] as const;
 
 /** Predicate result: whether a header map carries a cookie-echo sentinel. */
-export type HasCookieSentinel = Brand<boolean, 'HasCookieSentinel'>;
+type HasCookieSentinel = Brand<boolean, 'HasCookieSentinel'>;
 
 /**
  * Split a sentinel body into its cookie name and optional fallback.

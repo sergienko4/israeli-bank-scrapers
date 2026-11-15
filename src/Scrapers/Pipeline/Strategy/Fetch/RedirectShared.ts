@@ -76,4 +76,4 @@ function emitSetCookies(
 }
 
 export { answeredUrl, emitSetCookies, isRedirectStatus };
-export type { IRedirectRun, IRunEnd, SetCookieEmitCount };
+export type { IRedirectRun, IRunEnd };

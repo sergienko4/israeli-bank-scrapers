@@ -13,7 +13,7 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { fail } from '../../Types/Procedure.js';
 import type { ICappedRequest } from './CappedBody.js';
 import { fetchWithinCap } from './CappedBody.js';
-import { retryOnConnectTimeout } from './ConnectRetry.js';
+import retryOnConnectTimeout from './ConnectRetry.js';
 import type { FetchInvoke, IFetchInvokePolicy } from './FetchStrategy.js';
 import { toNetworkFailure } from './NativeFetchNetwork.js';
 import { safeUrlForLog } from './SafeUrlForLog.js';

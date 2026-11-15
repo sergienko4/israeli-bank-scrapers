@@ -67,4 +67,4 @@ async function retryOnConnectTimeout<T>(attempt: () => Promise<T>, retries: numb
   }
 }
 
-export { isConnectTimeout, retryOnConnectTimeout };
+export default retryOnConnectTimeout;

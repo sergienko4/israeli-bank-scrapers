@@ -16,7 +16,7 @@ import { type BodyEncoding, TEXT_BODY_REFUSED_REASON } from '../../Types/Domain/
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import type { PostData } from './FetchStrategy.js';
-import { serializeJsonBody } from './JsonBody.js';
+import serializeJsonBody from './JsonBody.js';
 import { encodeLatin1Form } from './Latin1Form.js';
 
 /** Content-type every form body is sent under. */
