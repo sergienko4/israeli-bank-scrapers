@@ -22,7 +22,7 @@ import type {
   RecoveredHook,
 } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import type { ITokenStrategy } from '../../../../../Scrapers/Pipeline/Mediator/Api/ITokenStrategy.js';
-import { buildResolverFromStrategy } from '../../../../../Scrapers/Pipeline/Mediator/Api/TokenResolverBuilder.js';
+import buildResolverFromStrategy from '../../../../../Scrapers/Pipeline/Mediator/Api/TokenResolverBuilder.js';
 import { runApiDirectCallAction } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ApiDirectCallActions.action.js';
 import { coldFallbackDetail } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ApiDirectCallActions.shared.js';
 import type { IApiDirectCallConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';

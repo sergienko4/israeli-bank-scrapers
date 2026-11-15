@@ -15,7 +15,7 @@ import type { ApiPostData } from '../../Types/Domain/ApiPostData.js';
 import type { ITokenContext } from '../../Types/Domain/TokenContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { apiGetOp, apiPostOp, apiQueryOp } from './ApiMediator.ops.js';
-import { buildRecoveryMethods } from './ApiMediator.recovery.js';
+import buildRecoveryMethods from './ApiMediator.recovery.js';
 import {
   getSessionContextOp,
   primeSessionOp,

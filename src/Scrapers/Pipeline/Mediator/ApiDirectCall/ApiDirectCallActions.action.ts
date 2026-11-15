@@ -11,7 +11,7 @@ import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
 import type { IApiMediator } from '../Api/ApiMediator.js';
-import { resolveApiMediator } from '../Api/ApiMediatorAccessor.js';
+import resolveApiMediator from '../Api/ApiMediatorAccessor.js';
 import { invokeAuthFlowComplete } from './ApiDirectCallActions.callback.js';
 import { withNormalisedCreds } from './ApiDirectCallActions.phone.js';
 import { mergeOptionsIntoCreds } from './ApiDirectCallActions.pre.js';

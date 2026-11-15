@@ -39,5 +39,3 @@ function createApiMediator(
 }
 
 export default createApiMediator;
-
-export { createApiMediator };

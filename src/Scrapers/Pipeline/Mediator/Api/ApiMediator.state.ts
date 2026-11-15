@@ -14,7 +14,7 @@ import type {
 } from './ApiMediator.types.js';
 import type { ITokenResolver } from './ITokenResolver.js';
 import { NULL_RESOLVER } from './ITokenResolver.js';
-import { buildResolverFromStrategy } from './TokenResolverBuilder.js';
+import buildResolverFromStrategy from './TokenResolverBuilder.js';
 
 /**
  * A fresh mediator assumes a header session recovered per request until the

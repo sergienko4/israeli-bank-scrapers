@@ -90,5 +90,3 @@ function buildRecoveryMethods(state: IMediatorState): IRecoveryMethods {
 }
 
 export default buildRecoveryMethods;
-
-export { buildRecoveryMethods };

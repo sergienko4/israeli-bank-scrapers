@@ -12,7 +12,7 @@ import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
-import { resolveApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediatorAccessor.js';
+import resolveApiMediator from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediatorAccessor.js';
 import { none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IPipelineContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { assertOk } from '../../../../Helpers/AssertProcedure.js';

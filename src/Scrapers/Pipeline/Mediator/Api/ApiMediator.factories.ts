@@ -31,8 +31,8 @@ import {
 import type { IClientCertControl } from '../../Types/Domain/ClientCertControl.js';
 import type { IResponseIntegrity } from '../../Types/Domain/FetchPolicy.js';
 import { NETWORK_FETCH_TIMEOUT_MS } from '../Network/FetchConfig.js';
-import { createApiMediator } from './ApiMediator.factory.js';
-import { buildTransportSource } from './ApiMediator.nodeTransport.js';
+import createApiMediator from './ApiMediator.factory.js';
+import buildTransportSource from './ApiMediator.nodeTransport.js';
 import type { INodeTlsMediatorArgs } from './ApiMediator.transport.types.js';
 import type {
   IApiMediator,

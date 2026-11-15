@@ -60,4 +60,3 @@ function resolveApiMediator(ctx: IPipelineContext, label: string): Procedure<IAp
 }
 
 export default resolveApiMediator;
-export { resolveApiMediator };

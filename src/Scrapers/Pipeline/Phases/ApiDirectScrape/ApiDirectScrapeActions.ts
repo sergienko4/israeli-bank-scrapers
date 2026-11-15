@@ -10,7 +10,7 @@
 
 import { isAuthRejectedFailure } from '../../Mediator/Api/ApiMediator.authReject.js';
 import type { IApiMediator } from '../../Mediator/Api/ApiMediator.js';
-import { resolveApiMediator } from '../../Mediator/Api/ApiMediatorAccessor.js';
+import resolveApiMediator from '../../Mediator/Api/ApiMediatorAccessor.js';
 import { isSome, some } from '../../Types/Option.js';
 import type { IActionContext, IScrapeState } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
