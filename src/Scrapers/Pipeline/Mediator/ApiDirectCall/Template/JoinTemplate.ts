@@ -104,5 +104,4 @@ function hydrateJoin(node: JsonValueTemplate, scope: ITemplateScope): Procedure<
   return succeed(`${spec.prefix ?? ''}${encoded}`);
 }
 
-export { hydrateJoin };
 export default hydrateJoin;

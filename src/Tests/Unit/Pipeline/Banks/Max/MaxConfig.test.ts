@@ -18,7 +18,7 @@ import {
   validateApiDirectConfig,
 } from '../../../../../Scrapers/Pipeline/Core/Builder/Validation/ApiDirectConfigRules.js';
 import type { IApiDirectCallConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
-import { hydrate } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/GenericBodyTemplate.js';
+import hydrate from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/GenericBodyTemplate.js';
 import { callOfModule } from '../../../../Helpers/BankConfigModule.js';
 
 const CONFIG_DIR = '../../../../../Scrapers/Pipeline/Registry/Config/';

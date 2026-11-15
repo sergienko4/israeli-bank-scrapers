@@ -17,7 +17,7 @@ import type {
 import { fail, isOk, succeed } from '../../../../Types/Procedure.js';
 import type { ClientCookieSource, RefToken } from '../../ConfigContracts/index.js';
 import type { JsonValue } from '../../Envelope/JsonPointer.js';
-import { isRefAbsent } from '../../Template/RefPresence.js';
+import isRefAbsent from '../../Template/RefPresence.js';
 import { type ITemplateScope, resolveRef } from '../../Template/RefResolver.js';
 import { stepBaseUrlOf } from './RunStep.stepUrl.js';
 import type { IRunStepArgs, IStepConfig } from './RunStep.types.js';
