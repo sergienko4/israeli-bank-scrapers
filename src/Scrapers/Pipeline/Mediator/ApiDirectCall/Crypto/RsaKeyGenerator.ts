@@ -67,4 +67,4 @@ async function generateRsaKey(generator: IRsaKeyGenerator): Promise<Procedure<Ge
 }
 
 export type { GeneratedCarry };
-export { generateRsaKey, spkiSha256Hex };
+export { generateRsaKey };

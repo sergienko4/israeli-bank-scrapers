@@ -7,7 +7,7 @@
 
 import type { IApiQueryOpts } from '../../Mediator/Api/ApiMediator.js';
 import type { IBodyDigestConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
-import { computeBodyDigest } from '../../Mediator/ApiDirectCall/Crypto/BodyDigest.js';
+import computeBodyDigest from '../../Mediator/ApiDirectCall/Crypto/BodyDigest.js';
 import serializeJsonBody from '../../Strategy/Fetch/JsonBody.js';
 import type { VarsMap } from './IApiDirectScrapeShape.js';
 

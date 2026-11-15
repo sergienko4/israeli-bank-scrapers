@@ -13,7 +13,7 @@ import {
   sealEnvelopeWithIv,
   toSession,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/EnvelopeCodec.js';
-import { openEnvelope } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/EnvelopeCodec.open.js';
+import openEnvelope from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/EnvelopeCodec.open.js';
 import type { JsonValue } from '../../../../../../Scrapers/Pipeline/Types/JsonValue.js';
 import {
   aesOpen,

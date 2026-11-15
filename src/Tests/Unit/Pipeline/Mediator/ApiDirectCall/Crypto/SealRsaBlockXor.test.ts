@@ -5,7 +5,7 @@
  */
 
 import type { ISealRsaBlockXorParams } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
-import { sealRsaBlockXor } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/SealRsaBlockXor.js';
+import sealRsaBlockXor from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/SealRsaBlockXor.js';
 import { makeSealKey, openSeal, SEAL_PARAMS } from '../../../../../Helpers/SealOpener.js';
 
 const KEY = makeSealKey();

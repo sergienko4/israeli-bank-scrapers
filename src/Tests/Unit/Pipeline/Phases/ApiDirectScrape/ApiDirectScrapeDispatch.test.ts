@@ -25,7 +25,7 @@ import type {
   IAesSignerConfig,
   IBodyDigestConfig,
 } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
-import { computeBodyDigest } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/BodyDigest.js';
+import computeBodyDigest from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/BodyDigest.js';
 import {
   dispatchStep,
   type IDispatchArgs,

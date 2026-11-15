@@ -13,8 +13,8 @@ import type {
   SealKind,
 } from '../ConfigContracts/index.js';
 import type { SealPlan, SealRefText } from './SealPlan.js';
-import { sealRsaBlockXor } from './SealRsaBlockXor.js';
-import { planRsaPkcs1 } from './SealRsaPkcs1.js';
+import sealRsaBlockXor from './SealRsaBlockXor.js';
+import planRsaPkcs1 from './SealRsaPkcs1.js';
 import { SOURCE_INVALID } from './SealTail.js';
 
 /** Plans the writes of one seal kind. */
@@ -60,4 +60,3 @@ function planSeal(seal: ISealFieldConfig, refText: SealRefText): SealPlan {
 }
 
 export default planSeal;
-export { planSeal };

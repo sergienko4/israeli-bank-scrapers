@@ -7,10 +7,7 @@
 import { createECDH } from 'node:crypto';
 
 import type { IEcdhKeyGenerator } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
-import {
-  generateEcdhKey,
-  paddedPrivateKey,
-} from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/EcdhKeypair.js';
+import generateEcdhKey from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/EcdhKeypair.js';
 
 const ECDH_KEY: IEcdhKeyGenerator = {
   kind: 'ecdh-key',
@@ -86,25 +83,5 @@ describe('generateEcdhKey', () => {
     const second = await generatePair();
     expect(first.privateText).not.toBe(second.privateText);
     expect(first.publicText).not.toBe(second.publicText);
-  });
-});
-
-describe('paddedPrivateKey', () => {
-  it('pads a scalar with a leading zero byte back to 32 bytes', () => {
-    const tail = '11'.repeat(31);
-    const scalar = Buffer.from(`00${tail}`, 'hex');
-    const ecdh = createECDH('secp256k1');
-    ecdh.setPrivateKey(scalar);
-    const padded = paddedPrivateKey(ecdh);
-    expect(padded).toEqual(scalar);
-  });
-
-  it('leaves a full 32-byte scalar unchanged', () => {
-    const hex = '22'.repeat(32);
-    const scalar = Buffer.from(hex, 'hex');
-    const ecdh = createECDH('secp256k1');
-    ecdh.setPrivateKey(scalar);
-    const padded = paddedPrivateKey(ecdh);
-    expect(padded).toEqual(scalar);
   });
 });

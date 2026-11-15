@@ -11,7 +11,7 @@ import type { IJsonObject, JsonValue } from '../../../../Types/JsonValue.js';
 import type { IProcedureFailure, Procedure } from '../../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../../Types/Procedure.js';
 import type { IEnvelopeSession } from '../../Crypto/EnvelopeCodec.js';
-import { openEnvelope } from '../../Crypto/EnvelopeCodec.open.js';
+import openEnvelope from '../../Crypto/EnvelopeCodec.open.js';
 import { isJsonRecord } from '../../Crypto/EnvelopeWire.js';
 import { bankErrorOf } from '../Steps/RunStep.failIfPresent.js';
 import type { IDispatchBundle, IStepConfig } from '../Steps/RunStep.types.js';

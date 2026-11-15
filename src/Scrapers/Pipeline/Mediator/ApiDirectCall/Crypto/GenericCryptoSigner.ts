@@ -110,4 +110,3 @@ function signCanonical(
 }
 
 export default signCanonical;
-export { signCanonical };
