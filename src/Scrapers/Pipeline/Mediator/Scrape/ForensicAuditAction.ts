@@ -7,8 +7,8 @@ import { getDebug as createLogger } from '../../Logging/Debug.js';
 import { redactAccount, redactAmount, redactMerchant } from '../../Types/PiiRedactor.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import { bankMomentOfInstant } from './BankCalendar.js';
-import { detectMirroredAccounts } from './MirrorDetection.js';
-import { logWindowCompleteness } from './WindowCompletenessAudit.js';
+import detectMirroredAccounts from './MirrorDetection.js';
+import logWindowCompleteness from './WindowCompletenessAudit.js';
 
 /** Account record with txn list for audit lookup. */
 interface IAuditAccount {

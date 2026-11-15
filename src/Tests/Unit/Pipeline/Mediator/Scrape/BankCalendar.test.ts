@@ -25,7 +25,7 @@ import {
   bankMomentOfInstant,
 } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/BankCalendar.js';
 import { parseAutoDate } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/Coercion/Coercion.js';
-import { applyStartWindow } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/StartWindow.js';
+import applyStartWindow from '../../../../../Scrapers/Pipeline/Mediator/Scrape/StartWindow.js';
 import type { ITransaction } from '../../../../../Transactions.js';
 import { AMBIENT_ZONE_CASES as ZONES, underZone } from '../../../../Helpers/AmbientZone.js';
 

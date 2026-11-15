@@ -2,7 +2,7 @@
  * Unit tests for MirrorDetection — fingerprint-based duplicate account detection.
  */
 
-import { detectMirroredAccounts } from '../../../../Scrapers/Pipeline/Mediator/Scrape/MirrorDetection.js';
+import detectMirroredAccounts from '../../../../Scrapers/Pipeline/Mediator/Scrape/MirrorDetection.js';
 
 /** Minimal txn shape matching ITxnFingerFields. */
 interface IFingerTxn {

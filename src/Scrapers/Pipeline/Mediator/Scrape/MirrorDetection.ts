@@ -108,5 +108,4 @@ function detectMirroredAccounts(accounts: readonly IMirrorAccount[]): IMirrorRes
   return decideMirrorByFingerprints(fingerprints);
 }
 
-export type { IMirrorResult };
-export { detectMirroredAccounts };
+export default detectMirroredAccounts;

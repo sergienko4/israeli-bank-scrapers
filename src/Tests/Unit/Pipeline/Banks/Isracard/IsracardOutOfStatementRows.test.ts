@@ -12,7 +12,7 @@
  * invented.
  */
 
-import mergeRingRows from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/Ring/RingShapeExtract.js';
+import { mergeRingRows } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/Ring/RingShapeExtract.js';
 
 /**
  * One transaction row, in the shape all three containers share.

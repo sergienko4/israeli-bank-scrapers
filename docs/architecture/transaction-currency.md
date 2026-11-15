@@ -78,6 +78,12 @@ no record yields a usable hit, the mapper falls back to `ILS`.
 `chargedCurrency` stays `undefined`; the mapper does not copy
 `originalCurrency` into it.
 
+Currency resolution is independent of the sign pass: the mapper resolves both
+currency fields from the raw record before it hands the two amounts to the sign
+module, and the sign module receives no currency value. A credit
+reconciliation therefore never rewrites `originalCurrency` or
+`chargedCurrency`.
+
 Mizrahi relies on that fallback. Its `get428Index` rows carry `kodMatbea`,
 which is `null` in every captured row and is not in the alias list, so the rows
 report `ILS`, as the removed legacy scraper did. `MizrahiShape.test.ts` pins

@@ -12,8 +12,9 @@ source-files:
 Consumers of this package read one convention: **money out is negative, money
 in is positive.** Providers do not agree on how to say that, and several do not
 sign the amount at all. The `ICardSignArgs` and `ISignedAmounts` shapes are
-internal to the sign module; the conventions below are the contract.
-Reconciling them is owned end to end by
+internal to the sign module; the conventions below are the contract. The module
+exposes `signCardAmounts` as its default export, and callers import the function
+itself. Reconciling them is owned end to end by
 [`src/Scrapers/Pipeline/Mediator/Scrape/TxnMapper/TxnSign.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/Scrape/TxnMapper/TxnSign.ts),
 so the mapper beside it is left with pure field coercion.
 

@@ -80,5 +80,3 @@ export function withZeroAccountsFloor(shapeGuard?: ScrapeResultGuard): ScrapeRes
     return shapeGuard(summary);
   };
 }
-
-export default zeroAccountsGuard;

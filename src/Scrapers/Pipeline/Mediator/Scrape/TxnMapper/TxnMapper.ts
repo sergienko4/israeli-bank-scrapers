@@ -22,7 +22,7 @@ import { findFieldValue } from '../BfsFieldSearch/BfsFieldSearch.js';
 import { coerceNumber, coerceString, parseAutoDate } from '../Coercion/Coercion.js';
 import restoreProviderFields from './RestoredFields.js';
 import { findCurrencyHit, normalizeCurrency } from './TxnCurrency.js';
-import { signCardAmounts } from './TxnSign.js';
+import signCardAmounts from './TxnSign.js';
 
 const LOG = getDebug(import.meta.url);
 

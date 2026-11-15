@@ -49,7 +49,7 @@ import { BANK_DAY_FORMAT, bankDayOfInstant, bankMomentOfInstant } from './BankCa
 const LOG = getDebug(import.meta.url);
 
 /** Inputs for one windowing round. */
-export interface IStartWindowArgs {
+interface IStartWindowArgs {
   /** Mapped transactions for one account, before the window is applied. */
   readonly txns: readonly ITransaction[];
   /** Inclusive lower bound taken from `ScraperOptions.startDate`. */
@@ -188,7 +188,7 @@ function reportWindow(label: string, before: number, after: number): true {
  * @param args - Transactions, window bound and log identity.
  * @returns In-window transactions plus the dropped count.
  */
-export function applyStartWindow(args: IStartWindowArgs): IStartWindowResult {
+function applyStartWindow(args: IStartWindowArgs): IStartWindowResult {
   const startDay = windowStartDay(args.startDate);
   if (startDay === false) return { kept: args.txns, dropped: 0 };
   const kept = filterToWindow(args.txns, startDay);
@@ -196,3 +196,5 @@ export function applyStartWindow(args: IStartWindowArgs): IStartWindowResult {
   reportWindow(args.label, before, kept.length);
   return { kept, dropped: before - kept.length };
 }
+
+export default applyStartWindow;

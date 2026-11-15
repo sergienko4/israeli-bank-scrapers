@@ -224,5 +224,4 @@ function buildApiDirectScrapePhase<TAcct, TCursor>(
   return Reflect.construct(ApiDirectScrapePhase, [fn, guard]);
 }
 
-export default createApiDirectScrapePhase;
 export { ApiDirectScrapePhase, buildApiDirectScrapePhase, createApiDirectScrapePhase };
