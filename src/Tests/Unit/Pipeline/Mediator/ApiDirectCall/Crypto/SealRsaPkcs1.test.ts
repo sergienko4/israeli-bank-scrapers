@@ -19,6 +19,13 @@ const EC_PAIR = generateKeyPairSync('ec', { namedCurve: 'P-256' });
 const EC_PEM = EC_PAIR.publicKey.export({ type: 'spki', format: 'pem' });
 const EC_DER = EC_PAIR.publicKey.export({ type: 'spki', format: 'der' }).toString('base64');
 
+/** Fixed one-field seal config shared by the helper. */
+const SEAL_CONFIG = {
+  kind: 'rsa-pkcs1-v15',
+  keyRef: 'carry.key',
+  fields: [{ sourceRef: 'creds.source', writeTo: '/sealed' }],
+} as const;
+
 /**
  * Seal a source under a key text.
  * @param keyText - Key text, as carry holds it.
@@ -26,11 +33,6 @@ const EC_DER = EC_PAIR.publicKey.export({ type: 'spki', format: 'der' }).toStrin
  * @returns The seal procedure.
  */
 function sealUnder(keyText: string, source: string): ReturnType<typeof planRsaPkcs1> {
-  const seal = {
-    kind: 'rsa-pkcs1-v15',
-    keyRef: 'carry.key',
-    fields: [{ sourceRef: 'creds.source', writeTo: '/sealed' }],
-  } as const;
   /**
    * Read one seal ref as test text.
    * @param ref - Ref the planner asks for.
@@ -41,7 +43,7 @@ function sealUnder(keyText: string, source: string): ReturnType<typeof planRsaPk
     if (ref === 'creds.source') return source;
     return false;
   };
-  return planRsaPkcs1(seal, refText);
+  return planRsaPkcs1(SEAL_CONFIG, refText);
 }
 
 /**
