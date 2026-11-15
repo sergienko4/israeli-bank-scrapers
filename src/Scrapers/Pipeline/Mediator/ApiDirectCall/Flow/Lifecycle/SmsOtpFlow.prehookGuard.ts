@@ -242,4 +242,3 @@ async function applyGuardedPreHook(args: IPreHookGuardArgs): Promise<Procedure<I
 }
 
 export default applyGuardedPreHook;
-export { applyGuardedPreHook };

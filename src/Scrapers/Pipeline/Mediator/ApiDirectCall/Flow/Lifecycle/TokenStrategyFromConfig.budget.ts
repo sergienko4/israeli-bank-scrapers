@@ -29,7 +29,7 @@
 
 import type { Procedure } from '../../../../Types/Procedure.js';
 import { isOk, succeed } from '../../../../Types/Procedure.js';
-import { checkRequiredCreds } from '../RequiredCreds.js';
+import checkRequiredCreds from '../RequiredCreds.js';
 import type { ILongTermTokenSlot, IRunFlowArgs } from './TokenStrategyFromConfig.types.js';
 
 /**
@@ -93,4 +93,4 @@ function admitFlow(args: IRunFlowArgs, slot: ILongTermTokenSlot): Procedure<bool
   return succeed(canStart);
 }
 
-export { admitFlow, COLD_FLOW_BUDGET, isColdStart };
+export { admitFlow, isColdStart };

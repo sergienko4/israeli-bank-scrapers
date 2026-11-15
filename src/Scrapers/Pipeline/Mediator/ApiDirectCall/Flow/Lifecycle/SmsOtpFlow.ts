@@ -5,5 +5,5 @@
  * `.prep`, `.prehook`, `.reduce`, `.result`, `.run`.
  */
 
-export { runSmsOtpFlow } from './SmsOtpFlow.run.js';
+export { default as runSmsOtpFlow } from './SmsOtpFlow.run.js';
 export type { IFlowResult, IRunSmsOtpArgs } from './SmsOtpFlow.types.js';

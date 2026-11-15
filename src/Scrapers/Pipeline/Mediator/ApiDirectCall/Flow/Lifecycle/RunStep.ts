@@ -10,4 +10,4 @@
 
 export { createSimpleCookieJar } from '../../../../Strategy/Fetch/CookieJar.js';
 export type { CarryMap, IRunStepArgs, IStepCookieJar } from '../Steps/RunStep.types.js';
-export { runStep as default, runStep } from './RunStep.dispatch.js';
+export { default as runStep } from './RunStep.dispatch.js';

@@ -23,5 +23,3 @@ async function runSmsOtpFlow(args: IRunSmsOtpArgs): Promise<Procedure<IFlowResul
 }
 
 export default runSmsOtpFlow;
-
-export { runSmsOtpFlow };

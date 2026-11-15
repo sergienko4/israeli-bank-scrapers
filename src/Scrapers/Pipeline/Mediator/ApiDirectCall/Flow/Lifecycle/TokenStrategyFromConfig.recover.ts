@@ -14,7 +14,7 @@ import type { ITokenBus } from '../../../../Types/Domain/TokenBus.js';
 import type { Procedure } from '../../../../Types/Procedure.js';
 import { isOk, isTerminalFailure } from '../../../../Types/Procedure.js';
 import type { IApiDirectCallConfig } from '../../ConfigContracts/index.js';
-import { mayEscalateWarmFailureImpl } from './TokenStrategyFromConfig.fallback.js';
+import mayEscalateWarmFailureImpl from './TokenStrategyFromConfig.fallback.js';
 import { primeFreshImpl, runConfiguredFlow } from './TokenStrategyFromConfig.flow.js';
 import { makeWarmArgs } from './TokenStrategyFromConfig.shared.js';
 import type { ILongTermTokenSlot, IPrimeArgs } from './TokenStrategyFromConfig.types.js';
@@ -104,4 +104,3 @@ async function primeRecoverImpl(args: IPrimeArgs): Promise<Procedure<string>> {
 }
 
 export default primeRecoverImpl;
-export { primeRecoverImpl };

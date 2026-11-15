@@ -14,7 +14,7 @@ import { warmCarryField } from '../WarmStartKind.js';
 import { createSimpleCookieJar } from './RunStep.js';
 import { createPreHookCache } from './SmsOtpFlow.prehookCache.js';
 import { seedScope, signerSlotOf } from './SmsOtpFlow.prep.js';
-import { reduceSteps } from './SmsOtpFlow.reduce.js';
+import reduceSteps from './SmsOtpFlow.reduce.js';
 import type {
   IFlowResult,
   IKeypairBundle,

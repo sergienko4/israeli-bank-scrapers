@@ -55,4 +55,3 @@ function mayEscalateWarmFailureImpl(
 }
 
 export default mayEscalateWarmFailureImpl;
-export { mayEscalateWarmFailureImpl };

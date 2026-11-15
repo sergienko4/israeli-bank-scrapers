@@ -43,4 +43,3 @@ function isStepSkipped(step: FlowStep, scope: ITemplateScope): boolean {
 }
 
 export default isStepSkipped;
-export { isStepSkipped };

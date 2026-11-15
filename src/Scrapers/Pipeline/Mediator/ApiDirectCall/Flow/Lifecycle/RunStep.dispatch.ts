@@ -191,5 +191,3 @@ async function runStep(args: IRunStepArgs): Promise<Procedure<ITemplateScope>> {
 }
 
 export default runStep;
-
-export { runStep };

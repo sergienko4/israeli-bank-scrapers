@@ -27,10 +27,15 @@ import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js
 import type { ScraperCredentials } from '../../../../../../Scrapers/Base/Interface.js';
 import ScraperError from '../../../../../../Scrapers/Base/ScraperError.js';
 import type { IApiDirectCallConfig } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
-import { COLD_FLOW_BUDGET } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/TokenStrategyFromConfig.budget.js';
-import { BUDGET_SPENT_MESSAGE } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/TokenStrategyFromConfig.flow.js';
 import type { IConfigTokenStrategy } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/TokenStrategyFromConfig.js';
 import { createTokenStrategyFromConfig } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/TokenStrategyFromConfig.js';
+
+/** One cold flow is allowed before the budget refuses further escalation. */
+const COLD_FLOW_BUDGET = 1;
+/** Error text when the cold-flow budget is spent. */
+const BUDGET_SPENT_MESSAGE =
+  'this scrape has already spent its one cold login; the session cannot ' +
+  'be re-minted in-run — start a new scrape';
 import { registerWkUrl } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import type { ITokenContext } from '../../../../../../Scrapers/Pipeline/Types/Domain/TokenContext.js';
 import type { Procedure } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';

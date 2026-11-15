@@ -50,5 +50,3 @@ function buildInitialCarry(
 }
 
 export default buildInitialCarry;
-
-export { buildInitialCarry };

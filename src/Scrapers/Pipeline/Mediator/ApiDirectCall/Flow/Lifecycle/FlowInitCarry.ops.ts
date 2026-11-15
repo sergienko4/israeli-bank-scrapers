@@ -21,7 +21,7 @@ import type {
   IUrlPathMapOp,
   IUrlQueryOp,
 } from '../../ConfigContracts/index.js';
-import { runUrlCompose } from '../FlowUrlCompose.js';
+import runUrlCompose from '../FlowUrlCompose.js';
 import { queryValue } from '../FlowUrlQuery.js';
 
 /** The text an op shapes, the subject its failure names, and the op. */
