@@ -32,7 +32,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { bankMomentOfInstant } from '../../../Mediator/Scrape/BankCalendar.js';
-import { scrapeWindowEnd } from '../../../Mediator/Scrape/ScrapeWindowEnd.js';
+import scrapeWindowEnd from '../../../Mediator/Scrape/ScrapeWindowEnd.js';
 import type {
   HeaderMap,
   IExtractPageArgs,

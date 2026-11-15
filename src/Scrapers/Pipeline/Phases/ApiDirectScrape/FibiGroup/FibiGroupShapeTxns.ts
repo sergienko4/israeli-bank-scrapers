@@ -17,7 +17,7 @@
  */
 
 import { bankMomentOfInstant } from '../../../Mediator/Scrape/BankCalendar.js';
-import { scrapeWindowEnd } from '../../../Mediator/Scrape/ScrapeWindowEnd.js';
+import scrapeWindowEnd from '../../../Mediator/Scrape/ScrapeWindowEnd.js';
 import { literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import type { IPage } from '../../../Strategy/Fetch/Pagination.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';

@@ -41,7 +41,7 @@ function readBound(ctx: IActionContext): Option<Date> {
  * @param ctx - Action context.
  * @returns Date every shape must treat as the end of its window.
  */
-export function scrapeWindowEnd(ctx: IActionContext): Date {
+function scrapeWindowEnd(ctx: IActionContext): Date {
   const bound = readBound(ctx);
   const now = new Date();
   return unwrapOr(bound, now);

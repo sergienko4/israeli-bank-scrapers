@@ -12,7 +12,7 @@ import {
   generateMonthChunks,
   type IMonthChunk,
 } from '../../../Mediator/Scrape/ScrapeReplay/MonthChunking.js';
-import { scrapeWindowEnd } from '../../../Mediator/Scrape/ScrapeWindowEnd.js';
+import scrapeWindowEnd from '../../../Mediator/Scrape/ScrapeWindowEnd.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
 import { fail, type Procedure, succeed } from '../../../Types/Procedure.js';
 import type { IYahavNativeDay } from './YahavNativePayloadsAccount.js';

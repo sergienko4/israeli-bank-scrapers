@@ -15,7 +15,7 @@
 
 import { bankMomentOfInstant } from '../../../Mediator/Scrape/BankCalendar.js';
 import { matchField } from '../../../Mediator/Scrape/BfsFieldSearch/BfsFieldSearch.js';
-import { scrapeWindowEnd } from '../../../Mediator/Scrape/ScrapeWindowEnd.js';
+import scrapeWindowEnd from '../../../Mediator/Scrape/ScrapeWindowEnd.js';
 import type {
   IExtractPageArgs,
   VarsMap,

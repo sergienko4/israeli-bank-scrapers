@@ -53,9 +53,9 @@ It is Pipeline-internal — callers consume the _result_ on `ITransaction`, not
 these helpers — but the Scrape cluster reaches for it constantly, so the shape
 is worth knowing when reading that code.
 
-| Export                   | What it is for                                                                                                                                                                                                                                                   |
+| Name                     | What it is for                                                                                                                                                                                                                                                   |
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `BANK_CALENDAR_TIMEZONE` | The shared `Asia/Jerusalem` zone, owned by this HTTP response-parsing module independently of any browser context or host timezone |
+| `BANK_CALENDAR_TIMEZONE` | The module-private `Asia/Jerusalem` zone, owned by this HTTP response-parsing module independently of any browser context or host timezone |
 | `BANK_DAY_FORMAT`        | The `YYYY-MM-DD` day label every day-level comparison reduces to; it sorts lexicographically, which is why the window comparisons need no date maths                                                                                                             |
 | `BankDay`                | Nominal type for that label, so a day cannot be passed where the ISO _instant_ it came from is expected                                                                                                                                                          |
 | `parseInBankZone`        | Turns a raw provider value into a moment fixed to the bank zone — the entry point `parseAutoDate` uses                                                                                                                                                           |
