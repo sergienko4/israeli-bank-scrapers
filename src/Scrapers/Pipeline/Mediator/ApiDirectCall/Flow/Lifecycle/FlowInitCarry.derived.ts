@@ -10,7 +10,7 @@ import type { Procedure } from '../../../../Types/Procedure.js';
 import { isOk, succeed } from '../../../../Types/Procedure.js';
 import type { IApiDirectCallConfig, IDerivedCarry, RefToken } from '../../ConfigContracts/index.js';
 import { applyDerivedOp } from './FlowInitCarry.ops.js';
-import { resolveDerivedPart } from './FlowInitCarry.parts.js';
+import resolveDerivedPart from './FlowInitCarry.parts.js';
 import type {
   CarryMut,
   Creds,

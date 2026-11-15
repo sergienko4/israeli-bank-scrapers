@@ -161,4 +161,3 @@ function applyDerivedOp(input: IOpInput): Procedure<string> {
 
 export { isQueryKey } from '../FlowUrlQuery.js';
 export { anchoredPattern, applyDerivedOp };
-export type { IOpInput };

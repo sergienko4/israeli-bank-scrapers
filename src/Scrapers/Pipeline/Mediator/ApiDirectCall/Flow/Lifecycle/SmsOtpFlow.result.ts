@@ -194,4 +194,4 @@ function buildFlowResult(
   return succeed({ ...outputs, bearer: bearerProc.value, keypairs });
 }
 
-export { buildFlowResult, extractLongTermTokenFromCarry, reduceAllSteps };
+export { buildFlowResult, reduceAllSteps };

@@ -104,4 +104,4 @@ async function acquirePreHookValue(args: IPreHookAcquireArgs): Promise<Procedure
   return existing;
 }
 
-export { acquirePreHookValue, createPreHookCache, DEFAULT_REUSE, reusesAcrossFlow };
+export { acquirePreHookValue, createPreHookCache };
