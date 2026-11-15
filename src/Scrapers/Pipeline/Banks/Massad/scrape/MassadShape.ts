@@ -34,4 +34,3 @@ const MASSAD_SHAPE = makeFibiGroupShape({
 });
 
 export default MASSAD_SHAPE;
-export { MASSAD_SHAPE };

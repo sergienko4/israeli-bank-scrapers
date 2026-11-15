@@ -22,8 +22,6 @@ import {
   balanceExtract,
   balanceUrl,
   BFF_BASE,
-  type IOtsarHahayalAcct,
-  OTSAR_HAHAYAL_API,
   USER_DATA_PATH,
 } from '../../../../../Scrapers/Pipeline/Banks/OtsarHahayal/scrape/OtsarHahayalShapeHelpers.js';
 import {
@@ -36,6 +34,9 @@ import type {
   IExtractAccountsArgs,
 } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+
+const OTSAR_HAHAYAL_API = 'https://online.bankotsar.co.il';
+type IOtsarHahayalAcct = Parameters<typeof balanceUrl>[0];
 
 const ACCT: IOtsarHahayalAcct = { accountNumber: '555001', branch: '770', accountType: 105 };
 

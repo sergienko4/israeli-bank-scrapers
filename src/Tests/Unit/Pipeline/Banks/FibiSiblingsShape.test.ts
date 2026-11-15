@@ -71,21 +71,21 @@ function asMod(a: object, h: object, t: object): ISibMod {
 const SIBLINGS: readonly ISib[] = [
   {
     name: 'Massad',
-    api: massadH.MASSAD_API,
+    api: 'https://online.bankmassad.co.il',
     step: 'MassadScrape',
     shape: massadShape,
     mod: asMod(massadA, massadH, massadT),
   },
   {
     name: 'OtsarHahayal',
-    api: otsarH.OTSAR_HAHAYAL_API,
+    api: 'https://online.bankotsar.co.il',
     step: 'OtsarHahayalScrape',
     shape: otsarShape,
     mod: asMod(otsarA, otsarH, otsarT),
   },
   {
     name: 'Pagi',
-    api: pagiH.PAGI_API,
+    api: 'https://online.pagi.co.il',
     step: 'PagiScrape',
     shape: pagiShape,
     mod: asMod(pagiA, pagiH, pagiT),

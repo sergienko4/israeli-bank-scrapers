@@ -22,8 +22,6 @@ import {
   balanceExtract,
   balanceUrl,
   BFF_BASE,
-  type IPagiAcct,
-  PAGI_API,
   USER_DATA_PATH,
 } from '../../../../../Scrapers/Pipeline/Banks/Pagi/scrape/PagiShapeHelpers.js';
 import {
@@ -36,6 +34,9 @@ import type {
   IExtractAccountsArgs,
 } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+
+const PAGI_API = 'https://online.pagi.co.il';
+type IPagiAcct = Parameters<typeof balanceUrl>[0];
 
 const ACCT: IPagiAcct = { accountNumber: '555001', branch: '770', accountType: 105 };
 

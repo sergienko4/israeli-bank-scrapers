@@ -28,13 +28,13 @@ export {
 } from '../../../Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeHelpers.js';
 
 /** Pagi BFF origin — post-login API host (same registrable domain as login). */
-export const PAGI_API = 'https://online.pagi.co.il';
+const PAGI_API = 'https://online.pagi.co.il';
 
 /** Pagi's binding of the shared FIBI contract. */
 export const PAGI_CONFIG: IFibiGroupConfig = { apiOrigin: PAGI_API };
 
 /** Pagi account reference — the shared FIBI account shape. */
-export type IPagiAcct = IFibiAcct;
+type IPagiAcct = IFibiAcct;
 
 /**
  * Balance URL — balances/<accountType> on the Pagi origin.
