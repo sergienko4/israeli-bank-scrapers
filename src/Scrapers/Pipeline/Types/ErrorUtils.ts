@@ -187,4 +187,4 @@ function errorCauseCodeOf(error: unknown): string {
   }
 }
 
-export { errorCauseCodeOf, errorNameOf, toError, toErrorMessage, UNREPRESENTABLE_ERROR };
+export { errorCauseCodeOf, errorNameOf, toError, toErrorMessage };

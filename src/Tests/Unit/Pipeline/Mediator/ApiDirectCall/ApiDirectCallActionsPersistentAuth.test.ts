@@ -31,7 +31,7 @@ import {
   type PersistentAuthMode,
 } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/TokenStrategyFromConfig.js';
 import type { ITokenContext } from '../../../../../Scrapers/Pipeline/Types/Domain/TokenContext.js';
-import { LOGIN_KIND_VALUES } from '../../../../../Scrapers/Pipeline/Types/LoginKind.js';
+import type LoginKind from '../../../../../Scrapers/Pipeline/Types/LoginKind.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IPipelineContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
@@ -39,6 +39,21 @@ import { isOk, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.
 import { makeJwtWithClaims } from '../../../../Helpers/Jwt.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
 import { type IApiPostCapture, makeStubMediator } from './Flow/StubMediator.js';
+
+/**
+ * Every LoginKind key, checked exhaustively at compile time.
+ * `satisfies Record<LoginKind, true>` catches added, removed or renamed keys.
+ */
+const LOGIN_KIND_KEYS = {
+  'stored-jwt-fresh': true,
+  'stored-jwt-stale': true,
+  'sms-otp': true,
+  'password-only': true,
+  'bearer-static': true,
+  unknown: true,
+} satisfies Record<LoginKind, true>;
+
+const LOGIN_KIND_VALUES = Object.keys(LOGIN_KIND_KEYS);
 
 /** Unpadded base64url of a v1-shaped JSON prefix — realistic opaque state. */
 const OPAQUE_STATE = 'eyJ2ZXJzaW9uIjoxLCJwcm92aWRlciI6InBlcHBlciJ9';

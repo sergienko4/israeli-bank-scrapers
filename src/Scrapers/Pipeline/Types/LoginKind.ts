@@ -14,15 +14,4 @@ type LoginKind =
   | 'bearer-static'
   | 'unknown';
 
-/** Set of all LoginKind values — used by tests + validators. */
-const LOGIN_KIND_VALUES: readonly LoginKind[] = [
-  'stored-jwt-fresh',
-  'stored-jwt-stale',
-  'sms-otp',
-  'password-only',
-  'bearer-static',
-  'unknown',
-];
-
-export type { LoginKind };
-export { LOGIN_KIND_VALUES };
+export type { LoginKind as default };

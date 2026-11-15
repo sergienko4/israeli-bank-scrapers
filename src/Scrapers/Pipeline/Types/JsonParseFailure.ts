@@ -7,10 +7,8 @@
  * error keeps its own message.
  */
 
-import ScraperError from '../../Base/ScraperError.js';
 import type { Brand } from './Brand.js';
 import { toError } from './ErrorUtils.js';
-import type { JsonUnknown } from './JsonValue.js';
 
 /** Failure text that carries no part of the rejected JSON input. */
 type JsonParseFailureText = Brand<string, 'JsonParseFailureText'>;
@@ -48,21 +46,4 @@ function describeJsonParseFailure(caught: unknown): JsonParseFailureText {
   return `invalid JSON (SyntaxError${position})` as JsonParseFailureText;
 }
 
-/**
- * Parse JSON, throwing a failure that names the context but not the input.
- * The engine error is deliberately not chained as `cause`: it would carry
- * the quoted input into any logger that serialises the cause chain.
- * @param text - Text to parse.
- * @param context - Caller label prefixed to the failure, e.g. `fetchGet parse error`.
- * @returns The parsed value; callers narrow it to their own shape.
- */
-function parseJsonOrThrow(text: string, context: string): JsonUnknown {
-  try {
-    return JSON.parse(text) as JsonUnknown;
-  } catch (error) {
-    const reason = describeJsonParseFailure(error);
-    throw new ScraperError(`${context}: ${reason}`);
-  }
-}
-
-export { describeJsonParseFailure, parseJsonOrThrow };
+export default describeJsonParseFailure;

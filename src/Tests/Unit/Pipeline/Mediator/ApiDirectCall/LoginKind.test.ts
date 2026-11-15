@@ -2,7 +2,22 @@
  * Unit tests for LoginKind — verifies the enum list is exhaustive.
  */
 
-import { LOGIN_KIND_VALUES } from '../../../../../Scrapers/Pipeline/Types/LoginKind.js';
+import type LoginKind from '../../../../../Scrapers/Pipeline/Types/LoginKind.js';
+
+/**
+ * Every LoginKind key, checked exhaustively at compile time.
+ * `satisfies Record<LoginKind, true>` catches added, removed or renamed keys.
+ */
+const LOGIN_KIND_KEYS = {
+  'stored-jwt-fresh': true,
+  'stored-jwt-stale': true,
+  'sms-otp': true,
+  'password-only': true,
+  'bearer-static': true,
+  unknown: true,
+} satisfies Record<LoginKind, true>;
+
+const LOGIN_KIND_VALUES = Object.keys(LOGIN_KIND_KEYS);
 
 describe('LoginKind — exhaustive enum list', () => {
   it('contains exactly 6 values', () => {

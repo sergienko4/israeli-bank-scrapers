@@ -29,7 +29,7 @@ import type { Brand } from '../../../Types/Brand.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, succeed } from '../../../Types/Procedure.js';
-import { getFutureMonths } from '../../../Types/ScraperDefaults.js';
+import getFutureMonths from '../../../Types/ScraperDefaults.js';
 
 /**
  * Month-offset pagination cursor — `false` on the first call, otherwise the

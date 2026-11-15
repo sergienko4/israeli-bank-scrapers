@@ -67,5 +67,4 @@ function setActiveStage(name: StageLabel): true {
   return true;
 }
 
-export type { StageLabel };
 export { getActivePhase, getActiveStage, setActivePhase, setActiveStage };

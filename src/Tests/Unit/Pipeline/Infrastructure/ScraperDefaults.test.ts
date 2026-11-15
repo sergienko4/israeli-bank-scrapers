@@ -1,8 +1,7 @@
 import type { ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
-import {
-  DEFAULT_FUTURE_MONTHS,
-  getFutureMonths,
-} from '../../../../Scrapers/Pipeline/Types/ScraperDefaults.js';
+
+const DEFAULT_FUTURE_MONTHS = 1;
+import getFutureMonths from '../../../../Scrapers/Pipeline/Types/ScraperDefaults.js';
 
 const BASE: ScraperOptions = {
   companyId: 'mercantile' as unknown as ScraperOptions['companyId'],
