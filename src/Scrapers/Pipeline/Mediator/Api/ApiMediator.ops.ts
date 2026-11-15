@@ -6,7 +6,7 @@
 import { resolveWkQuery } from '../../Registry/WK/QueriesWK.js';
 import type { WKUrlOrLiteral } from '../../Registry/WK/UrlsWK.js';
 import { resolveWkUrl } from '../../Registry/WK/UrlsWK.js';
-import { overlayHeaders } from '../../Strategy/Fetch/HeaderOverlay.js';
+import overlayHeaders from '../../Strategy/Fetch/HeaderOverlay.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk } from '../../Types/Procedure.js';
 import { buildHmacHeaders } from './ApiMediator.hmacHeaders.js';

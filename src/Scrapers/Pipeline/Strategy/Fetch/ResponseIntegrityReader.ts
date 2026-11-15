@@ -165,4 +165,3 @@ function verifyResponseIntegrity(
 }
 
 export default verifyResponseIntegrity;
-export { verifyResponseIntegrity };

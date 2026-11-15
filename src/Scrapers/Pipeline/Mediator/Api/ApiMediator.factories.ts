@@ -17,8 +17,8 @@
 import ScraperError from '../../../Base/ScraperError.js';
 import { GraphQLFetchStrategy } from '../../Strategy/Fetch/GraphQLFetchStrategy.js';
 import type { AgentSource } from '../../Strategy/Fetch/Mtls/MtlsAgentSource.js';
-import { MtlsFetchStrategy } from '../../Strategy/Fetch/Mtls/MtlsFetchStrategy.js';
-import { MtlsGraphQLFetchStrategy } from '../../Strategy/Fetch/Mtls/MtlsGraphQLFetchStrategy.js';
+import MtlsFetchStrategy from '../../Strategy/Fetch/Mtls/MtlsFetchStrategy.js';
+import MtlsGraphQLFetchStrategy from '../../Strategy/Fetch/Mtls/MtlsGraphQLFetchStrategy.js';
 import type { INativeFetchOptions } from '../../Strategy/Fetch/NativeFetchStrategy.js';
 import {
   CAPPED_DEFAULT_HEADERS,

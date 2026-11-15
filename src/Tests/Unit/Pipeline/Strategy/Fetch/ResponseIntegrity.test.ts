@@ -7,7 +7,7 @@ import { createHash } from 'node:crypto';
 import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
-import { verifyResponseIntegrity } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/ResponseIntegrityReader.js';
+import verifyResponseIntegrity from '../../../../../Scrapers/Pipeline/Strategy/Fetch/ResponseIntegrityReader.js';
 import { cappedNative } from '../../../../Helpers/CappedTransport.js';
 
 type MockFetch = jest.Mock<Promise<Response>, [string, RequestInit]>;

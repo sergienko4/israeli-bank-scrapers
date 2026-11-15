@@ -26,4 +26,3 @@ class MtlsFetchStrategy extends NativeFetchStrategy {
 }
 
 export default MtlsFetchStrategy;
-export { MtlsFetchStrategy };

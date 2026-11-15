@@ -21,7 +21,7 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { isOk } from '../../Types/Procedure.js';
 import makeInvokeCapped from './CappedInvoke.js';
 import type { FetchInvoke, IFetchOpts, IFetchStrategy, PostData } from './FetchStrategy.js';
-import { overlayHeaders } from './HeaderOverlay.js';
+import overlayHeaders from './HeaderOverlay.js';
 import type { IDispatch } from './NativeFetchDispatch.js';
 import { dispatchFetch } from './NativeFetchDispatch.js';
 import type { FullyQualifiedUrl } from './NativeFetchNetwork.js';

@@ -37,4 +37,3 @@ function resolveClientCert(bank: CompanyTypes): ICertBundle {
 }
 
 export default resolveClientCert;
-export { resolveClientCert };

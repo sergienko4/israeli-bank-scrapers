@@ -15,7 +15,7 @@ import parseJsonResponse from './JsonResponse.js';
 import type { IRedirectRun, IRunEnd } from './RedirectFollow.js';
 import { sendUnderPolicy } from './RedirectFollow.js';
 import { emitSetCookies } from './RedirectShared.js';
-import { emitResponseHeaders } from './ResponseHeaderSink.js';
+import emitResponseHeaders from './ResponseHeaderSink.js';
 import { refuseMediaType } from './ResponsePolicyCheck.js';
 import { safeUrlForLog } from './SafeUrlForLog.js';
 import type { IAnswer } from './StatusPolicy.js';
