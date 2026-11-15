@@ -191,6 +191,5 @@ function withCookieSession(transport: IFetchStrategy, args: ISessionCookieArgs):
   return { transport: decorated, cookies: toCookieSession(jar) };
 }
 
-export default SessionCookieFetchStrategy;
 export type { ISessionTransport };
 export { SessionCookieFetchStrategy, withCookieSession, withSessionCookies };

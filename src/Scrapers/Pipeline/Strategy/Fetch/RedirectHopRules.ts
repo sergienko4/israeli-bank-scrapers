@@ -96,5 +96,4 @@ function hopHeaders(
   return Object.fromEntries(headers);
 }
 
-export default followedAfter;
 export { droppedOnHop, followedAfter, hopHeaders, postStatusesOf };

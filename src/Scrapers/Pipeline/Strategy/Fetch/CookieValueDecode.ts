@@ -50,5 +50,4 @@ function decodeCookieStrict(name: string, raw: string): Procedure<string> {
   return fail(ScraperErrorTypes.Generic, `cookie ${name} undecodable`);
 }
 
-export default decodeCookieStrict;
 export { decodeCookieLenient, decodeCookieStrict };

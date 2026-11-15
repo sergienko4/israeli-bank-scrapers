@@ -210,7 +210,6 @@ function sendUnderPolicy(run: IRedirectRun): Promise<Procedure<IRunEnd>> {
   return sendManual(run, policy);
 }
 
-export default sendUnderPolicy;
 export type { IRedirectRun, IRunEnd } from './RedirectShared.js';
 export { sendUnderPolicy };
 export { answeredUrl } from './RedirectShared.js';

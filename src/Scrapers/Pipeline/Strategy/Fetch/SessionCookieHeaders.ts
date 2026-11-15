@@ -128,6 +128,5 @@ function sessionHeaders(
   return succeed({ owned: ['cookie', ...names], values: values.value });
 }
 
-export default jarHeaders;
 export type { ISessionJar };
 export { jarHeaders, sentinelHeaders, sessionHeaders };

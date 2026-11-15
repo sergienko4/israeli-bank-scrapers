@@ -101,5 +101,4 @@ function scrubUrlFromText(text: string, url: string, redactUrlValues?: readonly 
   return forms.reduce((acc, form): string => acc.split(form.raw).join(form.safe), text);
 }
 
-export default safeUrlForLog;
 export { safeUrlForLog, scrubUrlFromText };
