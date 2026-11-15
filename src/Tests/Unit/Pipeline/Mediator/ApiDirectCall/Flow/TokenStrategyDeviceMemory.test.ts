@@ -6,10 +6,11 @@
  */
 
 import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js';
-import type {
-  IApiDirectCallConfig,
-  IDeviceMemoryAuthConfig,
-} from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
+import type { IApiDirectCallConfig } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
+type IDeviceMemoryAuthConfig = Extract<
+  NonNullable<IApiDirectCallConfig['persistentAuth']>,
+  { kind: 'device-memory' }
+>;
 import {
   decodeDeviceMemoryState,
   encodeDeviceMemoryState,

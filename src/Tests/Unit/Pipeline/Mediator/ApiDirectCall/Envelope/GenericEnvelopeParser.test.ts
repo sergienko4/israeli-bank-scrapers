@@ -5,7 +5,7 @@
  */
 
 import type { IEnvelopeSelectors } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
-import { extractFields } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Envelope/GenericEnvelopeParser.js';
+import extractFields from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Envelope/GenericEnvelopeParser.js';
 import type { JsonValue } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Envelope/JsonPointer.js';
 
 /** Reusable shape for the happy-path bind-envelope example. */

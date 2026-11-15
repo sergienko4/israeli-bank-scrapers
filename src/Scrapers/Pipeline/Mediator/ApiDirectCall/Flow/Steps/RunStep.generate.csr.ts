@@ -15,7 +15,7 @@ import { buildCsr, type ICsrBuildInput } from '../../Crypto/CsrBuilder.js';
 import type { ICsrSubjectValue } from '../../Crypto/CsrSubject.js';
 import type { GeneratedCarry } from '../../Crypto/RsaKeyGenerator.js';
 import type { JsonValue } from '../../Envelope/JsonPointer.js';
-import { hydrate } from '../../Template/GenericBodyTemplate.js';
+import hydrate from '../../Template/GenericBodyTemplate.js';
 import { type ITemplateScope, resolveRef } from '../../Template/RefResolver.js';
 
 /** Failure for a key or subject value that is not text — names no value. */

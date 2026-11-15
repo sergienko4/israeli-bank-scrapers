@@ -66,4 +66,3 @@ function isRefAbsent(token: RefToken, scope: ITemplateScope): boolean {
 }
 
 export default isRefAbsent;
-export { isRefAbsent };

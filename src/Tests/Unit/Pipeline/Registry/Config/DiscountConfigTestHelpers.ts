@@ -14,7 +14,7 @@ import type {
 import type { JsonValue } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Envelope/JsonPointer.js';
 import { cookieRefOf } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.clientCookies.js';
 import { applyExtractRules } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.extractRules.js';
-import { hydrate } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/GenericBodyTemplate.js';
+import hydrate from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/GenericBodyTemplate.js';
 import { resolveRefText } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/RefResolver.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';

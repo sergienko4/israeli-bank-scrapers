@@ -7,8 +7,9 @@
 import {
   decodeDeviceMemoryState,
   encodeDeviceMemoryState,
-  type IDeviceMemoryStateV1,
 } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/DeviceMemoryStateCodec.js';
+
+type IDeviceMemoryStateV1 = Parameters<typeof encodeDeviceMemoryState>[0];
 
 const EXPECTED = { provider: 'syn-web', account: 'syn-user' };
 

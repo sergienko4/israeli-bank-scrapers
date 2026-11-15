@@ -136,5 +136,4 @@ function encodeDeviceMemoryState(
   return succeed(encoded);
 }
 
-export type { IDeviceMemoryStateV1 };
 export { decodeDeviceMemoryState, encodeDeviceMemoryState, isDeviceMemoryId };

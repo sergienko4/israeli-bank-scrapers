@@ -82,4 +82,3 @@ function queueSources(text: string): readonly string[] {
 }
 
 export default queueSources;
-export { queueSources };

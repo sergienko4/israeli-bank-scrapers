@@ -125,4 +125,3 @@ function scriptJsonLiterals(text: string): readonly string[] {
 }
 
 export default scriptJsonLiterals;
-export { scriptJsonLiterals };

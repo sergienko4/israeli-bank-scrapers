@@ -10,9 +10,12 @@ import type {
   IApiDirectCallConfig,
   IBoundDeviceAuthConfig,
   ICanonicalStringConfig,
-  IDeviceMemoryAuthConfig,
   IPersistentAuthConfig,
 } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
+type IDeviceMemoryAuthConfig = Extract<
+  NonNullable<IApiDirectCallConfig['persistentAuth']>,
+  { kind: 'device-memory' }
+>;
 import type { WKQueryOperation } from '../../../../../Scrapers/Pipeline/Registry/WK/QueriesWK.js';
 import type { WKUrlGroup } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 

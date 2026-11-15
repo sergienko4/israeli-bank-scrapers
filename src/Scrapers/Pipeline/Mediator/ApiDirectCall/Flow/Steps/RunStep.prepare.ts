@@ -11,7 +11,7 @@ import type { Procedure } from '../../../../Types/Procedure.js';
 import { isOk, succeed } from '../../../../Types/Procedure.js';
 import type { IBodyTemplate } from '../../ConfigContracts/index.js';
 import { isJsonRecord } from '../../Crypto/EnvelopeWire.js';
-import { hydrate } from '../../Template/GenericBodyTemplate.js';
+import hydrate from '../../Template/GenericBodyTemplate.js';
 import type { ITemplateScope } from '../../Template/RefResolver.js';
 import { sealGuardedBody } from '../Signing/RunStep.codec.js';
 import applySeal from '../Signing/RunStep.seal.js';

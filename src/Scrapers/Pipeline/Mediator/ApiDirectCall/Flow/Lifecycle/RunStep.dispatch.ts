@@ -7,7 +7,7 @@ import { getDebug } from '../../../../Logging/Debug.js';
 import { redactErrorMessage } from '../../../../Types/PiiRedactor.js';
 import type { Procedure } from '../../../../Types/Procedure.js';
 import { isOk, succeed } from '../../../../Types/Procedure.js';
-import { extractFields } from '../../Envelope/GenericEnvelopeParser.js';
+import extractFields from '../../Envelope/GenericEnvelopeParser.js';
 import type { ITemplateScope } from '../../Template/RefResolver.js';
 import { openGuardedAnswer } from '../Signing/RunStep.codec.js';
 import answerSlots from '../Steps/RunStep.answerSlots.js';

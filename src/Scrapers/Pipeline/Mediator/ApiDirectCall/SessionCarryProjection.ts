@@ -27,5 +27,3 @@ function projectSessionCarry(
 }
 
 export default projectSessionCarry;
-
-export { projectSessionCarry };

@@ -18,9 +18,9 @@ import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import type { JsonValueTemplate, RefToken } from '../ConfigContracts/index.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
-import { hydrateJoin } from './JoinTemplate.js';
-import { hydrateMerge } from './MergeTemplate.js';
-import { isRefAbsent } from './RefPresence.js';
+import hydrateJoin from './JoinTemplate.js';
+import hydrateMerge from './MergeTemplate.js';
+import isRefAbsent from './RefPresence.js';
 import type { ITemplateScope } from './RefResolver.js';
 import { resolveRef } from './RefResolver.js';
 
@@ -212,5 +212,4 @@ function hydrate(template: JsonValueTemplate, scope: ITemplateScope): Procedure<
   return SHAPE_HYDRATORS[shape](template, scope);
 }
 
-export { hydrate };
 export default hydrate;

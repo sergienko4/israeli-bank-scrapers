@@ -11,7 +11,7 @@ import matchesAnyUrlRule from '../../../../Strategy/Fetch/UrlRule.js';
 import type { Procedure } from '../../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../../Types/Procedure.js';
 import type { IJoinTemplate } from '../../ConfigContracts/index.js';
-import { hydrateJoin } from '../../Template/JoinTemplate.js';
+import hydrateJoin from '../../Template/JoinTemplate.js';
 import type { IRunStepArgs, JsonValue } from './RunStep.types.js';
 
 /** What resolves a step's URL: the step, its scope and its company. */

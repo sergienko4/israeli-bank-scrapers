@@ -67,4 +67,3 @@ function hydrateMerge(args: IMergeArgs): Procedure<JsonValue> {
 }
 
 export default hydrateMerge;
-export { hydrateMerge };

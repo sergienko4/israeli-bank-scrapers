@@ -8,7 +8,7 @@ import type { IUrlRule } from '../../../Types/Domain/FetchPolicy.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, succeed } from '../../../Types/Procedure.js';
 import { activeElements, attribute, isExecutableScript, scriptText } from './ActiveHtml.js';
-import { queueSources } from './SdkQueue.js';
+import queueSources from './SdkQueue.js';
 
 type HtmlElement = ReturnType<typeof activeElements>[number];
 
@@ -93,4 +93,3 @@ function captureSdkReference(input: ISdkReferenceInput): Procedure<string> {
 }
 
 export default captureSdkReference;
-export { captureSdkReference };

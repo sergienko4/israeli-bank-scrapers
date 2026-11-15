@@ -25,9 +25,12 @@ import { fileURLToPath } from 'node:url';
 import type {
   IApiDirectCallConfig,
   IBoundDeviceAuthConfig,
-  IDeviceMemoryAuthConfig,
   IStepConfig,
 } from '../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
+type IDeviceMemoryAuthConfig = Extract<
+  NonNullable<IApiDirectCallConfig['persistentAuth']>,
+  { kind: 'device-memory' }
+>;
 import { authPolicyOf } from '../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/AuthModePolicy.js';
 import {
   boundWarmOf,
