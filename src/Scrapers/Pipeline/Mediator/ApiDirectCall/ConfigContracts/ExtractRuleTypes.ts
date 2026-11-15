@@ -49,4 +49,4 @@ interface IExtractRule {
   readonly equalsRef?: RefToken;
 }
 
-export type { ExtractValueType, IExtractRule, IPemCertificateRule };
+export type { ExtractValueType, IExtractRule };

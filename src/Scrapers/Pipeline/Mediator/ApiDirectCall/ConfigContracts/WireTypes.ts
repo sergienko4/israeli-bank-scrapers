@@ -143,8 +143,6 @@ export type {
   IJwtClaimsCapture,
   IJwtClaimSlot,
   ILocationCapture,
-  IScriptJsonCapture,
-  ISdkReferenceCapture,
   ITextCapture,
   StructuredCapture,
 };

@@ -128,5 +128,5 @@ function mintNonce(): string {
   return randomUUID();
 }
 
-export type { IHmacCanonicalArgs, ISignedRequest, ISignRequestArgs };
+export type { ISignedRequest, ISignRequestArgs };
 export { buildHmacCanonical, hashBody, mintNonce, signCanonicalHmac, signRequest };
