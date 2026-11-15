@@ -22,7 +22,7 @@ import { fail, isOk, succeed } from '../../../../Types/Procedure.js';
 import type { IExtractRule, IStepConfig } from '../../ConfigContracts/index.js';
 import { type ITemplateScope, resolveRefText } from '../../Template/RefResolver.js';
 import { captureSlotsOf } from '../Captures/RunStep.textCapture.js';
-import { isPemCertificate } from '../Signing/RunStep.pemRule.js';
+import isPemCertificate from '../Signing/RunStep.pemRule.js';
 import { isFiniteNumber, isTypeSound } from './RunStep.extractTypes.js';
 import { optionalRawValue } from './RunStep.optional.js';
 import { stepBaseUrlOf } from './RunStep.stepUrl.js';

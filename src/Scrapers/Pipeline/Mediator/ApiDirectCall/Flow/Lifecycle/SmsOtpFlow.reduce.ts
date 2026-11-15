@@ -7,7 +7,7 @@ import { isOk, succeed } from '../../../../Types/Procedure.js';
 import type { IApiDirectCallConfig } from '../../ConfigContracts/index.js';
 import type { ITemplateScope } from '../../Template/RefResolver.js';
 import { carriedUrlRulesOf } from '../Steps/RunStep.carriedUrlRules.js';
-import { generateStepCarry } from '../Steps/RunStep.generate.js';
+import generateStepCarry from '../Steps/RunStep.generate.js';
 import type { IRunStepArgs } from './RunStep.js';
 import { runStep } from './RunStep.js';
 import { applyGuardedPreHook } from './SmsOtpFlow.prehookGuard.js';

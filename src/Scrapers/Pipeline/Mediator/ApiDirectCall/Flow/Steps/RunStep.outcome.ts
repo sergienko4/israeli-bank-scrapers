@@ -99,5 +99,3 @@ function judgeStepOutcome(step: IStepConfig, resp: JsonValue): Procedure<true> {
 }
 
 export default judgeStepOutcome;
-
-export { judgeStepOutcome };

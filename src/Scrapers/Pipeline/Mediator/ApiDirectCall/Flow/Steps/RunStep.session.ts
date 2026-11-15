@@ -5,7 +5,7 @@
 
 import type { Procedure } from '../../../../Types/Procedure.js';
 import { isOk } from '../../../../Types/Procedure.js';
-import { installStepCert } from '../Signing/RunStep.clientCert.js';
+import installStepCert from '../Signing/RunStep.clientCert.js';
 import { bindStepCookies } from './RunStep.clientCookies.js';
 import type { IRunStepArgs } from './RunStep.types.js';
 
@@ -21,4 +21,3 @@ function prepareStepSession(args: IRunStepArgs): Procedure<IRunStepArgs> {
 }
 
 export default prepareStepSession;
-export { prepareStepSession };

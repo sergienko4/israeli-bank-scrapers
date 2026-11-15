@@ -177,5 +177,3 @@ function buildStepHeaders(args: IRunStepArgs, assembly: IHeaderAssembly): Proced
 }
 
 export default buildStepHeaders;
-
-export { buildStepHeaders };

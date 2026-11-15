@@ -13,7 +13,7 @@ import type { Procedure } from '../../../../Types/Procedure.js';
 import { isOk, succeed } from '../../../../Types/Procedure.js';
 import type { EnvelopeCodec } from '../../ConfigContracts/index.js';
 import { bankErrorOf, guardBankError } from '../Steps/RunStep.failIfPresent.js';
-import { guardFormBody } from '../Steps/RunStep.form.js';
+import guardFormBody from '../Steps/RunStep.form.js';
 import type { IDispatchBundle, IPreparedBody, IStepConfig } from '../Steps/RunStep.types.js';
 import { checkExchangeKey, openExchangeAnswer } from './RunStep.codec.exchange.js';
 import { hasBankErrorCode, type IOpenedAnswer, stepFail } from './RunStep.codec.open.js';

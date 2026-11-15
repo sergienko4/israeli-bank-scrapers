@@ -83,4 +83,3 @@ function isPemCertificate(text: string, rule: IExtractRule, context: IPemRuleCon
 }
 
 export default isPemCertificate;
-export { isPemCertificate };

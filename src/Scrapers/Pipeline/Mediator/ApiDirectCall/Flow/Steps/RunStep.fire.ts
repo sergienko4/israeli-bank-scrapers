@@ -79,4 +79,3 @@ async function fireStep(
 }
 
 export default fireStep;
-export { fireStep };

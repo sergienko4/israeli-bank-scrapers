@@ -18,7 +18,7 @@ import { fail, isOk, succeed } from '../../../../Types/Procedure.js';
 import type { IAnswerCase, IAnswerClassifier, IStepConfig } from '../../ConfigContracts/index.js';
 import { readCaptures } from '../Captures/RunStep.classify.captures.js';
 import { passesCheck } from './RunStep.classify.checks.js';
-import { answerShape } from './RunStep.classify.shape.js';
+import answerShape from './RunStep.classify.shape.js';
 import type { CarryMap, JsonValue } from './RunStep.types.js';
 
 const LOG = getDebug(import.meta.url);
@@ -88,5 +88,3 @@ function classifyAnswer(step: IStepConfig, resp: JsonValue): Procedure<CarryMap>
 }
 
 export default classifyAnswer;
-
-export { classifyAnswer };

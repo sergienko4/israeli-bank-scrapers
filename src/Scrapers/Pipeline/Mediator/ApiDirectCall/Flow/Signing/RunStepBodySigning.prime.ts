@@ -78,5 +78,3 @@ function primeStepCarry(scope: ITemplateScope, step: IStepConfig): ITemplateScop
 }
 
 export default primeStepCarry;
-
-export { primeStepCarry };

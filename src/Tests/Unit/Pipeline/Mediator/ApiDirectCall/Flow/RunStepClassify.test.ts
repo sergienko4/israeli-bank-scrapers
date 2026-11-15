@@ -84,7 +84,7 @@ const PENDING: IAnswerCheck = { pointer: '/state', equals: 'pending' };
  */
 function classifyWith(classify: IAnswerClassifier, resp: JsonValue): Procedure<CarryMap> {
   const step: IStepConfig = { ...PLAIN_STEP, classify };
-  return CLASSIFY.classifyAnswer(step, resp);
+  return CLASSIFY.default(step, resp);
 }
 
 /**
@@ -124,7 +124,7 @@ beforeEach((): void => {
 
 describe('classifyAnswer — no classifier', () => {
   it('passes any answer with no carry', () => {
-    const verdict = CLASSIFY.classifyAnswer(PLAIN_STEP, { state: 'odd' });
+    const verdict = CLASSIFY.default(PLAIN_STEP, { state: 'odd' });
     expect(verdict).toEqual({ success: true, value: {} });
   });
 });

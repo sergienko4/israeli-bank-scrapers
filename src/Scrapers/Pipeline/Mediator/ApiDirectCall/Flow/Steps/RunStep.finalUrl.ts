@@ -43,4 +43,3 @@ function carryFinalUrl(bundle: IDispatchBundle): Procedure<CarryMap> {
 }
 
 export default carryFinalUrl;
-export { carryFinalUrl };

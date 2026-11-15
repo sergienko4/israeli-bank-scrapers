@@ -121,4 +121,3 @@ function generateStepCarry(
 }
 
 export default generateStepCarry;
-export { generateStepCarry };

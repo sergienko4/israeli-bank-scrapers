@@ -77,4 +77,3 @@ function installStepCert(args: IRunStepArgs): Procedure<IRunStepArgs> {
 }
 
 export default installStepCert;
-export { installStepCert };

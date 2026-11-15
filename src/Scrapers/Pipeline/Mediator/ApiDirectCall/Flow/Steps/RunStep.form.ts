@@ -25,4 +25,3 @@ function guardFormBody(step: IStepConfig, prepared: IPreparedBody): Procedure<IP
 }
 
 export default guardFormBody;
-export { guardFormBody };

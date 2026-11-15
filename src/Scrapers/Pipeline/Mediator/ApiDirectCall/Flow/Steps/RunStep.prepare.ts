@@ -14,7 +14,7 @@ import { isJsonRecord } from '../../Crypto/EnvelopeWire.js';
 import { hydrate } from '../../Template/GenericBodyTemplate.js';
 import type { ITemplateScope } from '../../Template/RefResolver.js';
 import { sealGuardedBody } from '../Signing/RunStep.codec.js';
-import { applySeal } from '../Signing/RunStep.seal.js';
+import applySeal from '../Signing/RunStep.seal.js';
 import {
   applyCryptoField,
   attachBodySignature,
@@ -22,7 +22,7 @@ import {
 } from '../Signing/RunStepBodySigning.js';
 import buildOnSetCookie from './RunStep.cookies.js';
 import { attachHeaderCapture } from './RunStep.headerCarry.js';
-import { buildStepHeaders } from './RunStep.headers.js';
+import buildStepHeaders from './RunStep.headers.js';
 import type {
   CarryMap,
   IAssembleFireArgs,

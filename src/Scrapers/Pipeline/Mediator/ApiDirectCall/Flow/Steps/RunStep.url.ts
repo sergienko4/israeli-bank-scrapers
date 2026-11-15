@@ -131,5 +131,3 @@ function resolvePathAndQuery(args: IRunStepArgs): Procedure<IPathAndQuery> {
 }
 
 export default resolvePathAndQuery;
-
-export { resolvePathAndQuery };
