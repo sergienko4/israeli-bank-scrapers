@@ -14,7 +14,6 @@ import {
   type IBackfillPlanArgs,
   planBackfill,
 } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/WindowBackfill.js';
-import { MAX_BACKFILL_ASKS } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/WindowBackfillBlocks.js';
 import type { Option } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import { isSome, none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { WindowNarrowing } from '../../../../../Scrapers/Pipeline/Types/WindowNarrowing.js';
@@ -109,9 +108,9 @@ describe('planBackfill/stops', () => {
   });
 
   it('stops at the request ceiling rather than walking forever', () => {
-    const args = argsFor({ attempt: MAX_BACKFILL_ASKS });
+    const args = argsFor({ attempt: 12 });
     const plan = planBackfill(args);
-    const ceiling = String(MAX_BACKFILL_ASKS);
+    const ceiling = String(12);
     expect(plan.shouldAsk).toBe(false);
     expect(plan.reason).toContain(ceiling);
   });

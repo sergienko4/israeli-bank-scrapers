@@ -24,7 +24,7 @@ import type { IWindowResult } from './CoverageAudit/WindowCoverage.js';
  * times and still cannot reach `startDate` is not converging, and burning more
  * provider quota will not change that.
  */
-export const MAX_BACKFILL_ASKS = 12;
+const MAX_BACKFILL_ASKS = 12;
 
 /** Operator kill-switch: `WINDOW_BACKFILL=off` suppresses every extra ask. */
 const KILL_SWITCH = 'off';
