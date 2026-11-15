@@ -38,7 +38,7 @@ import type { Brand } from '../../Types/Brand.js';
  * One zone for every parse and comparison, so a date is never read in one
  * calendar and compared in another.
  */
-export const BANK_CALENDAR_TIMEZONE = 'Asia/Jerusalem';
+const BANK_CALENDAR_TIMEZONE = 'Asia/Jerusalem';
 
 /** Calendar-day label all day-level comparisons reduce to. */
 export const BANK_DAY_FORMAT = 'YYYY-MM-DD';

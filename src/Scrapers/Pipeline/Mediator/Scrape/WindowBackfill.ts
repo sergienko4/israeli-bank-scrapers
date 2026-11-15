@@ -186,4 +186,3 @@ export function planBackfill(args: IBackfillPlanArgs): IBackfillPlan {
 }
 
 export type { BackfillStop, IBackfillPlanArgs } from './WindowBackfillBlocks.js';
-export { MAX_BACKFILL_ASKS } from './WindowBackfillBlocks.js';

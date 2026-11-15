@@ -20,7 +20,6 @@
 import moment from 'moment-timezone';
 
 import {
-  BANK_CALENDAR_TIMEZONE,
   bankDayOfInstant,
   bankMomentOfInstant,
 } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/BankCalendar.js';
@@ -106,7 +105,7 @@ describe('parseAutoDate/is host-independent', () => {
 
   it('reads a naive datetime as bank wall-clock rather than shifting it', () => {
     const emitted = acrossZones((): string => parseAutoDate('2026-06-29T14:30:00'));
-    const inBankZone = moment(emitted[0]).tz(BANK_CALENDAR_TIMEZONE).format('YYYY-MM-DD HH:mm');
+    const inBankZone = moment(emitted[0]).tz('Asia/Jerusalem').format('YYYY-MM-DD HH:mm');
     expect(new Set(emitted).size).toBe(1);
     expect(inBankZone).toBe('2026-06-29 14:30');
   });

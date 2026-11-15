@@ -24,7 +24,7 @@ import {
   boundedMonthCount,
   MAX_MONTH_REQUESTS,
 } from '../../../Mediator/Scrape/MonthRangeBudget.js';
-import { scrapeWindowEnd } from '../../../Mediator/Scrape/ScrapeWindowEnd.js';
+import scrapeWindowEnd from '../../../Mediator/Scrape/ScrapeWindowEnd.js';
 import type { Brand } from '../../../Types/Brand.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
 import type { Procedure } from '../../../Types/Procedure.js';
