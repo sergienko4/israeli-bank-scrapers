@@ -14,10 +14,7 @@ import { jest } from '@jest/globals';
 import pino from 'pino';
 
 import ScraperError from '../../../../Scrapers/Base/ScraperError.js';
-import {
-  buildCleanupWarning,
-  reportCleanupFailure,
-} from '../../../../Scrapers/Pipeline/Core/Executor/CleanupDiagnostic.js';
+import reportCleanupFailure from '../../../../Scrapers/Pipeline/Core/Executor/CleanupDiagnostic.js';
 import { makeMockContext } from '../Infrastructure/MockFactories.js';
 import {
   failingPhase,
@@ -92,16 +89,22 @@ describe('buildCleanupWarning / reportCleanupFailure', () => {
   });
 
   it('[CLN-2] reports a non-Error thrown value without throwing itself', () => {
+    const capture = captureLogger();
+    const ctx = makeMockContext({ logger: capture.logger });
     const thrown = Symbol('boom');
-    const fields = buildCleanupWarning(thrown);
-    expect(fields).toMatchObject({ errorName: 'Error', causeCode: '' });
+    reportCleanupFailure(ctx, thrown);
+    const [record] = capture.records();
+    expect(record).toMatchObject({ errorName: 'Error', causeCode: '' });
   });
 
   it('[CLN-2b] drops a cause code that has the shape of a secret, not of an error code', () => {
+    const capture = captureLogger();
+    const ctx = makeMockContext({ logger: capture.logger });
     const error = new ScraperError('disposal failed');
     Object.defineProperty(error, 'cause', { value: { code: 'TOKEN9F8E7D6C5B4A' } });
-    const fields = buildCleanupWarning(error);
-    expect(fields.causeCode).toBe('');
+    reportCleanupFailure(ctx, error);
+    const [record] = capture.records();
+    expect(record).toMatchObject({ causeCode: '' });
   });
 
   it('[CLN-3] a throwing log sink does not become a second failure', () => {

@@ -11,7 +11,7 @@ import { isKnownBankSlug } from '../../Types/TraceConfig.js';
 import buildInitialContext from '../PipelineContextFactory.js';
 import type { IPipelineDescriptor } from '../PipelineDescriptor.js';
 import toResult from '../PipelineResult.js';
-import { reportCleanupFailure } from './CleanupDiagnostic.js';
+import reportCleanupFailure from './CleanupDiagnostic.js';
 import { type IContextTracker, reducePhases, wrapError } from './PipelineReducer.js';
 
 /**

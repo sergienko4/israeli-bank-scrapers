@@ -9,7 +9,6 @@
     "src/Scrapers/Pipeline/Core/ApiMediatorWiring.ts#resolveTransportKind",
     "src/Scrapers/Pipeline/Core/ApiMediatorWiring.ts#selectApiMediator",
     "src/Scrapers/Pipeline/Core/ApiMediatorWiring.ts#toApiWiring",
-    "src/Scrapers/Pipeline/Core/Executor/CleanupDiagnostic.ts#buildCleanupWarning",
     "src/Scrapers/Pipeline/Logging/BankContext.ts#getActiveLogContext",
     "src/Scrapers/Pipeline/Logging/Debug.ts#getDebugByName",
     "src/Scrapers/Pipeline/Logging/FileLeaseClose.ts#makeLeaseCloseCallback",
