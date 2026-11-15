@@ -4,7 +4,7 @@
  */
 
 import type { JsonValue } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Envelope/JsonPointer.js';
-import { projectSessionCarry } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/SessionCarryProjection.js';
+import projectSessionCarry from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/SessionCarryProjection.js';
 
 const CARRY: Readonly<Record<string, JsonValue>> = {
   mag: 'mag-value',

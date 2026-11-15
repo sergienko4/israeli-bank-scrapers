@@ -157,7 +157,6 @@ export type {
   CredRule,
   IApiDirectCallConfig,
   IBoundDeviceAuthConfig,
-  IDeviceMemoryAuthConfig,
   IPersistentAuthConfig,
   PersistentAuthKind,
 };

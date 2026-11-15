@@ -162,5 +162,4 @@ function extractFields(
   return reduceAll(ctx, selectors);
 }
 
-export type { ExtractedFields };
-export { extractFields };
+export default extractFields;

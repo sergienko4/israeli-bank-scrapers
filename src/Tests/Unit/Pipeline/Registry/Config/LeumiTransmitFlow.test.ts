@@ -20,7 +20,7 @@ import {
   type IFlowResult,
   runSmsOtpFlow,
 } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/SmsOtpFlow.js';
-import { projectSessionCarry } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/SessionCarryProjection.js';
+import projectSessionCarry from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/SessionCarryProjection.js';
 import {
   registerWkUrl,
   resetWkRegistryForTest,

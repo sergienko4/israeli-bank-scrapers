@@ -30,7 +30,7 @@ import type {
   GenericCreds,
   IConfigTokenStrategy,
 } from './Flow/Lifecycle/TokenStrategyFromConfig.js';
-import { projectSessionCarry } from './SessionCarryProjection.js';
+import projectSessionCarry from './SessionCarryProjection.js';
 
 /** Booted ACTION bundle — bus, strategy, context, creds, fallback and allowlist. */
 interface IBootedAction {
