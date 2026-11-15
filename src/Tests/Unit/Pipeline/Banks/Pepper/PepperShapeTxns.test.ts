@@ -5,10 +5,8 @@
  */
 
 import {
-  isLastPage,
-  pageNumberOf,
   txnsExtractPage,
-  windowOf,
+  txnsVars,
 } from '../../../../../Scrapers/Pipeline/Banks/Pepper/scrape/PepperShapeTxns.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
@@ -37,48 +35,26 @@ function pageArgs(
   return { body, cursor, acct: { accountId: 'a' }, ctx: {} as IActionContext };
 }
 
-describe('PepperShapeTxns.pageNumberOf', () => {
-  it('returns FIRST_PAGE when cursor is false (initial call)', () => {
-    const result = pageNumberOf(false);
-    expect(result).toBe(1);
+describe('PepperShapeTxns page variables', () => {
+  it('uses page 1 for the initial cursor', () => {
+    const ctx = ctxWithBoundedDay(new Date('2026-02-28T22:30:00.000Z'));
+    const vars = txnsVars({ accountId: 'a' }, false, ctx);
+    expect(vars.pageNumber).toBe(1);
   });
 
-  it('returns the cursor value when present', () => {
-    const result = pageNumberOf(7);
-    expect(result).toBe(7);
+  it('uses the cursor page when present', () => {
+    const ctx = ctxWithBoundedDay(new Date('2026-02-28T22:30:00.000Z'));
+    const vars = txnsVars({ accountId: 'a' }, 7, ctx);
+    expect(vars.pageNumber).toBe(7);
   });
-});
 
-describe('PepperShapeTxns.windowOf', () => {
   it.each(AMBIENT_ZONE_CASES)('renders both bank bounds under %s', zone => {
     const ctx = ctxWithBoundedDay(new Date('2026-02-28T22:30:00.000Z'));
-    const window = underZone(zone, () => windowOf(ctx));
-    expect(window).toEqual({ from: '2026-03-01', to: '2026-03-01' });
-  });
-});
-
-describe('PepperShapeTxns.isLastPage', () => {
-  it('terminates on empty rows', () => {
-    const isDone = isLastPage(0, 1, 100);
-    expect(isDone).toBe(true);
-  });
-
-  it('terminates on under-page (rows < PAGE_SIZE)', () => {
-    // PAGE_SIZE is the bank's chosen page width; under-page = last page.
-    const isDone = isLastPage(5, 1, 999);
-    expect(isDone).toBe(true);
-  });
-
-  it('terminates when cumulative coverage meets totalCount', () => {
-    // Full page (rows == PAGE_SIZE) AND page * PAGE_SIZE >= total.
-    // PAGE_SIZE is hard-coded; using a large rows value triggers the path.
-    const isDone = isLastPage(100, 1, 50);
-    expect(isDone).toBe(true);
-  });
-
-  it('does NOT terminate on a full page when more results remain', () => {
-    const isDone = isLastPage(100, 1, 9999);
-    expect(isDone).toBe(false);
+    const vars = underZone(zone, () => txnsVars({ accountId: 'a' }, false, ctx));
+    expect({ from: vars.from, to: vars.to }).toEqual({
+      from: '2026-03-01',
+      to: '2026-03-01',
+    });
   });
 });
 
@@ -118,18 +94,58 @@ describe('PepperShapeTxns.txnsExtractPage', () => {
     expect(page.nextCursor).toBe(false);
   });
 
-  it('returns nextCursor = page+1 when more results remain', () => {
-    // Build a "full page" worth of rows so under-page exit does not fire.
-    const transactions = Array.from({ length: 100 }, (_v, i): { id: string } => ({
+  it.each<{
+    title: string;
+    cursor: number | false;
+    rows: number;
+    total: number;
+    nextCursor: number | false;
+  }>([
+    {
+      title: 'continues on a full page with more results',
+      cursor: false,
+      rows: 100,
+      total: 9999,
+      nextCursor: 2,
+    },
+    {
+      title: 'terminates on a full page at the total',
+      cursor: false,
+      rows: 100,
+      total: 50,
+      nextCursor: false,
+    },
+    {
+      title: 'terminates on a short page with a large total',
+      cursor: false,
+      rows: 5,
+      total: 9999,
+      nextCursor: false,
+    },
+    {
+      title: 'terminates when a later full page exactly reaches the total',
+      cursor: 2,
+      rows: 100,
+      total: 200,
+      nextCursor: false,
+    },
+    {
+      title: 'advances the incoming cursor',
+      cursor: 2,
+      rows: 100,
+      total: 9999,
+      nextCursor: 3,
+    },
+  ])('$title', ({ cursor, rows, total, nextCursor }) => {
+    const transactions = Array.from({ length: rows }, (_v, i): { id: string } => ({
       id: `t${String(i)}`,
     }));
     const body = {
-      accounts: { oshTransactionsNew: { transactions, totalCount: 9999 } },
+      accounts: { oshTransactionsNew: { transactions, totalCount: total } },
     };
-    const args = pageArgs(body, false);
+    const args = pageArgs(body, cursor);
     const page = txnsExtractPage(args);
-    expect(page.items.length).toBe(100);
-    // First page processed → nextCursor = 2.
-    expect(page.nextCursor).toBe(2);
+    expect(page.items).toHaveLength(rows);
+    expect(page.nextCursor).toBe(nextCursor);
   });
 });

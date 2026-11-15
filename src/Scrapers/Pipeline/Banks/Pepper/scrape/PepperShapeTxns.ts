@@ -21,7 +21,7 @@ type IsLastPage = Brand<boolean, 'PepperIsLastPage'>;
 
 const ISO_DATE_FMT = 'YYYY-MM-DD';
 /** Page-size limit for transactions pagination. */
-export const PAGE_SIZE = 100;
+const PAGE_SIZE = 100;
 const FIRST_PAGE = 1;
 
 type PepperTxn = Record<string, unknown>;
@@ -54,7 +54,7 @@ interface IWindow {
  * @param ctx - Action context.
  * @returns from/to ISO strings.
  */
-export function windowOf(ctx: IActionContext): IWindow {
+function windowOf(ctx: IActionContext): IWindow {
   const from = bankMomentOfInstant(ctx.options.startDate).format(ISO_DATE_FMT);
   const windowEnd = scrapeWindowEnd(ctx);
   const to = bankMomentOfInstant(windowEnd).format(ISO_DATE_FMT);
@@ -66,7 +66,7 @@ export function windowOf(ctx: IActionContext): IWindow {
  * @param cursor - Incoming cursor (false on first call).
  * @returns Page number.
  */
-export function pageNumberOf(cursor: number | false): PageNumber {
+function pageNumberOf(cursor: number | false): PageNumber {
   if (cursor === false) return FIRST_PAGE as PageNumber;
   return cursor as PageNumber;
 }
@@ -92,7 +92,7 @@ export function txnsVars(acct: IPepperAcct, cursor: number | false, ctx: IAction
  * @param total - Server-declared totalCount.
  * @returns True when pagination should stop.
  */
-export function isLastPage(rows: number, page: number, total: number): IsLastPage {
+function isLastPage(rows: number, page: number, total: number): IsLastPage {
   if (rows === 0) return true as IsLastPage;
   if (rows < PAGE_SIZE) return true as IsLastPage;
   return (page * PAGE_SIZE >= total) as IsLastPage;
