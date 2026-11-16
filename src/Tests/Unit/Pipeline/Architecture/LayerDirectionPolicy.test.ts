@@ -25,6 +25,7 @@ const HERE_URL = fileURLToPath(import.meta.url);
 const HERE = path.dirname(HERE_URL);
 const PIPELINE_ROOT = path.join(HERE, '..', '..', '..', '..', 'Scrapers', 'Pipeline');
 const BASELINE_PATH = path.join(HERE, '..', '..', '..', 'Tools', 'layer-direction.baseline.json');
+const POLICY_PATH = path.join(HERE, '..', '..', '..', 'Tools', 'layer-direction.policy.json');
 
 /** The eight production layers, highest composition layer first. */
 const LAYERS = [
@@ -46,17 +47,12 @@ const FAMILY_TOKENS = ['Ring', 'FibiGroup', 'TelebankGroup', 'CardIssuer'] as co
 /** Layers that must not name a bank module or a `CompanyTypes` member. */
 const NEUTRAL_LAYERS: readonly Layer[] = ['Phases', 'Mediator', 'Strategy'];
 
-/** Allowed import targets per source layer. */
-const ALLOWED: Readonly<Record<Layer, readonly Layer[]>> = {
-  Banks: [...LAYERS],
-  Core: ['Core', 'Phases', 'Mediator', 'Strategy', 'Registry', 'Logging', 'Types'],
-  Phases: ['Phases', 'Mediator', 'Strategy', 'Registry', 'Logging', 'Types'],
-  Mediator: ['Mediator', 'Strategy', 'Registry', 'Logging', 'Types'],
-  Strategy: ['Strategy', 'Registry', 'Logging', 'Types'],
-  Registry: ['Registry', 'Strategy', 'Logging', 'Types'],
-  Logging: ['Logging', 'Types'],
-  Types: ['Types'],
-};
+/** Layers and allowed import targets, kept as reviewable data for the guard. */
+interface ILayerPolicy {
+  readonly note: string;
+  readonly layers: readonly string[];
+  readonly allowed: Readonly<Record<string, readonly string[]>>;
+}
 
 /** Frozen violations, removed as the owning phases shrink them. */
 interface ILayerBaseline {
@@ -67,13 +63,23 @@ interface ILayerBaseline {
 }
 
 /**
+ * Read the allowed-edge policy.
+ * @returns Parsed policy.
+ */
+function readPolicy(): ILayerPolicy {
+  const text = fs.readFileSync(POLICY_PATH, 'utf8');
+  return JSON.parse(text) as ILayerPolicy;
+}
+
+/**
  * Whether one layer may import another.
  * @param from - Importing layer.
  * @param to - Imported layer.
  * @returns True when the edge is permitted.
  */
 function isAllowed(from: Layer, to: Layer): boolean {
-  return ALLOWED[from].includes(to);
+  const allowed = POLICY.allowed[from] ?? [];
+  return allowed.includes(to);
 }
 
 /**
@@ -241,6 +247,33 @@ function hasTokenAtBoundary(segment: string, token: string): boolean {
 }
 
 /**
+ * Check the character before a token occurrence.
+ * @param segment - Whole segment.
+ * @param at - Start index of the match.
+ * @returns True when the token starts an identifier part.
+ */
+function isStartBoundary(segment: string, at: number): boolean {
+  const before = at === 0 ? '' : segment[at - 1];
+  const first = segment[at] ?? '';
+  const second = segment[at + 1] ?? '';
+  const isLowerToPascal = /[a-z0-9]/u.test(before) && /[A-Z]/u.test(first);
+  const isAcronymToPascal = /[A-Z]/u.test(before) && /[A-Z]/u.test(first) && /[a-z]/u.test(second);
+  return before === '' || /[^A-Za-z0-9]/u.test(before) || isLowerToPascal || isAcronymToPascal;
+}
+
+/**
+ * Check the character after a token occurrence.
+ * @param segment - Whole segment.
+ * @param token - Matched token.
+ * @param at - Start index of the match.
+ * @returns True when the token ends an identifier part.
+ */
+function isEndBoundary(segment: string, token: string, at: number): boolean {
+  const after = segment[at + token.length] ?? '';
+  return after === '' || /[^A-Za-z0-9]/u.test(after) || /[A-Z0-9]/u.test(after);
+}
+
+/**
  * Check the characters around one token occurrence.
  * @param segment - Whole segment.
  * @param token - Matched token.
@@ -248,15 +281,7 @@ function hasTokenAtBoundary(segment: string, token: string): boolean {
  * @returns True when both sides are identifier boundaries.
  */
 function isWordBoundary(segment: string, token: string, at: number): boolean {
-  const before = at === 0 ? '' : segment[at - 1];
-  const first = segment[at] ?? '';
-  const after = segment[at + token.length] ?? '';
-  const isStartBoundary =
-    before === '' ||
-    /[^A-Za-z0-9]/u.test(before) ||
-    (/[a-z0-9]/u.test(before) && /[A-Z]/u.test(first));
-  const isEndBoundary = after === '' || /[^A-Za-z0-9]/u.test(after) || /[A-Z0-9]/u.test(after);
-  return isStartBoundary && isEndBoundary;
+  return isStartBoundary(segment, at) && isEndBoundary(segment, token, at);
 }
 
 /**
@@ -343,12 +368,102 @@ function collectDirectBindings(
  * @returns True when the expression names `CompanyTypes`.
  */
 function isEnumBase(expression: ts.Expression, bindings: IEnumBindings): boolean {
-  if (ts.isIdentifier(expression)) return bindings.direct.has(expression.text);
+  if (ts.isIdentifier(expression)) {
+    const isDirect = bindings.direct.has(expression.text);
+    return isDirect && !isShadowed(expression);
+  }
   const isNamespaceEnum =
     ts.isPropertyAccessExpression(expression) &&
     expression.name.text === 'CompanyTypes' &&
     ts.isIdentifier(expression.expression);
-  return isNamespaceEnum && bindings.namespaces.has(expression.expression.text);
+  const isNamespace = isNamespaceEnum && bindings.namespaces.has(expression.expression.text);
+  return isNamespace && !isShadowed(expression.expression);
+}
+
+/**
+ * Whether any enclosing scope binds the identifier to something other than the enum.
+ * @param identifier - Identifier being resolved.
+ * @returns True when a parameter or local declaration shadows the import.
+ */
+function isShadowed(identifier: ts.Identifier): boolean {
+  let scope = identifier.parent;
+  for (;;) {
+    if (scopeHasBinding(scope, identifier.text)) return true;
+    if (ts.isSourceFile(scope)) return false;
+    scope = scope.parent;
+  }
+}
+
+/**
+ * Whether a scope directly declares the name.
+ * @param scope - Candidate lexical scope.
+ * @param name - Identifier text.
+ * @returns True when the scope binds the name.
+ */
+function scopeHasBinding(scope: ts.Node, name: string): boolean {
+  if (ts.isFunctionLike(scope)) return parametersHaveName(scope.parameters, name);
+  if (ts.isCatchClause(scope)) {
+    const declaration = scope.variableDeclaration;
+    return declaration !== undefined && bindingHasName(declaration.name, name);
+  }
+  const isStatementScope = ts.isBlock(scope) || ts.isSourceFile(scope) || ts.isModuleBlock(scope);
+  return isStatementScope && statementsHaveName(scope.statements, name);
+}
+
+/**
+ * Whether any parameter binding uses the name.
+ * @param parameters - Function parameters.
+ * @param name - Identifier text.
+ * @returns True when a parameter binds the name.
+ */
+function parametersHaveName(parameters: readonly ts.ParameterDeclaration[], name: string): boolean {
+  return parameters.some((parameter): boolean => bindingHasName(parameter.name, name));
+}
+
+/**
+ * Whether any direct statement binds the name.
+ * @param statements - Statements of one scope.
+ * @param name - Identifier text.
+ * @returns True when a statement declares the name.
+ */
+function statementsHaveName(statements: readonly ts.Statement[], name: string): boolean {
+  return statements.some((statement): boolean => statementHasName(statement, name));
+}
+
+/**
+ * Whether one direct statement declares the name.
+ * @param statement - Candidate statement.
+ * @param name - Identifier text.
+ * @returns True for a matching variable, function, class, enum or import-equals.
+ */
+function statementHasName(statement: ts.Statement, name: string): boolean {
+  if (ts.isVariableStatement(statement)) {
+    const declarations = statement.declarationList.declarations;
+    return declarations.some((declaration): boolean => bindingHasName(declaration.name, name));
+  }
+  if (ts.isImportEqualsDeclaration(statement)) return statement.name.text === name;
+  const hasDeclarationName =
+    ts.isFunctionDeclaration(statement) ||
+    ts.isClassDeclaration(statement) ||
+    ts.isEnumDeclaration(statement);
+  return hasDeclarationName && statement.name?.text === name;
+}
+
+/**
+ * Whether a binding pattern contains the name.
+ * @param binding - Identifier or destructuring pattern.
+ * @param name - Identifier text.
+ * @returns True when the binding declares the name.
+ */
+function bindingHasName(binding: ts.BindingName, name: string): boolean {
+  if (ts.isIdentifier(binding)) return binding.text === name;
+  return binding.elements.some((element): boolean => {
+    if (ts.isOmittedExpression(element)) return false;
+    const property = element.propertyName ?? element.name;
+    const isDirect =
+      (ts.isIdentifier(property) || ts.isStringLiteral(property)) && property.text === name;
+    return isDirect || bindingHasName(element.name, name);
+  });
 }
 
 /**
@@ -443,8 +558,26 @@ function collectQualifiedMember(
     ts.isQualifiedName(node) &&
     BANK_MEMBERS.has(node.right.text) &&
     isEnumQualifiedLeft(node.left, bindings);
-  if (isEnumType) members.add(node.right.text);
+  const isImportTypeEnum =
+    ts.isQualifiedName(node) &&
+    BANK_MEMBERS.has(node.right.text) &&
+    isImportTypeEnumQualifier(node);
+  if (isEnumType || isImportTypeEnum) members.add(node.right.text);
   return members;
+}
+
+/**
+ * Whether a qualified name is the member qualifier of an import type.
+ * @param node - Qualified name to test.
+ * @returns True for `import('.../Definitions.js').CompanyTypes.Member`.
+ */
+function isImportTypeEnumQualifier(node: ts.QualifiedName): boolean {
+  const parent = node.parent;
+  if (!ts.isImportTypeNode(parent) || parent.qualifier !== node) return false;
+  if (!ts.isIdentifier(node.left) || node.left.text !== 'CompanyTypes') return false;
+  const argument = parent.argument;
+  const modulePath = ts.isLiteralTypeNode(argument) ? literalTextOf(argument.literal) : '';
+  return modulePath.includes('Definitions');
 }
 
 /**
@@ -479,19 +612,37 @@ function collectNamespaceAlias(
   bindings: IEnumBindings,
   members: Set<string>,
 ): ReadonlySet<string> {
-  if (!ts.isObjectBindingPattern(node.name) || node.initializer === undefined) return members;
-  if (!ts.isIdentifier(node.initializer) || !bindings.namespaces.has(node.initializer.text)) {
-    return members;
-  }
-  for (const element of node.name.elements) {
-    const property = element.propertyName;
-    const isCompanyProperty =
-      property !== undefined && ts.isIdentifier(property) && property.text === 'CompanyTypes';
-    if (isCompanyProperty && ts.isIdentifier(element.name)) {
-      members.add(`alias:${element.name.text}`);
-    }
+  if (!isNamespaceDestructure(node, bindings)) return members;
+  const pattern = node.name as ts.ObjectBindingPattern;
+  for (const element of pattern.elements) {
+    const alias = namespaceAliasOf(element);
+    if (alias !== '') members.add(alias);
   }
   return members;
+}
+
+/**
+ * Whether a declaration destructures an imported namespace.
+ * @param node - Variable declaration.
+ * @param bindings - Local import bindings.
+ * @returns True for `const ... = namespaceImport`.
+ */
+function isNamespaceDestructure(node: ts.VariableDeclaration, bindings: IEnumBindings): boolean {
+  if (!ts.isObjectBindingPattern(node.name) || node.initializer === undefined) return false;
+  if (!ts.isIdentifier(node.initializer)) return false;
+  return bindings.namespaces.has(node.initializer.text);
+}
+
+/**
+ * Read the alias produced by one namespace binding element.
+ * @param element - Object binding element.
+ * @returns `alias:<name>` for `CompanyTypes`, or ''.
+ */
+function namespaceAliasOf(element: ts.BindingElement): string {
+  const property = element.propertyName ?? element.name;
+  const isCompanyProperty =
+    (ts.isIdentifier(property) || ts.isStringLiteral(property)) && property.text === 'CompanyTypes';
+  return isCompanyProperty && ts.isIdentifier(element.name) ? `alias:${element.name.text}` : '';
 }
 
 /**
@@ -519,13 +670,20 @@ function collectIndexedMember(
  * @returns True for `typeof CompanyTypes` or `CompanyTypes`.
  */
 function isEnumTypeObject(node: ts.TypeNode, bindings: IEnumBindings): boolean {
-  if (ts.isTypeQueryNode(node))
-    return ts.isIdentifier(node.exprName) && bindings.direct.has(node.exprName.text);
-  return (
-    ts.isTypeReferenceNode(node) &&
-    ts.isIdentifier(node.typeName) &&
-    bindings.direct.has(node.typeName.text)
-  );
+  if (ts.isTypeQueryNode(node)) return isEnumTypeName(node.exprName, bindings);
+  return ts.isTypeReferenceNode(node) && isEnumTypeName(node.typeName, bindings);
+}
+
+/**
+ * Whether an entity name resolves to the enum or a namespace path to it.
+ * @param name - Type entity name.
+ * @param bindings - Local import bindings.
+ * @returns True for `CompanyTypes` or `defs.CompanyTypes`.
+ */
+function isEnumTypeName(name: ts.EntityName, bindings: IEnumBindings): boolean {
+  if (ts.isIdentifier(name)) return bindings.direct.has(name.text);
+  const isNamespaceEnum = name.right.text === 'CompanyTypes' && ts.isIdentifier(name.left);
+  return isNamespaceEnum && bindings.namespaces.has(name.left.text);
 }
 
 /**
@@ -599,12 +757,17 @@ function driftOf(current: readonly string[], frozen: readonly string[]): IDrift 
 }
 
 const FILES = listFiles();
+const POLICY = readPolicy();
 const BASELINE = readBaseline();
 const BANK_TOKENS = [...Object.keys(CompanyTypes), ...FAMILY_TOKENS];
 
 describe('Pipeline layer-direction policy', () => {
   it('actually scans the production tree (guards against a vacuous pass)', () => {
     expect(FILES.length).toBeGreaterThan(100);
+  });
+
+  it('pins the policy layer list to the scanner layers', () => {
+    expect(POLICY.layers).toStrictEqual([...LAYERS]);
   });
 
   it('classifies every production file into one of the eight layers', () => {
@@ -665,6 +828,7 @@ describe('Pipeline layer-direction policy', () => {
       'const c = banks.Yahav;',
       "type I = typeof CT['Yahav'];",
       'const e = CT[`Pepper`];',
+      "type J = import('../../Definitions.js').CompanyTypes.Amex;",
     ].join('\n');
     const sourceFile = ts.createSourceFile('probe.ts', source, ts.ScriptTarget.Latest, true);
     const bindings = enumBindings(sourceFile);
@@ -672,6 +836,7 @@ describe('Pipeline layer-direction policy', () => {
     collectEnumMembers(sourceFile, bindings, hasMembers);
     const members = [...hasMembers].sort();
     expect(members).toStrictEqual([
+      'Amex',
       'Discount',
       'Leumi',
       'Max',
@@ -683,7 +848,11 @@ describe('Pipeline layer-direction policy', () => {
   });
 
   it('does not flag a shadowing parameter or miss namespace destructuring (negative control)', () => {
-    const shadowSource = 'function f(banks: { Leumi: string }) { return banks.Leumi; }';
+    const shadowSource = [
+      "import { CompanyTypes } from 'probe';",
+      'function f(CompanyTypes: { Leumi: string }) { return CompanyTypes.Leumi; }',
+      'function g(banks: { Leumi: string }) { return banks.Leumi; }',
+    ].join('\n');
     const shadowFile = ts.createSourceFile('probe.ts', shadowSource, ts.ScriptTarget.Latest, true);
     const shadowMembers = new Set<string>();
     const shadowBindings = enumBindings(shadowFile);
@@ -695,13 +864,41 @@ describe('Pipeline layer-direction policy', () => {
       "import * as defs from 'probe';",
       'const { CompanyTypes: banks } = defs;',
       'const value = banks.Leumi;',
+      "type K = typeof defs.CompanyTypes['Mercantile'];",
     ].join('\n');
     const aliasFile = ts.createSourceFile('probe.ts', aliasSource, ts.ScriptTarget.Latest, true);
     const aliasMembers = new Set<string>();
     const aliasBindings = enumBindings(aliasFile);
     collectEnumMembers(aliasFile, aliasBindings, aliasMembers);
     const aliasFound = [...aliasMembers].sort();
-    expect(aliasFound).toStrictEqual(['alias:banks']);
+    expect(aliasFound).toStrictEqual(['Mercantile', 'alias:banks']);
+  });
+
+  it('does not record an alias shadowed by a parameter (negative control)', () => {
+    const source = [
+      "import { CompanyTypes as CT } from 'probe';",
+      'function f(CT: { Leumi: string }) { return CT.Leumi; }',
+    ].join('\n');
+    const sourceFile = ts.createSourceFile('probe.ts', source, ts.ScriptTarget.Latest, true);
+    const bindings = enumBindings(sourceFile);
+    const hasMembers = new Set<string>();
+    collectEnumMembers(sourceFile, bindings, hasMembers);
+    const members = [...hasMembers];
+    expect(members).toStrictEqual([]);
+  });
+
+  it('records shorthand namespace destructuring (negative control)', () => {
+    const source = [
+      "import * as defs from 'probe';",
+      'const { CompanyTypes } = defs;',
+      'const value = CompanyTypes.Leumi;',
+    ].join('\n');
+    const sourceFile = ts.createSourceFile('probe.ts', source, ts.ScriptTarget.Latest, true);
+    const bindings = enumBindings(sourceFile);
+    const hasMembers = new Set<string>();
+    collectEnumMembers(sourceFile, bindings, hasMembers);
+    const members = [...hasMembers].sort();
+    expect(members).toStrictEqual(['alias:CompanyTypes']);
   });
 
   it('collects import types and no-substitution template imports (negative control)', () => {
@@ -726,11 +923,13 @@ describe('Pipeline layer-direction policy', () => {
     const isDottedBankNamed = hasTokenAtBoundary('OneZero.clientCert', 'OneZero');
     const isHyphenBankNamed = hasTokenAtBoundary('OneZero-clientCert', 'OneZero');
     const isLowerCamelBankNamed = hasTokenAtBoundary('oneZeroClientCert', 'OneZero');
+    const isAcronymBankNamed = hasTokenAtBoundary('TLSOneZeroClientCert', 'OneZero');
     expect(isPaginationBankNamed).toBe(false);
     expect(isPagiShapeBankNamed).toBe(true);
     expect(isSuffixBankNamed).toBe(true);
     expect(isDottedBankNamed).toBe(true);
     expect(isHyphenBankNamed).toBe(true);
     expect(isLowerCamelBankNamed).toBe(true);
+    expect(isAcronymBankNamed).toBe(true);
   });
 });

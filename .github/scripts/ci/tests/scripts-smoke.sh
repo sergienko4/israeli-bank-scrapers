@@ -949,12 +949,15 @@ cp "$REPO_ROOT/.github/scripts/ci/layer-direction-baseline-guard.sh" \
   "$LAYER_TMP/.github/scripts/ci/"
 cp "$REPO_ROOT/src/Tests/Tools/layer-direction.baseline.json" \
   "$LAYER_TMP/src/Tests/Tools/"
+cp "$REPO_ROOT/src/Tests/Tools/layer-direction.policy.json" \
+  "$LAYER_TMP/src/Tests/Tools/"
 git -C "$LAYER_TMP" init -q
 git -C "$LAYER_TMP" config user.email smoke@example.invalid
 git -C "$LAYER_TMP" config user.name smoke
 git -C "$LAYER_TMP" add .
 git -C "$LAYER_TMP" commit -qm base
 LAYER_BASELINE="$LAYER_TMP/src/Tests/Tools/layer-direction.baseline.json"
+LAYER_POLICY="$LAYER_TMP/src/Tests/Tools/layer-direction.policy.json"
 
 run_layer_guard() {
   ( cd "$LAYER_TMP" && BASE_SHA="$(git rev-parse HEAD)" BASE_REF=main \
@@ -984,6 +987,16 @@ fs.writeFileSync(file, `${JSON.stringify(baseline, null, 2)}\n`);
 assert_eq "layer guard accepts a shrunk baseline" "0" "$(run_layer_guard)"
 
 git -C "$LAYER_TMP" checkout -- src/Tests/Tools/layer-direction.baseline.json
+node -e '
+const fs = require("node:fs");
+const file = process.argv[1];
+const policy = JSON.parse(fs.readFileSync(file, "utf8"));
+policy.allowed.Types.push("Mediator");
+fs.writeFileSync(file, `${JSON.stringify(policy, null, 2)}\n`);
+' "$LAYER_POLICY"
+assert_eq "layer guard rejects a relaxed policy" "1" "$(run_layer_guard)"
+
+git -C "$LAYER_TMP" checkout -- src/Tests/Tools/layer-direction.policy.json
 assert_eq "layer guard fails closed on an unknown base commit" "1" \
   "$( cd "$LAYER_TMP" && BASE_SHA=0000000000000000000000000000000000000000 \
        BASE_REF=main bash .github/scripts/ci/layer-direction-baseline-guard.sh \
