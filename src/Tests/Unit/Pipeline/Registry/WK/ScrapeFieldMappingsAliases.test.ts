@@ -14,7 +14,7 @@
  * current tree and turn GREEN with the alias additions.
  */
 
-import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../../../../../Scrapers/Pipeline/Registry/WK/ScrapeFieldMappings.js';
+import WK from '../../../../../Scrapers/Pipeline/Registry/WK/ScrapeFieldMappings.js';
 
 describe('WK.identifier — cross-bank per-txn identifier aliases', () => {
   const requiredAliases: readonly string[] = [

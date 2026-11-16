@@ -1,7 +1,7 @@
 /**
  * WellKnown transaction-identifier aliases — split out of
  * {@link ./ScrapeFieldMappings.js} to keep that module under the 150-line
- * max-lines ceiling, following {@link ./ScrapeIdFields.js} and
+ * max-lines ceiling, following the provider-annotation split and
  * {@link ./ScrapeProviderFields.js}.
  *
  * <p>Order is precedence: the first alias a record carries wins. Spread back

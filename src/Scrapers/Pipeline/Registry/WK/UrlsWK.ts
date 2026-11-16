@@ -105,7 +105,7 @@ export function registerWkUrl(group: WKUrlGroup, bankHint: CompanyTypes, url: st
  * @param tag - urlTag to test.
  * @returns True when the tag begins with the http scheme.
  */
-export function isLiteralUrl(tag: WKUrlOrLiteral): tag is LiteralUrl {
+function isLiteralUrl(tag: WKUrlOrLiteral): tag is LiteralUrl {
   return tag.startsWith('http');
 }
 
