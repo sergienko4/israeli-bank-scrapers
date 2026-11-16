@@ -9,7 +9,6 @@
  */
 
 import * as fs from 'node:fs';
-import * as os from 'node:os';
 import * as path from 'node:path';
 
 import ScraperError from '../../Base/ScraperError.js';
@@ -18,28 +17,34 @@ import type { Brand } from './Brand.js';
 /** Canonical runs root returned to the caller. */
 type RunRootPath = Brand<string, 'RunRootPath'>;
 
-/** Mode bits that let another user write into or replace a component. */
-const UNSAFE_BITS = 0o022;
+/** Mode bits that let another user write into a component. */
+const GROUP_WRITABLE = 0o020;
+const WORLD_WRITABLE = 0o002;
+const STICKY_BIT = 0o1000;
 
 /** Effective uid, or undefined on platforms without POSIX ownership. */
 const UID = typeof process.getuid === 'function' ? process.getuid() : undefined;
 
 /**
- * Real path of the platform temp directory — the one ancestor allowed to be
- * group/world-writable, because it is shared and sticky by design.
+ * Whether an existing directory is a safe ancestor for forensic data.
+ *
+ * <p>A world-writable ancestor is acceptable only when it is sticky and owned
+ * by root or the current user: the sticky bit stops another user from
+ * replacing our subtree, and the owner check stops the directory's owner from
+ * doing so. A non-sticky world-writable or a group-writable ancestor is never
+ * trusted, even when it is the configured temp root.
+ * @param stats - `lstat` result for an existing ancestor.
+ * @returns True when the ancestor cannot redirect forensic writes.
  */
-const OS_TEMP_ROOT = os.tmpdir();
-const TEMP_ROOT = fs.realpathSync(OS_TEMP_ROOT);
-
-/**
- * Whether an existing directory is a safe parent for forensic data.
- * @param stats - `lstat` result for the nearest existing ancestor.
- * @returns True when it is a real directory no untrusted user can write to.
- */
-function isSafeBase(stats: fs.Stats): boolean {
+function isSafeAncestor(stats: fs.Stats): boolean {
   if (!stats.isDirectory()) return false;
-  if ((stats.mode & UNSAFE_BITS) !== 0) return false;
-  return UID === undefined || stats.uid === UID || stats.uid === 0;
+  const isOwnerTrusted = UID === undefined || stats.uid === UID || stats.uid === 0;
+  if (!isOwnerTrusted) return false;
+  const isSticky = (stats.mode & STICKY_BIT) !== 0;
+  if (isSticky) return true;
+  if ((stats.mode & GROUP_WRITABLE) !== 0) return false;
+  if ((stats.mode & WORLD_WRITABLE) !== 0) return false;
+  return true;
 }
 
 /**
@@ -109,14 +114,13 @@ function assertPrivateComponent(component: string): true {
 }
 
 /**
- * Check one existing ancestor cannot be replaced by another user.
+ * Check one existing ancestor cannot redirect forensic writes.
  * @param component - Existing path component.
- * @returns True when the component is the temp root or a safe owner.
+ * @returns True when the component is trusted.
  */
 function assertSafeAncestor(component: string): true {
-  if (component === TEMP_ROOT) return true;
   const stats = fs.lstatSync(component);
-  if (!isSafeBase(stats)) {
+  if (!isSafeAncestor(stats)) {
     throw new ScraperError(`runs root ancestor is not safe: ${component}`);
   }
   return true;

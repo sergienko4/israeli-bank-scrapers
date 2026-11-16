@@ -94,6 +94,17 @@ DESCRIBE_POSIX('ensurePrivateRunRoot', () => {
     expect(() => ensurePrivateRunRoot(root)).toThrow(/runs root ancestor is not safe/);
   });
 
+  it('allows a sticky world-writable ancestor', () => {
+    const base = makeTempDir('secure-root-sticky-parent-');
+    const parent = path.join(base, 'shared');
+    fs.mkdirSync(parent, { mode: 0o700 });
+    fs.chmodSync(parent, 0o1777);
+    const root = path.join(parent, 'runs');
+    ensurePrivateRunRoot(root);
+    const mode = modeOf(root);
+    expect(mode).toBe(0o700);
+  });
+
   it('rejects an existing root under an unsafe ancestor', () => {
     const base = makeTempDir('secure-root-existing-unsafe-');
     const parent = path.join(base, 'shared');
