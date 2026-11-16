@@ -24,6 +24,7 @@ import pino, { type Logger } from 'pino';
 
 import type { Brand } from '../Types/Brand.js';
 import { toError } from '../Types/ErrorUtils.js';
+import tightenOrClose from './FileMode.js';
 
 /** Owned file-descriptor lease tracking expected byte flush and async `fs.close`. */
 export interface IFileLease {
@@ -88,19 +89,8 @@ function openRawLease(logFile: string): IFileLease {
   const dir = path.dirname(logFile);
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   const fd = fs.openSync(logFile, 'a', 0o600);
-  enforceOwnerOnlyMode(fd);
+  tightenOrClose(fd);
   return statOpenFd(fd);
-}
-
-/**
- * Tighten a pre-existing log file to `0600`; the open-mode argument applies
- * only when the file is created. POSIX only — Windows has no equivalent.
- * @param fd - Open append descriptor.
- * @returns True after the mode is owner-only (or on Windows).
- */
-function enforceOwnerOnlyMode(fd: number): true {
-  if (process.platform !== 'win32') fs.fchmodSync(fd, 0o600);
-  return true;
 }
 
 /**

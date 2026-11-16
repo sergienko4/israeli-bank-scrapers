@@ -13,6 +13,10 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 import ScraperError from '../../Base/ScraperError.js';
+import type { Brand } from './Brand.js';
+
+/** Canonical runs root returned to the caller. */
+type RunRootPath = Brand<string, 'RunRootPath'>;
 
 /** Mode bits that let another user write into or replace a component. */
 const UNSAFE_BITS = 0o022;
@@ -105,16 +109,39 @@ function assertPrivateComponent(component: string): true {
 }
 
 /**
- * Check that the nearest existing ancestor cannot be replaced by another user.
- * @param base - Nearest existing ancestor.
- * @returns True when the ancestor is the platform temp root or a safe owner.
+ * Check one existing ancestor cannot be replaced by another user.
+ * @param component - Existing path component.
+ * @returns True when the component is the temp root or a safe owner.
  */
-function assertSafeBase(base: string): true {
-  const stats = fs.lstatSync(base);
-  const realBase = fs.realpathSync(base);
-  const isTempRoot = realBase === TEMP_ROOT;
-  if (!isTempRoot && !isSafeBase(stats)) {
-    throw new ScraperError(`runs root parent is not safe: ${base}`);
+function assertSafeAncestor(component: string): true {
+  if (component === TEMP_ROOT) return true;
+  const stats = fs.lstatSync(component);
+  if (!isSafeBase(stats)) {
+    throw new ScraperError(`runs root ancestor is not safe: ${component}`);
+  }
+  return true;
+}
+
+/**
+ * Return the parent path component, or false at the filesystem root.
+ * @param component - Path component.
+ * @returns Parent path, or false at the root.
+ */
+function nextAncestor(component: string): string | false {
+  const parent = path.dirname(component);
+  return parent === component ? false : parent;
+}
+
+/**
+ * Validate every existing ancestor back to the filesystem root.
+ * @param target - Canonical nearest existing ancestor.
+ * @returns True once the whole chain is safe.
+ */
+function assertSafeChain(target: string): true {
+  let probe: string | false = target;
+  while (probe !== false) {
+    assertSafeAncestor(probe);
+    probe = nextAncestor(probe);
   }
   return true;
 }
@@ -144,18 +171,42 @@ function makePrivateComponent(component: string): true {
 }
 
 /**
- * Provision a private runs root before the run folder is created under it.
+ * Resolve a runs root to its canonical path before any component is created.
  * @param root - Configured runs root.
- * @returns True once every component is a real, private, user-owned directory.
+ * @returns Canonical absolute path.
  */
-function ensurePrivateRunRoot(root: string): true {
-  if (UID === undefined) return true;
+function canonicalTarget(root: string): string {
   const target = path.resolve(root);
   const base = nearestExisting(target);
-  assertSafeBase(base);
+  const realBase = fs.realpathSync(base);
+  const relative = path.relative(base, target);
+  return relative.length === 0 ? realBase : path.join(realBase, relative);
+}
+
+/**
+ * Create and verify every missing component under an existing ancestor.
+ * @param target - Canonical runs root.
+ * @returns True once each component is a real, private, user-owned directory.
+ */
+function provisionRoot(target: string): true {
+  const base = nearestExisting(target);
+  assertSafeChain(base);
   const missing = missingComponents(base, target);
   missing.forEach(makePrivateComponent);
   return assertPrivateComponent(target);
+}
+
+/**
+ * Provision a private runs root before the run folder is created under it.
+ * @param root - Configured runs root.
+ * @returns Canonical root once every component is a real, private, user-owned
+ *   directory.
+ */
+function ensurePrivateRunRoot(root: string): RunRootPath {
+  if (UID === undefined) return path.resolve(root) as RunRootPath;
+  const target = canonicalTarget(root);
+  provisionRoot(target);
+  return target as RunRootPath;
 }
 
 export default ensurePrivateRunRoot;

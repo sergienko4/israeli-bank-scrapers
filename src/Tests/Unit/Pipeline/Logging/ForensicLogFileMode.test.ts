@@ -42,24 +42,28 @@ function silentLogger(): pino.Logger {
   return pino(options);
 }
 
+const isWindows = process.platform === 'win32';
+
 describe('forensic log file mode', () => {
   it('tightens a pre-existing permissive log file to 0600', () => {
-    const tempRoot = os.tmpdir();
-    const prefixPath = path.join(tempRoot, 'log-mode-');
-    const dir = fs.mkdtempSync(prefixPath);
-    const logFile = path.join(dir, 'pipeline.log');
-    fs.writeFileSync(logFile, '', { mode: 0o644 });
-    fs.chmodSync(logFile, 0o644);
-    const built = instantiateLeasedFileLogger({
-      logFile,
-      buildPreferredOptions: fileOptions,
-      buildFallbackOptions: fileOptions,
-      onTransportFailure: onFailure,
-      buildSilentFallback: silentLogger,
-    });
-    const mode = fs.statSync(logFile).mode & 0o777;
-    expect(mode).toBe(0o600);
-    retireSupersededLogger(built.logger, built.lease);
-    fs.rmSync(dir, { recursive: true, force: true });
+    if (!isWindows) {
+      const tempRoot = os.tmpdir();
+      const prefixPath = path.join(tempRoot, 'log-mode-');
+      const dir = fs.mkdtempSync(prefixPath);
+      const logFile = path.join(dir, 'pipeline.log');
+      fs.writeFileSync(logFile, '', { mode: 0o644 });
+      fs.chmodSync(logFile, 0o644);
+      const built = instantiateLeasedFileLogger({
+        logFile,
+        buildPreferredOptions: fileOptions,
+        buildFallbackOptions: fileOptions,
+        onTransportFailure: onFailure,
+        buildSilentFallback: silentLogger,
+      });
+      const mode = fs.statSync(logFile).mode & 0o777;
+      expect(mode).toBe(0o600);
+      retireSupersededLogger(built.logger, built.lease);
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

@@ -136,7 +136,8 @@ describe('TraceConfig — FORENSIC_TRACE=true gates artefact emission', () => {
     const mod = await loadTraceConfig();
     mod.setActiveBank('beinleumi');
     const folder = mod.getRunFolder();
-    const isUnderRoot = folder.startsWith(tmpRoot);
+    const realRoot = fs.realpathSync(tmpRoot);
+    const isUnderRoot = folder.startsWith(realRoot);
     const didCreate = fs.existsSync(folder);
     expect(folder).not.toBe('');
     expect(isUnderRoot).toBe(true);

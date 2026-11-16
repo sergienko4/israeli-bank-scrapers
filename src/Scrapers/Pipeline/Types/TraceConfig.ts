@@ -187,8 +187,8 @@ function runSeed(): IRunSeed | false {
  * @returns The folder's absolute path.
  */
 function makeRunFolder(seed: IRunSeed): string {
-  ensurePrivateRunRoot(seed.root);
-  const folder = path.join(seed.root, PIPELINE_SEGMENT, seed.bank, seed.stamp);
+  const root = ensurePrivateRunRoot(seed.root);
+  const folder = path.join(root, PIPELINE_SEGMENT, seed.bank, seed.stamp);
   fs.mkdirSync(folder, { recursive: true, mode: 0o700 });
   return folder;
 }

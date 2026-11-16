@@ -36,7 +36,9 @@ function modeOf(target: string): number {
   return fs.statSync(target).mode & 0o777;
 }
 
-describe('ensurePrivateRunRoot', () => {
+const DESCRIBE_POSIX = process.platform === 'win32' ? describe.skip : describe;
+
+DESCRIBE_POSIX('ensurePrivateRunRoot', () => {
   afterEach(() => {
     const dirs = CREATED_DIRS.splice(0);
     for (const dir of dirs) fs.rmSync(dir, { recursive: true, force: true });
@@ -68,15 +70,19 @@ describe('ensurePrivateRunRoot', () => {
     const root = path.join(base, 'runs');
     fs.mkdirSync(root, { mode: 0o700 });
     fs.chmodSync(root, 0o777);
-    expect(() => ensurePrivateRunRoot(root)).toThrow(/runs root parent is not safe/);
+    expect(() => ensurePrivateRunRoot(root)).toThrow(/runs root ancestor is not safe/);
   });
 
-  it('rejects a symlinked root', () => {
+  it('resolves a symlinked root to its canonical private target', () => {
     const base = makeTempDir('secure-root-symlink-');
     const target = makeTempDir('secure-root-symlink-target-');
     const root = path.join(base, 'runs');
     fs.symlinkSync(target, root);
-    expect(() => ensurePrivateRunRoot(root)).toThrow(/runs root/);
+    const canonical = ensurePrivateRunRoot(root);
+    const expected = fs.realpathSync(target);
+    expect(canonical).toBe(expected);
+    const mode = modeOf(expected);
+    expect(mode).toBe(0o700);
   });
 
   it('rejects a group/world-writable ancestor', () => {
@@ -85,6 +91,17 @@ describe('ensurePrivateRunRoot', () => {
     fs.mkdirSync(parent, { mode: 0o700 });
     fs.chmodSync(parent, 0o777);
     const root = path.join(parent, 'runs');
-    expect(() => ensurePrivateRunRoot(root)).toThrow(/runs root parent is not safe/);
+    expect(() => ensurePrivateRunRoot(root)).toThrow(/runs root ancestor is not safe/);
+  });
+
+  it('rejects an existing root under an unsafe ancestor', () => {
+    const base = makeTempDir('secure-root-existing-unsafe-');
+    const parent = path.join(base, 'shared');
+    fs.mkdirSync(parent, { mode: 0o700 });
+    fs.chmodSync(parent, 0o777);
+    const root = path.join(parent, 'runs');
+    fs.mkdirSync(root, { mode: 0o700 });
+    fs.chmodSync(root, 0o700);
+    expect(() => ensurePrivateRunRoot(root)).toThrow(/runs root ancestor is not safe/);
   });
 });
