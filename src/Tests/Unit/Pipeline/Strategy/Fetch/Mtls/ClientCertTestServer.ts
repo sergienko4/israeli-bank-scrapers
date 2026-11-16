@@ -6,8 +6,8 @@
  * when none) and `/redirect` answers 302 to `/peer`. Every served path is
  * recorded, so a suite can prove a redirect was never followed. The server
  * identity is the loopback fixture of `MtlsTestServer` (SAN `127.0.0.1`).
- * `recordPresented` installs the mocked-transport seam and records what each
- * request would present, for suites that touch no network.
+ * `recordPresented` builds a per-execution mTLS fallback that records what
+ * each request would present, for suites that touch no network.
  */
 
 import { createHash } from 'node:crypto';
@@ -16,13 +16,19 @@ import { Agent, createServer, type Server } from 'node:https';
 import type { TLSSocket } from 'node:tls';
 
 import type { IPresentedCert } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsAgentSource.js';
-import { setMtlsFetchFallback } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
-
-type MtlsFallback = NonNullable<Parameters<typeof setMtlsFetchFallback>[0]>;
 import type { ICertBundle } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/OneZeroClientCert.js';
+import type { IMtlsInvokeOptions } from '../../../../../../Scrapers/Pipeline/Types/Domain/MtlsInvokeTypes.js';
+
+type MtlsFallback = NonNullable<IMtlsInvokeOptions['fallback']>;
 import type { Procedure } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { boundPort, makeClose, testCertBundle } from './MtlsTestServer.js';
+
+/** A recorded fallback plus the certificate list it appends to. */
+interface IPresentedRecorder {
+  readonly presented: (IPresentedCert | false)[];
+  readonly fallback: MtlsFallback;
+}
 
 /** A running peer-echo server. */
 interface IPeerServer {
@@ -125,11 +131,11 @@ function answerEmpty(): Promise<Procedure<Response>> {
 }
 
 /**
- * Install the mocked-transport seam, answering `{}` and recording what each
- * request would present. Clear it with `setMtlsFetchFallback()`.
- * @returns The presented certificates, in request order (`false` for none).
+ * Build a mocked-transport fallback that answers `{}` and records what each
+ * request would present.
+ * @returns The fallback and its presented-certificate list.
  */
-function recordPresented(): (IPresentedCert | false)[] {
+function recordPresented(): IPresentedRecorder {
   const presented: (IPresentedCert | false)[] = [];
   /**
    * Record one request and answer it.
@@ -140,9 +146,8 @@ function recordPresented(): (IPresentedCert | false)[] {
     presented.push(request.presented);
     return answerEmpty();
   };
-  setMtlsFetchFallback(fallback);
-  return presented;
+  return { presented, fallback };
 }
 
-export type { IPeerEcho, IPeerServer };
+export type { IPeerEcho, IPeerServer, IPresentedRecorder };
 export { buildTrustingAgent, recordPresented, startPeerServer };

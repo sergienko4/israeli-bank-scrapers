@@ -18,7 +18,6 @@ import type { JsonValue } from '../../../../../../Scrapers/Pipeline/Mediator/Api
 import { runStep } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/RunStep.js';
 import type { ITemplateScope } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/RefResolver.js';
 import { registerWkUrl } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
-import { setMtlsFetchFallback } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
 import type { ITokenBus } from '../../../../../../Scrapers/Pipeline/Types/Domain/TokenBus.js';
 import { issueTestCert } from '../../../../../Helpers/TestCertificate.js';
 import { recordPresented } from '../../../Strategy/Fetch/Mtls/ClientCertTestServer.js';
@@ -84,13 +83,9 @@ function runRegister(bus: ITokenBus, scope: ITemplateScope): ReturnType<typeof r
 }
 
 describe('step client certificate', () => {
-  afterEach((): void => {
-    setMtlsFetchFallback();
-  });
-
   it('installs the pair before the step request and keeps it for later steps', async () => {
-    const presented = recordPresented();
-    const bus = createMtlsApiMediator(DYNAMIC_ARGS);
+    const { presented, fallback } = recordPresented();
+    const bus = createMtlsApiMediator({ ...DYNAMIC_ARGS, mtls: { fallback } });
     const scope = scopeWith(DEVICE.keyPem, DEVICE.certPem);
     const first = await runRegister(bus, scope);
     const nextScope = first.success ? first.value : scope;
@@ -101,7 +96,7 @@ describe('step client certificate', () => {
   });
 
   it('fails unsupported on a bus without the certificate port, sending nothing', async () => {
-    const presented = recordPresented();
+    const { presented } = recordPresented();
     const bus = createMtlsApiMediator(BASE_ARGS);
     const scope = scopeWith(DEVICE.keyPem, DEVICE.certPem);
     const result = await runRegister(bus, scope);
@@ -119,8 +114,8 @@ describe('step client certificate', () => {
     ['a key the certificate does not certify', OTHER.keyPem, DEVICE.certPem],
     ['garbage PEM', 'not a key', 'not a cert'],
   ])('fails invalid for %s, sending nothing', async (_label, key, cert) => {
-    const presented = recordPresented();
-    const bus = createMtlsApiMediator(DYNAMIC_ARGS);
+    const { presented, fallback } = recordPresented();
+    const bus = createMtlsApiMediator({ ...DYNAMIC_ARGS, mtls: { fallback } });
     const scope = scopeWith(key, cert);
     const result = await runRegister(bus, scope);
     expect(result).toMatchObject({
@@ -132,8 +127,8 @@ describe('step client certificate', () => {
   });
 
   it('a refused pair keeps the certificate installed by an earlier step', async () => {
-    const presented = recordPresented();
-    const bus = createMtlsApiMediator(DYNAMIC_ARGS);
+    const { presented, fallback } = recordPresented();
+    const bus = createMtlsApiMediator({ ...DYNAMIC_ARGS, mtls: { fallback } });
     const deviceScope = scopeWith(DEVICE.keyPem, DEVICE.certPem);
     const refusedScope = scopeWith(OTHER.keyPem, DEVICE.certPem);
     await runRegister(bus, deviceScope);

@@ -14,7 +14,6 @@ import {
   resetWkRegistryForTest as resetWkQueriesForTest,
 } from '../../../../../Scrapers/Pipeline/Registry/WK/QueriesWK.js';
 import { literalUrl } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
-import { setMtlsFetchFallback } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
 import type { ICertBundle } from '../../../../../Scrapers/Pipeline/Types/Domain/CertBundle.js';
 import type { IClientCertPair } from '../../../../../Scrapers/Pipeline/Types/Domain/ClientCertControl.js';
 import { succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
@@ -42,7 +41,6 @@ const INSTALLED = succeed(true);
 
 describe('createMtlsApiMediator — dynamic client certificate', () => {
   afterEach(() => {
-    setMtlsFetchFallback();
     resetWkQueriesForTest();
   });
 
@@ -60,8 +58,8 @@ describe('createMtlsApiMediator — dynamic client certificate', () => {
   });
 
   it('presents the installed certificate to the declared origin only', async () => {
-    const presented = recordPresented();
-    const mediator = createMtlsApiMediator(DYNAMIC_ARGS);
+    const { presented, fallback } = recordPresented();
+    const mediator = createMtlsApiMediator({ ...DYNAMIC_ARGS, mtls: { fallback } });
     mediator.clientCert?.install(DEVICE_PAIR);
     await mediator.apiGet(BANK_URL);
     await mediator.apiGet(OTHER_URL);
@@ -69,8 +67,8 @@ describe('createMtlsApiMediator — dynamic client certificate', () => {
   });
 
   it('presents nothing before a certificate is installed', async () => {
-    const presented = recordPresented();
-    const mediator = createMtlsApiMediator(DYNAMIC_ARGS);
+    const { presented, fallback } = recordPresented();
+    const mediator = createMtlsApiMediator({ ...DYNAMIC_ARGS, mtls: { fallback } });
     await mediator.apiGet(BANK_URL);
     expect(presented).toEqual([false]);
   });
@@ -78,12 +76,11 @@ describe('createMtlsApiMediator — dynamic client certificate', () => {
 
 describe('createMtlsApiMediator — static client certificate', () => {
   afterEach(() => {
-    setMtlsFetchFallback();
     resetWkQueriesForTest();
   });
 
   it('fails fast when a certificate is required without a resolver', () => {
-    const presented = recordPresented();
+    const { presented } = recordPresented();
     /**
      * Build a node:https mediator that requires a certificate but declares
      * no resolver, as a bank config with a missing staticClientCert would.
@@ -97,7 +94,7 @@ describe('createMtlsApiMediator — static client certificate', () => {
   });
 
   it('presents the injected static certificate to identity and GraphQL calls', async () => {
-    const presented = recordPresented();
+    const { presented, fallback } = recordPresented();
     registerWkQuery('customer', CompanyTypes.Yahav, 'query Customer { me { id } }');
     let resolved = 0;
     /**
@@ -112,6 +109,7 @@ describe('createMtlsApiMediator — static client certificate', () => {
       ...BASE_ARGS,
       requiresClientCert: true,
       staticClientCert: resolveStaticCert,
+      mtls: { fallback },
     });
     await mediator.apiGet(BANK_URL);
     await mediator.apiQuery('customer', {});

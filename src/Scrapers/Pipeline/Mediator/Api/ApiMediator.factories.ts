@@ -160,10 +160,13 @@ function createNativeApiMediator(args: IApiMediatorArgs): IApiMediator {
  * @param source - Picks the HTTPS agent (certificate + profile) per request.
  * @returns Strategy pair whose transports run over node:https.
  */
-function buildMtlsStrategies(args: IApiMediatorArgs, source: AgentSource): IApiMediatorStrategies {
-  const fetch = Reflect.construct(MtlsFetchStrategy, [args.identityBaseUrl, source]);
-  const headers = args.graphqlHeaders ?? {};
-  const gql = Reflect.construct(MtlsGraphQLFetchStrategy, [args.graphqlUrl, source, headers]);
+function buildMtlsStrategies(
+  args: INodeTlsMediatorArgs,
+  source: AgentSource,
+): IApiMediatorStrategies {
+  const fetch = Reflect.construct(MtlsFetchStrategy, [args.identityBaseUrl, source, args.mtls]);
+  const settings = { headers: args.graphqlHeaders ?? {}, options: args.mtls };
+  const gql = Reflect.construct(MtlsGraphQLFetchStrategy, [args.graphqlUrl, source, settings]);
   return { fetch, gql };
 }
 

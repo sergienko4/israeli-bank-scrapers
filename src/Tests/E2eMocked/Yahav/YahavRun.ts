@@ -8,8 +8,8 @@
 import { CompanyTypes } from '../../../Definitions.js';
 import type { IScraperScrapingResult } from '../../../Scrapers/Base/Interface.js';
 import { YAHAV_AUTH_PATHS } from '../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigYahavConstants.js';
-import createScraper from '../../../Scrapers/Registry/Factory.js';
 import type { IRecordedCall } from '../Helpers/FetchMockKit.js';
+import createScraperWithMtls from '../Helpers/MtlsScraper.js';
 import type { IBancsWindow } from './YahavBancsData.js';
 import { bancsCallOf, windowOf } from './YahavBancsRoutes.js';
 import type { IYahavMockState, YahavFault } from './YahavFaults.js';
@@ -108,7 +108,8 @@ export async function runYahav(
   const state = freshState(fault);
   const handle = installYahavFetchMock(state);
   try {
-    const result = await createScraper(RUN_OPTIONS).scrape({ ...YAHAV_MOCK_CREDS, ...setup.creds });
+    const scraper = createScraperWithMtls(RUN_OPTIONS, { fallback: handle.mtlsFallback });
+    const result = await scraper.scrape({ ...YAHAV_MOCK_CREDS, ...setup.creds });
     const calls = handle.calls();
     return {
       result,

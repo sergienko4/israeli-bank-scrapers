@@ -17,7 +17,7 @@ import {
   fixedAgentSource,
   presentedOf,
 } from '../../Strategy/Fetch/Mtls/MtlsAgentSource.js';
-import { buildMtlsAgent } from '../../Strategy/Fetch/Mtls/MtlsTransport.js';
+import buildMtlsAgent from '../../Strategy/Fetch/Mtls/MtlsTransport.js';
 import {
   type TlsClientProfileKind,
   warnIfTlsProfileUnsupported,

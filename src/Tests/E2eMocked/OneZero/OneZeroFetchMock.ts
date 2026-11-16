@@ -20,10 +20,10 @@
  * here while failing in production — the blind spot behind issue #576.
  */
 
-import { setMtlsFetchFallback } from '../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
-
-type MtlsFallback = NonNullable<Parameters<typeof setMtlsFetchFallback>[0]>;
 import { INVOKE_NATIVE_FETCH } from '../../../Scrapers/Pipeline/Strategy/Fetch/NativeFetchNetwork.js';
+import type { IMtlsInvokeOptions } from '../../../Scrapers/Pipeline/Types/Domain/MtlsInvokeTypes.js';
+
+type MtlsFallback = NonNullable<IMtlsInvokeOptions['fallback']>;
 import { makeJwtExpiringIn, makeJwtExpiringInWithClaims } from '../../Helpers/Jwt.js';
 
 /** Tally values returned alongside dispose for wiring assertions. */
@@ -40,6 +40,8 @@ export interface IMockCallCounts {
 export interface IMockHandle {
   readonly dispose: () => boolean;
   readonly callCounts: () => IMockCallCounts;
+  /** Per-execution mTLS transport handed to the scraper descriptor. */
+  readonly mtlsFallback: MtlsFallback;
 }
 
 /**
@@ -591,14 +593,12 @@ export function installOneZeroFetchMock(): IMockHandle {
   const tally: ICallTally = { identity: 0, graphql: 0 };
   const mockFetch = makeMockFetch(tally);
   (globalThis as unknown as { fetch: typeof mockFetch }).fetch = mockFetch;
-  setMtlsFetchFallback(VIA_MOCKED_FETCH);
   /**
-   * Restore the original fetch implementation and the mTLS fallback.
+   * Restore the original fetch implementation.
    * @returns True once restoration completes.
    */
   const dispose = (): boolean => {
     globalThis.fetch = previousFetch;
-    setMtlsFetchFallback();
     return true;
   };
   /**
@@ -609,5 +609,5 @@ export function installOneZeroFetchMock(): IMockHandle {
     identity: tally.identity,
     graphql: tally.graphql,
   });
-  return { dispose, callCounts };
+  return { dispose, callCounts, mtlsFallback: VIA_MOCKED_FETCH };
 }

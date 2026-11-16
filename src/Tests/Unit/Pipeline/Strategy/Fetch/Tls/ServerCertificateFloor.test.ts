@@ -9,7 +9,7 @@
 import { X509Certificate } from 'node:crypto';
 import { Agent } from 'node:https';
 
-import { buildMtlsAgent } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
+import buildMtlsAgent from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
 import { isServerChainAboveFloor } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Tls/ServerCertificateFloor.js';
 import { getTlsClientProfile } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Tls/TlsClientProfiles.js';
 import { decodePem } from '../Mtls/MtlsTestServer.js';

@@ -18,24 +18,21 @@ import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js
 import ScraperError from '../../../../../../Scrapers/Base/ScraperError.js';
 import readBodyText from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/BodyText.js';
 import { fixedAgentSource } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsAgentSource.js';
+import makeMtlsInvoke from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsInvoke.js';
 import {
   collectBody,
   toResponse,
 } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsResponse.js';
-import {
-  buildMtlsAgent,
-  makeMtlsInvoke,
-  setMtlsFetchFallback,
-  setMtlsRequestTimeoutMs,
-} from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
+import buildMtlsAgent from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
 import { sendUnderPolicy } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/RedirectFollow.js';
 
 /** Same 8 MiB ceiling the transport enforces. */
 const MTLS_MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
-/** Default per-request timeout. */
-const MTLS_REQUEST_TIMEOUT_MS = 30_000;
 import { checkServerCertificate } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Tls/ServerCertificateFloor.js';
 import type { IResponseReading } from '../../../../../../Scrapers/Pipeline/Types/Domain/FetchPolicy.js';
+import type { IMtlsInvokeOptions } from '../../../../../../Scrapers/Pipeline/Types/Domain/MtlsInvokeTypes.js';
+
+type MtlsFallback = NonNullable<IMtlsInvokeOptions['fallback']>;
 import { isOk, succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import type { IBodyEcho, IGateServer } from './MtlsTestServer.js';
 import {
@@ -112,14 +109,18 @@ describe('MtlsTransport.buildMtlsAgent', () => {
  * @param request.url - Fully-qualified target URL.
  * @param request.init - Native fetch request options.
  * @param request.verb - HTTP verb.
+ * @param options - Per-execution fallback and timeout.
  * @returns The transport Procedure.
  */
-function invoke(request: {
-  agent: Agent;
-  url: string;
-  init: RequestInit;
-  verb: 'GET' | 'POST';
-}): ReturnType<ReturnType<typeof makeMtlsInvoke>> {
+function invoke(
+  request: {
+    agent: Agent;
+    url: string;
+    init: RequestInit;
+    verb: 'GET' | 'POST';
+  },
+  options: IMtlsInvokeOptions = {},
+): ReturnType<ReturnType<typeof makeMtlsInvoke>> {
   /**
    * Pick the agent for this request.
    * @returns The request's agent and no presented-certificate metadata.
@@ -128,7 +129,7 @@ function invoke(request: {
     agent: request.agent,
     presented: false,
   });
-  return makeMtlsInvoke(source)(request.url, request.init, { verb: request.verb });
+  return makeMtlsInvoke(source, options)(request.url, request.init, { verb: request.verb });
 }
 
 describe('MtlsTransport.mtlsInvoke — against the simulated mTLS gate', () => {
@@ -278,7 +279,6 @@ describe('MtlsTransport.makeMtlsInvoke', () => {
   });
   afterEach(() => {
     certAgent.destroy();
-    setMtlsFetchFallback();
   });
 
   it('binds the agent source into a FetchInvoke that reaches the gate (200)', async () => {
@@ -293,14 +293,19 @@ describe('MtlsTransport.makeMtlsInvoke', () => {
 
   it('keeps the caller url and init when the policy argument is a whole run', async () => {
     const seen: { url: string; init: RequestInit }[] = [];
-    setMtlsFetchFallback(request => {
+    /**
+     * Record the request and answer 200.
+     * @param request - The request the transport would send.
+     * @returns The empty answer.
+     */
+    const fallback: MtlsFallback = request => {
       seen.push({ url: request.url, init: request.init });
       const response = new Response(null, { status: 200 });
       const answered = succeed(response);
       return Promise.resolve(answered);
-    });
+    };
     const source = fixedAgentSource(certAgent, false);
-    const invoke = makeMtlsInvoke(source);
+    const invoke = makeMtlsInvoke(source, { fallback });
     const runInit: RequestInit = { method: 'GET', redirect: 'follow' };
     const rejectInit: RequestInit = { ...runInit, redirect: 'manual' };
     const run = { verb: 'GET' as const, url: 'https://run.example/original', init: runInit };
@@ -311,15 +316,20 @@ describe('MtlsTransport.makeMtlsInvoke', () => {
 
   it('preserves manual redirect mode and refuses 3xx under sendUnderPolicy reject', async () => {
     const seenRedirects: (RequestRedirect | undefined)[] = [];
-    setMtlsFetchFallback(request => {
+    /**
+     * Record the redirect mode and answer a 302.
+     * @param request - The request the transport would send.
+     * @returns The redirect answer.
+     */
+    const fallback: MtlsFallback = request => {
       seenRedirects.push(request.init.redirect);
       const headers = new Headers({ location: 'https://evil.example/next' });
       const response = new Response(null, { status: 302, headers });
       const answered = succeed(response);
       return Promise.resolve(answered);
-    });
+    };
     const source = fixedAgentSource(certAgent, false);
-    const invoke = makeMtlsInvoke(source);
+    const invoke = makeMtlsInvoke(source, { fallback });
     const init: RequestInit = { method: 'GET', redirect: 'follow' };
     const result = await sendUnderPolicy({
       url: 'https://run.example/start',
@@ -343,7 +353,6 @@ describe('MtlsTransport.invoke — timeout + premature close', () => {
     server = await startGateServer();
   });
   afterAll(async () => {
-    setMtlsRequestTimeoutMs(MTLS_REQUEST_TIMEOUT_MS);
     await server.close();
   });
   beforeEach(() => {
@@ -352,21 +361,39 @@ describe('MtlsTransport.invoke — timeout + premature close', () => {
   });
   afterEach(() => {
     certAgent.destroy();
-    setMtlsRequestTimeoutMs(MTLS_REQUEST_TIMEOUT_MS);
   });
 
   it('fails with an "mtls error" Procedure when the server never responds (timeout)', async () => {
-    setMtlsRequestTimeoutMs(150);
     const init: RequestInit = { method: 'GET', headers: {} };
-    const result = await invoke({
-      agent: certAgent,
-      url: `${server.baseUrl}hang`,
-      init,
-      verb: 'GET',
-    });
+    const result = await invoke(
+      {
+        agent: certAgent,
+        url: `${server.baseUrl}hang`,
+        init,
+        verb: 'GET',
+      },
+      { timeoutMs: 150 },
+    );
     const didSucceed = isOk(result);
     expect(didSucceed).toBe(false);
     if (!isOk(result)) expect(result.errorMessage).toContain('mtls error');
+  });
+
+  it('keeps concurrent runs on their own timeout budgets', async () => {
+    const init: RequestInit = { method: 'GET', headers: {} };
+    const slow = invoke(
+      { agent: certAgent, url: `${server.baseUrl}hang`, init, verb: 'GET' },
+      { timeoutMs: 150 },
+    );
+    const fast = invoke(
+      { agent: certAgent, url: server.restUrl, init, verb: 'GET' },
+      { timeoutMs: 5_000 },
+    );
+    const [slowResult, fastResult] = await Promise.all([slow, fast]);
+    const didSlowSucceed = isOk(slowResult);
+    const didFastSucceed = isOk(fastResult);
+    expect(didSlowSucceed).toBe(false);
+    expect(didFastSucceed).toBe(true);
   });
 
   it('fails with an "mtls error" Procedure on a premature close mid-body', async () => {

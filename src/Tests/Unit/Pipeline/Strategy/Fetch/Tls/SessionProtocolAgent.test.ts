@@ -8,7 +8,7 @@
 
 import { Agent, type ServerOptions } from 'node:https';
 
-import { buildMtlsAgent } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
+import buildMtlsAgent from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
 import { getTlsClientProfile } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Tls/TlsClientProfiles.js';
 import { MTLS_TEST_CERT_B64, MTLS_TEST_KEY_B64 } from '../Mtls/MtlsTestCertData.js';
 import { decodePem } from '../Mtls/MtlsTestServer.js';
