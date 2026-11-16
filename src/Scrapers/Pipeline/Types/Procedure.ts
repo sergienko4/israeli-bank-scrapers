@@ -6,7 +6,7 @@
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import type { IScraperScrapingResult } from '../../Base/Interface.js';
 import type { IWafErrorDetails } from '../../Base/Interfaces/WafErrorDetails.js';
-import { none, type Option, some } from './Option.js';
+import { none, type Option } from './Option.js';
 
 /** Successful procedure outcome carrying a typed payload. */
 interface IProcedureSuccess<T> {
@@ -43,37 +43,6 @@ function succeed<T>(value: T): IProcedureSuccess<T> {
  */
 function fail(errorType: ScraperErrorTypes, errorMessage: string): IProcedureFailure {
   return { success: false, errorType, errorMessage, errorDetails: none() };
-}
-
-/**
- * Assemble a failure result around a prepared details option.
- * @param errorType - The categorized error type.
- * @param errorMessage - Human-readable error description.
- * @param errorDetails - The attached details option.
- * @returns A failure Procedure.
- */
-function failureOf(
-  errorType: ScraperErrorTypes,
-  errorMessage: string,
-  errorDetails: Option<IWafErrorDetails>,
-): IProcedureFailure {
-  return { success: false, errorType, errorMessage, errorDetails };
-}
-
-/**
- * Create a failure result with WAF error details.
- * @param errorType - The categorized error type.
- * @param errorMessage - Human-readable error description.
- * @param details - WAF-specific error details.
- * @returns A failure Procedure with error details.
- */
-function failWithDetails(
-  errorType: ScraperErrorTypes,
-  errorMessage: string,
-  details: IWafErrorDetails,
-): IProcedureFailure {
-  const errorDetails = some(details);
-  return failureOf(errorType, errorMessage, errorDetails);
 }
 
 /**
@@ -127,20 +96,6 @@ function preferTerminalFailure<T, TRepair>(
 }
 
 /**
- * Convert legacy IScraperScrapingResult to Procedure.
- * @param result - Legacy result from existing scrapers.
- * @returns A typed Procedure.
- */
-function fromLegacy(result: IScraperScrapingResult): Procedure<IScraperScrapingResult> {
-  if (result.success) return succeed(result);
-  const errorType = result.errorType ?? ScraperErrorTypes.Generic;
-  const errorMessage = result.errorMessage ?? 'Unknown error';
-  const details = result.errorDetails;
-  if (details) return failWithDetails(errorType, errorMessage, details);
-  return fail(errorType, errorMessage);
-}
-
-/**
  * The error fields every legacy failure carries.
  * @param proc - The internal failure result.
  * @returns A legacy failure without error details.
@@ -166,14 +121,4 @@ function toLegacy<T>(proc: Procedure<T>): IScraperScrapingResult {
 }
 
 export type { IProcedureFailure, IProcedureSuccess, Procedure };
-export {
-  fail,
-  failWithDetails,
-  fromLegacy,
-  isOk,
-  isTerminalFailure,
-  isWafBlocked,
-  preferTerminalFailure,
-  succeed,
-  toLegacy,
-};
+export { fail, isOk, isTerminalFailure, isWafBlocked, preferTerminalFailure, succeed, toLegacy };

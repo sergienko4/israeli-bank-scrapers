@@ -4,7 +4,6 @@
  * the type. Any other status, a request that got no reply, a body quoting a
  * mapped status and a WAF block keep the transport's type.
  */
-
 import { CompanyTypes } from '../../../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js';
 import type { IWafErrorDetails } from '../../../../../../Scrapers/Base/Interfaces/WafErrorDetails.js';
@@ -16,7 +15,8 @@ import { runStep } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectC
 import type { ITemplateScope } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/RefResolver.js';
 import { registerWkUrl } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import type { Procedure } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
-import { fail, failWithDetails } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { fail } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import failureWithDetails from '../../../../../Helpers/FailureWithDetails.js';
 import { makeStubMediator } from './StubMediator.js';
 
 const HINT = CompanyTypes.OneZero;
@@ -147,7 +147,7 @@ describe('httpFailureMap', () => {
 
   it('leaves a WAF block on a mapped status as it is', async (): Promise<void> => {
     const message = `POST ${BIND_URL} 403: blocked by Cloudflare edge (WAF) before reaching the API`;
-    const refused = failWithDetails(ScraperErrorTypes.WafBlocked, message, WAF_DETAILS);
+    const refused = failureWithDetails(ScraperErrorTypes.WafBlocked, message, WAF_DETAILS);
     const result = await runFailing(MAPPED, refused);
     expect(result).toEqual(refused);
   });

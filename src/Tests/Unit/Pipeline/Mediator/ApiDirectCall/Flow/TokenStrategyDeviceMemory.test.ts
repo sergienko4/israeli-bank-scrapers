@@ -4,9 +4,9 @@
  * stored id into carry before the same flow and publishes nothing. A state
  * bound to another provider or account fails before any request.
  */
-
 import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js';
 import type { IApiDirectCallConfig } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
+import failureWithDetails from '../../../../../Helpers/FailureWithDetails.js';
 type IDeviceMemoryAuthConfig = Extract<
   NonNullable<IApiDirectCallConfig['persistentAuth']>,
   { kind: 'device-memory' }
@@ -18,7 +18,7 @@ import {
 import type { PersistentAuthMode } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/TokenStrategyFromConfig.js';
 import { none } from '../../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { Procedure } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
-import { failWithDetails, succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import {
   type IStateRecorder,
   makeDurableStrategy,
@@ -190,7 +190,7 @@ describe('device-memory resume', () => {
     const mode = modeOf({ response: {}, stored }, recorder);
     const strategy = makeDurableStrategy(CONFIG, mode);
     const errorType = ScraperErrorTypes.WafBlocked;
-    const failure = failWithDetails(errorType, `bank rejected ${STORED_DID}`, {
+    const failure = failureWithDetails(errorType, `bank rejected ${STORED_DID}`, {
       provider: 'cloudflare',
       httpStatus: 403,
       pageTitle: STORED_DID,
