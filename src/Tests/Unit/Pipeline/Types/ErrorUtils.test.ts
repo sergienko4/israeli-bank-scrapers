@@ -186,7 +186,7 @@ describe('toError — never-throws contract', () => {
 
   it('recognizes a foreign-realm Error with isErrorLike', () => {
     const error = foreignRealmError('cross-realm');
-    expect(error instanceof Error).toBe(false);
+    expect(error).not.toBeInstanceOf(Error);
     const isError = isErrorLike(error);
     expect(isError).toBe(true);
   });
