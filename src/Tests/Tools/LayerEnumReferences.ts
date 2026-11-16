@@ -126,9 +126,28 @@ function unwrapExpression(expression: ts.Expression): ts.Expression {
  * @returns True when a parameter or local declaration shadows the import.
  */
 function isShadowed(identifier: ts.Identifier): boolean {
+  return hasEnclosingBinding(identifier, 'value');
+}
+
+/**
+ * Whether a type-position identifier is shadowed by a type binding.
+ * @param identifier - Identifier being resolved.
+ * @returns True when a type parameter or type declaration shadows the import.
+ */
+function isTypeShadowed(identifier: ts.Identifier): boolean {
+  return hasEnclosingBinding(identifier, 'type');
+}
+
+/**
+ * Walk enclosing scopes for a binding in one namespace.
+ * @param identifier - Identifier being resolved.
+ * @param kind - Value or type namespace.
+ * @returns True when an enclosing scope binds the name.
+ */
+function hasEnclosingBinding(identifier: ts.Identifier, kind: 'value' | 'type'): boolean {
   let scope = identifier.parent;
   for (;;) {
-    if (scopeHasBinding(scope, identifier.text)) return true;
+    if (scopeHasBinding(scope, identifier.text, kind)) return true;
     if (ts.isSourceFile(scope)) return false;
     scope = scope.parent;
   }
@@ -138,19 +157,79 @@ function isShadowed(identifier: ts.Identifier): boolean {
  * Whether a scope directly declares the name.
  * @param scope - Candidate lexical scope.
  * @param name - Identifier text.
+ * @param kind - Value or type namespace.
  * @returns True when the scope binds the name.
  */
-function scopeHasBinding(scope: ts.Node, name: string): boolean {
-  if (ts.isFunctionLike(scope)) {
-    return parametersHaveName(scope.parameters, name) || typeParametersHaveName(scope, name);
-  }
-  if (ts.isCatchClause(scope)) {
-    const declaration = scope.variableDeclaration;
-    return declaration !== undefined && bindingHasName(declaration.name, name);
-  }
-  if (isTypeDeclaration(scope)) return typeParametersHaveName(scope, name);
-  const isStatementScope = ts.isBlock(scope) || ts.isSourceFile(scope) || ts.isModuleBlock(scope);
-  return isStatementScope && statementsHaveName(scope.statements, name);
+function scopeHasBinding(scope: ts.Node, name: string, kind: 'value' | 'type'): boolean {
+  if (ts.isFunctionLike(scope)) return functionLikeHasBinding(scope, name, kind);
+  if (ts.isCatchClause(scope)) return kind === 'value' && catchHasBinding(scope, name);
+  if (isTypeDeclaration(scope)) return kind === 'type' && typeParametersHaveName(scope, name);
+  if (isForStatement(scope)) return kind === 'value' && forBindingHasName(scope, name);
+  return isStatementScope(scope) && statementsHaveName(scope.statements, name, kind);
+}
+
+/**
+ * Value/type bindings a function-like scope introduces.
+ * @param scope - Function-like declaration.
+ * @param name - Identifier text.
+ * @param kind - Value or type namespace.
+ * @returns True when the scope binds the name in that namespace.
+ */
+function functionLikeHasBinding(
+  scope: ts.SignatureDeclaration,
+  name: string,
+  kind: 'value' | 'type',
+): boolean {
+  if (parametersHaveName(scope.parameters, name)) return true;
+  return kind === 'type' && typeParametersHaveName(scope, name);
+}
+
+/**
+ * Whether a catch clause binds the name.
+ * @param scope - Catch clause.
+ * @param name - Identifier text.
+ * @returns True when the catch binding uses the name.
+ */
+function catchHasBinding(scope: ts.CatchClause, name: string): boolean {
+  const declaration = scope.variableDeclaration;
+  return declaration !== undefined && bindingHasName(declaration.name, name);
+}
+
+/**
+ * Whether a scope is a block-like statement container.
+ * @param scope - Candidate scope.
+ * @returns True for a block, source file or module block.
+ */
+function isStatementScope(scope: ts.Node): scope is ts.Block | ts.SourceFile | ts.ModuleBlock {
+  return ts.isBlock(scope) || ts.isSourceFile(scope) || ts.isModuleBlock(scope);
+}
+
+/**
+ * Whether a node is a for statement.
+ * @param node - Candidate node.
+ * @returns True for `for`, `for...of` and `for...in`.
+ */
+function isForStatement(
+  node: ts.Node,
+): node is ts.ForStatement | ts.ForOfStatement | ts.ForInStatement {
+  return ts.isForStatement(node) || ts.isForOfStatement(node) || ts.isForInStatement(node);
+}
+
+/**
+ * Whether a for-loop's declaration binds the name.
+ * @param node - For statement.
+ * @param name - Identifier text.
+ * @returns True when the loop declares the name.
+ */
+function forBindingHasName(
+  node: ts.ForStatement | ts.ForOfStatement | ts.ForInStatement,
+  name: string,
+): boolean {
+  const initializer = node.initializer;
+  if (initializer === undefined || !ts.isVariableDeclarationList(initializer)) return false;
+  return initializer.declarations.some((declaration): boolean =>
+    bindingHasName(declaration.name, name),
+  );
 }
 
 /**
@@ -192,31 +271,72 @@ function parametersHaveName(parameters: readonly ts.ParameterDeclaration[], name
  * Whether any direct statement binds the name.
  * @param statements - Statements of one scope.
  * @param name - Identifier text.
+ * @param kind - Value or type namespace.
  * @returns True when a statement declares the name.
  */
-function statementsHaveName(statements: readonly ts.Statement[], name: string): boolean {
-  return statements.some((statement): boolean => statementHasName(statement, name));
+function statementsHaveName(
+  statements: readonly ts.Statement[],
+  name: string,
+  kind: 'value' | 'type',
+): boolean {
+  return statements.some((statement): boolean => statementHasName(statement, name, kind));
 }
 
 /**
  * Whether one direct statement declares the name.
  * @param statement - Candidate statement.
  * @param name - Identifier text.
+ * @param kind - Value or type namespace.
  * @returns True for a matching variable, function, class, enum or import-equals.
  */
-function statementHasName(statement: ts.Statement, name: string): boolean {
+function statementHasName(statement: ts.Statement, name: string, kind: 'value' | 'type'): boolean {
   if (ts.isVariableStatement(statement)) {
-    const declarations = statement.declarationList.declarations;
-    return declarations.some((declaration): boolean => bindingHasName(declaration.name, name));
+    return kind === 'value' && variableStatementHasName(statement, name);
   }
-  if (ts.isImportEqualsDeclaration(statement)) return statement.name.text === name;
-  const hasDeclarationName =
-    ts.isFunctionDeclaration(statement) ||
-    ts.isClassDeclaration(statement) ||
-    ts.isEnumDeclaration(statement) ||
-    ts.isTypeAliasDeclaration(statement) ||
-    ts.isInterfaceDeclaration(statement);
-  return hasDeclarationName && statement.name?.text === name;
+  if (ts.isImportEqualsDeclaration(statement))
+    return kind === 'value' && statement.name.text === name;
+  if (ts.isFunctionDeclaration(statement)) return kind === 'value' && statement.name?.text === name;
+  if (isClassOrEnum(statement)) return statement.name?.text === name;
+  return typeDeclarationHasName(statement, name, kind);
+}
+
+/**
+ * Whether a statement declares a class or enum.
+ * @param statement - Candidate statement.
+ * @returns True for a class or enum declaration.
+ */
+function isClassOrEnum(
+  statement: ts.Statement,
+): statement is ts.ClassDeclaration | ts.EnumDeclaration {
+  return ts.isClassDeclaration(statement) || ts.isEnumDeclaration(statement);
+}
+
+/**
+ * Whether a variable statement binds the name.
+ * @param statement - Variable statement.
+ * @param name - Identifier text.
+ * @returns True when a declaration binds the name.
+ */
+function variableStatementHasName(statement: ts.VariableStatement, name: string): boolean {
+  return statement.declarationList.declarations.some((declaration): boolean =>
+    bindingHasName(declaration.name, name),
+  );
+}
+
+/**
+ * Whether a type-only declaration binds the name.
+ * @param statement - Candidate statement.
+ * @param name - Identifier text.
+ * @param kind - Value or type namespace.
+ * @returns True for a matching type alias or interface in a type context.
+ */
+function typeDeclarationHasName(
+  statement: ts.Statement,
+  name: string,
+  kind: 'value' | 'type',
+): boolean {
+  const isTypeOnly = ts.isTypeAliasDeclaration(statement) || ts.isInterfaceDeclaration(statement);
+  return kind === 'type' && isTypeOnly && statement.name.text === name;
 }
 
 /**
@@ -293,6 +413,9 @@ function collectAccessMember(
     const argument = node.argumentExpression;
     const member = literalTextOf(argument);
     if (BANK_MEMBERS.has(member) && isEnumBase(node.expression, bindings)) members.add(member);
+    if (member === '' && isEnumBase(node.expression, bindings)) {
+      members.add(`dynamic:${argument.getText()}`);
+    }
   }
   return members;
 }
@@ -351,9 +474,7 @@ function isImportTypeEnumQualifier(node: ts.QualifiedName): boolean {
   const parent = node.parent;
   if (!ts.isImportTypeNode(parent) || parent.qualifier !== node) return false;
   if (!ts.isIdentifier(node.left) || node.left.text !== 'CompanyTypes') return false;
-  const argument = parent.argument;
-  const modulePath = ts.isLiteralTypeNode(argument) ? literalTextOf(argument.literal) : '';
-  return modulePath.includes('Definitions');
+  return true;
 }
 
 /**
@@ -462,9 +583,7 @@ function isEnumImportType(node: ts.ImportTypeNode): boolean {
   if (qualifier === undefined || !ts.isIdentifier(qualifier) || qualifier.text !== 'CompanyTypes') {
     return false;
   }
-  const argument = node.argument;
-  const modulePath = ts.isLiteralTypeNode(argument) ? literalTextOf(argument.literal) : '';
-  return modulePath.includes('Definitions');
+  return true;
 }
 
 /**
@@ -474,9 +593,9 @@ function isEnumImportType(node: ts.ImportTypeNode): boolean {
  * @returns True for `CompanyTypes` or `defs.CompanyTypes`.
  */
 function isEnumTypeName(name: ts.EntityName, bindings: IEnumBindings): boolean {
-  if (ts.isIdentifier(name)) return bindings.direct.has(name.text) && !isShadowed(name);
+  if (ts.isIdentifier(name)) return bindings.direct.has(name.text) && !isTypeShadowed(name);
   const isNamespaceEnum = name.right.text === 'CompanyTypes' && ts.isIdentifier(name.left);
-  return isNamespaceEnum && bindings.namespaces.has(name.left.text) && !isShadowed(name.left);
+  return isNamespaceEnum && bindings.namespaces.has(name.left.text) && !isTypeShadowed(name.left);
 }
 
 /**
@@ -607,7 +726,8 @@ function stringTextOf(node: ts.Node): string {
  */
 function importArgumentText(node: ts.CallExpression): string {
   const argument = node.arguments[0];
-  return literalTextOf(argument);
+  const text = literalTextOf(argument);
+  return text === '' ? '<dynamic>' : text;
 }
 
 /**

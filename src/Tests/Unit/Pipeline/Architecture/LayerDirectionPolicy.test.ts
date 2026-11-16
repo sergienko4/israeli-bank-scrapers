@@ -136,11 +136,15 @@ function collectLayerViolations(files: readonly string[]): readonly string[] {
 function collectFileViolations(file: string, violations: Set<string>): ReadonlySet<string> {
   const from = layerOf(file);
   if (from === false) return violations;
+  const importer = posixRelative(file);
   for (const spec of importSpecifiers(file)) {
+    if (spec === '<dynamic>') {
+      violations.add(`${importer} -> dynamic-import`);
+      continue;
+    }
     const target = resolveImport(file, spec);
     const to = layerOf(target);
     if (to === false || to === from || isAllowed(from, to)) continue;
-    const importer = posixRelative(file);
     const targetModule = posixRelative(target);
     violations.add(`${importer} -> ${targetModule}`);
   }
@@ -337,6 +341,8 @@ describe('Pipeline layer-direction policy', () => {
       "const { ['Leumi']: dupe } = CT;",
       "type J = import('../../Definitions.js').CompanyTypes.Amex;",
       "type N = typeof import('../../Definitions.js').CompanyTypes['Mizrahi'];",
+      "const key = 'Leumi';",
+      'const dynamicKey = CT[key];',
     ].join('\n');
     const members = enumMembersOf(source);
     expect(members).toStrictEqual([
@@ -349,6 +355,7 @@ describe('Pipeline layer-direction policy', () => {
       'Pepper',
       'Yahav',
       'alias:banks',
+      'dynamic:key',
     ]);
   });
 
@@ -362,6 +369,11 @@ describe('Pipeline layer-direction policy', () => {
       "function j(defs: { 'CompanyTypes': { Leumi: string } }) {",
       "  return defs['CompanyTypes'].Leumi;",
       '}',
+      'function loop(localBanks: Array<{ Leumi: string }>) {',
+      '  for (const CT of localBanks) { return CT.Leumi; }',
+      '}',
+      "enum CT { Leumi = 'local' }",
+      'type Local = CT.Leumi;',
     ].join('\n');
     const shadowFound = enumMembersOf(shadowSource);
     expect(shadowFound).toStrictEqual([]);
@@ -401,6 +413,15 @@ describe('Pipeline layer-direction policy', () => {
     ].join('\n');
     const members = enumMembersOf(source);
     expect(members).toStrictEqual([]);
+  });
+
+  it('keeps a value enum reachable when only a type parameter shadows it', () => {
+    const source = [
+      "import { CompanyTypes as CT } from 'probe';",
+      'function f<CT>(x: CT) { return [x, CT.Leumi]; }',
+    ].join('\n');
+    const members = enumMembersOf(source);
+    expect(members).toStrictEqual(['Leumi']);
   });
 
   it('does not record an alias shadowed by a parameter (negative control)', () => {
