@@ -255,9 +255,9 @@ function hasTokenAtBoundary(segment: string, token: string): boolean {
 function isStartBoundary(segment: string, at: number): boolean {
   const before = at === 0 ? '' : segment[at - 1];
   const first = segment[at] ?? '';
-  const second = segment[at + 1] ?? '';
   const isLowerToPascal = /[a-z0-9]/u.test(before) && /[A-Z]/u.test(first);
-  const isAcronymToPascal = /[A-Z]/u.test(before) && /[A-Z]/u.test(first) && /[a-z]/u.test(second);
+  const isAcronymToPascal =
+    /[A-Z]/u.test(before) && /[A-Z]/u.test(first) && /[a-z]/u.test(segment[at + 1] ?? '');
   return before === '' || /[^A-Za-z0-9]/u.test(before) || isLowerToPascal || isAcronymToPascal;
 }
 
@@ -368,16 +368,40 @@ function collectDirectBindings(
  * @returns True when the expression names `CompanyTypes`.
  */
 function isEnumBase(expression: ts.Expression, bindings: IEnumBindings): boolean {
-  if (ts.isIdentifier(expression)) {
-    const isDirect = bindings.direct.has(expression.text);
-    return isDirect && !isShadowed(expression);
+  const base = unwrapExpression(expression);
+  if (ts.isIdentifier(base)) {
+    const isDirect = bindings.direct.has(base.text);
+    return isDirect && !isShadowed(base);
+  }
+  if (ts.isElementAccessExpression(base)) {
+    const key = literalTextOf(base.argumentExpression);
+    const isNamespaceKey = key === 'CompanyTypes' && ts.isIdentifier(base.expression);
+    return isNamespaceKey && bindings.namespaces.has(base.expression.text);
   }
   const isNamespaceEnum =
-    ts.isPropertyAccessExpression(expression) &&
-    expression.name.text === 'CompanyTypes' &&
-    ts.isIdentifier(expression.expression);
-  const isNamespace = isNamespaceEnum && bindings.namespaces.has(expression.expression.text);
-  return isNamespace && !isShadowed(expression.expression);
+    ts.isPropertyAccessExpression(base) &&
+    base.name.text === 'CompanyTypes' &&
+    ts.isIdentifier(base.expression);
+  const isNamespace = isNamespaceEnum && bindings.namespaces.has(base.expression.text);
+  return isNamespace && !isShadowed(base.expression);
+}
+
+/**
+ * Remove parentheses, assertions and non-null wrappers.
+ * @param expression - Candidate expression.
+ * @returns The innermost expression.
+ */
+function unwrapExpression(expression: ts.Expression): ts.Expression {
+  let current = expression;
+  while (
+    ts.isParenthesizedExpression(current) ||
+    ts.isAsExpression(current) ||
+    ts.isTypeAssertionExpression(current) ||
+    ts.isNonNullExpression(current)
+  ) {
+    current = current.expression;
+  }
+  return current;
 }
 
 /**
@@ -477,11 +501,21 @@ function collectBindingMembers(
   members: Set<string>,
 ): ReadonlySet<string> {
   for (const element of pattern.elements) {
-    const named = element.propertyName ?? element.name;
-    const isNamed = ts.isIdentifier(named) || ts.isStringLiteral(named);
-    if (isNamed && BANK_MEMBERS.has(named.text)) members.add(named.text);
+    const member = bindingNameOf(element.propertyName ?? element.name);
+    if (BANK_MEMBERS.has(member)) members.add(member);
   }
   return members;
+}
+
+/**
+ * Read a statically known property name from a binding key.
+ * @param node - Identifier, string literal or computed literal.
+ * @returns The property text, or '' when it is not statically known.
+ */
+function bindingNameOf(node: ts.Node): string {
+  if (ts.isIdentifier(node) || ts.isStringLiteral(node)) return node.text;
+  if (ts.isComputedPropertyName(node)) return literalTextOf(node.expression);
+  return '';
 }
 
 /**
@@ -613,14 +647,12 @@ function collectNamespaceAlias(
   members: Set<string>,
 ): ReadonlySet<string> {
   if (!isNamespaceDestructure(node, bindings)) return members;
-  const pattern = node.name as ts.ObjectBindingPattern;
-  for (const element of pattern.elements) {
+  for (const element of (node.name as ts.ObjectBindingPattern).elements) {
     const alias = namespaceAliasOf(element);
     if (alias !== '') members.add(alias);
   }
   return members;
 }
-
 /**
  * Whether a declaration destructures an imported namespace.
  * @param node - Variable declaration.
@@ -632,7 +664,6 @@ function isNamespaceDestructure(node: ts.VariableDeclaration, bindings: IEnumBin
   if (!ts.isIdentifier(node.initializer)) return false;
   return bindings.namespaces.has(node.initializer.text);
 }
-
 /**
  * Read the alias produced by one namespace binding element.
  * @param element - Object binding element.
@@ -644,7 +675,6 @@ function namespaceAliasOf(element: ts.BindingElement): string {
     (ts.isIdentifier(property) || ts.isStringLiteral(property)) && property.text === 'CompanyTypes';
   return isCompanyProperty && ts.isIdentifier(element.name) ? `alias:${element.name.text}` : '';
 }
-
 /**
  * Collect an indexed enum type such as `typeof CompanyTypes['Leumi']`.
  * @param node - Current node.
@@ -762,11 +792,8 @@ const BASELINE = readBaseline();
 const BANK_TOKENS = [...Object.keys(CompanyTypes), ...FAMILY_TOKENS];
 
 describe('Pipeline layer-direction policy', () => {
-  it('actually scans the production tree (guards against a vacuous pass)', () => {
+  it('actually scans the production tree and pins the policy layers', () => {
     expect(FILES.length).toBeGreaterThan(100);
-  });
-
-  it('pins the policy layer list to the scanner layers', () => {
     expect(POLICY.layers).toStrictEqual([...LAYERS]);
   });
 
@@ -828,6 +855,7 @@ describe('Pipeline layer-direction policy', () => {
       'const c = banks.Yahav;',
       "type I = typeof CT['Yahav'];",
       'const e = CT[`Pepper`];',
+      "const { ['Leumi']: dupe } = CT;",
       "type J = import('../../Definitions.js').CompanyTypes.Amex;",
     ].join('\n');
     const sourceFile = ts.createSourceFile('probe.ts', source, ts.ScriptTarget.Latest, true);
@@ -862,8 +890,11 @@ describe('Pipeline layer-direction policy', () => {
 
     const aliasSource = [
       "import * as defs from 'probe';",
-      'const { CompanyTypes: banks } = defs;',
+      "const { CompanyTypes: banks, 'CompanyTypes': banks2 } = defs;",
       'const value = banks.Leumi;',
+      "const value2 = defs['CompanyTypes'].Leumi;",
+      'const wrapped = (banks2 as typeof banks2);',
+      'const value3 = wrapped.Pepper;',
       "type K = typeof defs.CompanyTypes['Mercantile'];",
     ].join('\n');
     const aliasFile = ts.createSourceFile('probe.ts', aliasSource, ts.ScriptTarget.Latest, true);
@@ -871,7 +902,7 @@ describe('Pipeline layer-direction policy', () => {
     const aliasBindings = enumBindings(aliasFile);
     collectEnumMembers(aliasFile, aliasBindings, aliasMembers);
     const aliasFound = [...aliasMembers].sort();
-    expect(aliasFound).toStrictEqual(['Mercantile', 'alias:banks']);
+    expect(aliasFound).toStrictEqual(['Leumi', 'Mercantile', 'alias:banks', 'alias:banks2']);
   });
 
   it('does not record an alias shadowed by a parameter (negative control)', () => {
