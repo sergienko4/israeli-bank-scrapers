@@ -25,8 +25,6 @@
     "src/Scrapers/Pipeline/Mediator/Timing/TimingActions.ts#sleep",
     "src/Scrapers/Pipeline/Mediator/Timing/TimingActions.ts#timeoutPromise",
     "src/Scrapers/Pipeline/Registry/Config/PipelineBankConfig.ts#PIPELINE_BANK_CONFIG",
-    "src/Scrapers/Pipeline/Registry/Config/PipelineBankConfigPayBoxCrypto.ts#PIN_SUFFIX",
-    "src/Scrapers/Pipeline/Registry/Config/PipelineBankConfigPayBoxCrypto.ts#SIGN_KEY",
     "src/Scrapers/Pipeline/Registry/WK/QueriesWK.ts#resetWkRegistryForTest",
     "src/Scrapers/Pipeline/Registry/WK/UrlsWK.ts#resetWkRegistryForTest",
     "src/Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.ts#setMtlsFetchFallback",
