@@ -40,7 +40,7 @@ const WINDOW_RULE_MARKER = 'detaches it from the scrape window';
 const CASES = {
   'shared FIBI transactions factory': path.join(FIBI_GROUP, 'FibiGroupShapeTxns.ts'),
   'shared card-issuer cursor policy': path.join(CARD_ISSUER, 'CardIssuerShapeTxns.ts'),
-  'per-bank transactions shape': path.join(BANKS, 'Massad', 'scrape', 'MassadShapeTxns.ts'),
+  'per-bank transactions shape': path.join(BANKS, 'Leumi', 'scrape', 'LeumiShapeTxns.ts'),
   'OneZero (documented exclusion)': path.join(BANKS, 'OneZero', 'scrape', 'OneZeroShapeTxns.ts'),
   'Mizrahi (documented exclusion)': path.join(BANKS, 'Mizrahi', 'scrape', 'MizrahiShapeTxns.ts'),
   'non-transactions module beside the factory': path.join(FIBI_GROUP, 'FibiGroupShape.ts'),

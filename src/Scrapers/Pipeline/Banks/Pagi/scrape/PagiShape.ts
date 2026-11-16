@@ -1,38 +1,23 @@
 /**
- * Pagi (FIBI group) scrape shape — the `IApiDirectScrapeShape` data
- * declaration consumed by the generic API-direct scrape driver via
- * `withApiDirect`. balanceKind=account.
+ * Pagi (FIBI group) scrape shape — the family factory bound to the brand's
+ * own registry record. The origin comes from the same `IFibiBrand` the login
+ * config uses, so the scrape and the authenticated session can never point at
+ * different hosts.
  *
- * Account identity spans two cookie-authed GETs: `userData` (customer) for the
- * account number + branch, and a session-level `accountType` lookup
- * (customer.secondaryUrlTag) for the numeric type that the balance path segment
- * and the transactions body both need. Balance is a GET; transactions a single
- * full-window POST. The family wiring — envelope, identity merge, extractors —
- * comes from the neutral FibiGroup factory; this module supplies what is the
- * brand’s own: its origin-bound URLs, its step name, and its
+ * Account identity spans two cookie-authed GETs (`userData` plus the
+ * session-level `accountType` lookup); balance is a GET and transactions a
+ * single full-window POST. The family factory owns the envelope, identity
+ * merge and extractors; this file supplies the brand record, step name and
  * coverage-backfill stance.
- *
- * The stance stays declared here, not inherited, so the WINDOW-CANARY gate
- * keeps seeing a conscious per-bank decision.
- *
- * Contract shared with Beinleumi (same FIBI Mataf portal), assembled by the
- * neutral FibiGroup factory. Grounded in the captured trace
- * (C:\tmp\runs\pipeline\beinleumi\04-07-2026_11221970).
  */
-
 import makeFibiGroupShape from '../../../Phases/ApiDirectScrape/FibiGroup/FibiGroupShape.js';
-import { customerUrl, secondaryUrl } from './PagiShapeAccounts.js';
-import { balanceUrl } from './PagiShapeHelpers.js';
-import { txnsUrl } from './PagiShapeTxns.js';
+import { PAGI_BRAND } from '../../../Registry/Config/PipelineBankConfigPagi.js';
 
 /** Pagi hard-model shape — passed to `.withApiDirect(...)`. */
 const PAGI_SHAPE = makeFibiGroupShape({
+  brand: PAGI_BRAND,
   stepName: 'PagiScrape',
   windowNarrowing: 'windowEnd',
-  customerUrl,
-  secondaryUrl,
-  balanceUrl,
-  txnsUrl,
 });
 
 export default PAGI_SHAPE;

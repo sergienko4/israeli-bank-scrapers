@@ -31,10 +31,11 @@ is called only when the bank asks for a code.
 
 Beinleumi logs in through the same HTTP calls its web client makes, with no
 browser and no portal page read. Every call runs on the bank's online origin.
-`BEINLEUMI_API_DIRECT_CALL` and `BEINLEUMI_TRANSPORT`
-(`Registry/Config/PipelineBankConfigBeinleumi.ts`) are the FIBI-family login
-built for one `IFibiBrand` record: the origin, the servlet's `bankId`, the
-Transmit app id, the bank number and the device-memory provider.
+`BEINLEUMI_API_DIRECT_CALL`, `BEINLEUMI_TRANSPORT` and the `BEINLEUMI_BRAND`
+record (`Registry/Config/PipelineBankConfigBeinleumi.ts`) are the FIBI-family
+login built for one `IFibiBrand`: the origin, the servlet's `bankId`, the
+Transmit app id, the bank number and the device-memory provider. The scrape
+shape binds the same brand record, so login and scrape share one origin.
 `buildFibiApiDirectCall` and `buildFibiTransport`
 (`Registry/Config/PipelineBankConfigFibiFamily.ts`) build both from the brand,
 so a sibling bank of the family differs by its brand alone.
