@@ -18,12 +18,15 @@ launcher, DOM login configuration or navigation phase.
 4. Add the account, balance and transaction shape under
    `src/Scrapers/Pipeline/Banks/<Name>/`. Reuse shared extraction,
    pagination, cookie-session and bank-calendar helpers.
-5. Assemble the descriptor with `withOptions` and
-   `withApiDirect(loginConfig, shape)`. See
-   [LeumiPipeline.ts](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Leumi/LeumiPipeline.ts)
-   for the actual builder contract.
-6. Register the factory in `Banks/PipelineRegistryAmexToMax.ts` or
-   `Banks/PipelineRegistryMercantileToVisaCal.ts`. Core remains bank-agnostic.
+5. Add a `{ config, shape }` entry to the matching
+   `Banks/BankPipelineTable<A-D>.ts` shard. The generic
+   [`PipelineTableBuilder.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/PipelineTableBuilder.ts)
+   turns it into the registry factory with `withOptions` and
+   `withApiDirect(loginConfig, shape)`. `IBankPipelineEntry` is the entry
+   type, `bankEntry` pairs the config and shape, and `pipelineFactoryOf`
+   turns one entry into the factory the registry exposes.
+6. The registry derives from the table; no separate factory registration is
+   needed. Core remains bank-agnostic.
 7. Declare additional authentication hosts in
    `Registry/Config/PipelineBankHosts.ts` when needed by CI's DNS preflight.
    List only hosts the bank actually uses.

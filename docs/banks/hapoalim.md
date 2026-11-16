@@ -7,7 +7,7 @@
 | Credentials    | `userCode`, `password`, plus an `otpCodeRetriever` callback; optional `otpLongTermToken` ([warm start](#warm-start)) and `deviceSignature` (a per-user override; the library derives one when omitted) |
 | OTP            | **Conditional**: an SMS code, only when the bank asks for one                                                                                                                                          |
 | Phase chain    | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md)                                                                                                  |
-| Source         | [`Banks/Hapoalim/HapoalimPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Hapoalim/HapoalimPipeline.ts)                                   |
+| Source         | [`Banks/BankPipelineTableA.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/BankPipelineTableA.ts)                                   |
 
 ## Quick example
 

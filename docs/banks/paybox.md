@@ -9,7 +9,7 @@
 | OTP            | Required (cached long-term token supported)                                                                                                                  |
 | Phase chain    | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md)                                                        |
 | Phone format   | `international-dash` (`972-000000000`)                                                                                                                       |
-| Source         | [`Banks/PayBox/PayBoxPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/PayBox/PayBoxPipeline.ts) |
+| Source         | [`Banks/BankPipelineTableD.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/BankPipelineTableD.ts) |
 
 ## Quick example
 

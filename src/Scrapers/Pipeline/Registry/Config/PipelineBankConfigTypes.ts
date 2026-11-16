@@ -13,41 +13,7 @@ import type {
   RedirectPolicy,
   StatusPolicy,
 } from '../../Types/Domain/FetchPolicy.js';
-
-/** Generic auth-path keys — per-bank subsets plug into `paths` below. */
-type AuthPathKey =
-  | 'identity.deviceToken'
-  | 'identity.otpPrepare'
-  | 'identity.otpVerify'
-  | 'identity.getIdToken'
-  | 'identity.sessionToken'
-  | 'identity.phoneValidate'
-  | 'identity.pinValidation'
-  | 'identity.loginBySms'
-  | 'auth.bind'
-  | 'auth.login'
-  | 'auth.assert'
-  | 'auth.logout'
-  | 'auth.prime'
-  | 'auth.resume'
-  | 'auth.service'
-  | 'auth.bootstrap'
-  | 'auth.landing'
-  | 'auth.logon'
-  | 'auth.encryptionKey'
-  | 'auth.identify'
-  | 'auth.verify'
-  | 'auth.otpInit'
-  | 'auth.otpVerify'
-  | 'auth.step1'
-  | 'auth.arcotid'
-  | 'auth.stepupInit'
-  | 'auth.stepupVerify'
-  | 'auth.arcotidAfter'
-  | 'data.sync'
-  | 'data.getKey'
-  | 'data.getUserHistory'
-  | 'data.virtualCardTranRequest';
+import type { WKUrlGroup } from '../../Types/Domain/WKUrl.js';
 
 /**
  * Per-bank wire format for the caller's `phoneNumber` credential.
@@ -66,8 +32,8 @@ type PhoneNumberFormatTag =
 export interface ITransportConfig {
   readonly identityBase: string;
   readonly graphql: string;
-  /** Per-bank auth-path map — only the keys the bank actually uses. */
-  readonly paths: Readonly<Partial<Record<AuthPathKey, string>>>;
+  /** Per-bank auth-path map — open `WKUrlGroup` keys the bank actually uses. */
+  readonly paths: Readonly<Partial<Record<WKUrlGroup, string>>>;
   /** Static Authorization header installed before login (e.g. Transmit TSToken). */
   readonly staticAuth?: string;
   /**

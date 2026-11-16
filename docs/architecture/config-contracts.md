@@ -169,9 +169,11 @@ Fields marked `transport.` sit in the bank's HTTP transport config
 | A returned value that must equal one the run already holds                                                                     | `extractRules` `equalsRef` (`RefToken`)                           | ExtractRuleTypes                   | [Extract rules](../phases/api-direct-call/codecs.md#extract-rules)                                  |
 | Present a device certificate the run obtained                                                                                  | `clientCert` (`IStepClientCert`), `transport.clientCert`          | FlowTypes                          | [Device certificate](../phases/api-direct-call/signing.md#device-certificate)                        |
 
-The bank-error guard also accepts `bankErrorCodePointers` and
-`bankErrorTypeByCode` to type one known bank code; see the
-[Bank-error guard](../phases/api-direct-call/errors.md#bank-error-guard).
+`StepName` and `WKUrlGroup` are open string contracts: the build validates
+their shape at registration (`steps.name`, `steps.urlTag`) rather than
+requiring every bank name in a shared union. The bank-error guard also accepts
+`bankErrorCodePointers` and `bankErrorTypeByCode` to type one known bank code;
+see the [Bank-error guard](../phases/api-direct-call/errors.md#bank-error-guard).
 
 Cross-field rules (for example `authScheme: 'none'` needs
 `transport.sessionCookies`) fail the build; see

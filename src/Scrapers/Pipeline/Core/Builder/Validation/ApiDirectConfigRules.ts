@@ -24,10 +24,13 @@ import {
   cookieJarWarmOf,
 } from '../../../Mediator/ApiDirectCall/Flow/WarmStartKind.js';
 import { MAX_ACCESS_TOKEN_CHARS } from '../../../Mediator/ApiDirectCall/PersistentAuthStateRules.js';
-import type { Procedure } from '../../../Types/Procedure.js';
-import { fail, succeed } from '../../../Types/Procedure.js';
-import type { IApiDirectRule, IApiDirectRuleInput } from '../ApiDirectRuleInput.js';
-import { allSteps, hasCookieDomains } from '../ApiDirectRuleInput.js';
+import { fail, type Procedure, succeed } from '../../../Types/Procedure.js';
+import {
+  allSteps,
+  hasCookieDomains,
+  type IApiDirectRule,
+  type IApiDirectRuleInput,
+} from '../ApiDirectRuleInput.js';
 import API_DIRECT_GENERATE_RULES from '../Auth/ApiDirectGenerateRules.js';
 import API_DIRECT_SEAL_RULES from '../Auth/ApiDirectSealRules.js';
 import API_DIRECT_SESSION_RULES from '../Auth/ApiDirectSessionRules.js';
@@ -55,8 +58,7 @@ function hasSessionCookies(input: IApiDirectRuleInput): boolean {
  */
 function isPrefixMissing(input: IApiDirectRuleInput): boolean {
   if (input.call.authScheme !== 'prefixed') return false;
-  const prefix = input.call.authPrefix ?? '';
-  return prefix.trim().length === 0;
+  return (input.call.authPrefix ?? '').trim().length === 0;
 }
 
 /**

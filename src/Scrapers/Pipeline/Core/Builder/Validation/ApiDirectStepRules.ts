@@ -29,7 +29,7 @@ import {
 } from '../ApiDirectRuleInput.js';
 import API_DIRECT_OPTIONAL_EXTRACT_RULES from '../Captures/ApiDirectOptionalExtractRules.js';
 import { isBadRegex, isFlatPattern } from '../FlatPattern.js';
-import API_DIRECT_BANK_ERROR_CODE_RULES from './ApiDirectBankErrorCodeRules.js';
+import API_DIRECT_CONTRACT_RULES from './ApiDirectContractRules.js';
 import API_DIRECT_TAIL_RULES from './ApiDirectTailRules.js';
 
 /**
@@ -249,7 +249,7 @@ const API_DIRECT_STEP_RULES: readonly IApiDirectRule[] = [
     message: 'steps.bankErrorType: needs failIfPresent or a codec',
     isBroken: hasIdleErrorType,
   },
-  ...API_DIRECT_BANK_ERROR_CODE_RULES,
+  ...API_DIRECT_CONTRACT_RULES,
   {
     message: 'steps.extractRules: each key must name a body or header extract',
     isBroken: hasStrayExtractRule,

@@ -7,7 +7,7 @@
 | Credentials    | `id`, `card6Digits`, `password` (optional `otpLongTermToken`)                                                                                        |
 | OTP            | —                                                                                                                                                    |
 | Phase chain    | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md)                                                |
-| Source         | [`Banks/Amex/AmexPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Amex/AmexPipeline.ts) |
+| Source         | [`Banks/BankPipelineTableA.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/BankPipelineTableA.ts) |
 
 ## Quick example
 

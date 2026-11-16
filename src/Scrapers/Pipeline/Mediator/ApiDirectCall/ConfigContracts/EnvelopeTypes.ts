@@ -13,7 +13,7 @@
  */
 
 import type { WKQueryOperation } from '../../../Registry/WK/QueriesWK.js';
-import type { WKUrlGroup } from '../../../Registry/WK/UrlsWK.js';
+import type { WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import type { ICryptoFieldConfig } from './SignerTypes.js';
 import type { JsonValueTemplate, RefToken } from './TemplateTypes.js';
 
@@ -58,7 +58,7 @@ type AuthScheme = 'raw' | 'bearer' | 'prefixed' | 'none';
  */
 type IProbeConfig =
   | { readonly queryTag: WKQueryOperation; readonly urlTag?: never }
-  | { readonly urlTag: WKUrlGroup; readonly queryTag?: never };
+  | { readonly urlTag: WKUrlOrLiteral; readonly queryTag?: never };
 
 /**
  * Per-step pre-hook — before the step fires, await a function on

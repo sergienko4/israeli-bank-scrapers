@@ -1,31 +1,11 @@
 /**
- * Every login step name the API-direct flow recognises.
+ * A login step name. The contract is open: a bank may declare any name whose
+ * shape the builder rules accept, without editing this file. The soft brand
+ * keeps the name distinct in signatures while still accepting config literals;
+ * the builder validates the shape at registration.
  */
 
-type StepName =
-  | 'bind'
-  | 'login'
-  | 'assertPassword'
-  | 'assertOtp'
-  | 'getIdToken'
-  | 'sessionToken'
-  | 'prime'
-  | 'validate'
-  | 'deviceKey'
-  | 'register'
-  | 'resume'
-  | 'bootstrap'
-  | 'landing'
-  | 'logon'
-  | 'encryptionKey'
-  | 'identify'
-  | 'verify'
-  | 'otpInit'
-  | 'otpVerify'
-  | 'step1'
-  | 'arcotid'
-  | 'stepupInit'
-  | 'stepupVerify'
-  | 'arcotidAfter';
+/** A login step name, validated at registration. */
+type StepName = string & { readonly __stepName?: 'StepName' };
 
 export type { StepName };

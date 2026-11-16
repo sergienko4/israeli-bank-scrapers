@@ -5,7 +5,6 @@
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { WKQueryOperation } from '../../Registry/WK/QueriesWK.js';
-import type { WKUrlGroup } from '../../Registry/WK/UrlsWK.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
@@ -39,7 +38,7 @@ async function tryProbeQuery(
  * @param tag - URL tag.
  * @returns Probe procedure.
  */
-async function tryProbeUrl(bus: IApiMediator, tag: WKUrlGroup): Promise<Procedure<ProbeResponse>> {
+async function tryProbeUrl(bus: IApiMediator, tag: string): Promise<Procedure<ProbeResponse>> {
   return safeInvoke(PROBE_URL_LABEL, () => bus.apiGet<ProbeResponse>(tag));
 }
 
@@ -50,7 +49,7 @@ async function tryProbeUrl(bus: IApiMediator, tag: WKUrlGroup): Promise<Procedur
  * @returns Probe procedure.
  */
 async function runProbe(probe: IProbeConfig, bus: IApiMediator): Promise<Procedure<ProbeResponse>> {
-  const view: { queryTag?: WKQueryOperation; urlTag?: WKUrlGroup } = probe;
+  const view: { queryTag?: WKQueryOperation; urlTag?: string } = probe;
   const { queryTag, urlTag } = view;
   if (queryTag !== undefined) return tryProbeQuery(bus, queryTag);
   if (urlTag !== undefined) return tryProbeUrl(bus, urlTag);

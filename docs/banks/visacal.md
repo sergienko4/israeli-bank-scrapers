@@ -7,7 +7,7 @@
 | Credentials    | `username`, `password` (optional `otpLongTermToken`)                                                                                                             |
 | OTP            | —                                                                                                                                                                |
 | Phase chain    | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md)                                                            |
-| Source         | [`Banks/VisaCal/VisaCalPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/VisaCal/VisaCalPipeline.ts) |
+| Source         | [`Banks/BankPipelineTableD.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/BankPipelineTableD.ts) |
 
 ## Quick example
 

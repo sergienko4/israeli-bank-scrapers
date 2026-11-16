@@ -7,7 +7,7 @@
 | Credentials    | `username`, `password`                                                                                                                           |
 | OTP            | —                                                                                                                                                |
 | Phase chain    | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md)                                            |
-| Source         | [`Banks/Max/MaxPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Max/MaxPipeline.ts) |
+| Source         | [`Banks/BankPipelineTableB.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/BankPipelineTableB.ts) |
 
 ## Quick example
 

@@ -10,7 +10,7 @@ import type {
   ScraperCredentials,
   ScraperOptions,
 } from '../../../../../Scrapers/Base/Interface.js';
-import buildLeumiNativePipeline from '../../../../../Scrapers/Pipeline/Banks/Leumi/LeumiPipeline.js';
+import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import LEUMI_SHAPE from '../../../../../Scrapers/Pipeline/Banks/Leumi/scrape/LeumiShape.js';
 import PIPELINE_REGISTRY from '../../../../../Scrapers/Pipeline/Banks/PipelineRegistry.js';
 import createPipelineBuilder from '../../../../../Scrapers/Pipeline/Core/Builder/PipelineBuilderFactory.js';
@@ -60,6 +60,18 @@ const SEEDER = '../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankCon
 const CANDIDATE = '../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigLeumi.js';
 const HINT = CompanyTypes.Leumi;
 const OPTIONS = { companyId: HINT, startDate: new Date('2026-01-01') };
+
+/**
+ * Read the native Leumi factory before any synthetic swap.
+ * @returns The registered native factory.
+ */
+function nativeLeumiFactory(): PipelineFactory {
+  const factory = PIPELINE_REGISTRY[CompanyTypes.Leumi];
+  if (factory === undefined) throw new ScraperError('Leumi pipeline not registered');
+  return factory;
+}
+
+const LEUMI_FACTORY = nativeLeumiFactory();
 
 /**
  * Load the existing registry and inactive candidate.
@@ -161,7 +173,7 @@ async function runPublicFactory(
     globalThis.fetch = fetch as typeof globalThis.fetch;
     const descriptor = factory(OPTIONS);
     if (!descriptor.success) throw new TypeError(descriptor.errorMessage);
-    const native = buildLeumiNativePipeline(OPTIONS);
+    const native = LEUMI_FACTORY(OPTIONS);
     if (!native.success) throw new TypeError(native.errorMessage);
     const result = await createScraper(OPTIONS).scrape(creds);
     const phases = descriptor.value.phases.map(phase => phase.name);

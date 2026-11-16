@@ -14,7 +14,7 @@ import type {
   TxnsUrlTag,
   VarsMap,
 } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
-import type { WKUrlGroup } from '../../../Registry/WK/UrlsWK.js';
+import type { WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import type { IPage } from '../../../Strategy/Fetch/Pagination.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
 import buildAuthEnvelope from './PayBoxAuthEnvelope.js';
@@ -58,7 +58,7 @@ function dropCoveredRows(
  * /getUserHistory. Exposed as the shape's `urlTag` producer.
  * @returns Constant WK URL group.
  */
-export const TXNS_URL_TAG: TxnsUrlTag<IPayBoxAcct, IPayBoxCursor> = (): WKUrlGroup =>
+export const TXNS_URL_TAG: TxnsUrlTag<IPayBoxAcct, IPayBoxCursor> = (): WKUrlOrLiteral =>
   'data.getUserHistory';
 
 /**
