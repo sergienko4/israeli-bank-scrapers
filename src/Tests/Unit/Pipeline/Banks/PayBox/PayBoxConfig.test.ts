@@ -35,8 +35,6 @@ interface ICryptoModule {
   readonly PAYBOX_LOGIN_SIGNER: IApiDirectCallConfig['signer'];
   readonly PAYBOX_SCRAPE_SIGNER: IApiDirectCallConfig['signer'];
   readonly PAYBOX_SECRETS: Readonly<Record<string, string>>;
-  readonly SIGN_KEY: string;
-  readonly PIN_SUFFIX: string;
 }
 
 /** Module shape returned by the dynamic steps import. */
@@ -178,12 +176,16 @@ describe('PAYBOX_API_DIRECT_CALL — flow shape', () => {
     }
   });
 
-  it('publishes signKey + pinSuffix in the public secrets block', async () => {
+  it('publishes distinct signKey + pinSuffix secrets', async () => {
     const crypto = await loadCrypto();
-    expect(crypto.PAYBOX_SECRETS.signKey).toBe(crypto.SIGN_KEY);
-    expect(crypto.PAYBOX_SECRETS.pinSuffix).toBe(crypto.PIN_SUFFIX);
-    expect(crypto.SIGN_KEY).toHaveLength(32);
-    expect(crypto.PIN_SUFFIX).toHaveLength(32);
+    const { signKey, pinSuffix } = crypto.PAYBOX_SECRETS;
+    const keys = Object.keys(crypto.PAYBOX_SECRETS);
+    for (const name of ['signKey', 'pinSuffix', 'keyExchangeSalt']) {
+      expect(keys).toContain(name);
+    }
+    expect(signKey).toHaveLength(32);
+    expect(pinSuffix).toHaveLength(32);
+    expect(signKey).not.toBe(pinSuffix);
   });
 });
 
