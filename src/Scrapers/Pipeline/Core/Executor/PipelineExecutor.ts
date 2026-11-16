@@ -92,6 +92,42 @@ async function runWithCleanup(
 }
 
 /**
+ * Run a synchronous initializer, retiring the run's logger when it throws.
+ * Context construction can log (and thus open the run's file logger) before
+ * failing; `runWithCleanup` never starts, so the executor must retire it.
+ * @param build - Initializer to run inside the open scope.
+ * @returns The initializer's result.
+ */
+function retireLoggerOnThrow<T>(build: () => T): T {
+  try {
+    return build();
+  } catch (error) {
+    retireRunLogger();
+    throw error;
+  }
+}
+
+/**
+ * Build and register the initial context, retiring the run logger on failure.
+ * @param descriptor - The pipeline to execute.
+ * @param credentials - User bank credentials.
+ * @returns The registered initial context.
+ */
+function buildReadyContext(
+  descriptor: IPipelineDescriptor,
+  credentials: ScraperCredentials,
+): IPipelineContext {
+  /**
+   * Build the unregistered initial context.
+   * @returns The initial context.
+   */
+  const build = (): IPipelineContext => buildInitialContext(descriptor, credentials);
+  const initialCtx = retireLoggerOnThrow(build);
+  registerOrFail(initialCtx);
+  return initialCtx;
+}
+
+/**
  * Build the context and run phase reduction inside the execution's scope.
  * @param descriptor - The pipeline to execute.
  * @param credentials - User bank credentials.
@@ -101,8 +137,7 @@ function runInsideScope(
   descriptor: IPipelineDescriptor,
   credentials: ScraperCredentials,
 ): Promise<Procedure<IPipelineContext>> {
-  const initialCtx = buildInitialContext(descriptor, credentials);
-  registerOrFail(initialCtx);
+  const initialCtx = buildReadyContext(descriptor, credentials);
   const tracker: IContextTracker = { phases: descriptor.phases, lastCtx: initialCtx };
   return runWithCleanup(tracker, initialCtx);
 }

@@ -50,8 +50,10 @@ interaction flow.
 | unset / `false` / any other value  | `getRunFolder` returns `''`. No run folder, file log or HTTP dumps. **Default.**                                                                        |
 | `true` (trimmed, case-insensitive) | Writes `pipeline.log` and `network/*.json` in the run folder under `RUNS_ROOT`. Failed CI runs route the bundle to the access-controlled private store. |
 
-The default run root is `<os tmpdir>/israeli-bank-scrapers/runs`; set
-`RUNS_ROOT` explicitly to keep a different location. The run, network and
+The default run root is `<os tmpdir>/israeli-bank-scrapers-<uid>/runs`; set
+`RUNS_ROOT` explicitly to keep a different location. The per-user segment
+(POSIX UID; Windows temp is already per-user) keeps one user's private `0700`
+root from blocking another user of a shared `/tmp`. The run, network and
 sub-step directories are created with mode `0700`, and `pipeline.log` with
 mode `0600`. This replaces the old literal `C:\tmp\runs` default, which
 created a `C:\tmp\runs` directory under the current working directory on

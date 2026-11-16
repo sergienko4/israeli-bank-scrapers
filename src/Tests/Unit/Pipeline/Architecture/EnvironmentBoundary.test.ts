@@ -112,10 +112,13 @@ describe('Pipeline environment boundary', () => {
     expect(ENVIRONMENT.runsRoot.length).toBeGreaterThan(0);
   });
 
-  it('places the default runs root under the platform temp directory', () => {
+  it('places the default runs root under a per-user temp directory', () => {
     const env = readEnvironment({});
     const tempRoot = os.tmpdir();
-    const expected = path.join(tempRoot, 'israeli-bank-scrapers', 'runs');
+    const uid = typeof process.getuid === 'function' ? process.getuid() : undefined;
+    const segment =
+      uid === undefined ? 'israeli-bank-scrapers' : `israeli-bank-scrapers-${String(uid)}`;
+    const expected = path.join(tempRoot, segment, 'runs');
     expect(env.runsRoot).toBe(expected);
   });
 

@@ -5,8 +5,10 @@
 The package redacts PII before writing `pipeline.log` or captured
 `network/*.json` bodies. `FORENSIC_TRACE=true` opts into that run folder;
 there are no screenshots or DOM snapshots. The default root is
-`<os tmpdir>/israeli-bank-scrapers/runs`, created `0700` with a `0600` log
-file; `RUNS_ROOT` overrides it. On a failed CI job the diagnostics bundle
+`<os tmpdir>/israeli-bank-scrapers-<uid>/runs`, created `0700` with a `0600`
+log file; `RUNS_ROOT` overrides it. The UID segment keeps one user's private
+`0700` root from blocking another user of a shared `/tmp`; on Windows the
+temp directory is already per-user. On a failed CI job the diagnostics bundle
 uploads to the access-controlled private store, not a public artifact. Keep
 redaction enabled and inspect captures before sharing.
 

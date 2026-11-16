@@ -19,8 +19,22 @@ import { currentRunScope } from './RunScope.js';
 /** Platform temp directory, read once at module load. */
 const TEMP_ROOT = os.tmpdir();
 
+/**
+ * Per-user segment for the default runs root. On POSIX the system temp
+ * directory is shared, so a `0700` root must be user-specific; Windows temp
+ * directories are already per-user.
+ * @returns A stable, PII-free directory name for the current user.
+ */
+function defaultRunsSegment(): string {
+  const uid = typeof process.getuid === 'function' ? process.getuid() : undefined;
+  return uid === undefined ? 'israeli-bank-scrapers' : `israeli-bank-scrapers-${String(uid)}`;
+}
+
+/** Resolved per-user segment, kept out of the `path.join` call site. */
+const DEFAULT_RUNS_SEGMENT = defaultRunsSegment();
+
 /** Default root for per-run artefact folders, overridable via `RUNS_ROOT`. */
-const DEFAULT_RUNS_ROOT = path.join(TEMP_ROOT, 'israeli-bank-scrapers', 'runs');
+const DEFAULT_RUNS_ROOT = path.join(TEMP_ROOT, DEFAULT_RUNS_SEGMENT, 'runs');
 
 /** Set once, so an operator who disables redaction sees one warning. */
 let didWarnPiiRedaction = false;
