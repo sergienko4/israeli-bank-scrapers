@@ -3,7 +3,7 @@
  * (customer / balance / transactions) via synthetic response payloads.
  */
 
-import { PEPPER_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Pepper/scrape/PepperShape.js';
+import PEPPER_SHAPE from '../../../../../Scrapers/Pipeline/Banks/Pepper/scrape/PepperShape.js';
 import { BALANCE_UNKNOWN } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { assertPostObject } from '../../../../Helpers/AssertPostData.js';

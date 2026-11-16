@@ -14,7 +14,7 @@ import createPipelineBuilder from '../../Core/Builder/PipelineBuilderFactory.js'
 import type { IPipelineDescriptor } from '../../Core/PipelineDescriptor.js';
 import PEPPER_API_DIRECT_CALL from '../../Registry/Config/PipelineBankConfigPepper.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { PEPPER_SHAPE } from './scrape/PepperShape.js';
+import PEPPER_SHAPE from './scrape/PepperShape.js';
 
 /**
  * Build the Pepper pipeline descriptor.

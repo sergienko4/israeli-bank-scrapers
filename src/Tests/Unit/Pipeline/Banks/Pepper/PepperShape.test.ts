@@ -1,13 +1,14 @@
 /**
- * Coverage for Pepper shape's `userIdOf` helper.
+ * Coverage for Pepper's x-user-id header.
  *
  * Pepper uses `phoneNumberFormat: 'international-flat'` so the login
  * BODY templates receive `972XXXXXXXXX`. The x-user-id HEADER is a
  * separate concern (header vs body) and the server expects the local
- * form, so `userIdOf` strips the `972` prefix when present.
+ * form, so the header producer strips the `972` prefix when present.
  */
 
-import { userIdOf } from '../../../../../Scrapers/Pipeline/Banks/Pepper/scrape/PepperShape.js';
+import PEPPER_SHAPE from '../../../../../Scrapers/Pipeline/Banks/Pepper/scrape/PepperShape.js';
+import type { IScrapeCallInfo } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 
 /**
@@ -22,7 +23,21 @@ function makeCtxWithPhone(phone: string): IActionContext {
   } as unknown as IActionContext;
 }
 
-describe('PepperShape.userIdOf', () => {
+/** No account scope is needed for the customer-call headers. */
+const CUSTOMER_CALL: IScrapeCallInfo = {};
+
+/**
+ * Read x-user-id from the shape's real customer header producer.
+ * @param ctx - Action context carrying credentials.
+ * @returns The header value.
+ */
+function userIdOf(ctx: IActionContext): string {
+  const headers = PEPPER_SHAPE.customer.extraHeaders;
+  if (typeof headers !== 'function') throw new TypeError('customer headers are not dynamic');
+  return headers(ctx, CUSTOMER_CALL)['x-user-id'];
+}
+
+describe('PepperShape x-user-id header', () => {
   it('strips the 972 country-code prefix from the international-flat form', () => {
     const ctx = makeCtxWithPhone('972000000001');
     const result = userIdOf(ctx);

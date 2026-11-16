@@ -16,7 +16,7 @@ import type { IOneZeroAcct } from '../../../../../Scrapers/Pipeline/Banks/OneZer
 import PAYBOX_SHAPE from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxShape.js';
 import type { IPayBoxAcct } from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxShapeHelpers.js';
 import type { IPayBoxCursor } from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxShapeTxns.js';
-import { PEPPER_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Pepper/scrape/PepperShape.js';
+import PEPPER_SHAPE from '../../../../../Scrapers/Pipeline/Banks/Pepper/scrape/PepperShape.js';
 import type { IPepperAcct } from '../../../../../Scrapers/Pipeline/Banks/Pepper/scrape/PepperShapeHelpers.js';
 import scrapeWindowEnd from '../../../../../Scrapers/Pipeline/Mediator/Scrape/ScrapeWindowEnd.js';
 import type {
