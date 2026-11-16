@@ -35,6 +35,7 @@ import { readFileSync } from 'node:fs';
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import ScraperError from '../../../../Base/ScraperError.js';
 import { getDebug } from '../../../Logging/Debug.js';
+import type { ICertBundle } from '../../../Types/Domain/CertBundle.js';
 import { toErrorMessage } from '../../../Types/ErrorUtils.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
@@ -60,12 +61,6 @@ const EXPIRY_WARN_DAYS = 30;
 
 /** Milliseconds per day (for expiry math). */
 const MS_PER_DAY = 86_400_000;
-
-/** A resolved PEM certificate + private key pair. */
-interface ICertBundle {
-  readonly cert: string;
-  readonly key: string;
-}
 
 /**
  * Decode a base64-wrapped PEM back to its text form.
@@ -295,5 +290,5 @@ function resolveOneZeroClientCert(): ICertBundle {
   return bundle;
 }
 
-export type { ICertBundle };
+export type { ICertBundle } from '../../../Types/Domain/CertBundle.js';
 export { resolveOneZeroClientCert };

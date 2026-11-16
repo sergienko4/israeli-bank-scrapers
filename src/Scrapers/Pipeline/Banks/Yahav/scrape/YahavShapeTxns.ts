@@ -7,8 +7,8 @@
  * Kept rows are signed and flattened to `bancs*` scalars for the mapper.
  */
 
+import normalizeBancsRecords from '../../../Banks/Yahav/bancs/BancsNormalizer.js';
 import type { ApiRecord } from '../../../Mediator/Scrape/AutoMapperFacade/AutoMapperTypes.js';
-import normalizeBancsRecords from '../../../Mediator/Scrape/Bancs/BancsNormalizer.js';
 import type {
   IApiDirectScrapeTxnsStep,
   IExtractPageArgs,

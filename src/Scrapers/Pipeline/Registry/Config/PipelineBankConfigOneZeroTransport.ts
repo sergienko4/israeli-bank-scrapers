@@ -11,6 +11,7 @@
  * Canary: `Tests/Unit/Pipeline/Registry/Config/PipelineBankConfigOneZeroWaf.test.ts`.
  */
 
+import { resolveOneZeroClientCert } from '../../Strategy/Fetch/Mtls/OneZeroClientCert.js';
 import type { ITransportConfig } from './PipelineBankConfigTypes.js';
 
 /**
@@ -34,6 +35,7 @@ const ONEZERO_TRANSPORT: ITransportConfig = {
   },
   graphqlHeaders: { 'User-Agent': ONEZERO_USER_AGENT },
   requiresClientCert: true,
+  staticClientCert: resolveOneZeroClientCert,
   tlsProfile: 'android-11-okhttp',
   phoneNumberFormat: 'international-plus',
 };

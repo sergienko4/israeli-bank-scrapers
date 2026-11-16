@@ -14,7 +14,7 @@
  * Every value is fabricated (`FAKE-*`) — no real account data appears.
  */
 
-import normalizeBancsRecords from '../../../../../Scrapers/Pipeline/Mediator/Scrape/Bancs/BancsNormalizer.js';
+import normalizeBancsRecords from '../../../../../Scrapers/Pipeline/Banks/Yahav/bancs/BancsNormalizer.js';
 
 /** Synthetic BaNCS record parameters (all values fabricated — zero PII). */
 interface IBancsArgs {

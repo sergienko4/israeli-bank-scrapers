@@ -11,7 +11,7 @@
 
 import { createHash } from 'node:crypto';
 
-import { getIn } from '../../../Scrapers/Pipeline/Mediator/Scrape/Bancs/BancsShape.js';
+import { getIn } from '../../../Scrapers/Pipeline/Banks/Yahav/bancs/BancsShape.js';
 import {
   YAHAV_BANCS_PATHS as PATHS,
   YAHAV_BODY_DIGEST,

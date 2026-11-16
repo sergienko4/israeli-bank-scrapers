@@ -15,6 +15,7 @@ import type { ClientRequest, IncomingMessage } from 'node:http';
 import { type Agent, request as httpsRequest, type RequestOptions } from 'node:https';
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
+import type { ICertBundle } from '../../../Types/Domain/CertBundle.js';
 import { toError } from '../../../Types/ErrorUtils.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, succeed } from '../../../Types/Procedure.js';
@@ -27,7 +28,6 @@ import { SessionProtocolAgent } from '../Tls/SessionProtocolAgent.js';
 import { getTlsClientProfile, type TlsClientProfileKind } from '../Tls/TlsClientProfiles.js';
 import type { AgentSource, IPresentedCert } from './MtlsAgentSource.js';
 import { collectBody, toResponse } from './MtlsResponse.js';
-import type { ICertBundle } from './OneZeroClientCert.js';
 
 /** One request handed to the mocked transport, with the certificate it would present. */
 interface IMtlsFallbackRequest extends Omit<IMtlsRequest, 'agent'> {

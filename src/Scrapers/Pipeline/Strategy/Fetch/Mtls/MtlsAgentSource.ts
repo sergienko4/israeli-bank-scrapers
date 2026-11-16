@@ -10,7 +10,7 @@
 import { createHash, X509Certificate } from 'node:crypto';
 import type { Agent } from 'node:https';
 
-import type { ICertBundle } from './OneZeroClientCert.js';
+import type { ICertBundle } from '../../../Types/Domain/CertBundle.js';
 
 /** The certificate an agent presents, named by the SHA-256 hex of its DER. */
 interface IPresentedCert {

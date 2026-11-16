@@ -58,9 +58,18 @@ function toWiringFlags(cfg: ITransportConfig): IWiringFlags {
 function toWiringTransport(cfg: ITransportConfig): IApiWiring['transport'] {
   const { redirectPolicy, statusPolicy, mediaTypes, responseIntegrity } = cfg;
   const policies = { redirectPolicy, statusPolicy, mediaTypes, strictUtf8: cfg.strictUtf8 };
-  const { tlsProfile, clientCert, cookieDomains, isConnectRetryDisabled } = cfg;
-  const options = { tlsProfile, clientCert, cookieDomains, isConnectRetryDisabled };
+  const options = toWiringOptions(cfg);
   return { ...options, ...policies, responseIntegrity };
+}
+
+/**
+ * Extract the non-policy transport options from a transport block.
+ * @param cfg - Transport block from PIPELINE_BANK_CONFIG.
+ * @returns TLS, certificate and cookie options.
+ */
+function toWiringOptions(cfg: ITransportConfig): IApiWiring['transport'] {
+  const { tlsProfile, clientCert, cookieDomains, isConnectRetryDisabled, staticClientCert } = cfg;
+  return { tlsProfile, clientCert, cookieDomains, isConnectRetryDisabled, staticClientCert };
 }
 
 /**
