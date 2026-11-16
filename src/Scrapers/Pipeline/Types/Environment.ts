@@ -10,11 +10,20 @@
  * does not fall back to the process snapshot.
  */
 
+import * as os from 'node:os';
+import * as path from 'node:path';
+
 import type { IEnvironment } from './Domain/EnvironmentTypes.js';
 import { currentRunScope } from './RunScope.js';
 
+/** Platform temp directory, read once at module load. */
+const TEMP_ROOT = os.tmpdir();
+
 /** Default root for per-run artefact folders, overridable via `RUNS_ROOT`. */
-const DEFAULT_RUNS_ROOT = String.raw`C:\tmp\runs`;
+const DEFAULT_RUNS_ROOT = path.join(TEMP_ROOT, 'israeli-bank-scrapers', 'runs');
+
+/** Set once, so an operator who disables redaction sees one warning. */
+let didWarnPiiRedaction = false;
 
 /**
  * Read the execution-facing flags.
@@ -61,16 +70,32 @@ function readMtlsEnvironment(
 }
 
 /**
+ * Warn once when an operator disables business-data redaction.
+ * @returns True after the first warning.
+ */
+function warnPiiRedactionOff(): true {
+  if (!didWarnPiiRedaction) {
+    didWarnPiiRedaction = true;
+    process.emitWarning(
+      'PII_REDACTION=off: business-data masking is disabled; auth credentials remain masked.',
+    );
+  }
+  return true;
+}
+
+/**
  * Read the Pipeline environment once.
  * @param env - Process environment, injectable for tests.
  * @returns The frozen environment snapshot.
  */
 function readEnvironment(env: NodeJS.ProcessEnv = process.env): IEnvironment {
-  return Object.freeze({
+  const snapshot = {
     ...readExecutionEnvironment(env),
     ...readPrivacyEnvironment(env),
     ...readMtlsEnvironment(env),
-  });
+  };
+  if (snapshot.piiRedactionOff) warnPiiRedactionOff();
+  return Object.freeze(snapshot);
 }
 
 /** Process-wide snapshot used outside an execution (and as the default scope). */

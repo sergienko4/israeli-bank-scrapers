@@ -141,6 +141,10 @@ describe('TraceConfig — FORENSIC_TRACE=true gates artefact emission', () => {
     expect(folder).not.toBe('');
     expect(isUnderRoot).toBe(true);
     expect(didCreate).toBe(true);
+    if (process.platform !== 'win32') {
+      const mode = fs.statSync(folder).mode & 0o777;
+      expect(mode).toBe(0o700);
+    }
     fs.rmSync(folder, { recursive: true, force: true });
   });
 

@@ -6,6 +6,7 @@
  */
 
 import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -106,5 +107,12 @@ describe('Pipeline environment boundary', () => {
     expect(ENVIRONMENT.forensicTrace).toBe(false);
     expect(ENVIRONMENT.piiRedactionOff).toBe(false);
     expect(ENVIRONMENT.runsRoot.length).toBeGreaterThan(0);
+  });
+
+  it('places the default runs root under the platform temp directory', () => {
+    const env = readEnvironment({});
+    const tempRoot = os.tmpdir();
+    const expected = path.join(tempRoot, 'israeli-bank-scrapers', 'runs');
+    expect(env.runsRoot).toBe(expected);
   });
 });

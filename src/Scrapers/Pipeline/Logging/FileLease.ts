@@ -86,8 +86,8 @@ function statOpenFd(fd: number): IFileLease {
  */
 function openRawLease(logFile: string): IFileLease {
   const dir = path.dirname(logFile);
-  fs.mkdirSync(dir, { recursive: true });
-  const fd = fs.openSync(logFile, 'a');
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const fd = fs.openSync(logFile, 'a', 0o600);
   return statOpenFd(fd);
 }
 

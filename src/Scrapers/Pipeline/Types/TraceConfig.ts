@@ -187,7 +187,7 @@ function runSeed(): IRunSeed | false {
  */
 function makeRunFolder(seed: IRunSeed): string {
   const folder = path.join(seed.root, PIPELINE_SEGMENT, seed.bank, seed.stamp);
-  fs.mkdirSync(folder, { recursive: true });
+  fs.mkdirSync(folder, { recursive: true, mode: 0o700 });
   return folder;
 }
 
@@ -240,7 +240,7 @@ export function getNetworkDumpDir(): NetworkDumpDirPath {
   const trace = traceOwner();
   if (trace.networkDir) return trace.networkDir as NetworkDumpDirPath;
   const dir = path.join(root, NETWORK_SUBDIR);
-  fs.mkdirSync(dir, { recursive: true });
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   trace.networkDir = dir;
   return dir as NetworkDumpDirPath;
 }
@@ -253,7 +253,7 @@ export function getNetworkDumpDir(): NetworkDumpDirPath {
  */
 function makeSubStepDir(root: NetworkDumpDirPath, key: string): NetworkDumpDirPath {
   const dir = path.join(root, key);
-  fs.mkdirSync(dir, { recursive: true });
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   return dir as NetworkDumpDirPath;
 }
 
