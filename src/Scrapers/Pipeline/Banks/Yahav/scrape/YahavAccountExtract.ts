@@ -8,8 +8,8 @@
  * logged.
  */
 
+import { getIn, isRecord } from '../../../Banks/Yahav/bancs/BancsShape.js';
 import type { ApiRecord } from '../../../Mediator/Scrape/AutoMapperFacade/AutoMapperTypes.js';
-import { getIn, isRecord } from '../../../Mediator/Scrape/Bancs/BancsShape.js';
 import type {
   ApiBody,
   IExtractAccountsArgs,

@@ -7,8 +7,8 @@
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
+import { getIn } from '../../../Banks/Yahav/bancs/BancsShape.js';
 import type { ApiRecord } from '../../../Mediator/Scrape/AutoMapperFacade/AutoMapperTypes.js';
-import { getIn } from '../../../Mediator/Scrape/Bancs/BancsShape.js';
 import type {
   IApiDirectScrapeBootstrapStep,
   IBootstrapExtractArgs,

@@ -7,22 +7,22 @@
  * Split from ApiMediator.factories to keep that file under the 150-LoC cap.
  */
 
+import ScraperError from '../../../Base/ScraperError.js';
 import {
   type AgentBuilder,
   createClientCertHolder,
 } from '../../Strategy/Fetch/Mtls/ClientCertHolder.js';
-import resolveClientCert from '../../Strategy/Fetch/Mtls/ClientCertRegistry.js';
 import {
   type AgentSource,
   fixedAgentSource,
   presentedOf,
 } from '../../Strategy/Fetch/Mtls/MtlsAgentSource.js';
 import { buildMtlsAgent } from '../../Strategy/Fetch/Mtls/MtlsTransport.js';
-import type { ICertBundle } from '../../Strategy/Fetch/Mtls/OneZeroClientCert.js';
 import {
   type TlsClientProfileKind,
   warnIfTlsProfileUnsupported,
 } from '../../Strategy/Fetch/Tls/TlsClientProfiles.js';
+import type { ICertBundle } from '../../Types/Domain/CertBundle.js';
 import type { IClientCertControl } from '../../Types/Domain/ClientCertControl.js';
 import type { INodeTlsMediatorArgs } from './ApiMediator.transport.types.js';
 
@@ -33,7 +33,10 @@ import type { INodeTlsMediatorArgs } from './ApiMediator.transport.types.js';
  */
 function resolveTransportCert(args: INodeTlsMediatorArgs): ICertBundle | false {
   if (args.requiresClientCert !== true) return false;
-  return resolveClientCert(args.bankHint);
+  const resolver = args.staticClientCert;
+  if (resolver === undefined)
+    throw new ScraperError('requiresClientCert set without a certificate resolver');
+  return resolver();
 }
 
 /** The agent source a node:https mediator's transports share, and its certificate port. */

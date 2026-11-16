@@ -31,6 +31,7 @@ type TTransportKey =
   | 'mediaTypes'
   | 'responseIntegrity'
   | 'isConnectRetryDisabled'
+  | 'staticClientCert'
   | 'strictUtf8';
 
 /** Pair of URLs + flags needed to wire the ApiMediator. */

@@ -31,7 +31,7 @@ that module's default export, and account-side fields no longer live there.
 4. `currencyCode`, `movementCurrency`
 
 The `bancs*` aliases come first because matching is alias-first: a record flattened by
-[`BancsNormalizer.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/Scrape/Bancs/BancsNormalizer.ts)
+[`BancsNormalizer.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Yahav/bancs/BancsNormalizer.ts)
 resolves to its computed flat field. No other bank's record carries a `bancs*` key, so
 for them the alias fails to match and resolution falls through to the rest of the list.
 

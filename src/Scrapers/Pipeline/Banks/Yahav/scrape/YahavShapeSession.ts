@@ -8,8 +8,8 @@
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
+import { getIn, isRecord } from '../../../Banks/Yahav/bancs/BancsShape.js';
 import type { SessionContext } from '../../../Mediator/Api/ApiMediator.js';
-import { getIn, isRecord } from '../../../Mediator/Scrape/Bancs/BancsShape.js';
 import type {
   ApiBody,
   IResponseSessionArgs,

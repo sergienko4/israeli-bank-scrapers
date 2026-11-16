@@ -232,12 +232,14 @@ the ClientHello the profile really emits and asserts it hashes to that JA4
 exactly on runtimes at or above the floor, so a profile that drifts from its
 target fails in CI rather than at the edge.
 
+Certificates are typed as the shared `ICertBundle` (`Types/Domain/CertBundle.ts`).
 The transport is not specific to OneZero. A bank's transport config opts in with
 `tlsProfile` (a `TlsClientProfileKind`), `requiresClientCert`, or both; either
 one moves its identity and GraphQL calls onto `node:https`. When the transport
 is built, `getTlsClientProfile` resolves the profile's ClientHello options,
-`resolveClientCert` looks up the bank's certificate in `ClientCertRegistry.ts`
-(failing fast when none is registered), and `warnIfTlsProfileUnsupported`
+the transport's `staticClientCert` resolver supplies the certificate (the
+factory fails fast when `requiresClientCert` has no resolver), and
+`warnIfTlsProfileUnsupported`
 logs the OpenSSL warning above whenever `isTlsProfileSupported` finds the
 runtime below the profile's floor.
 

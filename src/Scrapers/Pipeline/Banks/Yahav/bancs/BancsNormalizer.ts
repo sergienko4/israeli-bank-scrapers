@@ -11,7 +11,7 @@
  * {@link "../../../Registry/WK/ScrapeFieldMappings.js"}.
  */
 
-import type { ApiRecord } from '../AutoMapperFacade/AutoMapperTypes.js';
+import type { ApiRecord } from '../../../Mediator/Scrape/AutoMapperFacade/AutoMapperTypes.js';
 import { readCurrency, readDateIso, readDescription, readIdentifier } from './BancsFields.js';
 import { isBancsTxnRecord } from './BancsShape.js';
 import computeSignedAmounts from './BancsSign.js';

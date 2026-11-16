@@ -8,6 +8,7 @@ import type { CompanyTypes } from '../../../../Definitions.js';
 import type GraphQLFetchStrategy from '../../Strategy/Fetch/GraphQLFetchStrategy.js';
 import type { NativeFetchStrategy } from '../../Strategy/Fetch/NativeFetchStrategy.js';
 import type { TlsClientProfileKind } from '../../Strategy/Fetch/Tls/TlsClientProfiles.js';
+import type { ICertBundle } from '../../Types/Domain/CertBundle.js';
 import type { IDynamicClientCert } from '../../Types/Domain/ClientCertControl.js';
 import type {
   IResponseIntegrity,
@@ -47,6 +48,8 @@ interface IApiMediatorArgs {
 interface INodeTlsMediatorArgs extends IApiMediatorArgs {
   /** Present the bank's registered client certificate on every handshake. */
   readonly requiresClientCert?: boolean;
+  /** Static certificate resolver injected by the bank's transport config. */
+  readonly staticClientCert?: () => ICertBundle;
   /** A device certificate the flow installs at runtime, presented to one origin. */
   readonly clientCert?: IDynamicClientCert;
   /** ClientHello profile both transports present; absent keeps Node's default. */

@@ -11,7 +11,7 @@
  */
 
 import { getDebug } from '../../../Logging/Debug.js';
-import type { ApiRecord } from '../AutoMapperFacade/AutoMapperTypes.js';
+import type { ApiRecord } from '../../../Mediator/Scrape/AutoMapperFacade/AutoMapperTypes.js';
 import { readDateIso, readMagnitude, readRunningBalance, readTypeCode } from './BancsFields.js';
 
 const LOG = getDebug(import.meta.url);

@@ -9,7 +9,7 @@
  * non-BaNCS response (Leumi/Discount/VisaCal/Max/Isracard).
  */
 
-import type { ApiRecord } from '../AutoMapperFacade/AutoMapperTypes.js';
+import type { ApiRecord } from '../../../Mediator/Scrape/AutoMapperFacade/AutoMapperTypes.js';
 
 /**
  * Coerce any value to a plain record, using `{}` for non-objects.

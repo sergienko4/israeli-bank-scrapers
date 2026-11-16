@@ -6,10 +6,16 @@
  */
 
 import { CompanyTypes } from '../../../../../Definitions.js';
+import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import { createMtlsApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import type { INodeTlsMediatorArgs } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.transport.types.js';
+import {
+  registerWkQuery,
+  resetWkRegistryForTest as resetWkQueriesForTest,
+} from '../../../../../Scrapers/Pipeline/Registry/WK/QueriesWK.js';
 import { literalUrl } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import { setMtlsFetchFallback } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
+import type { ICertBundle } from '../../../../../Scrapers/Pipeline/Types/Domain/CertBundle.js';
 import type { IClientCertPair } from '../../../../../Scrapers/Pipeline/Types/Domain/ClientCertControl.js';
 import { succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { issueTestCert } from '../../../../Helpers/TestCertificate.js';
@@ -37,6 +43,7 @@ const INSTALLED = succeed(true);
 describe('createMtlsApiMediator — dynamic client certificate', () => {
   afterEach(() => {
     setMtlsFetchFallback();
+    resetWkQueriesForTest();
   });
 
   it('exposes no certificate port when none is declared', () => {
@@ -66,5 +73,49 @@ describe('createMtlsApiMediator — dynamic client certificate', () => {
     const mediator = createMtlsApiMediator(DYNAMIC_ARGS);
     await mediator.apiGet(BANK_URL);
     expect(presented).toEqual([false]);
+  });
+});
+
+describe('createMtlsApiMediator — static client certificate', () => {
+  afterEach(() => {
+    setMtlsFetchFallback();
+    resetWkQueriesForTest();
+  });
+
+  it('fails fast when a certificate is required without a resolver', () => {
+    const presented = recordPresented();
+    /**
+     * Build a node:https mediator that requires a certificate but declares
+     * no resolver, as a bank config with a missing staticClientCert would.
+     * @returns Never; construction throws.
+     */
+    const createWithoutResolver = (): ReturnType<typeof createMtlsApiMediator> =>
+      createMtlsApiMediator({ ...BASE_ARGS, requiresClientCert: true });
+    expect(createWithoutResolver).toThrow(ScraperError);
+    expect(createWithoutResolver).toThrow(/requiresClientCert set without a certificate resolver/);
+    expect(presented).toEqual([]);
+  });
+
+  it('presents the injected static certificate to identity and GraphQL calls', async () => {
+    const presented = recordPresented();
+    registerWkQuery('customer', CompanyTypes.Yahav, 'query Customer { me { id } }');
+    let resolved = 0;
+    /**
+     * Count transport resolutions and answer with the device certificate.
+     * @returns The certificate bundle the transport should present.
+     */
+    const resolveStaticCert = (): ICertBundle => {
+      resolved += 1;
+      return { cert: DEVICE.certPem, key: DEVICE.keyPem };
+    };
+    const mediator = createMtlsApiMediator({
+      ...BASE_ARGS,
+      requiresClientCert: true,
+      staticClientCert: resolveStaticCert,
+    });
+    await mediator.apiGet(BANK_URL);
+    await mediator.apiQuery('customer', {});
+    expect(resolved).toBe(1);
+    expect(presented).toEqual([{ sha256: DEVICE.sha256 }, { sha256: DEVICE.sha256 }]);
   });
 });

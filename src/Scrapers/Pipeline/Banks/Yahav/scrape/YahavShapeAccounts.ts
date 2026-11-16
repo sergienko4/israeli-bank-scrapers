@@ -7,8 +7,8 @@
  * balance read fails the scrape rather than inventing a figure.
  */
 
+import { getIn, isCurrentBalType, isRecord } from '../../../Banks/Yahav/bancs/BancsShape.js';
 import type { ApiRecord } from '../../../Mediator/Scrape/AutoMapperFacade/AutoMapperTypes.js';
-import { getIn, isCurrentBalType, isRecord } from '../../../Mediator/Scrape/Bancs/BancsShape.js';
 import type {
   ApiBody,
   IApiDirectScrapeBalanceStep,

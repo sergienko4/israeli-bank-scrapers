@@ -8,7 +8,7 @@
  * generic mapper can consume them via the prepended `bancs*` WK aliases.
  */
 
-import type { ApiRecord } from '../AutoMapperFacade/AutoMapperTypes.js';
+import type { ApiRecord } from '../../../Mediator/Scrape/AutoMapperFacade/AutoMapperTypes.js';
 import { getIn, isNum, isStr } from './BancsShape.js';
 
 /**

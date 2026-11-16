@@ -12,13 +12,13 @@ import { createPrivateKey, X509Certificate } from 'node:crypto';
 import type { Agent } from 'node:https';
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
+import type { ICertBundle } from '../../../Types/Domain/CertBundle.js';
 import type {
   IClientCertControl,
   IClientCertPair,
 } from '../../../Types/Domain/ClientCertControl.js';
 import { fail, type Procedure, succeed } from '../../../Types/Procedure.js';
 import { type AgentSource, type IAgentChoice, presentedOf } from './MtlsAgentSource.js';
-import type { ICertBundle } from './OneZeroClientCert.js';
 
 /** Builds the agent presenting a certificate, or none. */
 type AgentBuilder = (cert: ICertBundle | false) => Agent;

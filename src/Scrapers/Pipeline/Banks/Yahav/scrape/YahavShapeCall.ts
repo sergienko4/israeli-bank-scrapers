@@ -4,7 +4,7 @@
  * The login sends empty session ids; every read sends the current ones.
  */
 
-import { isRecord } from '../../../Mediator/Scrape/Bancs/BancsShape.js';
+import { isRecord } from '../../../Banks/Yahav/bancs/BancsShape.js';
 import type { HeaderMap, VarsMap } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
 import { yahavReadBody } from './YahavNativeEnvelope.js';

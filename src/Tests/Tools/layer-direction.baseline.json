@@ -51,5 +51,5 @@
     "Strategy/Fetch/Mtls/OneZeroClientCert.ts",
     "Strategy/Fetch/Mtls/OneZeroClientCertData.ts"
   ],
-  "companyTypesReferences": ["Strategy/Fetch/Mtls/ClientCertRegistry.ts -> OneZero"]
+  "companyTypesReferences": []
 }

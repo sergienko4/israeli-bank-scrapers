@@ -151,7 +151,7 @@ invalid or oversized plan is refused before any request is built. A page keeps
 only the rows that name the account; a row naming another account is left
 unread, and the [coverage audit](../observability/coverage-audit.md) reports
 it as a shortfall. Kept rows are flattened by `normalizeBancsRecords`
-(`Mediator/Scrape/Bancs/BancsNormalizer.ts`). The window end reaches the
+(`Banks/Yahav/bancs/BancsNormalizer.ts`). The window end reaches the
 request (`windowNarrowing: 'windowEnd'`). See
 [api-direct-scrape](../phases/api-direct-scrape.md) for the phase contract.
 

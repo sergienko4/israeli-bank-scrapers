@@ -5,6 +5,7 @@
  */
 
 import type { TlsClientProfileKind } from '../../Strategy/Fetch/Tls/TlsClientProfiles.js';
+import type { ICertBundle } from '../../Types/Domain/CertBundle.js';
 import type { IDynamicClientCert } from '../../Types/Domain/ClientCertControl.js';
 import type {
   IResponseIntegrity,
@@ -79,7 +80,7 @@ export interface ITransportConfig {
   readonly graphqlHeaders?: Readonly<Record<string, string>>;
   /**
    * When true, identity + graphql calls present the bank's registered client
-   * certificate (see ClientCertRegistry) over `node:https` (mutual-TLS) to
+   * certificate (the transport's `staticClientCert` resolver) over `node:https` (mutual-TLS) to
    * satisfy a Cloudflare API Shield mTLS gate. Default: undefined (treated as
    * false). Mutually exclusive with `nativeFetch`, because both cannot drive
    * identity. The certificate alone does not always pass the edge: a host
@@ -88,6 +89,11 @@ export interface ITransportConfig {
    * (e.g. OneZero's `*.tfd-bank.com`).
    */
   readonly requiresClientCert?: boolean;
+  /**
+   * Static PEM certificate + key presented when `requiresClientCert` is true.
+   * Injected by the bank's transport block; absent fails closed at build time.
+   */
+  readonly staticClientCert?: () => ICertBundle;
   /**
    * A device certificate the login flow obtains at runtime and installs
    * through the mediator's `clientCert` port (a step's `clientCert` field).
