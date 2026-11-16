@@ -26,7 +26,6 @@ caused the original divergence.
 | `IJsonObject` | `{ readonly [key: string]: JsonValue }` | closed |
 | `JsonArray` | `readonly JsonValue[]` | closed |
 | `JsonValue` | `JsonScalar \| IJsonObject \| JsonArray` | closed |
-| `JsonObject` | alias of `IJsonObject`, for call-sites that read better without the `I` | closed |
 | `JsonUnknown` | one un-narrowed value at a boundary | open |
 | `JsonUnknownRecord` | `Record<string, JsonUnknown>` | open |
 | `JsonUnknownList` | `readonly JsonUnknown[]` | open |
@@ -122,9 +121,8 @@ it. The declaration-level guard is restored by a test:
 `JsonValueSingleSource.test.ts` runs S6564 itself with the exemption
 overridden and asserts the rule reports **exactly one** alias in that file,
 `JsonUnknown`. Modelling the rule by hand drifts from it — S6564 flags a type
-reference only when it resolves to *another alias*, so `JsonObject` is not a
-violation, because `IJsonObject` is an interface. Running the real rule cannot
-drift. The test also asserts — through ESLint's own resolved config — that
+reference only when it resolves to *another alias*, and `IJsonObject` is an
+interface, not an alias. Running the real rule cannot drift. The test also asserts — through ESLint's own resolved config — that
 S6564 is `off` for that file and still `error` for its neighbours. S6564 is right that the alias adds no *type* information; it is wrong that the
 alias is therefore redundant. Here the **name is the contract**: it marks "not
 narrowed yet", and it is the vocabulary the single-source architecture test

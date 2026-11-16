@@ -30,7 +30,6 @@
     "src/Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.ts#setMtlsFetchFallback",
     "src/Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.ts#setMtlsRequestTimeoutMs",
     "src/Scrapers/Pipeline/Strategy/Fetch/Tls/ServerCertificateFloor.ts#isServerChainAboveFloor",
-    "src/Scrapers/Pipeline/Types/JsonValue.ts#JsonObject",
     "src/Scrapers/Pipeline/Types/PiiRedactor/Account.ts#CATEGORY",
     "src/Scrapers/Pipeline/Types/PiiRedactor/Account.ts#redact",
     "src/Scrapers/Pipeline/Types/PiiRedactor/Amount.ts#CATEGORY",
