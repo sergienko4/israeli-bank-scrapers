@@ -49,11 +49,7 @@ type IsForensicTraceActive = Brand<boolean, 'IsForensicTraceActive'>;
 type RunFolderPath = Brand<string, 'RunFolderPath'>;
 /** Absolute log file path (or empty). */
 type LogFilePath = Brand<string, 'LogFilePath'>;
-/** Absolute network-dump directory (or empty). */
-type NetworkDumpDirPath = Brand<string, 'NetworkDumpDirPath'>;
 
-/** Sub-directory for network response body dumps. */
-const NETWORK_SUBDIR = 'network';
 /** Filename for the pipeline log inside the run folder. */
 const PIPELINE_LOG_FILE = 'pipeline.log';
 /** Top-level umbrella segment under RUNS_ROOT — fixed for every pipeline run. */
@@ -74,8 +70,6 @@ let activeBankCache: string | false = false;
  */
 function clearRunCaches(): true {
   GLOBAL_TRACE.folder = false;
-  GLOBAL_TRACE.networkDir = false;
-  GLOBAL_TRACE.subSteps.clear();
   GLOBAL_TRACE.runId = false;
   return true;
 }
@@ -138,7 +132,7 @@ function resolveBankSlug(): BankSlugLower {
  * See `coding-principle-guidlines.md` §4 (Default Deny).
  * @returns True only when the flag is the literal `true`.
  */
-export function isForensicTrace(): IsForensicTraceActive {
+function isForensicTrace(): IsForensicTraceActive {
   return activeEnvironment().forensicTrace as IsForensicTraceActive;
 }
 
@@ -209,7 +203,7 @@ function makeRunFolder(seed: IRunSeed): string {
  * mid-process stops path emission instead of serving the cached folder.
  * @returns Absolute folder path, or empty string.
  */
-export function getRunFolder(): RunFolderPath {
+function getRunFolder(): RunFolderPath {
   const trace = traceOwner();
   if (!isForensicTrace() || trace.isClosed) return '' as RunFolderPath;
   if (trace.folder) return trace.folder as RunFolderPath;
@@ -229,64 +223,6 @@ export function getLogFile(): LogFilePath {
   const root = getRunFolder();
   if (!root) return '' as LogFilePath;
   return path.join(root, PIPELINE_LOG_FILE) as LogFilePath;
-}
-
-/**
- * Network-dump directory inside the run folder. Empty string off-trace so
- * HTTP capture hooks skip body dumps without forcing a bank registration.
- * @returns Absolute network-dump directory path, or empty string off-trace.
- */
-export function getNetworkDumpDir(): NetworkDumpDirPath {
-  const root = getRunFolder();
-  if (!root) return '' as NetworkDumpDirPath;
-  const trace = traceOwner();
-  if (trace.networkDir) return trace.networkDir as NetworkDumpDirPath;
-  const dir = path.join(root, NETWORK_SUBDIR);
-  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-  trace.networkDir = dir;
-  return dir as NetworkDumpDirPath;
-}
-
-/**
- * Create the per-substep dump folder inside the active network-dump root.
- * @param root - Active network-dump directory path.
- * @param key - `<phase>-<stage>` folder name.
- * @returns The created sub-step folder path.
- */
-function makeSubStepDir(root: NetworkDumpDirPath, key: string): NetworkDumpDirPath {
-  const dir = path.join(root, key);
-  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-  return dir as NetworkDumpDirPath;
-}
-
-/**
- * Create and remember one sub-step dump folder for the running execution.
- * @param root - The execution's network dump directory.
- * @param key - The `<phase>-<stage>` folder name.
- * @returns The folder's absolute path.
- */
-function rememberSubStepDir(root: NetworkDumpDirPath, key: string): NetworkDumpDirPath {
-  const dir = makeSubStepDir(root, key);
-  traceOwner().subSteps.set(key, dir);
-  return dir;
-}
-
-/**
- * Per-substep network dump dir
- * `<run>/network/<phase>-<stage>/`. Each sub-step gets its own
- * folder so the on-disk layout itself answers "which sub-step saw
- * this capture" without timestamp cross-referencing. Empty string off-trace.
- * @param phase - Active phase name from ActiveState.
- * @param stage - Active stage label from ActiveState.
- * @returns Absolute sub-step folder path, or empty string off-trace.
- */
-export function getSubStepNetworkDumpDir(phase: string, stage: string): NetworkDumpDirPath {
-  const root = getNetworkDumpDir();
-  if (!root) return '' as NetworkDumpDirPath;
-  const key = `${phase}-${stage}`;
-  const cached = traceOwner().subSteps.get(key);
-  if (cached !== undefined) return cached as NetworkDumpDirPath;
-  return rememberSubStepDir(root, key);
 }
 
 /**

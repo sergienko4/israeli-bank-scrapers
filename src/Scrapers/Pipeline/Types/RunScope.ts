@@ -21,10 +21,8 @@ import type { IEnvironment } from './Domain/EnvironmentTypes.js';
 interface IRunTrace {
   runId: string | false;
   folder: string | false;
-  networkDir: string | false;
   /** The log file this run's logger was bound to, kept so cleanup never re-resolves a path. */
   logFile: string | false;
-  readonly subSteps: Map<string, string>;
   /** Set once the run has finished, so a late async callback cannot reopen its folder. */
   isClosed: boolean;
 }
@@ -38,14 +36,14 @@ interface IRunScope {
   readonly trace: IRunTrace;
 }
 
-const UNALLOCATED = { runId: false, folder: false, networkDir: false, logFile: false } as const;
+const UNALLOCATED = { runId: false, folder: false, logFile: false } as const;
 
 /**
  * Build an empty run identity.
  * @returns A trace with nothing allocated yet.
  */
 function makeRunTrace(): IRunTrace {
-  return { ...UNALLOCATED, subSteps: new Map<string, string>(), isClosed: false };
+  return { ...UNALLOCATED, isClosed: false };
 }
 
 /**

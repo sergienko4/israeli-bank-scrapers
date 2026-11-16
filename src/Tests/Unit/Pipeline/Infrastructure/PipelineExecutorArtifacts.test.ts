@@ -29,7 +29,6 @@ import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js
 import { succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import {
   getLogFile,
-  getNetworkDumpDir,
   resetTraceConfigCache,
 } from '../../../../Scrapers/Pipeline/Types/TraceConfig.js';
 import { awaitLeaseClosed, pause } from './LogDrain.js';
@@ -361,7 +360,6 @@ function silentAction(
 /** What a callback that outlived its run found when it touched the run's artefacts. */
 interface ILateFindings {
   logFile: string;
-  networkDir: string;
   hasLease: boolean;
 }
 
@@ -399,7 +397,6 @@ async function touchAfterRelease(release: IGate, found: ILateFindings): Promise<
   await release.wait();
   getRootLogger();
   found.logFile = getLogFile();
-  found.networkDir = getNetworkDumpDir();
   const lease = getActiveRootFileLeaseForTest();
   found.hasLease = lease !== false;
   return true;
@@ -499,14 +496,14 @@ describe('PipelineExecutor — retained artefacts under overlap (forensic on)', 
 
   it('[ART-7] a callback that outlives its run cannot reopen the run’s destination', async () => {
     const release = makeGate();
-    const found: ILateFindings = { logFile: 'unset', networkDir: 'unset', hasLease: true };
+    const found: ILateFindings = { logFile: 'unset', hasLease: true };
     const late: Promise<true>[] = [];
     const action = lateCallbackAction(release, found, late);
     const result = await runAction(CompanyTypes.Beinleumi, action);
     expect(result.success).toBe(true);
     release.open();
     await Promise.all(late);
-    expect(found).toEqual({ logFile: '', networkDir: '', hasLease: false });
+    expect(found).toEqual({ logFile: '', hasLease: false });
   });
 
   it('[ART-4] a run that finishes first does not close the descriptor of one still running', async () => {

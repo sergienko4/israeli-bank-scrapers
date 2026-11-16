@@ -30,6 +30,16 @@ async function loadTraceConfig(): Promise<TraceConfigModule> {
 }
 
 /**
+ * Resolve the run folder through the exported log path.
+ * @param mod - Loaded TraceConfig module.
+ * @returns Run folder, or '' off-trace.
+ */
+function runFolderOf(mod: TraceConfigModule): string {
+  const logFile = mod.getLogFile();
+  return logFile.length > 0 ? path.dirname(logFile) : '';
+}
+
+/**
  * Build a unique tmp directory path under TEMP_BASE for a single test.
  * Avoids inlining `String(Date.now())` (a forbidden nested call) at every
  * site.
@@ -52,7 +62,8 @@ async function probeIsForensicTrace(value: string): Promise<boolean> {
   process.env.FORENSIC_TRACE = value;
   jest.resetModules();
   const mod = await loadTraceConfig();
-  return mod.isForensicTrace();
+  mod.setActiveBank('beinleumi');
+  return mod.getLogFile() !== '';
 }
 
 /**
@@ -97,7 +108,8 @@ describe('TraceConfig — FORENSIC_TRACE=true gates artefact emission', () => {
     delete process.env.FORENSIC_TRACE;
     jest.resetModules();
     const mod = await loadTraceConfig();
-    const isMode = mod.isForensicTrace();
+    mod.setActiveBank('beinleumi');
+    const isMode = mod.getLogFile() !== '';
     expect(isMode).toBe(false);
   });
 
@@ -112,20 +124,19 @@ describe('TraceConfig — FORENSIC_TRACE=true gates artefact emission', () => {
     process.env.FORENSIC_TRACE = '  TRUE  ';
     jest.resetModules();
     const mod = await loadTraceConfig();
-    const isMode = mod.isForensicTrace();
+    mod.setActiveBank('beinleumi');
+    const isMode = mod.getLogFile() !== '';
     expect(isMode).toBe(true);
   });
 
-  it('off-trace: log and network artifact paths are empty', async () => {
+  it('off-trace: log artifact paths are empty', async () => {
     delete process.env.FORENSIC_TRACE;
     jest.resetModules();
     const mod = await loadTraceConfig();
-    const runFolder = mod.getRunFolder();
+    const runFolder = runFolderOf(mod);
     const logFile = mod.getLogFile();
-    const networkDir = mod.getNetworkDumpDir();
     expect(runFolder).toBe('');
     expect(logFile).toBe('');
-    expect(networkDir).toBe('');
   });
 
   it('on-trace: derives folder under RUNS_ROOT, creates it lazily', async () => {
@@ -135,7 +146,7 @@ describe('TraceConfig — FORENSIC_TRACE=true gates artefact emission', () => {
     jest.resetModules();
     const mod = await loadTraceConfig();
     mod.setActiveBank('beinleumi');
-    const folder = mod.getRunFolder();
+    const folder = runFolderOf(mod);
     const realRoot = fs.realpathSync(tmpRoot);
     const isUnderRoot = folder.startsWith(realRoot);
     const didCreate = fs.existsSync(folder);
@@ -156,83 +167,37 @@ describe('TraceConfig — FORENSIC_TRACE=true gates artefact emission', () => {
     jest.resetModules();
     const mod = await loadTraceConfig();
     mod.setActiveBank('beinleumi');
-    const warmed = [
-      mod.getRunFolder(),
-      mod.getLogFile(),
-      mod.getNetworkDumpDir(),
-      mod.getSubStepNetworkDumpDir('home', 'PRE'),
-    ];
+    const warmed = [runFolderOf(mod), mod.getLogFile()];
     const hasEmptyWarmed = warmed.some((value): boolean => value === '');
     expect(hasEmptyWarmed).toBe(false);
     process.env.FORENSIC_TRACE = 'false';
     jest.resetModules();
     const offMod = await loadTraceConfig();
     offMod.setActiveBank('beinleumi');
-    const afterFalse = [
-      offMod.getRunFolder(),
-      offMod.getLogFile(),
-      offMod.getNetworkDumpDir(),
-      offMod.getSubStepNetworkDumpDir('home', 'PRE'),
-    ];
+    const afterFalse = [runFolderOf(offMod), offMod.getLogFile()];
     delete process.env.FORENSIC_TRACE;
     jest.resetModules();
     const unsetMod = await loadTraceConfig();
     unsetMod.setActiveBank('beinleumi');
-    const afterUnset = [
-      unsetMod.getRunFolder(),
-      unsetMod.getLogFile(),
-      unsetMod.getNetworkDumpDir(),
-      unsetMod.getSubStepNetworkDumpDir('home', 'PRE'),
-    ];
-    expect(afterFalse).toEqual(['', '', '', '']);
-    expect(afterUnset).toEqual(['', '', '', '']);
+    const afterUnset = [runFolderOf(unsetMod), unsetMod.getLogFile()];
+    expect(afterFalse).toEqual(['', '']);
+    expect(afterUnset).toEqual(['', '']);
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   });
 
-  it('on-trace: log file and network directory share the same root', async () => {
+  it('on-trace: log file lives under the run folder', async () => {
     const tmpRoot = makeTmpRoot('traceconfig-shared');
     process.env.FORENSIC_TRACE = 'true';
     process.env.RUNS_ROOT = tmpRoot;
     jest.resetModules();
     const mod = await loadTraceConfig();
     mod.setActiveBank('beinleumi');
-    const root = mod.getRunFolder();
+    const root = runFolderOf(mod);
     const logFile = mod.getLogFile();
-    const networkDir = mod.getNetworkDumpDir();
-    const logBase = path.basename(logFile);
-    const netBase = path.basename(networkDir);
     const isLogUnder = logFile.startsWith(root);
-    const isNetUnder = networkDir.startsWith(root);
-    const didCreateNet = fs.existsSync(networkDir);
+    const logBase = path.basename(logFile);
     expect(isLogUnder).toBe(true);
-    expect(isNetUnder).toBe(true);
     expect(logBase).toBe('pipeline.log');
-    expect(netBase).toBe('network');
-    expect(didCreateNet).toBe(true);
-    fs.rmSync(tmpRoot, { recursive: true, force: true });
-  });
-
-  it('off-trace: getSubStepNetworkDumpDir returns empty string', async () => {
-    delete process.env.FORENSIC_TRACE;
-    jest.resetModules();
-    const mod = await loadTraceConfig();
-    const subDir = mod.getSubStepNetworkDumpDir('home', 'PRE');
-    expect(subDir).toBe('');
-  });
-
-  it('on-trace: getSubStepNetworkDumpDir creates a sub-folder under network/', async () => {
-    const tmpRoot = makeTmpRoot('traceconfig-substep');
-    process.env.FORENSIC_TRACE = 'true';
-    process.env.RUNS_ROOT = tmpRoot;
-    jest.resetModules();
-    const mod = await loadTraceConfig();
-    mod.setActiveBank('beinleumi');
-    const subDir1 = mod.getSubStepNetworkDumpDir('home', 'PRE');
-    const subDir2 = mod.getSubStepNetworkDumpDir('home', 'PRE');
-    const didCreate = fs.existsSync(subDir1);
-    expect(subDir1).not.toBe('');
-    expect(didCreate).toBe(true);
-    expect(subDir2).toBe(subDir1);
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   });
 
@@ -243,7 +208,7 @@ describe('TraceConfig — FORENSIC_TRACE=true gates artefact emission', () => {
     jest.resetModules();
     const mod = await loadTraceConfig();
     mod.setActiveBank('beinleumi');
-    const folder = mod.getRunFolder();
+    const folder = runFolderOf(mod);
     const expectedPipelineSeg = `${path.sep}pipeline${path.sep}`;
     const expectedBankSeg = `${path.sep}beinleumi${path.sep}`;
     const stampShape = /\d{2}-\d{2}-\d{4}_\d{8}$/;
@@ -275,10 +240,10 @@ describe('TraceConfig — FORENSIC_TRACE=true gates artefact emission', () => {
     jest.resetModules();
     const mod = await loadTraceConfig();
     mod.setActiveBank('beinleumi');
-    const folder1 = mod.getRunFolder();
+    const folder1 = runFolderOf(mod);
     const wasReset = mod.resetTraceConfigCache();
     delete process.env.FORENSIC_TRACE;
-    const folder2 = mod.getRunFolder();
+    const folder2 = runFolderOf(mod);
     expect(folder1).not.toBe('');
     expect(wasReset).toBe(true);
     expect(folder2).toBe('');
@@ -292,23 +257,10 @@ describe('TraceConfig — FORENSIC_TRACE=true gates artefact emission', () => {
     jest.resetModules();
     const mod = await loadTraceConfig();
     mod.setActiveBank('beinleumi');
-    const a = mod.getRunFolder();
-    const b = mod.getRunFolder();
+    const a = runFolderOf(mod);
+    const b = runFolderOf(mod);
     expect(a).toBe(b);
     expect(a).not.toBe('');
-    fs.rmSync(tmpRoot, { recursive: true, force: true });
-  });
-
-  it('getNetworkDumpDir is cached across calls', async () => {
-    const tmpRoot = makeTmpRoot('traceconfig-net');
-    process.env.FORENSIC_TRACE = 'true';
-    process.env.RUNS_ROOT = tmpRoot;
-    jest.resetModules();
-    const mod = await loadTraceConfig();
-    mod.setActiveBank('beinleumi');
-    const a = mod.getNetworkDumpDir();
-    const b = mod.getNetworkDumpDir();
-    expect(a).toBe(b);
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   });
 
@@ -339,7 +291,7 @@ describe('TraceConfig — FORENSIC_TRACE=true gates artefact emission', () => {
     const mod = await loadTraceConfig();
     mod.setActiveBank('discount');
     const runId = mod.getActiveRunId();
-    const folder = mod.getRunFolder();
+    const folder = runFolderOf(mod);
     const leaf = path.basename(folder);
     expect(runId).toBe(leaf);
     fs.rmSync(tmpRoot, { recursive: true, force: true });
@@ -351,7 +303,7 @@ describe('TraceConfig — FORENSIC_TRACE=true gates artefact emission', () => {
     const mod = await loadTraceConfig();
     mod.setActiveBank('hapoalim');
     const runId = mod.getActiveRunId();
-    const folder = mod.getRunFolder();
+    const folder = runFolderOf(mod);
     const isWellFormed = RUN_ID_FORMAT_RE.test(runId);
     expect(runId).not.toBe('');
     expect(isWellFormed).toBe(true);
@@ -443,7 +395,7 @@ describe('TraceConfig — FORENSIC_TRACE=true gates artefact emission', () => {
     jest.resetModules();
     const mod = await loadTraceConfig();
     mod.setActiveBank('beinleumi');
-    const folder = mod.getRunFolder();
+    const folder = runFolderOf(mod);
     const expectedSeg = `${path.sep}beinleumi${path.sep}`;
     expect(folder).toContain(expectedSeg);
     fs.rmSync(tmpRoot, { recursive: true, force: true });
@@ -469,20 +421,14 @@ describe('TraceConfig — setActiveBank bank-switch cache isolation', () => {
     jest.resetModules();
     const mod = await loadTraceConfig();
     mod.setActiveBank('beinleumi');
-    const folder1 = mod.getRunFolder();
-    const netDir1 = mod.getNetworkDumpDir();
-    const subDir1 = mod.getSubStepNetworkDumpDir('api-direct-call', 'ACTION');
+    const folder1 = runFolderOf(mod);
     const runId1 = mod.getActiveRunId();
     mod.setActiveBank('discount');
-    const folder2 = mod.getRunFolder();
-    const netDir2 = mod.getNetworkDumpDir();
-    const subDir2 = mod.getSubStepNetworkDumpDir('api-direct-call', 'ACTION');
+    const folder2 = runFolderOf(mod);
     const runId2 = mod.getActiveRunId();
     expect(folder1).toContain(`${path.sep}beinleumi${path.sep}`);
     expect(folder2).toContain(`${path.sep}discount${path.sep}`);
     expect(folder2).not.toBe(folder1);
-    expect(netDir2).not.toBe(netDir1);
-    expect(subDir2).not.toBe(subDir1);
     expect(runId2).not.toBe(runId1);
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   });
@@ -496,10 +442,10 @@ describe('TraceConfig — setActiveBank bank-switch cache isolation', () => {
     const scopes = await import('../../../../Scrapers/Pipeline/Types/RunScope.js');
     const environment = await import('../../../../Scrapers/Pipeline/Types/Environment.js');
     mod.setActiveBank('beinleumi');
-    const folderBefore = mod.getRunFolder();
+    const folderBefore = runFolderOf(mod);
     const runIdBefore = mod.getActiveRunId();
     scopes.openRunScope('discount', environment.ENVIRONMENT, () => mod.setActiveBank('discount'));
-    const folderAfter = mod.getRunFolder();
+    const folderAfter = runFolderOf(mod);
     expect(folderBefore).toContain(`${path.sep}beinleumi${path.sep}`);
     expect(folderAfter).toContain(`${path.sep}discount${path.sep}`);
     const runIdAfter = mod.getActiveRunId();
@@ -514,18 +460,12 @@ describe('TraceConfig — setActiveBank bank-switch cache isolation', () => {
     jest.resetModules();
     const mod = await loadTraceConfig();
     mod.setActiveBank('beinleumi');
-    const folder1 = mod.getRunFolder();
-    const netDir1 = mod.getNetworkDumpDir();
-    const subDir1 = mod.getSubStepNetworkDumpDir('api-direct-call', 'ACTION');
+    const folder1 = runFolderOf(mod);
     const runId1 = mod.getActiveRunId();
     mod.setActiveBank(' Beinleumi ');
-    const folder2 = mod.getRunFolder();
-    const netDir2 = mod.getNetworkDumpDir();
-    const subDir2 = mod.getSubStepNetworkDumpDir('api-direct-call', 'ACTION');
+    const folder2 = runFolderOf(mod);
     const runId2 = mod.getActiveRunId();
     expect(folder2).toBe(folder1);
-    expect(netDir2).toBe(netDir1);
-    expect(subDir2).toBe(subDir1);
     expect(runId2).toBe(runId1);
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   });
@@ -537,10 +477,10 @@ describe('TraceConfig — setActiveBank bank-switch cache isolation', () => {
     jest.resetModules();
     const mod = await loadTraceConfig();
     mod.setActiveBank('beinleumi');
-    const folder1 = mod.getRunFolder();
+    const folder1 = runFolderOf(mod);
     const runId1 = mod.getActiveRunId();
     const accepted = mod.setActiveBank('not-a-real-bank');
-    const folder2 = mod.getRunFolder();
+    const folder2 = runFolderOf(mod);
     const runId2 = mod.getActiveRunId();
     expect(accepted).toBe(false);
     expect(folder2).toBe(folder1);
