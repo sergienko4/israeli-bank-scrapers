@@ -60,3 +60,24 @@ The architecture validator (`lint:architecture`) runs on every commit and reject
 - Cross-mediator imports that bypass the declared contracts
 
 Source: [`src/Tests/Tools/lint-and-validate.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Tests/Tools/lint-and-validate.ts) + the 3 architecture canaries under `src/Scrapers/Pipeline/EslintCanaries/`.
+
+The eight Pipeline directories are pinned by
+`src/Tests/Unit/Pipeline/Architecture/LayerDirectionPolicy.test.ts` in this
+order, highest composition layer first:
+
+`Banks → Core → Phases → Mediator → {Strategy, Registry} → Logging → Types`
+
+A layer may import itself or any layer to its right; `Banks` is the composition
+layer, so it may import every layer, while `Core` may not import `Banks`
+(separately enforced by `CoreBankIndependence`). `Strategy` and `Registry` are
+siblings and may import each other. `Types` is a leaf.
+
+Current violations are frozen in `src/Tests/Tools/layer-direction.baseline.json`.
+A new edge fails the test; when an edge is fixed, its baseline entry must be
+removed in the same change, so the ratchet only shrinks. CI also runs a
+tamper-guard (`.github/scripts/ci/layer-direction-baseline-guard.sh`) that
+compares the baseline against the PR base and rejects any added entry, so a
+forbidden edge cannot be introduced together with its own exception. The same test rejects a
+bank-named module or a `CompanyTypes.<X>` reference in `Phases`, `Mediator` or
+`Strategy`, and the four family shape directories are frozen there until they
+move under `Banks/_Shared`.

@@ -232,6 +232,14 @@ PII value` runs the staged-PII guard over the pull request's additions
   only fast, change-scoped and leak-preventing gates, and
   `HookGatesInCi.test.ts` fails if a gate left in the hook has no step here.
   See [Pre-commit hook](pre-commit.md).
+- **Baseline tamper guards.** The cycle and layer-direction ratchets trust
+  the working-tree baseline, so a PR could add a violation and its baseline
+  entry together. Their guard steps fetch the PR base baseline and fail when
+  any entry was added; an absent base baseline allows the establishment PR,
+  while an unresolvable base commit fails closed. Both run when the PR touches
+  source or CI scripts.
+  The layer matrix itself is documented in
+  [Layer separation](../architecture/layers.md#import-direction-enforcement).
 - **No shared writes.** Background steps share the working tree with the
   foreground ones, so none may write a file another step reads. Scorecard
   scans a `git archive` copy in a temporary directory. Decoupling writes its
