@@ -18,6 +18,8 @@ import {
   FLOOR_CA_CERT_B64,
   FLOOR_DSA_Q160_CERT_B64,
   FLOOR_DSA_Q224_CERT_B64,
+  FLOOR_ECDSA_CERT_B64,
+  FLOOR_ED25519_CERT_B64,
   FLOOR_GOOD_CERT_B64,
   FLOOR_GOOD_KEY_B64,
   FLOOR_PSS_SHA1_CERT_B64,
@@ -38,7 +40,7 @@ function peerOf(b64: string, issuer?: PeerCertificate): PeerCertificate {
   const certificate = new X509Certificate(decodePem(b64));
   return {
     raw: certificate.raw,
-    subjectaltname: certificate.subjectAltName,
+    subjectaltname: 'DNS:localhost',
     valid_from: certificate.validFrom,
     valid_to: certificate.validTo,
     issuerCertificate: issuer,
@@ -75,6 +77,48 @@ describe('ServerCertificateFloor — chain matrix through the public identity ch
   ])('rejects a weak leaf (%s)', b64 => {
     const anchor = anchorPeer(FLOOR_CA_CERT_B64);
     const leaf = peerOf(b64, anchor);
+    const result = checkServerCertificate('localhost', leaf);
+    expect(result).toBeInstanceOf(Error);
+  });
+
+  it.each([
+    [FLOOR_ED25519_CERT_B64, true],
+    [FLOOR_ECDSA_CERT_B64, true],
+    [FLOOR_SHA1_CERT_B64, false],
+  ])('checks a link with no issuer (%s)', (b64, isAbove) => {
+    const link = peerOf(b64);
+    const result = checkServerCertificate('localhost', link);
+    if (isAbove) expect(result).toBeUndefined();
+    else expect(result).toBeInstanceOf(Error);
+  });
+
+  it('rejects a weak self-signed anchor', () => {
+    const anchor = anchorPeer(FLOOR_WEAK_KEY_CERT_B64);
+    const result = checkServerCertificate('localhost', anchor);
+    expect(result).toBeInstanceOf(Error);
+  });
+
+  it('stops at an issuer cycle and still checks every link', () => {
+    const leaf = peerOf(FLOOR_GOOD_CERT_B64);
+    const issuer = peerOf(FLOOR_ECDSA_CERT_B64);
+    Reflect.set(leaf, 'issuerCertificate', issuer);
+    Reflect.set(issuer, 'issuerCertificate', leaf);
+    const strongResult = checkServerCertificate('localhost', leaf);
+    const weakIssuer = peerOf(FLOOR_SHA1_CERT_B64);
+    Reflect.set(leaf, 'issuerCertificate', weakIssuer);
+    Reflect.set(weakIssuer, 'issuerCertificate', leaf);
+    const weakResult = checkServerCertificate('localhost', leaf);
+    expect(strongResult).toBeUndefined();
+    expect(weakResult).toBeInstanceOf(Error);
+  });
+
+  it('rejects a malformed certificate chain link', () => {
+    const leaf = {
+      raw: Buffer.from([0x30, 0x00]),
+      subjectaltname: 'DNS:localhost',
+      valid_from: 'Jan 1 2020',
+      valid_to: 'Jan 1 2030',
+    } as unknown as PeerCertificate;
     const result = checkServerCertificate('localhost', leaf);
     expect(result).toBeInstanceOf(Error);
   });

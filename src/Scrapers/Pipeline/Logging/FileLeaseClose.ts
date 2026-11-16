@@ -69,19 +69,24 @@ function makeLeaseCloseCallback(
   };
 }
 
+/** Close-callback shape accepted by `fs.close`. */
+type CloseFn = typeof fs.close;
+
 /**
  * Schedule `fs.close` for a descriptor this lease still owns.
  * @param lease - Owned file lease.
  * @param onCloseError - Error reporter for unexpected `fs.close` errors.
+ * @param close - Close implementation; defaults to `fs.close`.
  * @returns Branded true: the close was scheduled.
  */
 function scheduleLeaseClose(
   lease: IFileLease,
   onCloseError: (reason: string) => boolean,
+  close: CloseFn,
 ): DidCloseLease {
   lease.isClosing = true;
   const onClosed = makeLeaseCloseCallback(lease, onCloseError);
-  fs.close(lease.fd, onClosed);
+  close(lease.fd, onClosed);
   return true as DidCloseLease;
 }
 
@@ -89,13 +94,15 @@ function scheduleLeaseClose(
  * Asynchronously close an owned `pipeline.log` file descriptor at most once.
  * @param lease - Owned file lease (or `false` when terminal-only).
  * @param onCloseError - Callback reporting unexpected `fs.close` errors.
+ * @param close - Close implementation; defaults to `fs.close`.
  * @returns Branded boolean true when `fs.close` was scheduled, else false.
  */
 export function closeFileLeaseAsync(
   lease: IFileLease | false,
   onCloseError: (reason: string) => boolean,
+  close: CloseFn = fs.close,
 ): DidCloseLease {
   if (!lease || lease.isClosing || lease.isClosed) return false as DidCloseLease;
   if (!leaseFdStillRefersToLog(lease)) return settleClosedLease(lease);
-  return scheduleLeaseClose(lease, onCloseError);
+  return scheduleLeaseClose(lease, onCloseError, close);
 }
