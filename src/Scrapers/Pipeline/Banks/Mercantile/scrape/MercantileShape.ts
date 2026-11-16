@@ -11,7 +11,7 @@
  * seeing a conscious per-bank decision.
  */
 
-import makeTelebankGroupShape from '../../../Phases/ApiDirectScrape/TelebankGroup/TelebankGroupShape.js';
+import makeTelebankGroupShape from '../../../Banks/_Shared/TelebankGroup/TelebankGroupShape.js';
 
 /** Mercantile hard-model shape — passed to `.withApiDirect(...)`. */
 const MERCANTILE_SHAPE = makeTelebankGroupShape({

@@ -48,22 +48,6 @@
     "Registry/Config/PipelineBankConfigYahavSteps.ts -> Mediator/ApiDirectCall/ConfigContracts/index.ts"
   ],
   "bankNamedFiles": [
-    "Phases/ApiDirectScrape/CardIssuer/CardIssuerShapeTxns.ts",
-    "Phases/ApiDirectScrape/FibiGroup/FibiGroupShape.ts",
-    "Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeAccounts.ts",
-    "Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeHeaders.ts",
-    "Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeHelpers.ts",
-    "Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeTxns.ts",
-    "Phases/ApiDirectScrape/Ring/RingShape.ts",
-    "Phases/ApiDirectScrape/Ring/RingShapeBalance.ts",
-    "Phases/ApiDirectScrape/Ring/RingShapeCards.ts",
-    "Phases/ApiDirectScrape/Ring/RingShapeExtract.ts",
-    "Phases/ApiDirectScrape/Ring/RingShapeHeaders.ts",
-    "Phases/ApiDirectScrape/Ring/RingShapeTxns.ts",
-    "Phases/ApiDirectScrape/TelebankGroup/TelebankGroupShape.ts",
-    "Phases/ApiDirectScrape/TelebankGroup/TelebankGroupShapeCheck.ts",
-    "Phases/ApiDirectScrape/TelebankGroup/TelebankGroupShapeHelpers.ts",
-    "Phases/ApiDirectScrape/TelebankGroup/TelebankGroupShapeTxns.ts",
     "Strategy/Fetch/Mtls/OneZeroClientCert.ts",
     "Strategy/Fetch/Mtls/OneZeroClientCertData.ts"
   ],

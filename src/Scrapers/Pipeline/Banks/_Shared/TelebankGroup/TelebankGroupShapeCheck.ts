@@ -15,9 +15,9 @@
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
+import type { ApiBody } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, succeed } from '../../../Types/Procedure.js';
-import type { ApiBody } from '../IApiDirectScrapeShape.js';
 
 /** Most accounts one run reads — the bank's per-login call budget. */
 const MAX_ACCOUNTS = 8;

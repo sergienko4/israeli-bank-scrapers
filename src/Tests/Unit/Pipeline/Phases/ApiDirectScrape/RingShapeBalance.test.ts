@@ -10,13 +10,13 @@
 import { jest } from '@jest/globals';
 import moment from 'moment-timezone';
 
-import type { ApiBody } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import {
   balanceIsAbsent,
   balanceVars,
   nextDebitOf,
-} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/Ring/RingShapeBalance.js';
-import type { IRingCard } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/Ring/RingShapeCards.js';
+} from '../../../../../Scrapers/Pipeline/Banks/_Shared/Ring/RingShapeBalance.js';
+import type { IRingCard } from '../../../../../Scrapers/Pipeline/Banks/_Shared/Ring/RingShapeCards.js';
+import type { ApiBody } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 
 const ZONE = 'Asia/Jerusalem';
 const CARD: IRingCard = { card4Number: '1234', paymentDay: 10, companyCode: 11 };

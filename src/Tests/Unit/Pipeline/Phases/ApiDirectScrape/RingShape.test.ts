@@ -7,6 +7,20 @@
 
 import { jest } from '@jest/globals';
 
+import makeRingShape from '../../../../../Scrapers/Pipeline/Banks/_Shared/Ring/RingShape.js';
+import {
+  accountNumberOf,
+  buildExtractCards,
+  cardsUrl,
+  cardsVars,
+  type IRingCard,
+} from '../../../../../Scrapers/Pipeline/Banks/_Shared/Ring/RingShapeCards.js';
+import { buildRingHeaders } from '../../../../../Scrapers/Pipeline/Banks/_Shared/Ring/RingShapeHeaders.js';
+import {
+  gatewayUrl,
+  txnsExtractPage,
+  txnsVars,
+} from '../../../../../Scrapers/Pipeline/Banks/_Shared/Ring/RingShapeTxns.js';
 import AMEX_SHAPE from '../../../../../Scrapers/Pipeline/Banks/Amex/scrape/AmexShape.js';
 import ISRACARD_SHAPE from '../../../../../Scrapers/Pipeline/Banks/Isracard/scrape/IsracardShape.js';
 import {
@@ -14,20 +28,6 @@ import {
   BALANCE_UNKNOWN,
   type IExtractAccountsArgs,
 } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
-import makeRingShape from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/Ring/RingShape.js';
-import {
-  accountNumberOf,
-  buildExtractCards,
-  cardsUrl,
-  cardsVars,
-  type IRingCard,
-} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/Ring/RingShapeCards.js';
-import { buildRingHeaders } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/Ring/RingShapeHeaders.js';
-import {
-  gatewayUrl,
-  txnsExtractPage,
-  txnsVars,
-} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/Ring/RingShapeTxns.js';
 import { none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 
 const CHECK_RING_BODY = ISRACARD_SHAPE.checkBody;

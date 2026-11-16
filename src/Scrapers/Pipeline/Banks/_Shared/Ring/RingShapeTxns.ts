@@ -6,6 +6,10 @@
  * per cursor step.
  */
 
+import type {
+  IExtractPageArgs,
+  VarsMap,
+} from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { IRingConstants } from '../../../Registry/Config/PipelineBankConfigRingConstants.js';
 import { type LiteralUrl, literalUrl } from '../../../Registry/WK/UrlsWK.js';
 import type { IPage } from '../../../Strategy/Fetch/Pagination.js';
@@ -16,7 +20,6 @@ import {
   nextCursorOf,
   offsetOf,
 } from '../CardIssuer/CardIssuerShapeTxns.js';
-import type { IExtractPageArgs, VarsMap } from '../IApiDirectScrapeShape.js';
 import type { IRingCard } from './RingShapeCards.js';
 import { mergeRingRows } from './RingShapeExtract.js';
 

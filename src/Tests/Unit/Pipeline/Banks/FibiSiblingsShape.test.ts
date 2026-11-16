@@ -9,25 +9,25 @@
  * duplication. Bodies are synthetic (fake values) — zero PII.
  */
 
-import massadShape from '../../../../Scrapers/Pipeline/Banks/Massad/scrape/MassadShape.js';
-import otsarShape from '../../../../Scrapers/Pipeline/Banks/OtsarHahayal/scrape/OtsarHahayalShape.js';
-import pagiShape from '../../../../Scrapers/Pipeline/Banks/Pagi/scrape/PagiShape.js';
 import {
   accountNumberOf,
   customerUrl,
   extractAccounts,
   secondaryUrl,
-} from '../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeAccounts.js';
+} from '../../../../Scrapers/Pipeline/Banks/_Shared/FibiGroup/FibiGroupShapeAccounts.js';
 import {
   balanceExtract,
   balanceUrl,
   noVars,
-} from '../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeHelpers.js';
+} from '../../../../Scrapers/Pipeline/Banks/_Shared/FibiGroup/FibiGroupShapeHelpers.js';
 import {
   txnsExtractPage,
   txnsUrl,
   txnsVars,
-} from '../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeTxns.js';
+} from '../../../../Scrapers/Pipeline/Banks/_Shared/FibiGroup/FibiGroupShapeTxns.js';
+import massadShape from '../../../../Scrapers/Pipeline/Banks/Massad/scrape/MassadShape.js';
+import otsarShape from '../../../../Scrapers/Pipeline/Banks/OtsarHahayal/scrape/OtsarHahayalShape.js';
+import pagiShape from '../../../../Scrapers/Pipeline/Banks/Pagi/scrape/PagiShape.js';
 import type {
   ApiBody,
   IApiDirectScrapeShape,

@@ -20,7 +20,7 @@ import { jest } from '@jest/globals';
 import {
   lastOffset,
   monthAt,
-} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/CardIssuer/CardIssuerShapeTxns.js';
+} from '../../../../../Scrapers/Pipeline/Banks/_Shared/CardIssuer/CardIssuerShapeTxns.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { underZone } from '../../../../Helpers/AmbientZone.js';
 import { ctxSpanning } from './WindowNarrowingFixtures.js';

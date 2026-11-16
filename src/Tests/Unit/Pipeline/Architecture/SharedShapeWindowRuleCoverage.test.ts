@@ -5,7 +5,7 @@
  * <p>The rule that forbids reading the clock in a `*ShapeTxns.ts` file is
  * path-keyed. It was originally scoped to the per-bank `scrape/` folders, so
  * extracting the FIBI group's shared transactions module into
- * `Phases/ApiDirectScrape/FibiGroup/` would have dropped the guardrail exactly
+ * `Banks/_Shared/FibiGroup/` would have dropped the guardrail exactly
  * where four banks came to depend on it at once — with no test failing. The
  * glob was widened; this test is what notices if it is ever narrowed back. The
  * card-issuer cursor module is the second shared shape to rely on that widening.
@@ -30,8 +30,8 @@ import { ESLint } from 'eslint';
 const HERE_URL = fileURLToPath(import.meta.url);
 const HERE = path.dirname(HERE_URL);
 const PIPELINE_ROOT = path.join(HERE, '..', '..', '..', '..', 'Scrapers', 'Pipeline');
-const FIBI_GROUP = path.join(PIPELINE_ROOT, 'Phases', 'ApiDirectScrape', 'FibiGroup');
-const CARD_ISSUER = path.join(PIPELINE_ROOT, 'Phases', 'ApiDirectScrape', 'CardIssuer');
+const FIBI_GROUP = path.join(PIPELINE_ROOT, 'Banks', '_Shared', 'FibiGroup');
+const CARD_ISSUER = path.join(PIPELINE_ROOT, 'Banks', '_Shared', 'CardIssuer');
 const BANKS = path.join(PIPELINE_ROOT, 'Banks');
 
 /** Stable fragment of the rule's message — cheaper to match than its selector. */

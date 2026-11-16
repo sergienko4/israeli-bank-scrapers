@@ -123,7 +123,7 @@ encoded, not encrypted, so store it as a secret.
 ## Known quirks
 
 - Beinleumi is the parent of the Beinleumi group. [Massad](massad.md), [Otsar Hahayal](otsar-hahayal.md) and [Pagi](pagi.md) log in the same way with their own brands.
-- Balance endpoint shape: `currentBalance ?? withdrawableBalance ?? 0` per account — see [`FibiGroupShapeHelpers.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeHelpers.ts).
+- Balance endpoint shape: `currentBalance ?? withdrawableBalance ?? 0` per account — see [`FibiGroupShapeHelpers.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/_Shared/FibiGroup/FibiGroupShapeHelpers.ts).
 
 ## Hard-model post-auth
 

@@ -10,10 +10,13 @@
  */
 
 import { bankMomentOfInstant } from '../../../Mediator/Scrape/BankCalendar.js';
+import type {
+  IExtractPageArgs,
+  VarsMap,
+} from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import { literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import type { IPage } from '../../../Strategy/Fetch/Pagination.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
-import type { IExtractPageArgs, VarsMap } from '../IApiDirectScrapeShape.js';
 import { type ITelebankAcct, TITAN_API } from './TelebankGroupShapeHelpers.js';
 
 /** Titan full-history date format (YYYYMMDD, no separators). */

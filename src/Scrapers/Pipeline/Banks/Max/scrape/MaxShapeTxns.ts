@@ -18,7 +18,7 @@ import {
   monthAt,
   nextCursorOf,
   offsetOf,
-} from '../../../Phases/ApiDirectScrape/CardIssuer/CardIssuerShapeTxns.js';
+} from '../../../Banks/_Shared/CardIssuer/CardIssuerShapeTxns.js';
 import type { IExtractPageArgs } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import { literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import type { IPage } from '../../../Strategy/Fetch/Pagination.js';

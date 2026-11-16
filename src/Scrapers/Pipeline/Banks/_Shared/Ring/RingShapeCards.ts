@@ -9,11 +9,14 @@
  * silently omit one card's money.
  */
 
+import type {
+  IExtractAccountsArgs,
+  VarsMap,
+} from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { IRingConstants } from '../../../Registry/Config/PipelineBankConfigRingConstants.js';
 import { RING_WALLET_ID } from '../../../Registry/Config/PipelineBankConfigRingConstants.js';
 import { type LiteralUrl, literalUrl } from '../../../Registry/WK/UrlsWK.js';
 import type { Brand } from '../../../Types/Brand.js';
-import type { IExtractAccountsArgs, VarsMap } from '../IApiDirectScrapeShape.js';
 
 const CARDS_SERVICE = 'CardsList_102Digital';
 const CARD_4_WIDTH = 4;

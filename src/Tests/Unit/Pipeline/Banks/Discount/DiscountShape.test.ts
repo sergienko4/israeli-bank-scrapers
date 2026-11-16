@@ -8,12 +8,7 @@
  * AccountInfoAndBalance, CurrentAccountLastTransactions.OperationEntry).
  */
 
-import DISCOUNT_SHAPE from '../../../../../Scrapers/Pipeline/Banks/Discount/scrape/DiscountShape.js';
-import type {
-  ApiBody,
-  IExtractAccountsArgs,
-} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
-import checkTitanBody from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/TelebankGroup/TelebankGroupShapeCheck.js';
+import checkTitanBody from '../../../../../Scrapers/Pipeline/Banks/_Shared/TelebankGroup/TelebankGroupShapeCheck.js';
 import {
   accountNumberOf,
   balanceExtract,
@@ -22,11 +17,16 @@ import {
   extractAccounts,
   type ITelebankAcct,
   titanHeaders,
-} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/TelebankGroup/TelebankGroupShapeHelpers.js';
+} from '../../../../../Scrapers/Pipeline/Banks/_Shared/TelebankGroup/TelebankGroupShapeHelpers.js';
 import {
   txnsExtractPage,
   txnsUrl,
-} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/TelebankGroup/TelebankGroupShapeTxns.js';
+} from '../../../../../Scrapers/Pipeline/Banks/_Shared/TelebankGroup/TelebankGroupShapeTxns.js';
+import DISCOUNT_SHAPE from '../../../../../Scrapers/Pipeline/Banks/Discount/scrape/DiscountShape.js';
+import type {
+  ApiBody,
+  IExtractAccountsArgs,
+} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { AMBIENT_ZONE_CASES, underZone } from '../../../../Helpers/AmbientZone.js';
 

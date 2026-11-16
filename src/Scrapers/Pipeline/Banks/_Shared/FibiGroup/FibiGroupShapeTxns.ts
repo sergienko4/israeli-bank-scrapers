@@ -18,10 +18,13 @@
 
 import { bankMomentOfInstant } from '../../../Mediator/Scrape/BankCalendar.js';
 import scrapeWindowEnd from '../../../Mediator/Scrape/ScrapeWindowEnd.js';
+import type {
+  IExtractPageArgs,
+  VarsMap,
+} from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import { literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import type { IPage } from '../../../Strategy/Fetch/Pagination.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
-import type { IExtractPageArgs, VarsMap } from '../IApiDirectScrapeShape.js';
 import { BFF_BASE, type IFibiAcct, type IFibiGroupConfig } from './FibiGroupShapeHelpers.js';
 
 /** Transaction date format (YYYY-MM-DD, per the captured POST body). */

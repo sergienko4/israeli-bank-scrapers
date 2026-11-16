@@ -106,7 +106,7 @@ const PAGI_FILE = path.join(BANKS_PREFIX, 'Pagi', 'scrape', 'PagiShape.ts');
 const MASSAD_FILE = path.join(BANKS_PREFIX, 'Massad', 'scrape', 'MassadShape.ts');
 const PAGI_OTHER = path.join(BANKS_PREFIX, 'Pagi', 'PagiPipeline.ts');
 const SHARED_FILE = path.join(BANKS_PREFIX, SHARED_DIR, 'Anything.ts');
-const FACTORY_FILE = path.join(PIPELINE_ROOT, 'Phases', 'ApiDirectScrape', 'FibiGroup', 'X.ts');
+const FACTORY_FILE = path.join(PIPELINE_ROOT, 'Banks', '_Shared', 'FibiGroup', 'X.ts');
 const REGISTRY_FILE = path.join(BANKS_PREFIX, 'PipelineRegistry.ts');
 
 describe('Banks <-> Banks sibling independence (OCP)', () => {

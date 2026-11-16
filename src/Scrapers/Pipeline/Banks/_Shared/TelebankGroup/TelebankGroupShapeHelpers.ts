@@ -6,6 +6,13 @@
  * {@link titanHeaders} echoes the routing cookies as headers.
  */
 
+import type {
+  ApiBody,
+  HeaderMap,
+  IExtractAccountsArgs,
+  IScrapeCallInfo,
+  VarsMap,
+} from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import {
   TELEBANK_ORIGIN,
   TELEBANK_STATIC_HEADERS,
@@ -14,13 +21,6 @@ import {
 import { literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import type { Brand } from '../../../Types/Brand.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
-import type {
-  ApiBody,
-  HeaderMap,
-  IExtractAccountsArgs,
-  IScrapeCallInfo,
-  VarsMap,
-} from '../IApiDirectScrapeShape.js';
 
 /** Titan gateway — the Telebank family's data API, on the login origin. */
 export const TITAN_API = `${TELEBANK_ORIGIN}/Titan/gatewayAPI`;

@@ -20,7 +20,7 @@ import {
   nextCursorOf,
   offsetOf,
   validateCardIssuerPlan,
-} from '../../../Phases/ApiDirectScrape/CardIssuer/CardIssuerShapeTxns.js';
+} from '../../../Banks/_Shared/CardIssuer/CardIssuerShapeTxns.js';
 import type {
   IExtractPageArgs,
   VarsMap,

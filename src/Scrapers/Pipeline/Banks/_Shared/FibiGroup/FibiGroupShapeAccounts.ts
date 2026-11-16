@@ -17,9 +17,12 @@
  */
 
 import ScraperError from '../../../../Base/ScraperError.js';
+import type {
+  ApiBody,
+  IExtractAccountsArgs,
+} from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import { literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import type { Brand } from '../../../Types/Brand.js';
-import type { ApiBody, IExtractAccountsArgs } from '../IApiDirectScrapeShape.js';
 import {
   BFF_BASE,
   type IFibiAcct,
