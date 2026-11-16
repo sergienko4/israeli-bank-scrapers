@@ -15,6 +15,7 @@
  */
 
 import ScraperError from '../../../Base/ScraperError.js';
+import { NETWORK_FETCH_TIMEOUT_MS } from '../../Strategy/Fetch/FetchConfig.js';
 import GraphQLFetchStrategy from '../../Strategy/Fetch/GraphQLFetchStrategy.js';
 import type { AgentSource } from '../../Strategy/Fetch/Mtls/MtlsAgentSource.js';
 import MtlsFetchStrategy from '../../Strategy/Fetch/Mtls/MtlsFetchStrategy.js';
@@ -30,7 +31,6 @@ import {
 } from '../../Strategy/Fetch/SessionCookieFetchStrategy.js';
 import type { IClientCertControl } from '../../Types/Domain/ClientCertControl.js';
 import type { IResponseIntegrity } from '../../Types/Domain/FetchPolicy.js';
-import { NETWORK_FETCH_TIMEOUT_MS } from '../Network/FetchConfig.js';
 import createApiMediator from './ApiMediator.factory.js';
 import buildTransportSource from './ApiMediator.nodeTransport.js';
 import type { INodeTlsMediatorArgs } from './ApiMediator.transport.types.js';

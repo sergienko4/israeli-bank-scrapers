@@ -45,12 +45,7 @@
     "Registry/Config/PipelineBankConfigYahav.ts -> Mediator/ApiDirectCall/ConfigContracts/index.ts",
     "Registry/Config/PipelineBankConfigYahav.ts -> Mediator/ApiDirectCall/PersistentAuthStateRules.ts",
     "Registry/Config/PipelineBankConfigYahavConstants.ts -> Mediator/ApiDirectCall/ConfigContracts/index.ts",
-    "Registry/Config/PipelineBankConfigYahavSteps.ts -> Mediator/ApiDirectCall/ConfigContracts/index.ts",
-    "Strategy/Fetch/CappedInvoke.ts -> Mediator/Network/FetchConfig.ts",
-    "Types/Domain/TokenBus.ts -> Registry/WK/UrlsWK.ts",
-    "Types/PipelineContext.ts -> Logging/Debug.ts",
-    "Types/PipelineContext.ts -> Mediator/Api/ApiMediator.ts",
-    "Types/PipelineContext.ts -> Registry/Config/PipelineBankConfig.ts"
+    "Registry/Config/PipelineBankConfigYahavSteps.ts -> Mediator/ApiDirectCall/ConfigContracts/index.ts"
   ],
   "bankNamedFiles": [
     "Phases/ApiDirectScrape/CardIssuer/CardIssuerShapeTxns.ts",

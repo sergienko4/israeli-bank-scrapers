@@ -16,7 +16,7 @@ import type { Logger } from 'pino';
 import buildDeferredLogger from './ChildLoggerProxy.js';
 import deriveLogName from './LoggerNaming.js';
 
-export type ScraperLogger = Logger;
+export type { ScraperLogger } from '../Types/Domain/ScraperLogger.js';
 
 /**
  * Build a deferred-resolve child logger for a module. Capturing
