@@ -937,6 +937,58 @@ assert_eq "a caller cannot lift the 5s ceiling" \
   "$(report_field egress_ip -m 0 https://example.invalid)"
 unset -f curl
 
+# ── 10/10: layer-direction baseline guard ──
+# The guard lives outside Jest, so its behavior is smoked here in an isolated
+# repository: a widened baseline must fail, an unchanged or shrunk one must
+# pass, and an unresolvable base commit must fail closed. Never touch the
+# tracked baseline — concurrent readers and an early exit would see it.
+LAYER_TMP="$(mktemp -d)"
+trap 'rm -f "${SUMMARY_FILE:-}"; rm -rf "$LAYER_TMP"' EXIT
+mkdir -p "$LAYER_TMP/.github/scripts/ci" "$LAYER_TMP/src/Tests/Tools"
+cp "$REPO_ROOT/.github/scripts/ci/layer-direction-baseline-guard.sh" \
+  "$LAYER_TMP/.github/scripts/ci/"
+cp "$REPO_ROOT/src/Tests/Tools/layer-direction.baseline.json" \
+  "$LAYER_TMP/src/Tests/Tools/"
+git -C "$LAYER_TMP" init -q
+git -C "$LAYER_TMP" config user.email smoke@example.invalid
+git -C "$LAYER_TMP" config user.name smoke
+git -C "$LAYER_TMP" add .
+git -C "$LAYER_TMP" commit -qm base
+LAYER_BASELINE="$LAYER_TMP/src/Tests/Tools/layer-direction.baseline.json"
+
+run_layer_guard() {
+  ( cd "$LAYER_TMP" && BASE_SHA="$(git rev-parse HEAD)" BASE_REF=main \
+      bash .github/scripts/ci/layer-direction-baseline-guard.sh >/dev/null 2>&1 )
+  echo "$?"
+}
+
+assert_eq "layer guard passes on the committed baseline" "0" "$(run_layer_guard)"
+
+node -e '
+const fs = require("node:fs");
+const file = process.argv[1];
+const baseline = JSON.parse(fs.readFileSync(file, "utf8"));
+baseline.layerViolations.push("Types/Probe.ts -> Mediator/Probe.ts");
+fs.writeFileSync(file, `${JSON.stringify(baseline, null, 2)}\n`);
+' "$LAYER_BASELINE"
+assert_eq "layer guard rejects a widened baseline" "1" "$(run_layer_guard)"
+
+git -C "$LAYER_TMP" checkout -- src/Tests/Tools/layer-direction.baseline.json
+node -e '
+const fs = require("node:fs");
+const file = process.argv[1];
+const baseline = JSON.parse(fs.readFileSync(file, "utf8"));
+baseline.layerViolations.pop();
+fs.writeFileSync(file, `${JSON.stringify(baseline, null, 2)}\n`);
+' "$LAYER_BASELINE"
+assert_eq "layer guard accepts a shrunk baseline" "0" "$(run_layer_guard)"
+
+git -C "$LAYER_TMP" checkout -- src/Tests/Tools/layer-direction.baseline.json
+assert_eq "layer guard fails closed on an unknown base commit" "1" \
+  "$( cd "$LAYER_TMP" && BASE_SHA=0000000000000000000000000000000000000000 \
+       BASE_REF=main bash .github/scripts/ci/layer-direction-baseline-guard.sh \
+       >/dev/null 2>&1; echo $? )"
+
 # ── Final summary ──
 echo ""
 echo "Smoke test summary: ${PASS} passed, ${FAIL} failed"
