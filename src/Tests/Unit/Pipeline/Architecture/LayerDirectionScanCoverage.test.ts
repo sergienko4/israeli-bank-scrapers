@@ -47,8 +47,9 @@ describe('layer-direction scan coverage', () => {
   it('has no declaration-only or alternate-extension production modules', () => {
     const allFiles = listAllFiles(PIPELINE_ROOT, []);
     const unsupported = allFiles
-      .filter((file): boolean => /\.(?:d\.ts|mts|cts|js|jsx)$/u.test(file))
-      .map(relativeToPipeline);
+      .filter((file): boolean => /\.(?:d\.ts|mts|cts|js|jsx|mjs|cjs)$/u.test(file))
+      .map(relativeToPipeline)
+      .filter((relative): boolean => !relative.startsWith('EslintCanaries/'));
     expect(unsupported).toStrictEqual([]);
   });
 

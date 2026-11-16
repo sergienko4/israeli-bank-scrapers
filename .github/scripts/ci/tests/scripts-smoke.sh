@@ -943,7 +943,7 @@ unset -f curl
 # pass, and an unresolvable base commit must fail closed. Never touch the
 # tracked baseline — concurrent readers and an early exit would see it.
 LAYER_TMP="$(mktemp -d)"
-trap 'rm -f "${SUMMARY_FILE:-}"; rm -rf "$LAYER_TMP"' EXIT
+trap 'rm -f "${SUMMARY_FILE:-}" "${MEM_FILE:-}"; rm -rf "${DEC_DIR:-}" "${DOC_DIR:-}" "${DET_DIR:-}" "${LAYER_TMP:-}"' EXIT
 mkdir -p "$LAYER_TMP/.github/scripts/ci" "$LAYER_TMP/src/Tests/Tools"
 cp "$REPO_ROOT/.github/scripts/ci/layer-direction-baseline-guard.sh" \
   "$LAYER_TMP/.github/scripts/ci/"

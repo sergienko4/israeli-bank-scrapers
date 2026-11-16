@@ -29,6 +29,7 @@ export function literalTextOf(node: ts.Node): string {
 interface IEnumBindings {
   readonly direct: Set<string>;
   readonly namespaces: Set<string>;
+  readonly requireLoaders: Set<string>;
 }
 
 /** The enum's member names, used to recognise a property or element access. */
@@ -42,29 +43,33 @@ const BANK_MEMBERS: ReadonlySet<string> = new Set(Object.keys(CompanyTypes));
 function enumBindings(sourceFile: ts.SourceFile): IEnumBindings {
   const direct = new Set<string>();
   const namespaces = new Set<string>();
+  const requireLoaders = new Set<string>();
   for (const statement of sourceFile.statements) {
     if (!ts.isImportDeclaration(statement)) continue;
     const bindings = statement.importClause?.namedBindings;
     if (bindings === undefined) continue;
     if (ts.isNamespaceImport(bindings)) namespaces.add(bindings.name.text);
-    if (ts.isNamedImports(bindings)) collectDirectBindings(bindings, direct);
+    if (ts.isNamedImports(bindings)) collectDirectBindings(bindings, direct, requireLoaders);
   }
-  return { direct, namespaces };
+  return { direct, namespaces, requireLoaders };
 }
 
 /**
  * Add named imports that resolve to `CompanyTypes`, including aliases.
  * @param bindings - Named import clause.
  * @param direct - Accumulator of local binding names.
+ * @param requireLoaders - Accumulator of createRequire bindings.
  * @returns The same accumulator.
  */
 function collectDirectBindings(
   bindings: ts.NamedImports,
   direct: Set<string>,
+  requireLoaders: Set<string>,
 ): ReadonlySet<string> {
   for (const element of bindings.elements) {
     const imported = element.propertyName?.text ?? element.name.text;
     if (imported === 'CompanyTypes') direct.add(element.name.text);
+    if (imported === 'createRequire') requireLoaders.add(element.name.text);
   }
   return direct;
 }
@@ -501,9 +506,30 @@ function collectAliasMember(
   if (!ts.isVariableDeclaration(node)) return members;
   if (ts.isIdentifier(node.name) && node.initializer !== undefined) {
     if (isEnumBase(node.initializer, bindings)) members.add(`alias:${node.name.text}`);
+    const namespaceAlias = namespaceAliasMarker(node.name, node.initializer, bindings);
+    if (namespaceAlias !== '') members.add(namespaceAlias);
   }
   collectNamespaceAlias(node, bindings, members);
   return members;
+}
+
+/**
+ * Name a local alias of an imported namespace, or '' when it is not one.
+ * @param name - Local binding.
+ * @param initializer - Declaration initializer.
+ * @param bindings - Local import bindings.
+ * @returns `alias:namespace:<name>` for a live namespace alias.
+ */
+function namespaceAliasMarker(
+  name: ts.Identifier,
+  initializer: ts.Expression,
+  bindings: IEnumBindings,
+): string {
+  const isNamespaceAlias =
+    ts.isIdentifier(initializer) &&
+    bindings.namespaces.has(initializer.text) &&
+    !isShadowed(initializer);
+  return isNamespaceAlias ? `alias:namespace:${name.text}` : '';
 }
 
 /**
@@ -684,8 +710,9 @@ export function enumMembersOf(source: string): readonly string[] {
 export function importSpecifiers(file: string): readonly string[] {
   const text = fs.readFileSync(file, 'utf8');
   const sourceFile = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
+  const bindings = enumBindings(sourceFile);
   const specs: string[] = [];
-  collectSpecifiers(sourceFile, specs);
+  collectSpecifiers(sourceFile, specs, bindings);
   return specs;
 }
 
@@ -693,13 +720,14 @@ export function importSpecifiers(file: string): readonly string[] {
  * Collect module specifiers from one syntax subtree.
  * @param node - Current node.
  * @param specs - Accumulator, mutated in place.
+ * @param bindings - Local import bindings.
  * @returns True once the subtree is visited.
  */
-function collectSpecifiers(node: ts.Node, specs: string[]): true {
-  const specifier = specifierOf(node);
+function collectSpecifiers(node: ts.Node, specs: string[], bindings: IEnumBindings): true {
+  const specifier = specifierOf(node, bindings);
   if (specifier !== '') specs.push(specifier);
   ts.forEachChild(node, (child): false => {
-    collectSpecifiers(child, specs);
+    collectSpecifiers(child, specs, bindings);
     return false;
   });
   return true;
@@ -708,9 +736,10 @@ function collectSpecifiers(node: ts.Node, specs: string[]): true {
 /**
  * Read the module specifier a node carries, when it is an import form.
  * @param node - Candidate syntax node.
+ * @param bindings - Local import bindings.
  * @returns Specifier text, or '' for other nodes.
  */
-function specifierOf(node: ts.Node): string {
+function specifierOf(node: ts.Node, bindings: IEnumBindings): string {
   if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
     const specifier = node.moduleSpecifier;
     return specifier === undefined ? '' : stringTextOf(specifier);
@@ -722,32 +751,51 @@ function specifierOf(node: ts.Node): string {
     const argument = node.argument;
     return ts.isLiteralTypeNode(argument) ? literalTextOf(argument.literal) : '';
   }
-  return callSpecifierOf(node);
+  return callSpecifierOf(node, bindings);
 }
 
 /**
  * Read a dynamic import or createRequire call specifier.
  * @param node - Candidate node.
+ * @param bindings - Local import bindings.
  * @returns A literal path, `<dynamic>` or `<require>`.
  */
-function callSpecifierOf(node: ts.Node): string {
+function callSpecifierOf(node: ts.Node, bindings: IEnumBindings): string {
   if (!ts.isCallExpression(node)) return '';
   if (node.expression.kind === ts.SyntaxKind.ImportKeyword) return importArgumentText(node);
-  return isRequireLoader(node) ? '<require>' : '';
+  return isRequireLoader(node, bindings) ? '<require>' : '';
 }
 
 /**
  * Whether a call is a createRequire helper or a call through one.
  * @param node - Call expression.
+ * @param bindings - Local import bindings.
  * @returns True for `createRequire(...)` and its returned loader call.
  */
-function isRequireLoader(node: ts.CallExpression): boolean {
-  if (ts.isIdentifier(node.expression) && node.expression.text === 'createRequire') return true;
+function isRequireLoader(node: ts.CallExpression, bindings: IEnumBindings): boolean {
   const callee = node.expression;
+  if (isRequireFactory(callee, bindings)) return true;
+  return ts.isCallExpression(callee) && isRequireFactory(callee.expression, bindings);
+}
+
+/**
+ * Whether an expression is `createRequire` or an imported binding of it.
+ * @param expression - Call target.
+ * @param bindings - Local import bindings.
+ * @returns True for a direct or renamed createRequire factory.
+ */
+function isRequireFactory(expression: ts.Expression, bindings: IEnumBindings): boolean {
+  if (ts.isIdentifier(expression)) {
+    return expression.text === 'createRequire' || bindings.requireLoaders.has(expression.text);
+  }
+  const isNamespaceFactory =
+    ts.isPropertyAccessExpression(expression) &&
+    expression.name.text === 'createRequire' &&
+    ts.isIdentifier(expression.expression);
   return (
-    ts.isCallExpression(callee) &&
-    ts.isIdentifier(callee.expression) &&
-    callee.expression.text === 'createRequire'
+    isNamespaceFactory &&
+    (bindings.namespaces.has(expression.expression.text) ||
+      bindings.requireLoaders.has(expression.expression.text))
   );
 }
 
@@ -778,7 +826,8 @@ function importArgumentText(node: ts.CallExpression): string {
  */
 export function specifiersOf(source: string): readonly string[] {
   const sourceFile = ts.createSourceFile('probe.ts', source, ts.ScriptTarget.Latest, true);
+  const bindings = enumBindings(sourceFile);
   const specs: string[] = [];
-  collectSpecifiers(sourceFile, specs);
+  collectSpecifiers(sourceFile, specs, bindings);
   return specs;
 }

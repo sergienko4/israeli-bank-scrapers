@@ -392,10 +392,18 @@ describe('Pipeline layer-direction policy', () => {
       "const value2 = defs['CompanyTypes'].Leumi;",
       'const wrapped = (banks2 as typeof banks2);',
       'const value3 = wrapped.Pepper;',
+      'const ns = defs;',
+      'const viaNs = ns.CompanyTypes.Leumi;',
       "type K = typeof defs.CompanyTypes['Mercantile'];",
     ].join('\n');
     const aliasFound = enumMembersOf(aliasSource);
-    expect(aliasFound).toStrictEqual(['Leumi', 'Mercantile', 'alias:banks', 'alias:banks2']);
+    expect(aliasFound).toStrictEqual([
+      'Leumi',
+      'Mercantile',
+      'alias:banks',
+      'alias:banks2',
+      'alias:namespace:ns',
+    ]);
   });
 
   it('records the enum after an unrelated destructuring (negative control)', () => {
