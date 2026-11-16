@@ -9,7 +9,7 @@
 import type { Agent } from 'node:https';
 
 import type { ICertBundle } from '../../../Types/Domain/CertBundle.js';
-import { checkServerCertificate } from '../Tls/ServerCertificateFloor.js';
+import checkServerCertificate from '../Tls/ServerCertificateFloor.js';
 import { SessionProtocolAgent } from '../Tls/SessionProtocolAgent.js';
 import { getTlsClientProfile, type TlsClientProfileKind } from '../Tls/TlsClientProfiles.js';
 

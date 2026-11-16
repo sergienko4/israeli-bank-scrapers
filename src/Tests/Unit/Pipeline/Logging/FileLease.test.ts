@@ -17,7 +17,7 @@ import {
   awaitLeaseFlush,
   type IFileLease,
 } from '../../../../Scrapers/Pipeline/Logging/FileLease.js';
-import { makeLeaseCloseCallback } from '../../../../Scrapers/Pipeline/Logging/FileLeaseClose.js';
+import { closeFileLeaseAsync } from '../../../../Scrapers/Pipeline/Logging/FileLeaseClose.js';
 
 /** Poll interval used by the flush specs. */
 const POLL_MS = 1;
@@ -147,14 +147,22 @@ describe('awaitLeaseFlush — waits for counted bytes to reach disk', () => {
   });
 });
 
-describe('closeFileLeaseAsync — unexpected close failures stay visible', () => {
-  it('reports an fs.close error instead of swallowing it', () => {
+describe('closeFileLeaseAsync — asynchronous close failures stay visible', () => {
+  it('reports an fs.close error and marks the lease closed', () => {
     const { dir, lease } = makeTempLease();
     const onCloseError = jest.fn<boolean, [string]>((): boolean => true);
-    const onClosed = makeLeaseCloseCallback(lease, onCloseError);
     const closeError = new Error('EBADF: bad file descriptor, close');
+    /**
+     * Controlled close that reports the error through the callback.
+     * @param _fd - Descriptor being closed.
+     * @param callback - Completion callback.
+     * @returns The callback's result.
+     */
+    const close = ((_fd: number, callback: (err: NodeJS.ErrnoException) => boolean): boolean =>
+      callback(closeError)) as unknown as typeof fs.close;
     try {
-      onClosed(closeError);
+      const didClose = closeFileLeaseAsync(lease, onCloseError, close);
+      expect(didClose).toBe(true);
       expect(onCloseError).toHaveBeenCalledTimes(1);
       expect(onCloseError.mock.calls[0]?.[0]).toBe(closeError.message);
       expect(lease.isClosed).toBe(true);

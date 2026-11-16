@@ -14,10 +14,7 @@ import pino, { type Logger, type LoggerOptions } from 'pino';
 import { CompanyTypes } from '../../../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js';
 import type { IWafErrorDetails } from '../../../../../../Scrapers/Base/Interfaces/WafErrorDetails.js';
-import {
-  getActiveLogContext,
-  runWithBankContext,
-} from '../../../../../../Scrapers/Pipeline/Logging/BankContext.js';
+import { runWithBankContext } from '../../../../../../Scrapers/Pipeline/Logging/BankContext.js';
 import { buildSilentOptions } from '../../../../../../Scrapers/Pipeline/Logging/RootLogger.js';
 import type ITokenStrategy from '../../../../../../Scrapers/Pipeline/Mediator/Api/ITokenStrategy.js';
 import type {
@@ -64,7 +61,7 @@ jest.unstable_mockModule('../../../../../../Scrapers/Pipeline/Logging/Debug.js',
    * @returns The capturing logger.
    */
   const getDebug = (): Logger => logger;
-  return { getActiveLogContext, runWithBankContext, getDebug, getDebugByName: getDebug };
+  return { runWithBankContext, getDebug, getDebugByName: getDebug };
 });
 
 const RUN_STEP =

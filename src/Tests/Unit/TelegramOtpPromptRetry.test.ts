@@ -27,13 +27,13 @@ import {
 
 const MOCK_HUMAN_DELAY = jest.fn();
 
-jest.unstable_mockModule('../../Scrapers/Pipeline/Mediator/Timing/TimingActions.js', () => ({
+jest.unstable_mockModule('../Helpers/HumanDelay.js', () => ({
   /**
    * Instant stand-in for the real delay — records the requested
    * window so tests assert the schedule without sleeping for it.
    * @returns Immediately-resolved promise.
    */
-  humanDelay: MOCK_HUMAN_DELAY,
+  default: MOCK_HUMAN_DELAY,
 }));
 
 const FETCHER_MODULE = await import('../E2eReal/TelegramOtpFetcher.js');

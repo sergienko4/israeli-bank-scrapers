@@ -4,7 +4,6 @@
  */
 
 import {
-  getActiveLogContext,
   getBankMixin,
   runWithBankContext,
 } from '../../../../Scrapers/Pipeline/Logging/BankContext.js';
@@ -42,13 +41,5 @@ describe('Feature — getBankMixin / getActiveLogContext', () => {
   it('omits runId when no bank has been registered (empty runId)', () => {
     const fields = getBankMixin();
     expect(fields.runId).toBeUndefined();
-  });
-
-  it('exposes the same record shape via getActiveLogContext', () => {
-    const a = getBankMixin();
-    const b = getActiveLogContext();
-    const keysA = Object.keys(a).sort();
-    const keysB = Object.keys(b).sort();
-    expect(keysB).toEqual(keysA);
   });
 });

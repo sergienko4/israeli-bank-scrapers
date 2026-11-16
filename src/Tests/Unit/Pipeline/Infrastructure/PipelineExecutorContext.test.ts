@@ -26,15 +26,22 @@ import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js
 import { succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import {
   getActiveRunId,
-  getNetworkDumpDir,
-  getRunFolder,
-  getSubStepNetworkDumpDir,
+  getLogFile,
   resetTraceConfigCache,
 } from '../../../../Scrapers/Pipeline/Types/TraceConfig.js';
 import { SimplePhase } from './SimplePhase.js';
 
 /** Minimal synthetic credentials. */
 const MOCK_CREDENTIALS = { username: 'user', password: 'pass' };
+
+/**
+ * Directory containing the run log, or '' off-trace.
+ * @param logFile - Resolved pipeline log path.
+ * @returns Run folder path.
+ */
+function folderOf(logFile: string): string {
+  return logFile.length > 0 ? path.dirname(logFile) : '';
+}
 
 /** Portable OS-temp root wiped before each run so `pino/file` workers never hit ENOENT at teardown. */
 const TMP_BASE = os.tmpdir();
@@ -44,8 +51,6 @@ type ExecFn = (_ctx: IActionContext, _input: IActionContext) => Promise<Procedur
 
 interface IRunTraceSnapshot {
   readonly folder: string;
-  readonly networkDir: string;
-  readonly subStepDir: string;
   readonly runId: string;
   readonly mixin: Record<string, string>;
 }
@@ -96,10 +101,9 @@ async function captureBankRunSnapshot(companyId: CompanyTypes): Promise<IRunTrac
    * @returns Success procedure with unchanged input.
    */
   const captureExecute: ExecFn = (_ctx, input) => {
+    const logFile = getLogFile();
     captured.value = {
-      folder: getRunFolder(),
-      networkDir: getNetworkDumpDir(),
-      subStepDir: getSubStepNetworkDumpDir('api-direct-call', 'ACTION'),
+      folder: folderOf(logFile),
       runId: getActiveRunId(),
       mixin: getBankMixin(),
     };
@@ -213,8 +217,6 @@ describe('PipelineExecutor — ambient bank context & forensic trace isolation',
       expect(first.folder).toContain(`${path.sep}beinleumi${path.sep}`);
       expect(second.folder).toContain(`${path.sep}discount${path.sep}`);
       expect(second.folder).not.toBe(first.folder);
-      expect(second.networkDir).not.toBe(first.networkDir);
-      expect(second.subStepDir).not.toBe(first.subStepDir);
       expect(first.runId).not.toBe('');
       expect(second.runId).not.toBe('');
       expect(second.runId).not.toBe(first.runId);

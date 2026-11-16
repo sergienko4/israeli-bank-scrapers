@@ -18,7 +18,7 @@ import ScraperError from '../../../../Scrapers/Base/ScraperError.js';
 import { leaseFor } from '../../../../Scrapers/Pipeline/Logging/LoggerSlots.js';
 import { getRootLogger } from '../../../../Scrapers/Pipeline/Logging/RootLogger.js';
 import { readEnvironment } from '../../../../Scrapers/Pipeline/Types/Environment.js';
-import { getRunFolder } from '../../../../Scrapers/Pipeline/Types/TraceConfig.js';
+import { getLogFile } from '../../../../Scrapers/Pipeline/Types/TraceConfig.js';
 
 /** Platform temp root, read once. */
 const TEMP_ROOT = os.tmpdir();
@@ -39,9 +39,9 @@ jest.unstable_mockModule('../../../../Scrapers/Pipeline/Core/PipelineContextFact
    * @returns Never; always throws.
    */
   default: (): never => {
-    openedFolder = getRunFolder();
+    const logFile = getLogFile();
+    openedFolder = path.dirname(logFile);
     getRootLogger();
-    const logFile = path.join(openedFolder, 'pipeline.log');
     openedLease = leaseFor(logFile);
     throw new ScraperError('init failed after opening the run logger');
   },
