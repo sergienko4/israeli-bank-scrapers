@@ -132,6 +132,17 @@ DESCRIBE_POSIX('ensurePrivateRunRoot', () => {
     expect(mode).toBe(0o700);
   });
 
+  it('rejects a sticky writable root with a planted symlink', () => {
+    const base = makeTempDir('secure-root-planted-symlink-');
+    const outside = makeTempDir('secure-root-planted-target-');
+    const root = path.join(base, 'runs');
+    fs.mkdirSync(root, { mode: 0o700 });
+    fs.chmodSync(root, 0o1777);
+    const link = path.join(root, 'pipeline');
+    fs.symlinkSync(outside, link);
+    expect(() => ensurePrivateRunRoot(root)).toThrow(/component is group\/world-writable/);
+  });
+
   it('rejects an existing root under an unsafe ancestor', () => {
     const base = makeTempDir('secure-root-existing-unsafe-');
     const parent = path.join(base, 'shared');

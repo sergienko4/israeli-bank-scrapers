@@ -98,6 +98,19 @@ function tightenComponentMode(component: string, stats: fs.Stats): true {
 }
 
 /**
+ * Reject a writable component, then tighten its readable/executable bits.
+ * @param component - Component to check.
+ * @param stats - `lstat` snapshot of the component.
+ * @returns True once the component is private.
+ */
+function assertComponentMode(component: string, stats: fs.Stats): true {
+  if ((stats.mode & (GROUP_WRITABLE | WORLD_WRITABLE)) !== 0) {
+    throw new ScraperError(`runs root component is group/world-writable: ${component}`);
+  }
+  return tightenComponentMode(component, stats);
+}
+
+/**
  * Verify one component is a real directory owned by the current user.
  * @param component - Component to verify.
  * @returns True once verified.
@@ -110,7 +123,7 @@ function assertPrivateComponent(component: string): true {
   if (UID !== undefined && stats.uid !== UID) {
     throw new ScraperError(`runs root component is not owned by the current user: ${component}`);
   }
-  return tightenComponentMode(component, stats);
+  return assertComponentMode(component, stats);
 }
 
 /**
