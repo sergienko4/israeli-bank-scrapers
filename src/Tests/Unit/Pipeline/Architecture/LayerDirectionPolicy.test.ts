@@ -16,14 +16,13 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import * as ts from 'typescript';
-
 import { CompanyTypes } from '../../../../Definitions.js';
 import { resolveImport, walkProdFiles } from '../../../Tools/ImportGraphScan.js';
 import {
   collectCompanyTypeReferences,
   enumMembersOf,
-  literalTextOf,
+  importSpecifiers,
+  specifiersOf,
 } from '../../../Tools/LayerEnumReferences.js';
 
 const HERE_URL = fileURLToPath(import.meta.url);
@@ -115,77 +114,6 @@ function listFiles(): readonly string[] {
   const files: string[] = [];
   walkProdFiles(PIPELINE_ROOT, files);
   return files;
-}
-
-/**
- * Read every static, re-exported and dynamic import specifier from one file.
- * @param file - Absolute production file path.
- * @returns Specifiers in source order.
- */
-function importSpecifiers(file: string): readonly string[] {
-  const text = fs.readFileSync(file, 'utf8');
-  const sourceFile = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
-  const specs: string[] = [];
-  collectSpecifiers(sourceFile, specs);
-  return specs;
-}
-
-/**
- * Collect module specifiers from one syntax subtree.
- * @param node - Current node.
- * @param specs - Accumulator, mutated in place.
- * @returns True once the subtree is visited.
- */
-function collectSpecifiers(node: ts.Node, specs: string[]): true {
-  const specifier = specifierOf(node);
-  if (specifier !== '') specs.push(specifier);
-  ts.forEachChild(node, (child): false => {
-    collectSpecifiers(child, specs);
-    return false;
-  });
-  return true;
-}
-
-/**
- * Read the module specifier a node carries, when it is an import form.
- * @param node - Candidate syntax node.
- * @returns Specifier text, or '' for other nodes.
- */
-function specifierOf(node: ts.Node): string {
-  if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
-    const specifier = node.moduleSpecifier;
-    return specifier === undefined ? '' : stringTextOf(specifier);
-  }
-  if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference)) {
-    return stringTextOf(node.moduleReference.expression);
-  }
-  if (ts.isImportTypeNode(node)) {
-    const argument = node.argument;
-    return ts.isLiteralTypeNode(argument) ? literalTextOf(argument.literal) : '';
-  }
-  if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
-    return importArgumentText(node);
-  }
-  return '';
-}
-
-/**
- * Read a string-literal node's text.
- * @param node - Candidate node.
- * @returns The literal text, or '' for a missing/non-literal node.
- */
-function stringTextOf(node: ts.Node): string {
-  return ts.isStringLiteral(node) ? node.text : '';
-}
-
-/**
- * Read the literal argument of a dynamic import call.
- * @param node - Call expression.
- * @returns The first argument's text, or '' when it is not a string literal.
- */
-function importArgumentText(node: ts.CallExpression): string {
-  const argument = node.arguments[0];
-  return literalTextOf(argument);
 }
 
 /**
@@ -427,9 +355,13 @@ describe('Pipeline layer-direction policy', () => {
   it('does not flag a shadowing parameter or miss namespace destructuring (negative control)', () => {
     const shadowSource = [
       "import { CompanyTypes } from 'probe';",
+      "import * as defs from 'probe';",
       'function f(CompanyTypes: { Leumi: string }) { return CompanyTypes.Leumi; }',
       'function g(banks: { Leumi: string }) { return banks.Leumi; }',
       'function h<CT>(x: CT) { type S = typeof CT["Hapoalim"]; }',
+      "function j(defs: { 'CompanyTypes': { Leumi: string } }) {",
+      "  return defs['CompanyTypes'].Leumi;",
+      '}',
     ].join('\n');
     const shadowFound = enumMembersOf(shadowSource);
     expect(shadowFound).toStrictEqual([]);
@@ -496,9 +428,7 @@ describe('Pipeline layer-direction policy', () => {
       'const p = import(`../Mediator/Network/FetchConfig.js`);',
       "// import('../Types/Commented.js');",
     ].join('\n');
-    const sourceFile = ts.createSourceFile('probe.ts', source, ts.ScriptTarget.Latest, true);
-    const specs: string[] = [];
-    collectSpecifiers(sourceFile, specs);
+    const specs = specifiersOf(source);
     expect(specs).toStrictEqual([
       '../Mediator/Api/ApiMediator.js',
       '../Mediator/Network/FetchConfig.js',

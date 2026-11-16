@@ -81,17 +81,25 @@ function isEnumBase(expression: ts.Expression, bindings: IEnumBindings): boolean
     const isDirect = bindings.direct.has(base.text);
     return isDirect && !isShadowed(base);
   }
-  if (ts.isElementAccessExpression(base)) {
-    const key = literalTextOf(base.argumentExpression);
-    const isNamespaceKey = key === 'CompanyTypes' && ts.isIdentifier(base.expression);
-    return isNamespaceKey && bindings.namespaces.has(base.expression.text);
-  }
+  if (ts.isElementAccessExpression(base)) return isEnumElementBase(base, bindings);
   const isNamespaceEnum =
     ts.isPropertyAccessExpression(base) &&
     base.name.text === 'CompanyTypes' &&
     ts.isIdentifier(base.expression);
   const isNamespace = isNamespaceEnum && bindings.namespaces.has(base.expression.text);
   return isNamespace && !isShadowed(base.expression);
+}
+
+/**
+ * Whether an element access reads the namespace's `CompanyTypes` export.
+ * @param node - Element access.
+ * @param bindings - Local import bindings.
+ * @returns True for a live `defs['CompanyTypes']` base.
+ */
+function isEnumElementBase(node: ts.ElementAccessExpression, bindings: IEnumBindings): boolean {
+  const key = literalTextOf(node.argumentExpression);
+  if (key !== 'CompanyTypes' || !ts.isIdentifier(node.expression)) return false;
+  return bindings.namespaces.has(node.expression.text) && !isShadowed(node.expression);
 }
 
 /**
@@ -529,4 +537,87 @@ export function enumMembersOf(source: string): readonly string[] {
   const members = new Set<string>();
   collectEnumMembers(sourceFile, bindings, members);
   return [...members].sort();
+}
+
+/**
+ * Read every static, re-exported and dynamic import specifier from one file.
+ * @param file - Absolute production file path.
+ * @returns Specifiers in source order.
+ */
+export function importSpecifiers(file: string): readonly string[] {
+  const text = fs.readFileSync(file, 'utf8');
+  const sourceFile = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
+  const specs: string[] = [];
+  collectSpecifiers(sourceFile, specs);
+  return specs;
+}
+
+/**
+ * Collect module specifiers from one syntax subtree.
+ * @param node - Current node.
+ * @param specs - Accumulator, mutated in place.
+ * @returns True once the subtree is visited.
+ */
+function collectSpecifiers(node: ts.Node, specs: string[]): true {
+  const specifier = specifierOf(node);
+  if (specifier !== '') specs.push(specifier);
+  ts.forEachChild(node, (child): false => {
+    collectSpecifiers(child, specs);
+    return false;
+  });
+  return true;
+}
+
+/**
+ * Read the module specifier a node carries, when it is an import form.
+ * @param node - Candidate syntax node.
+ * @returns Specifier text, or '' for other nodes.
+ */
+function specifierOf(node: ts.Node): string {
+  if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
+    const specifier = node.moduleSpecifier;
+    return specifier === undefined ? '' : stringTextOf(specifier);
+  }
+  if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference)) {
+    return stringTextOf(node.moduleReference.expression);
+  }
+  if (ts.isImportTypeNode(node)) {
+    const argument = node.argument;
+    return ts.isLiteralTypeNode(argument) ? literalTextOf(argument.literal) : '';
+  }
+  if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+    return importArgumentText(node);
+  }
+  return '';
+}
+
+/**
+ * Read a string-literal node's text.
+ * @param node - Candidate node.
+ * @returns The literal text, or '' for a missing/non-literal node.
+ */
+function stringTextOf(node: ts.Node): string {
+  return ts.isStringLiteral(node) ? node.text : '';
+}
+
+/**
+ * Read the literal argument of a dynamic import call.
+ * @param node - Call expression.
+ * @returns The first argument's text, or '' when it is not a string literal.
+ */
+function importArgumentText(node: ts.CallExpression): string {
+  const argument = node.arguments[0];
+  return literalTextOf(argument);
+}
+
+/**
+ * Collect import specifiers from one source string.
+ * @param source - TypeScript source.
+ * @returns Specifiers in source order.
+ */
+export function specifiersOf(source: string): readonly string[] {
+  const sourceFile = ts.createSourceFile('probe.ts', source, ts.ScriptTarget.Latest, true);
+  const specs: string[] = [];
+  collectSpecifiers(sourceFile, specs);
+  return specs;
 }

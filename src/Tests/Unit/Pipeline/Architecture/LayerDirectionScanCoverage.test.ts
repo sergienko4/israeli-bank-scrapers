@@ -12,7 +12,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { parseImports, walkProdFiles } from '../../../Tools/ImportGraphScan.js';
+import { walkProdFiles } from '../../../Tools/ImportGraphScan.js';
+import { importSpecifiers, specifiersOf } from '../../../Tools/LayerEnumReferences.js';
 
 const HERE_URL = fileURLToPath(import.meta.url);
 const HERE = path.dirname(HERE_URL);
@@ -46,16 +47,22 @@ describe('layer-direction scan coverage', () => {
   it('has no declaration-only or alternate-extension production modules', () => {
     const allFiles = listAllFiles(PIPELINE_ROOT, []);
     const unsupported = allFiles
-      .filter((file): boolean => /\.(?:d\.ts|mts|cts)$/u.test(file))
+      .filter((file): boolean => /\.(?:d\.ts|mts|cts|js|jsx)$/u.test(file))
       .map(relativeToPipeline);
     expect(unsupported).toStrictEqual([]);
+  });
+
+  it('reads imports from the AST, ignoring comments and finding template paths', () => {
+    const source = ["// import '../legacy.cjs'", 'const real = import(`../real.cjs`);'].join('\n');
+    const specs = specifiersOf(source);
+    expect(specs).toStrictEqual(['../real.cjs']);
   });
 
   it('has no production import targeting .mjs or .cjs', () => {
     const files: string[] = [];
     walkProdFiles(PIPELINE_ROOT, files);
     const extensionImports = files.flatMap((file): string[] =>
-      parseImports(file)
+      importSpecifiers(file)
         .filter((specifier): boolean => /\.(?:mjs|cjs)$/u.test(specifier))
         .map((specifier): string => `${relativeToPipeline(file)} -> ${specifier}`),
     );
