@@ -9,7 +9,7 @@
  * is not set too high.
  */
 
-import { buildMtlsAgent } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
+import buildMtlsAgent from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
 import {
   getTlsClientProfile,
   warnIfTlsProfileUnsupported,

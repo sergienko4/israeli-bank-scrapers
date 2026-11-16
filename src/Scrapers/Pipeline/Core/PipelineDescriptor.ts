@@ -5,6 +5,7 @@
 
 import type { ScraperCredentials, ScraperOptions } from '../../Base/Interface.js';
 import type BasePhase from '../Phases/Base/BasePhase.js';
+import type { IMtlsInvokeOptions } from '../Types/Domain/MtlsInvokeTypes.js';
 import type { Procedure } from '../Types/Procedure.js';
 
 /** Descriptor produced by PipelineBuilder, consumed by PipelineExecutor. */
@@ -17,6 +18,11 @@ interface IPipelineDescriptor {
    * before any phase, and a failure stops the run before a request.
    */
   readonly enrichCredentials?: (credentials: ScraperCredentials) => Procedure<ScraperCredentials>;
+  /**
+   * Optional test transport for mocked mTLS suites; production leaves it
+   * undefined and uses node:https with the default timeout.
+   */
+  readonly mtls?: IMtlsInvokeOptions;
 }
 
 /**

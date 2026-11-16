@@ -16,6 +16,7 @@ import type {
   RedirectPolicy,
   StatusPolicy,
 } from '../../Types/Domain/FetchPolicy.js';
+import type { IMtlsInvokeOptions } from '../../Types/Domain/MtlsInvokeTypes.js';
 
 /** Args bundle for the API-mediator factory. */
 interface IApiMediatorArgs {
@@ -54,6 +55,8 @@ interface INodeTlsMediatorArgs extends IApiMediatorArgs {
   readonly clientCert?: IDynamicClientCert;
   /** ClientHello profile both transports present; absent keeps Node's default. */
   readonly tlsProfile?: TlsClientProfileKind;
+  /** Per-execution fallback transport and request timeout. */
+  readonly mtls?: IMtlsInvokeOptions;
 }
 
 /** Bundled strategy pair returned by the API-mediator builder. */

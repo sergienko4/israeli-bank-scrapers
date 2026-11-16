@@ -16,11 +16,7 @@ import {
 } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsAgentSource.js';
 import MtlsFetchStrategy from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsFetchStrategy.js';
 import MtlsGraphQLFetchStrategy from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsGraphQLFetchStrategy.js';
-import { setMtlsRequestTimeoutMs } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
 import { isOk } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
-
-/** Default per-request timeout the suite resets to. */
-const MTLS_REQUEST_TIMEOUT_MS = 30_000;
 import type { IGateServer } from './MtlsTestServer.js';
 import {
   buildCertAgent,
@@ -71,7 +67,6 @@ describe('MtlsFetchStrategy — REST over the mTLS gate', () => {
   afterEach(() => {
     certAgent.destroy();
     noCertAgent.destroy();
-    setMtlsRequestTimeoutMs(MTLS_REQUEST_TIMEOUT_MS);
   });
 
   it('POSTs with the client cert and parses the 200 body', async () => {
@@ -119,7 +114,6 @@ describe('MtlsFetchStrategy — REST over the mTLS gate', () => {
   });
 
   it('refuses mismatched headers without waiting for a body, preserving cookie hooks', async () => {
-    setMtlsRequestTimeoutMs(HEADER_TEST_TIMEOUT_MS);
     const captured: string[] = [];
     /**
      * Record cookies delivered with the header-only refusal.
@@ -127,7 +121,9 @@ describe('MtlsFetchStrategy — REST over the mTLS gate', () => {
      * @returns The number recorded.
      */
     const onSetCookie = (lines: readonly string[]): number => captured.push(...lines);
-    const strategy = new MtlsFetchStrategy(server.baseUrl, certSource);
+    const strategy = new MtlsFetchStrategy(server.baseUrl, certSource, {
+      timeoutMs: HEADER_TEST_TIMEOUT_MS,
+    });
     const url = `${server.baseUrl}wrong-media-headers?sid=syn-secret`;
     const opts = { extraHeaders: {}, mediaType: 'application/json', onSetCookie };
     const result = await strategy.fetchGet(url, opts);
@@ -140,8 +136,9 @@ describe('MtlsFetchStrategy — REST over the mTLS gate', () => {
   });
 
   it('preserves a bank status decision ahead of mismatched media headers', async () => {
-    setMtlsRequestTimeoutMs(HEADER_TEST_TIMEOUT_MS);
-    const strategy = new EmptyStatusMtlsFetchStrategy(server.baseUrl, certSource);
+    const strategy = new EmptyStatusMtlsFetchStrategy(server.baseUrl, certSource, {
+      timeoutMs: HEADER_TEST_TIMEOUT_MS,
+    });
     const opts = { extraHeaders: {}, mediaType: 'application/json' };
     const result = await strategy.fetchGet(`${server.baseUrl}wrong-media-headers`, opts);
     expect(result).toEqual({ success: true, value: {} });
@@ -219,7 +216,9 @@ describe('MtlsGraphQLFetchStrategy — GraphQL over the mTLS gate', () => {
   });
 
   it('merges constructor default headers and still succeeds (200)', async () => {
-    const strategy = new MtlsGraphQLFetchStrategy(server.gqlUrl, certSource, { 'x-def': '1' });
+    const strategy = new MtlsGraphQLFetchStrategy(server.gqlUrl, certSource, {
+      headers: { 'x-def': '1' },
+    });
     const result = await strategy.query<IGqlEnvelope>('{ me }', {});
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(true);

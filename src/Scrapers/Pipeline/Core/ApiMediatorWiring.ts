@@ -17,6 +17,7 @@ import {
 } from '../Mediator/Api/ApiMediator.js';
 import { resolvePipelineBankConfig } from '../Registry/Config/PipelineBankConfig.js';
 import type { ITransportConfig } from '../Registry/Config/PipelineBankConfigTypes.js';
+import type { IMtlsInvokeOptions } from '../Types/Domain/MtlsInvokeTypes.js';
 import type { Option } from '../Types/Option.js';
 import { none, some } from '../Types/Option.js';
 import type { IApiWiring, IWiringFlags, TransportKind } from './ApiWiringTypes.js';
@@ -156,11 +157,16 @@ const MEDIATOR_FACTORIES: Readonly<Record<TransportKind, (args: TMediatorArgs) =
  * Select + invoke the API-mediator factory for the resolved wiring.
  * @param companyId - Target bank company type.
  * @param wiring - Resolved wiring entry (URLs + flags).
+ * @param mtls - Per-execution fallback and timeout.
  * @returns A fully-wired IApiMediator for the bank's transport requirements.
  */
-function selectApiMediator(companyId: CompanyTypes, wiring: IApiWiring): IApiMediator {
+function selectApiMediator(
+  companyId: CompanyTypes,
+  wiring: IApiWiring,
+  mtls?: IMtlsInvokeOptions,
+): IApiMediator {
   assertSingleTransport(companyId, wiring);
-  const args = buildMediatorArgsForWiring(companyId, wiring);
+  const args = { ...buildMediatorArgsForWiring(companyId, wiring), mtls };
   const kind = pickTransportKind(companyId, wiring);
   return MEDIATOR_FACTORIES[kind](args);
 }
@@ -174,7 +180,7 @@ function selectApiMediator(companyId: CompanyTypes, wiring: IApiWiring): IApiMed
 function resolveApiMediator(descriptor: IPipelineDescriptor): Option<IApiMediator> {
   const wiring = resolveApiWiring(descriptor.options.companyId);
   if (wiring === false) return none();
-  const apiMediator = selectApiMediator(descriptor.options.companyId, wiring);
+  const apiMediator = selectApiMediator(descriptor.options.companyId, wiring, descriptor.mtls);
   return some(apiMediator);
 }
 

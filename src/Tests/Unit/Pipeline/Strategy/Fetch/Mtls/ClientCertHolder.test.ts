@@ -17,10 +17,7 @@ import {
 import MtlsFetchStrategy from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsFetchStrategy.js';
 
 type IClientCertHolder = ReturnType<typeof createClientCertHolder>;
-import {
-  makeMtlsInvoke,
-  setMtlsFetchFallback,
-} from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
+import makeMtlsInvoke from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsInvoke.js';
 import type { ICertBundle } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/OneZeroClientCert.js';
 import { isOk, succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { issueTestCert, type ITestCert } from '../../../../../Helpers/TestCertificate.js';
@@ -75,7 +72,6 @@ describe('ClientCertHolder — origin-scoped dynamic client certificate', () => 
   });
   afterEach(() => {
     holder.control.clear();
-    setMtlsFetchFallback();
   });
 
   it('presents no certificate before one is installed', async () => {
@@ -148,11 +144,11 @@ describe('ClientCertHolder — origin-scoped dynamic client certificate', () => 
     expect(bank.seen).toEqual(['/redirect']);
   });
 
-  it('tells the mocked-transport seam what each URL would be shown', async () => {
-    const presented = recordPresented();
+  it('tells the injected transport what each URL would be shown', async () => {
+    const { presented, fallback } = recordPresented();
     holder.control.install(PAIR_A);
     bank.seen.length = 0;
-    const invoke = makeMtlsInvoke(holder.source);
+    const invoke = makeMtlsInvoke(holder.source, { fallback });
     await invoke(`${bank.origin}/peer`, GET_INIT, { verb: 'GET' });
     await invoke(`${foreign.origin}/peer`, GET_INIT, { verb: 'GET' });
     expect(presented).toEqual([{ sha256: CERT_A.sha256 }, false]);

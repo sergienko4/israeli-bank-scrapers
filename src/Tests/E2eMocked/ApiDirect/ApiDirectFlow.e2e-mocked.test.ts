@@ -12,6 +12,7 @@ import { CompanyTypes } from '../../../Definitions.js';
 import type { ScraperCredentials } from '../../../Scrapers/Base/Interface.js';
 import createScraper from '../../../Scrapers/Registry/Factory.js';
 import type { IMockHandle as IKitMockHandle } from '../Helpers/FetchMockKit.js';
+import createScraperWithMtls from '../Helpers/MtlsScraper.js';
 import {
   installMaxFetchMock,
   MAX_MOCK_CARDS,
@@ -440,7 +441,10 @@ describe.each(CASES)('API-DIRECT mocked E2E — $displayName', testCase => {
       const handle = testCase.installFetchMock();
       try {
         const scraperOptions = buildScraperOptions(testCase);
-        const scraper = createScraper(scraperOptions);
+        const scraper =
+          'mtlsFallback' in handle
+            ? createScraperWithMtls(scraperOptions, { fallback: handle.mtlsFallback })
+            : createScraper(scraperOptions);
         const result = await scraper.scrape({ ...testCase.mockCreds });
         expect(result.success).toBe(true);
         if (result.success) {

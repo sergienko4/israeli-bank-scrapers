@@ -6,10 +6,10 @@
  * Rule #18: every value here is SYNTHETIC. No real PII.
  */
 
-import { setMtlsFetchFallback } from '../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
-
-type MtlsFallback = NonNullable<Parameters<typeof setMtlsFetchFallback>[0]>;
 import { INVOKE_NATIVE_FETCH } from '../../../Scrapers/Pipeline/Strategy/Fetch/NativeFetchNetwork.js';
+import type { IMtlsInvokeOptions } from '../../../Scrapers/Pipeline/Types/Domain/MtlsInvokeTypes.js';
+
+type MtlsFallback = NonNullable<IMtlsInvokeOptions['fallback']>;
 import type { CallKind, IMockHandle, IRecordedCall } from '../Helpers/FetchMockKit.js';
 import { errorReply, installFetchMock } from '../Helpers/FetchMockKit.js';
 import { AUTH_ROUTES } from './YahavAuthRoutes.js';
@@ -22,6 +22,8 @@ const ROUTES: Readonly<Partial<Record<string, Route>>> = { ...AUTH_ROUTES, ...BA
 /** The mocked bank and the run state its routes keep. */
 export interface IYahavMockHandle extends IMockHandle {
   readonly state: IYahavMockState;
+  /** Per-execution mTLS transport handed to the scraper descriptor. */
+  readonly mtlsFallback: MtlsFallback;
 }
 
 /**
@@ -81,11 +83,5 @@ export function installYahavFetchMock(state: IYahavMockState): IYahavMockHandle 
   const answer = answerYahav.bind(null, state);
   const handle = installFetchMock({ classify: classifyYahav, answer });
   const presentingFetch = viaMockedFetch(state);
-  setMtlsFetchFallback(presentingFetch);
-  /**
-   * Restore fetch and the node:https transport.
-   * @returns True once both are restored.
-   */
-  const dispose = (): boolean => handle.dispose() && !setMtlsFetchFallback();
-  return { ...handle, dispose, state };
+  return { ...handle, state, mtlsFallback: presentingFetch };
 }

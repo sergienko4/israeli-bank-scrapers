@@ -8,9 +8,10 @@
  * installed at runtime (the agent source picks the agent per request).
  */
 
+import type { IMtlsInvokeOptions } from '../../../Types/Domain/MtlsInvokeTypes.js';
 import { NativeFetchStrategy } from '../NativeFetchStrategy.js';
 import type { AgentSource } from './MtlsAgentSource.js';
-import { makeMtlsInvoke } from './MtlsTransport.js';
+import makeMtlsInvoke from './MtlsInvoke.js';
 
 /** REST transport that performs mutual-TLS via an injected agent source. */
 class MtlsFetchStrategy extends NativeFetchStrategy {
@@ -18,10 +19,11 @@ class MtlsFetchStrategy extends NativeFetchStrategy {
    * Bind the strategy to a base URL and an mTLS agent source.
    * @param baseUrl - Base URL for API requests.
    * @param source - Picks the HTTPS agent (client cert + key) per request.
+   * @param options - Per-execution fallback and timeout.
    */
-  constructor(baseUrl: string, source: AgentSource) {
+  constructor(baseUrl: string, source: AgentSource, options: IMtlsInvokeOptions = {}) {
     super(baseUrl);
-    this._invoke = makeMtlsInvoke(source);
+    this._invoke = makeMtlsInvoke(source, options);
   }
 }
 
