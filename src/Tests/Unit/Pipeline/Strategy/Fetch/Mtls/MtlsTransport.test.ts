@@ -381,14 +381,11 @@ describe('MtlsTransport.invoke — timeout + premature close', () => {
 
   it('keeps concurrent runs on their own timeout budgets', async () => {
     const init: RequestInit = { method: 'GET', headers: {} };
-    const slow = invoke(
-      { agent: certAgent, url: `${server.baseUrl}hang`, init, verb: 'GET' },
-      { timeoutMs: 150 },
-    );
-    const fast = invoke(
-      { agent: certAgent, url: server.restUrl, init, verb: 'GET' },
-      { timeoutMs: 5_000 },
-    );
+    const source = fixedAgentSource(certAgent, false);
+    const shortInvoke = makeMtlsInvoke(source, { timeoutMs: 150 });
+    const longInvoke = makeMtlsInvoke(source, { timeoutMs: 5_000 });
+    const slow = shortInvoke(`${server.baseUrl}delayed`, init, { verb: 'GET' });
+    const fast = longInvoke(`${server.baseUrl}delayed`, init, { verb: 'GET' });
     const [slowResult, fastResult] = await Promise.all([slow, fast]);
     const didSlowSucceed = isOk(slowResult);
     const didFastSucceed = isOk(fastResult);

@@ -108,6 +108,20 @@ function sendHang(): boolean {
 }
 
 /**
+ * Answer after a delay long enough to miss a short timeout but fit a long one.
+ * @param req - The incoming request.
+ * @param res - The response to write.
+ * @returns True once the delayed answer is scheduled.
+ */
+function sendDelayedOk(req: IncomingMessage, res: ServerResponse): boolean {
+  globalThis.setTimeout((): boolean => {
+    if (res.destroyed) return false;
+    return sendOk(req, res);
+  }, 250);
+  return true;
+}
+
+/**
  * Send unexpected media headers without ever producing a body.
  * @param res - The response to leave open after its headers.
  * @returns True once the headers are flushed.
@@ -207,6 +221,7 @@ const GATE_ROUTES: readonly (readonly [string, GateHandler])[] = [
   ['wrong-media-headers', (_req, res): boolean => sendWrongMediaHeaders(res)],
   ['challenge', (_req, res): boolean => sendChallenge(res)],
   ['hang', sendHang],
+  ['delayed', sendDelayedOk],
   ['premature', (_req, res): boolean => sendPremature(res)],
   ['echo', sendEcho],
   ['at-cap', (_req, res): boolean => sendSized(res, MTLS_MAX_RESPONSE_BYTES)],

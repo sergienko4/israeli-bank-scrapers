@@ -96,8 +96,8 @@ describe('step client certificate', () => {
   });
 
   it('fails unsupported on a bus without the certificate port, sending nothing', async () => {
-    const { presented } = recordPresented();
-    const bus = createMtlsApiMediator(BASE_ARGS);
+    const { presented, fallback } = recordPresented();
+    const bus = createMtlsApiMediator({ ...BASE_ARGS, mtls: { fallback } });
     const scope = scopeWith(DEVICE.keyPem, DEVICE.certPem);
     const result = await runRegister(bus, scope);
     expect(result).toMatchObject({
