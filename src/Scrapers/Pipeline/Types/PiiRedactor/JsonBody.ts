@@ -28,6 +28,9 @@ export const JSON_BODY_CATEGORY: PiiCategory = 'unknown';
 /** Maximum walk depth before redactJsonBody bails out for safety. */
 const MAX_WALK_DEPTH = 1000;
 
+/** Bare name-part keys recognized inside a `name` object. */
+const NAME_PART_KEYS: ReadonlySet<string> = new Set(['first', 'last', 'middle']);
+
 /**
  * Maximum recursion depth used by {@link objectHasPii} when probing
  * for nested PII. Conservative bail-out: deeper objects without a
@@ -60,6 +63,19 @@ function nestedHasPii(value: JsonValue, depth: number): PiiClassifierBool {
 }
 
 /**
+ * Whether one object key carries PII, including a nested `name` object.
+ * @param obj - Candidate object.
+ * @param key - Key to inspect.
+ * @param depth - Current recursion depth.
+ * @returns True when the key or its subtree carries PII.
+ */
+function keyHasPii(obj: IJsonObject, key: string, depth: number): boolean {
+  if (classifyKey(key) !== 'unknown') return true;
+  if (key.toLowerCase() === 'name' && isNamePartObject(obj[key])) return true;
+  return nestedHasPii(obj[key], depth + 1);
+}
+
+/**
  * Whether a captured plain object carries PII — recursively inspects
  * nested objects and arrays so `[{ meta: { phone: '…' } }]` is
  * correctly flagged.
@@ -68,9 +84,7 @@ function nestedHasPii(value: JsonValue, depth: number): PiiClassifierBool {
  * @returns True when the subtree contains at least one PII-classified key.
  */
 function objectHasPii(obj: IJsonObject, depth = 0): PiiClassifierBool {
-  return Object.keys(obj).some(
-    (k): boolean => classifyKey(k) !== 'unknown' || nestedHasPii(obj[k], depth + 1),
-  ) as PiiClassifierBool;
+  return Object.keys(obj).some((k): boolean => keyHasPii(obj, k, depth)) as PiiClassifierBool;
 }
 
 /**
@@ -128,9 +142,38 @@ function redactLeaf(
   path: readonly string[],
   censor: CensorFn,
 ): JsonScalar {
-  const tail = path.at(-1) ?? '';
-  if (classifyKey(tail) === 'unknown') return value;
+  if (classifyLeafPath(path) === 'unknown') return value;
   return censor(value, path);
+}
+
+/**
+ * Classify a leaf by its full path, including first/last/middle inside a
+ * `name` object, where the leaf keys alone carry no category.
+ * @param path - Key path to the leaf.
+ * @returns PII category, or `unknown`.
+ */
+function classifyLeafPath(path: readonly string[]): PiiCategory {
+  const tail = path.at(-1) ?? '';
+  const direct = classifyKey(tail);
+  if (direct !== 'unknown') return direct;
+  const parent = path.at(-2) ?? '';
+  const loweredTail = tail.toLowerCase();
+  const isNamePart = NAME_PART_KEYS.has(loweredTail);
+  if (parent.toLowerCase() === 'name' && isNamePart) return 'name';
+  return 'unknown';
+}
+
+/**
+ * Whether an object looks like a `name` value with bare name-part keys.
+ * @param value - Candidate value.
+ * @returns True when the object carries first/last/middle fields.
+ */
+function isNamePartObject(value: JsonValue): boolean {
+  if (!isJsonObject(value)) return false;
+  return Object.keys(value).some(key => {
+    const lowered = key.toLowerCase();
+    return NAME_PART_KEYS.has(lowered);
+  });
 }
 
 /**
