@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 import * as ts from 'typescript';
 
 import { runWithBankContext } from '../../../../Scrapers/Pipeline/Logging/BankContext.js';
-import { ENVIRONMENT, readEnvironment } from '../../../../Scrapers/Pipeline/Types/Environment.js';
+import { readEnvironment } from '../../../../Scrapers/Pipeline/Types/Environment.js';
 import { maskVisibleText } from '../../../../Scrapers/Pipeline/Types/LogEvent.js';
 import { isPiiRedactionDisabled } from '../../../../Scrapers/Pipeline/Types/PiiRedactor/Types.js';
 
@@ -41,14 +41,81 @@ function pipelineFiles(root: string): readonly string[] {
 }
 
 /**
- * Whether a node reads `process.env` or `process.argv`.
+ * Whether a node is the identifier `process`.
  * @param node - AST node.
- * @returns True for the forbidden property access.
+ * @returns True for the process identifier.
+ */
+function isProcessIdentifier(node: ts.Node): boolean {
+  return ts.isIdentifier(node) && node.text === 'process';
+}
+
+/**
+ * Whether a property name is an environment read.
+ * @param name - Property name.
+ * @returns True for `env` or `argv`.
+ */
+function isForbiddenName(name: string): boolean {
+  return name === 'env' || name === 'argv';
+}
+
+/**
+ * Whether a property access reads `process.env` or `process.argv`.
+ * @param node - Property-access node.
+ * @returns True for the forbidden read.
+ */
+function isPropertyProcessRead(node: ts.PropertyAccessExpression): boolean {
+  return isProcessIdentifier(node.expression) && isForbiddenName(node.name.text);
+}
+
+/**
+ * Whether an element access reads `process['env']` or `process['argv']`.
+ * @param node - Element-access node.
+ * @returns True for the forbidden read.
+ */
+function isElementProcessRead(node: ts.ElementAccessExpression): boolean {
+  const argument = node.argumentExpression;
+  return (
+    isProcessIdentifier(node.expression) &&
+    ts.isStringLiteral(argument) &&
+    isForbiddenName(argument.text)
+  );
+}
+
+/**
+ * Whether a variable declaration destructures `env` or `argv` from `process`.
+ * @param node - Variable-declaration node.
+ * @returns True for the forbidden read.
+ */
+function isDestructuredProcessRead(node: ts.VariableDeclaration): boolean {
+  if (!ts.isObjectBindingPattern(node.name)) return false;
+  if (node.initializer === undefined || !isProcessIdentifier(node.initializer)) return false;
+  return node.name.elements.some(element => {
+    const name = element.propertyName ?? element.name;
+    return ts.isIdentifier(name) && isForbiddenName(name.text);
+  });
+}
+
+/**
+ * Whether a node reads `process.env` or `process.argv`, including element
+ * access and object destructuring.
+ * @param node - AST node.
+ * @returns True for a forbidden read.
  */
 function isProcessRead(node: ts.Node): boolean {
-  if (!ts.isPropertyAccessExpression(node)) return false;
-  if (!ts.isIdentifier(node.expression) || node.expression.text !== 'process') return false;
-  return node.name.text === 'env' || node.name.text === 'argv';
+  if (ts.isPropertyAccessExpression(node)) return isPropertyProcessRead(node);
+  if (ts.isElementAccessExpression(node)) return isElementProcessRead(node);
+  if (ts.isVariableDeclaration(node)) return isDestructuredProcessRead(node);
+  return false;
+}
+
+/**
+ * Scan source text for forbidden process reads.
+ * @param source - TypeScript source.
+ * @returns Offending fixture paths.
+ */
+function offendersInSource(source: string): readonly string[] {
+  const file = ts.createSourceFile('fixture.ts', source, ts.ScriptTarget.Latest, true);
+  return childOffenders(file, 'fixture.ts');
 }
 
 /**
@@ -107,9 +174,26 @@ describe('Pipeline environment boundary', () => {
   });
 
   it('defaults to trace off and the platform runs root', () => {
-    expect(ENVIRONMENT.forensicTrace).toBe(false);
-    expect(ENVIRONMENT.piiRedactionOff).toBe(false);
-    expect(ENVIRONMENT.runsRoot.length).toBeGreaterThan(0);
+    const env = readEnvironment({});
+    expect(env.forensicTrace).toBe(false);
+    expect(env.piiRedactionOff).toBe(false);
+    expect(env.runsRoot.length).toBeGreaterThan(0);
+  });
+
+  it.each([
+    ['property access', 'const trace = process.env.FORENSIC_TRACE;'],
+    ['element access', "const trace = process['env'].FORENSIC_TRACE;"],
+    ['variable destructuring', 'const { env } = process;'],
+    ['argv destructuring', 'const { argv } = process;'],
+    ['renamed destructuring', 'const { env: readEnv } = process;'],
+  ])('detects %s outside the boundary', (_label, source) => {
+    const offenders = offendersInSource(source);
+    expect(offenders).toStrictEqual(['fixture.ts']);
+  });
+
+  it('ignores unrelated process properties', () => {
+    const offenders = offendersInSource('const version = process.versions.node;');
+    expect(offenders).toStrictEqual([]);
   });
 
   it('places the default runs root under a per-user temp directory', () => {
