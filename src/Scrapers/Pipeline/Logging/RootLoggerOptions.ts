@@ -7,7 +7,7 @@
 import type { LoggerOptions, TransportMultiOptions, TransportSingleOptions } from 'pino';
 
 import SENSITIVE_PATHS from '../Types/DebugConfig.js';
-import { ENVIRONMENT, type IEnvironment } from '../Types/Environment.js';
+import { activeEnvironment, type IEnvironment } from '../Types/Environment.js';
 import { createCensorFn } from '../Types/PiiRedactor.js';
 import { getBankMixin } from './BankContext.js';
 
@@ -55,7 +55,7 @@ function buildDualTransport(destination: string | number): TransportMultiOptions
  */
 export function buildTransport(
   logFile: string,
-  env: IEnvironment = ENVIRONMENT,
+  env: IEnvironment = activeEnvironment(),
 ): TransportSingleOptions | TransportMultiOptions | false {
   const isPretty = env.prettyLogs;
   if (!isPretty && !logFile) return false;
@@ -96,7 +96,7 @@ export function buildSilentOptions(): LoggerOptions {
  */
 function buildActiveOptions(
   transport: LoggerOptions['transport'],
-  env: IEnvironment = ENVIRONMENT,
+  env: IEnvironment = activeEnvironment(),
 ): LoggerOptions {
   return { level: env.logLevel, transport, ...buildCommonOptions() };
 }
@@ -109,7 +109,7 @@ function buildActiveOptions(
  */
 export function buildPinoOptions(
   transport: LoggerOptions['transport'] | false,
-  env: IEnvironment = ENVIRONMENT,
+  env: IEnvironment = activeEnvironment(),
 ): LoggerOptions {
   return transport === false ? buildSilentOptions() : buildActiveOptions(transport, env);
 }
@@ -142,6 +142,6 @@ export function buildFdOptions(fd: number, isDual: boolean): LoggerOptions {
  * @returns Preferred active Pino options.
  */
 export function buildPreferredFd(fd: number): LoggerOptions {
-  const isPretty = ENVIRONMENT.prettyLogs;
+  const isPretty = activeEnvironment().prettyLogs;
   return buildFdOptions(fd, isPretty);
 }

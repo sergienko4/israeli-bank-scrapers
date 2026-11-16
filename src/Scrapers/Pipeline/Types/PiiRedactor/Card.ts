@@ -27,7 +27,7 @@ export const CATEGORY: PiiCategory = 'card';
  * @returns Stable hint.
  */
 function redact(value: string): PiiHintString {
-  if (isPiiRedactionDisabled) return value as PiiHintString;
+  if (isPiiRedactionDisabled()) return value as PiiHintString;
   if (value.length === 0) return '' as PiiHintString;
   if (value.length < MIN_HINT_LEN) return REDACTED_HINT as PiiHintString;
   return `****${value.slice(-4)}` as PiiHintString;

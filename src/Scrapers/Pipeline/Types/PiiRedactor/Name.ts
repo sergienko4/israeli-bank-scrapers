@@ -21,7 +21,7 @@ export const CATEGORY: PiiCategory = 'name';
  * @returns Stable hint.
  */
 function redact(value: string): PiiHintString {
-  if (isPiiRedactionDisabled) return value as PiiHintString;
+  if (isPiiRedactionDisabled()) return value as PiiHintString;
   if (value.length === 0) return '' as PiiHintString;
   const n = graphemeCount(value);
   return `<name:${String(n)}>` as PiiHintString;

@@ -77,7 +77,7 @@ function warnPiiRedactionOff(): true {
   if (!didWarnPiiRedaction) {
     didWarnPiiRedaction = true;
     process.emitWarning(
-      'PII_REDACTION=off: business-data masking is disabled; auth credentials remain masked.',
+      'PII_REDACTION=off: masking is disabled; pipeline logs and captures may contain business data and credentials.',
     );
   }
   return true;

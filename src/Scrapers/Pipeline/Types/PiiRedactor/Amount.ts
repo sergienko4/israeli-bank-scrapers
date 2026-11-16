@@ -40,7 +40,7 @@ function coerceToNumber(value: number | string): PiiCountInt {
  * @returns Stable hint.
  */
 function redact(value: number | string): PiiHintString {
-  if (isPiiRedactionDisabled) return String(value) as PiiHintString;
+  if (isPiiRedactionDisabled()) return String(value) as PiiHintString;
   if (typeof value === 'string' && value.trim().length === 0) {
     return REDACTED_HINT as PiiHintString;
   }

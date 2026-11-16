@@ -36,7 +36,7 @@ import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import ScraperError from '../../../../Base/ScraperError.js';
 import { getDebug } from '../../../Logging/Debug.js';
 import type { ICertBundle } from '../../../Types/Domain/CertBundle.js';
-import { ENVIRONMENT, type IEnvironment } from '../../../Types/Environment.js';
+import { activeEnvironment, type IEnvironment } from '../../../Types/Environment.js';
 import { toErrorMessage } from '../../../Types/ErrorUtils.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
@@ -286,7 +286,7 @@ function hasCompleteOverride(env: IEnvironment): boolean {
  * @param env - Environment snapshot; defaults to the process boundary.
  * @returns The resolved cert + key PEM pair.
  */
-function resolveOneZeroClientCert(env: IEnvironment = ENVIRONMENT): ICertBundle {
+function resolveOneZeroClientCert(env: IEnvironment = activeEnvironment()): ICertBundle {
   const isOverridden = hasCompleteOverride(env);
   const bundle = isOverridden ? resolveFromOverrides(env) : resolveBundledDefault();
   warnIfExpiring(bundle.cert);

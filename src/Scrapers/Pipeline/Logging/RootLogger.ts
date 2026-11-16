@@ -14,7 +14,7 @@
 import pino, { type Logger } from 'pino';
 
 import type { Brand } from '../Types/Brand.js';
-import { ENVIRONMENT, type IEnvironment } from '../Types/Environment.js';
+import { activeEnvironment, type IEnvironment } from '../Types/Environment.js';
 import { toError } from '../Types/ErrorUtils.js';
 import { currentRunScope, noteRunLogFile } from '../Types/RunScope.js';
 import { closeActiveRunTrace, getLogFile } from '../Types/TraceConfig.js';
@@ -69,7 +69,7 @@ const FALLBACK_UNAVAILABLE = 'degraded log transport could not be built either; 
 function warnTransportFailure(
   error: Error,
   logFile: string,
-  env: IEnvironment = ENVIRONMENT,
+  env: IEnvironment = activeEnvironment(),
 ): true {
   const isPrettyOnly = env.prettyLogs && !logFile;
   const reason = isPrettyOnly ? PRETTY_UNAVAILABLE : TRANSPORT_UNAVAILABLE;
@@ -139,7 +139,7 @@ function degradeLogger(logFile: string): Logger {
 export function instantiateLogger(
   logFile: string,
   options: pino.LoggerOptions,
-  env: IEnvironment = ENVIRONMENT,
+  env: IEnvironment = activeEnvironment(),
 ): Logger {
   const built = tryPino(options);
   if (!(built instanceof Error)) return built;
@@ -213,7 +213,22 @@ export function getRootLogger(): Logger {
   const logFile = getLogFile();
   const scope = currentRunScope();
   if (scope) noteRunLogFile(scope.trace, logFile);
-  return slotFor({ logFile, isScoped: scope !== false, build: buildRootInstance }).logger;
+  const slotKey = terminalSlotKey(logFile);
+  const slot = slotFor({ logFile, slotKey, isScoped: scope !== false, build: buildRootInstance });
+  return slot.logger;
+}
+
+/**
+ * Terminal-only loggers are shared by destination; include the settings that
+ * change their shape so two runs with different pretty/level values do not
+ * reuse one logger.
+ * @param logFile - Resolved destination.
+ * @returns A setting-sensitive slot key for the terminal destination.
+ */
+function terminalSlotKey(logFile: string): string {
+  if (logFile.length > 0) return logFile;
+  const env = activeEnvironment();
+  return `terminal|${String(env.prettyLogs)}|${env.logLevel}`;
 }
 
 /**
@@ -223,7 +238,8 @@ export function getRootLogger(): Logger {
  */
 export function getRootLoggerGeneration(): RootLoggerGeneration {
   const logFile = getLogFile();
-  return generationFor(logFile) as RootLoggerGeneration;
+  const slotKey = terminalSlotKey(logFile);
+  return generationFor(slotKey) as RootLoggerGeneration;
 }
 
 /**

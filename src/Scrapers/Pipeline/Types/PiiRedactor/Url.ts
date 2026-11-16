@@ -97,7 +97,7 @@ function listPiiQueryKeys(parsed: URL): readonly string[] {
  * @returns Redacted URL.
  */
 function redactUrl(url: string): PiiHintString {
-  if (isPiiRedactionDisabled) return url as PiiHintString;
+  if (isPiiRedactionDisabled()) return url as PiiHintString;
   if (url.length === 0) return '' as PiiHintString;
   const parse = tryParseUrl(url);
   if (!parse.ok) return url as PiiHintString;
@@ -157,7 +157,7 @@ function maskPathSegmentIfId(seg: string): string {
  * @returns Redacted URL with both query and path-segment PII masked.
  */
 function redactUrlFull(url: string): PiiHintString {
-  if (isPiiRedactionDisabled) return url as PiiHintString;
+  if (isPiiRedactionDisabled()) return url as PiiHintString;
   const queryRedacted = redactUrl(url);
   const parse = tryParseUrl(queryRedacted);
   if (!parse.ok) return queryRedacted;

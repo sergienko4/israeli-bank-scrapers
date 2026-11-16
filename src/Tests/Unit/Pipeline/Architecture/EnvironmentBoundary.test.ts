@@ -12,7 +12,10 @@ import { fileURLToPath } from 'node:url';
 
 import * as ts from 'typescript';
 
+import { runWithBankContext } from '../../../../Scrapers/Pipeline/Logging/BankContext.js';
 import { ENVIRONMENT, readEnvironment } from '../../../../Scrapers/Pipeline/Types/Environment.js';
+import { maskVisibleText } from '../../../../Scrapers/Pipeline/Types/LogEvent.js';
+import { isPiiRedactionDisabled } from '../../../../Scrapers/Pipeline/Types/PiiRedactor/Types.js';
 
 const MODULE_PATH = fileURLToPath(import.meta.url);
 const HERE = path.dirname(MODULE_PATH);
@@ -114,5 +117,26 @@ describe('Pipeline environment boundary', () => {
     const tempRoot = os.tmpdir();
     const expected = path.join(tempRoot, 'israeli-bank-scrapers', 'runs');
     expect(env.runsRoot).toBe(expected);
+  });
+
+  it('applies each run’s privacy setting independently', () => {
+    const off = readEnvironment({ PII_REDACTION: 'off' });
+    const on = readEnvironment({ PII_REDACTION: 'on' });
+    /**
+     * Read the redaction flag in the off snapshot.
+     * @returns True when redaction is disabled.
+     */
+    const readOff = (): boolean => runWithBankContext('onezero', isPiiRedactionDisabled, off);
+    /**
+     * Read the redaction flag in the on snapshot.
+     * @returns False when redaction is enabled.
+     */
+    const readOn = (): boolean => runWithBankContext('onezero', isPiiRedactionDisabled, on);
+    expect([readOff(), readOn()]).toEqual([true, false]);
+
+    const sample = 'x'.repeat(40);
+    const maskedOff = runWithBankContext('onezero', () => maskVisibleText(sample), off);
+    const maskedOn = runWithBankContext('onezero', () => maskVisibleText(sample), on);
+    expect([maskedOff.length, maskedOn.length]).toEqual([40, 33]);
   });
 });

@@ -92,32 +92,41 @@ async function runWithCleanup(
 }
 
 /**
- * Build the zero-arg cleanup thunk passed to {@link runWithBankContext}.
- * @param tracker - Context tracker.
- * @param initialCtx - Initial pipeline context.
- * @returns Thunk invoking {@link runWithCleanup}.
+ * Build the context and run phase reduction inside the execution's scope.
+ * @param descriptor - The pipeline to execute.
+ * @param credentials - User bank credentials.
+ * @returns Pipeline result Procedure.
  */
-function makeCleanupThunk(
-  tracker: IContextTracker,
-  initialCtx: IPipelineContext,
-): () => Promise<Procedure<IPipelineContext>> {
-  return (): Promise<Procedure<IPipelineContext>> => runWithCleanup(tracker, initialCtx);
+function runInsideScope(
+  descriptor: IPipelineDescriptor,
+  credentials: ScraperCredentials,
+): Promise<Procedure<IPipelineContext>> {
+  const initialCtx = buildInitialContext(descriptor, credentials);
+  registerOrFail(initialCtx);
+  const tracker: IContextTracker = { phases: descriptor.phases, lastCtx: initialCtx };
+  return runWithCleanup(tracker, initialCtx);
 }
 
 /**
  * Run phase reduction + cleanup inside the bank's async-local log context.
- * @param tracker - Context tracker.
- * @param initialCtx - Initial pipeline context carrying companyId.
+ * The context is built inside the scope so environment-dependent construction
+ * (logger, PII policy, client certificate) sees this execution's snapshot.
+ * @param descriptor - The pipeline to execute.
+ * @param credentials - User bank credentials.
  * @param env - Environment snapshot for this execution.
  * @returns Pipeline result Procedure.
  */
 function runInBankContext(
-  tracker: IContextTracker,
-  initialCtx: IPipelineContext,
+  descriptor: IPipelineDescriptor,
+  credentials: ScraperCredentials,
   env: IEnvironment,
 ): Promise<Procedure<IPipelineContext>> {
-  const run = makeCleanupThunk(tracker, initialCtx);
-  return runWithBankContext(initialCtx.companyId, run, env);
+  /**
+   * Build the context and reduce phases inside the scope.
+   * @returns Pipeline result Procedure.
+   */
+  const run = (): Promise<Procedure<IPipelineContext>> => runInsideScope(descriptor, credentials);
+  return runWithBankContext(descriptor.options.companyId, run, env);
 }
 
 /**
@@ -146,10 +155,7 @@ async function executePipeline(
   credentials: ScraperCredentials,
   env: IEnvironment = readEnvironment(),
 ): Promise<IScraperScrapingResult> {
-  const initialCtx = buildInitialContext(descriptor, credentials);
-  registerOrFail(initialCtx);
-  const tracker: IContextTracker = { phases: descriptor.phases, lastCtx: initialCtx };
-  return toResult(await runInBankContext(tracker, initialCtx, env));
+  return toResult(await runInBankContext(descriptor, credentials, env));
 }
 
 export default executePipeline;

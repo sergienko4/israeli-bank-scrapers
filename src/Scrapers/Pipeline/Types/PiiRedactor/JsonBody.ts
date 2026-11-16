@@ -270,7 +270,7 @@ function passThroughJsonBody(body: string | JsonValue): PiiHintString {
  * @returns Redacted body string.
  */
 function redactJsonBody(body: string | JsonValue): PiiHintString {
-  if (isPiiRedactionDisabled) return passThroughJsonBody(body);
+  if (isPiiRedactionDisabled()) return passThroughJsonBody(body);
   if (typeof body === 'string') return redactBodyString(body);
   return redactBodyValue(body);
 }

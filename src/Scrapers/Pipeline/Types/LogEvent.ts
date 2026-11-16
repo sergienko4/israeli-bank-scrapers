@@ -9,7 +9,7 @@
 
 import type { Brand } from './Brand.js';
 import type { ApiStrategyKind } from './Domain/ApiStrategy.js';
-import { ENVIRONMENT } from './Environment.js';
+import { activeEnvironment } from './Environment.js';
 import type PhaseName from './Phase.js';
 
 // ── Scalar type aliases (Rule #15: no bare primitives) ───────────────
@@ -133,7 +133,7 @@ const MAX_VISIBLE_TEXT_LENGTH = 30;
  */
 function maskVisibleText(text: string): MaskedText {
   const trimmed = text.trim();
-  if (ENVIRONMENT.piiRedactionOff) return trimmed as MaskedText;
+  if (activeEnvironment().piiRedactionOff) return trimmed as MaskedText;
   if (trimmed.length <= MAX_VISIBLE_TEXT_LENGTH) return trimmed as MaskedText;
   return (trimmed.slice(0, MAX_VISIBLE_TEXT_LENGTH) + '...') as MaskedText;
 }

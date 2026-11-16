@@ -33,6 +33,7 @@ type SlotBuilder = (logFile: string) => ILeasedLoggerResult;
 /** The ambient destination a lookup is for, or the running execution's own. */
 interface ISlotRequest {
   readonly logFile: string;
+  readonly slotKey?: string;
   readonly isScoped: boolean;
   readonly build: SlotBuilder;
 }
@@ -73,9 +74,10 @@ function noteAmbient(logFile: string): true {
  */
 function openSlot(request: ISlotRequest): ILoggerSlot {
   const built = request.build(request.logFile);
+  const key = request.slotKey ?? request.logFile;
   sequence += 1;
   const slot: ILoggerSlot = { logger: built.logger, lease: built.lease, generation: sequence };
-  SLOTS.set(request.logFile, slot);
+  SLOTS.set(key, slot);
   return slot;
 }
 
@@ -85,7 +87,8 @@ function openSlot(request: ISlotRequest): ILoggerSlot {
  * @returns The destination's slot.
  */
 function slotFor(request: ISlotRequest): ILoggerSlot {
-  const slot = SLOTS.get(request.logFile) ?? openSlot(request);
+  const key = request.slotKey ?? request.logFile;
+  const slot = SLOTS.get(key) ?? openSlot(request);
   if (!request.isScoped) noteAmbient(request.logFile);
   return slot;
 }
