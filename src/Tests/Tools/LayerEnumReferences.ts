@@ -363,8 +363,13 @@ function collectBindingMembers(
   members: Set<string>,
 ): ReadonlySet<string> {
   for (const element of pattern.elements) {
+    if (element.dotDotDotToken !== undefined) {
+      members.add('dynamic:rest');
+      continue;
+    }
     const member = bindingNameOf(element.propertyName ?? element.name);
     if (BANK_MEMBERS.has(member)) members.add(member);
+    if (member === '') members.add(`dynamic:${element.getText()}`);
   }
   return members;
 }
@@ -489,6 +494,10 @@ function collectAliasMember(
   bindings: IEnumBindings,
   members: Set<string>,
 ): ReadonlySet<string> {
+  if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
+    if (isEnumBase(node.right, bindings)) members.add(`alias:${node.left.getText()}`);
+    return members;
+  }
   if (!ts.isVariableDeclaration(node)) return members;
   if (ts.isIdentifier(node.name) && node.initializer !== undefined) {
     if (isEnumBase(node.initializer, bindings)) members.add(`alias:${node.name.text}`);
@@ -558,6 +567,9 @@ function collectIndexedMember(
   if (!ts.isIndexedAccessTypeNode(node)) return members;
   const member = ts.isLiteralTypeNode(node.indexType) ? literalTextOf(node.indexType.literal) : '';
   if (BANK_MEMBERS.has(member) && isEnumTypeObject(node.objectType, bindings)) members.add(member);
+  if (member === '' && isEnumTypeObject(node.objectType, bindings)) {
+    members.add(`dynamic:${node.indexType.getText()}`);
+  }
   return members;
 }
 
@@ -569,8 +581,8 @@ function collectIndexedMember(
  */
 function isEnumTypeObject(node: ts.TypeNode, bindings: IEnumBindings): boolean {
   if (ts.isImportTypeNode(node)) return isEnumImportType(node);
-  if (ts.isTypeQueryNode(node)) return isEnumTypeName(node.exprName, bindings);
-  return ts.isTypeReferenceNode(node) && isEnumTypeName(node.typeName, bindings);
+  if (ts.isTypeQueryNode(node)) return isEnumTypeName(node.exprName, bindings, 'value');
+  return ts.isTypeReferenceNode(node) && isEnumTypeName(node.typeName, bindings, 'type');
 }
 
 /**
@@ -590,12 +602,18 @@ function isEnumImportType(node: ts.ImportTypeNode): boolean {
  * Whether an entity name resolves to the enum or a namespace path to it.
  * @param name - Type entity name.
  * @param bindings - Local import bindings.
+ * @param kind - Value or type namespace.
  * @returns True for `CompanyTypes` or `defs.CompanyTypes`.
  */
-function isEnumTypeName(name: ts.EntityName, bindings: IEnumBindings): boolean {
-  if (ts.isIdentifier(name)) return bindings.direct.has(name.text) && !isTypeShadowed(name);
+function isEnumTypeName(
+  name: ts.EntityName,
+  bindings: IEnumBindings,
+  kind: 'value' | 'type',
+): boolean {
+  const isShadowing = kind === 'value' ? isShadowed : isTypeShadowed;
+  if (ts.isIdentifier(name)) return bindings.direct.has(name.text) && !isShadowing(name);
   const isNamespaceEnum = name.right.text === 'CompanyTypes' && ts.isIdentifier(name.left);
-  return isNamespaceEnum && bindings.namespaces.has(name.left.text) && !isTypeShadowed(name.left);
+  return isNamespaceEnum && bindings.namespaces.has(name.left.text) && !isShadowing(name.left);
 }
 
 /**
@@ -704,10 +722,33 @@ function specifierOf(node: ts.Node): string {
     const argument = node.argument;
     return ts.isLiteralTypeNode(argument) ? literalTextOf(argument.literal) : '';
   }
-  if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
-    return importArgumentText(node);
-  }
-  return '';
+  return callSpecifierOf(node);
+}
+
+/**
+ * Read a dynamic import or createRequire call specifier.
+ * @param node - Candidate node.
+ * @returns A literal path, `<dynamic>` or `<require>`.
+ */
+function callSpecifierOf(node: ts.Node): string {
+  if (!ts.isCallExpression(node)) return '';
+  if (node.expression.kind === ts.SyntaxKind.ImportKeyword) return importArgumentText(node);
+  return isRequireLoader(node) ? '<require>' : '';
+}
+
+/**
+ * Whether a call is a createRequire helper or a call through one.
+ * @param node - Call expression.
+ * @returns True for `createRequire(...)` and its returned loader call.
+ */
+function isRequireLoader(node: ts.CallExpression): boolean {
+  if (ts.isIdentifier(node.expression) && node.expression.text === 'createRequire') return true;
+  const callee = node.expression;
+  return (
+    ts.isCallExpression(callee) &&
+    ts.isIdentifier(callee.expression) &&
+    callee.expression.text === 'createRequire'
+  );
 }
 
 /**

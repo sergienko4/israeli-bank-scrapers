@@ -138,11 +138,17 @@ function collectFileViolations(file: string, violations: Set<string>): ReadonlyS
   if (from === false) return violations;
   const importer = posixRelative(file);
   for (const spec of importSpecifiers(file)) {
-    if (spec === '<dynamic>') {
+    if (spec === '<dynamic>' || spec === '<require>') {
       violations.add(`${importer} -> dynamic-import`);
       continue;
     }
-    const target = resolveImport(file, spec);
+    const bareSpec = spec.split(/[?#]/u)[0];
+    const target = resolveImport(file, bareSpec);
+    const isExcluded = /(?:^|\/)(?:Tests|coverage)(?:\/|$)/u.test(target);
+    if (isExcluded) {
+      violations.add(`${importer} -> excluded:${posixRelative(target)}`);
+      continue;
+    }
     const to = layerOf(target);
     if (to === false || to === from || isAllowed(from, to)) continue;
     const targetModule = posixRelative(target);

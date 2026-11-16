@@ -63,7 +63,7 @@ describe('layer-direction scan coverage', () => {
     walkProdFiles(PIPELINE_ROOT, files);
     const extensionImports = files.flatMap((file): string[] =>
       importSpecifiers(file)
-        .filter((specifier): boolean => /\.(?:mjs|cjs)$/u.test(specifier))
+        .filter((specifier): boolean => /\.(?:mjs|cjs)(?:[?#].*)?$/u.test(specifier))
         .map((specifier): string => `${relativeToPipeline(file)} -> ${specifier}`),
     );
     expect(extensionImports).toStrictEqual([]);
