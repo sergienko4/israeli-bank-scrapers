@@ -7,7 +7,6 @@
 
 import { CompanyTypes } from '../../../../Definitions.js';
 import type { Brand } from '../../Types/Brand.js';
-import type { WKUrlGroup } from '../WK/UrlsWK.js';
 import { registerWkUrl } from '../WK/UrlsWK.js';
 import type { IPipelineBankConfig, ITransportConfig } from './PipelineBankConfigTypes.js';
 
@@ -23,7 +22,7 @@ type DidSeed = Brand<boolean, 'DidSeed'>;
  */
 function seedOnePath(bankHint: CompanyTypes, key: string, url?: string): DidSeed {
   if (!url) return false as DidSeed;
-  registerWkUrl(key as WKUrlGroup, bankHint, url);
+  registerWkUrl(key, bankHint, url);
   return true as DidSeed;
 }
 

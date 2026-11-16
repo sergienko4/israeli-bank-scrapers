@@ -1,8 +1,10 @@
 /**
- * Build-time rules for the bank-error code map on login and resume steps:
- * the map needs code pointers, the pointers need a map, a pointer must be a
- * JSON pointer below the body root, and a map needs a guard or codec to raise
- * the bank error it types.
+ * Build-time rules for the open step/URL contracts and the bank-error code
+ * map on login and resume steps. The map needs code pointers, the pointers
+ * need a map, a pointer must be a JSON pointer below the body root, and a map
+ * needs a guard or codec to raise the bank error it types. Step names are
+ * 1–64 ASCII letters or digits starting with a letter, and URL groups are
+ * dot-separated name segments.
  */
 
 import type { IStepConfig } from '../../../Mediator/ApiDirectCall/ConfigContracts/index.js';
@@ -89,8 +91,50 @@ function hasIdleCodeMap(input: IApiDirectRuleInput): boolean {
   return allSteps(input.call).some(isIdleCodeMap);
 }
 
-/** The bank-error code-map rules, checked with the step rules. */
-const API_DIRECT_BANK_ERROR_CODE_RULES: readonly IApiDirectRule[] = [
+/** Step-name shape: 1–64 letters or digits, first character a letter. */
+const STEP_NAME_PATTERN = /^[A-Z][A-Z0-9]{0,63}$/i;
+
+/** URL-group shape: one or more dot-separated name segments. */
+const URL_GROUP_PATTERN = /^[A-Z][A-Z0-9]*(?:\.[A-Z][A-Z0-9]*){0,7}$/i;
+
+/**
+ * Whether a step name breaks the shape rule.
+ * @param step - Step config.
+ * @returns True for a bad step name.
+ */
+function hasBadStepName(step: IStepConfig): boolean {
+  return !STEP_NAME_PATTERN.test(step.name);
+}
+
+/**
+ * Whether any login or resume step has a bad name.
+ * @param input - Rule input.
+ * @returns True when a `name` breaks the shape rule.
+ */
+function hasBadStepNameAny(input: IApiDirectRuleInput): boolean {
+  return allSteps(input.call).some(hasBadStepName);
+}
+
+/**
+ * Whether a URL tag breaks the group shape.
+ * @param step - Step config.
+ * @returns True for a bad URL group.
+ */
+function hasBadUrlTag(step: IStepConfig): boolean {
+  return !URL_GROUP_PATTERN.test(step.urlTag);
+}
+
+/**
+ * Whether any login or resume step has a bad URL tag.
+ * @param input - Rule input.
+ * @returns True when a `urlTag` breaks the group shape.
+ */
+function hasBadUrlTagAny(input: IApiDirectRuleInput): boolean {
+  return allSteps(input.call).some(hasBadUrlTag);
+}
+
+/** The contract rules, checked with the step rules. */
+const API_DIRECT_CONTRACT_RULES: readonly IApiDirectRule[] = [
   {
     message: 'steps.bankErrorCodePointers: each entry must be a JSON pointer',
     isBroken: hasBadCodePointerAny,
@@ -107,6 +151,14 @@ const API_DIRECT_BANK_ERROR_CODE_RULES: readonly IApiDirectRule[] = [
     message: 'steps.bankErrorTypeByCode: needs failIfPresent or a codec',
     isBroken: hasIdleCodeMap,
   },
+  {
+    message: 'steps.name: must be 1-64 letters or digits, starting with a letter',
+    isBroken: hasBadStepNameAny,
+  },
+  {
+    message: 'steps.urlTag: must be dot-separated letters or digits',
+    isBroken: hasBadUrlTagAny,
+  },
 ];
 
-export default API_DIRECT_BANK_ERROR_CODE_RULES;
+export default API_DIRECT_CONTRACT_RULES;

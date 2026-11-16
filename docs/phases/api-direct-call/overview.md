@@ -83,13 +83,17 @@ skipped step, never the slot's value.
 ## Step names and URL tags
 
 A step's `name` is a `StepName` and its `urlTag` is a `WKUrlGroup`. Both are
-closed unions, so a misspelt value fails type-check. The flow never branches
-on a name: it labels the step in failure messages (`<step> HTTP <status>`,
-`<step> outcome <code>`, `<step> outcome unmapped`, `<step> bank error`) and
-in the per-step log
+open string contracts: a bank can add a name or URL group without editing a
+shared union, and the build validates the shape at registration
+(`steps.name`, `steps.urlTag`). The flow never branches on a name: it labels
+the step in failure messages (`<step> HTTP <status>`, `<step> outcome <code>`,
+`<step> outcome unmapped`, `<step> bank error`) and in the per-step log
 context. The URL comes from the bank's `transport.paths`, keyed by
 `AuthPathKey`; the registry seeder registers each entry under the same key,
 and the step's `urlTag` selects it.
+
+The table lists the values the current banks use; a new bank may add another
+name or group without changing a shared union.
 
 | Kind       | Values                                                                                                                                                                                                                                       |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

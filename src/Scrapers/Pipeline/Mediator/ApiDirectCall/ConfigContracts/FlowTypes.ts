@@ -32,6 +32,7 @@ import type { IExtractRule } from './ExtractRuleTypes.js';
 import type { IStepFailureTyping } from './FailureTypes.js';
 import type { ICarryGenerator } from './GeneratorTypes.js';
 import type { ISealFieldConfig } from './SignerTypes.js';
+import type { StepName } from './StepNames.js';
 import type {
   IBodyTemplate,
   IEnvelopeSelectors,
@@ -64,9 +65,6 @@ type CookieHandoff = 'shared' | 'isolate';
  * rotates on every answer.
  */
 type AuthRecovery = 'per-request' | 'whole-scrape';
-
-/** Step identifiers in the sms-otp flow. */
-import type { StepName } from './StepNames.js';
 
 /**
  * How a step's HTTP 2xx body says whether the step worked. The code at

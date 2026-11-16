@@ -7,12 +7,16 @@
 import type { CompanyTypes } from '../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import ScraperError from '../../../Base/ScraperError.js';
-import type { LiteralUrl, WKUrlGroup, WKUrlOrLiteral } from '../../Types/Domain/WKUrl.js';
+import type { Brand } from '../../Types/Brand.js';
+import type { LiteralUrl, WKUrlOrLiteral } from '../../Types/Domain/WKUrl.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 
+/** A URL group after shape validation; branded so raw config strings stay out. */
+type RegisteredWkUrlGroup = Brand<string, 'RegisteredWkUrlGroup'>;
+
 /** Internal registry: group -> bankHint -> url string. */
-const WK_URLS = new Map<WKUrlGroup, Map<CompanyTypes, string>>();
+const WK_URLS = new Map<RegisteredWkUrlGroup, Map<CompanyTypes, string>>();
 
 /** Set on first `resolveWkUrl` read; blocks all subsequent `registerWkUrl` writes. */
 let isFrozen = false;
@@ -31,7 +35,7 @@ function ensureFrozen(): true {
  * @param group - WK URL group.
  * @returns Inner map.
  */
-function bankMapFor(group: WKUrlGroup): Map<CompanyTypes, string> {
+function bankMapFor(group: RegisteredWkUrlGroup): Map<CompanyTypes, string> {
   const existing = WK_URLS.get(group);
   if (existing) return existing;
   const created = new Map<CompanyTypes, string>();
@@ -48,11 +52,11 @@ function bankMapFor(group: WKUrlGroup): Map<CompanyTypes, string> {
  * @param url - Full or relative URL string.
  * @returns True once stored.
  */
-export function registerWkUrl(group: WKUrlGroup, bankHint: CompanyTypes, url: string): true {
+export function registerWkUrl(group: string, bankHint: CompanyTypes, url: string): true {
   if (isFrozen) {
     throw new ScraperError(`WK URL registry is frozen; refused ${group}/${bankHint}`);
   }
-  const inner = bankMapFor(group);
+  const inner = bankMapFor(group as RegisteredWkUrlGroup);
   inner.set(bankHint, url);
   return true;
 }
@@ -81,10 +85,10 @@ export function literalUrl(url: string): LiteralUrl {
  * @param bankHint - Target bank identifier.
  * @returns Procedure carrying the URL string, or fail if unknown.
  */
-export function resolveWkUrl(group: WKUrlOrLiteral, bankHint: CompanyTypes): Procedure<string> {
+export function resolveWkUrl(group: string, bankHint: CompanyTypes): Procedure<string> {
   ensureFrozen();
   if (isLiteralUrl(group)) return succeed(group);
-  const inner = WK_URLS.get(group);
+  const inner = WK_URLS.get(group as RegisteredWkUrlGroup);
   const hit = inner?.get(bankHint);
   if (!hit) return fail(ScraperErrorTypes.Generic, `unknown WK url: ${group}/${bankHint}`);
   return succeed(hit);
