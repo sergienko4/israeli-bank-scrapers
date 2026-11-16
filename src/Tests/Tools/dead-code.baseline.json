@@ -72,8 +72,6 @@
     "src/Scrapers/Pipeline/Types/PiiRedactor/Url.ts#PII_QUERY_KEYS",
     "src/Scrapers/Pipeline/Types/PiiRedactor/Url.ts#URL_CATEGORY",
     "src/Scrapers/Pipeline/Types/PiiRedactor/Url.ts#redactUrl",
-    "src/Scrapers/Pipeline/Types/Procedure.ts#failWithDetails",
-    "src/Scrapers/Pipeline/Types/Procedure.ts#fromLegacy",
     "src/Scrapers/Pipeline/Types/TraceConfig.ts#getNetworkDumpDir",
     "src/Scrapers/Pipeline/Types/TraceConfig.ts#getRunFolder",
     "src/Scrapers/Pipeline/Types/TraceConfig.ts#getSubStepNetworkDumpDir",

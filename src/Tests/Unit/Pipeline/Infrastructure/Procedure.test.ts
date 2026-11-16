@@ -1,14 +1,7 @@
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
-import type { IScraperScrapingResult } from '../../../../Scrapers/Base/Interface.js';
 import type { IWafErrorDetails } from '../../../../Scrapers/Base/Interfaces/WafErrorDetails.js';
-import {
-  fail,
-  failWithDetails,
-  fromLegacy,
-  isOk,
-  succeed,
-  toLegacy,
-} from '../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { fail, isOk, succeed, toLegacy } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
+import failureWithDetails from '../../../Helpers/FailureWithDetails.js';
 
 describe('Procedure/succeed', () => {
   it('creates IProcedureSuccess with success=true', () => {
@@ -59,25 +52,6 @@ describe('Procedure/fail', () => {
   });
 });
 
-describe('Procedure/failWithDetails', () => {
-  it('creates failure with WAF error details', () => {
-    const details: IWafErrorDetails = {
-      provider: 'cloudflare',
-      httpStatus: 403,
-      pageTitle: 'Blocked',
-      pageUrl: 'https://bank.co.il',
-      suggestions: ['wait'],
-    };
-    const result = failWithDetails(ScraperErrorTypes.WafBlocked, 'blocked', details);
-    expect(result.success).toBe(false);
-    expect(result.errorDetails.has).toBe(true);
-    if (result.errorDetails.has) {
-      expect(result.errorDetails.value.provider).toBe('cloudflare');
-      expect(result.errorDetails.value.httpStatus).toBe(403);
-    }
-  });
-});
-
 describe('Procedure/isOk', () => {
   it('returns true for succeed', () => {
     const result = succeed('val');
@@ -96,83 +70,6 @@ describe('Procedure/isOk', () => {
     expect(result.success).toBe(true);
     if (isOk(result)) {
       expect(result.value).toBe(42);
-    }
-  });
-});
-
-describe('Procedure/fromLegacy', () => {
-  it('converts success IScraperScrapingResult to IProcedureSuccess', () => {
-    const legacy: IScraperScrapingResult = { success: true };
-    const result = fromLegacy(legacy);
-    expect(result.success).toBe(true);
-    if (isOk(result)) {
-      expect(result.value.success).toBe(true);
-    }
-  });
-
-  it('converts failure IScraperScrapingResult to IProcedureFailure', () => {
-    const legacy: IScraperScrapingResult = {
-      success: false,
-      errorType: ScraperErrorTypes.InvalidPassword,
-      errorMessage: 'bad creds',
-    };
-    const result = fromLegacy(legacy);
-    expect(result.success).toBe(false);
-    if (!isOk(result)) {
-      expect(result.errorType).toBe(ScraperErrorTypes.InvalidPassword);
-      expect(result.errorMessage).toBe('bad creds');
-    }
-  });
-
-  it('defaults missing errorType to Generic', () => {
-    const legacy: IScraperScrapingResult = { success: false };
-    const result = fromLegacy(legacy);
-    expect(result.success).toBe(false);
-    if (!isOk(result)) {
-      expect(result.errorType).toBe(ScraperErrorTypes.Generic);
-    }
-  });
-
-  it('defaults missing errorMessage to Unknown error', () => {
-    const legacy: IScraperScrapingResult = { success: false };
-    const result = fromLegacy(legacy);
-    expect(result.success).toBe(false);
-    if (!isOk(result)) {
-      expect(result.errorMessage).toBe('Unknown error');
-    }
-  });
-
-  it('wraps errorDetails when present', () => {
-    const details: IWafErrorDetails = {
-      provider: 'unknown',
-      httpStatus: 503,
-      pageTitle: 'Service Unavailable',
-      pageUrl: 'https://example.com',
-      suggestions: [],
-    };
-    const legacy: IScraperScrapingResult = {
-      success: false,
-      errorType: ScraperErrorTypes.WafBlocked,
-      errorMessage: 'waf',
-      errorDetails: details,
-    };
-    const result = fromLegacy(legacy);
-    expect(result.success).toBe(false);
-    if (!isOk(result)) {
-      expect(result.errorDetails.has).toBe(true);
-    }
-  });
-
-  it('sets errorDetails to none when absent', () => {
-    const legacy: IScraperScrapingResult = {
-      success: false,
-      errorType: ScraperErrorTypes.Generic,
-      errorMessage: 'err',
-    };
-    const result = fromLegacy(legacy);
-    expect(result.success).toBe(false);
-    if (!isOk(result)) {
-      expect(result.errorDetails.has).toBe(false);
     }
   });
 });
@@ -200,7 +97,7 @@ describe('Procedure/toLegacy', () => {
       pageUrl: 'https://bank.co.il',
       suggestions: [],
     };
-    const proc = failWithDetails(ScraperErrorTypes.WafBlocked, 'waf', details);
+    const proc = failureWithDetails(ScraperErrorTypes.WafBlocked, 'waf', details);
     const legacy = toLegacy(proc);
     expect(legacy.errorDetails).toBeDefined();
     expect(legacy.errorDetails?.provider).toBe('cloudflare');
@@ -210,18 +107,5 @@ describe('Procedure/toLegacy', () => {
     const proc = fail(ScraperErrorTypes.Generic, 'err');
     const legacy = toLegacy(proc);
     expect(legacy.errorDetails).toBeUndefined();
-  });
-
-  it('round-trips: toLegacy(fromLegacy(x)) preserves shape', () => {
-    const original: IScraperScrapingResult = {
-      success: false,
-      errorType: ScraperErrorTypes.InvalidPassword,
-      errorMessage: 'wrong',
-    };
-    const converted = fromLegacy(original);
-    const roundTripped = toLegacy(converted);
-    expect(roundTripped.success).toBe(original.success);
-    expect(roundTripped.errorType).toBe(original.errorType);
-    expect(roundTripped.errorMessage).toBe(original.errorMessage);
   });
 });

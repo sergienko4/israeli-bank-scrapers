@@ -6,7 +6,6 @@
  * native transport and the real mediator, with every pipeline logger swapped
  * for a trace-level pino logger carrying the production redaction config.
  */
-
 import { PassThrough } from 'node:stream';
 
 import { jest } from '@jest/globals';
@@ -30,16 +29,13 @@ import type GraphQLFetchStrategy from '../../../../../../Scrapers/Pipeline/Strat
 import type { ITokenBus } from '../../../../../../Scrapers/Pipeline/Types/Domain/TokenBus.js';
 import type { IPipelineContext } from '../../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
-import {
-  fail,
-  failWithDetails,
-  succeed,
-} from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { fail, succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import {
   ENVELOPE_KEY_TEXT,
   ENVELOPE_SESSION_ID,
   sealedAnswer,
 } from '../../../../../Helpers/EnvelopeOracle.js';
+import failureWithDetails from '../../../../../Helpers/FailureWithDetails.js';
 import { fakeFetch, type IFetchFake } from '../../../../../Helpers/FakeFetch.js';
 
 /** Every serialized log line any pipeline module emitted. */
@@ -309,7 +305,7 @@ describe('login-step failure message', () => {
   });
 
   it('passes a WAF-blocked step through with its fixed reason', async (): Promise<void> => {
-    const refused = failWithDetails(
+    const refused = failureWithDetails(
       ScraperErrorTypes.WafBlocked,
       `POST ${BIND_URL} 403: blocked by Cloudflare edge (WAF) before reaching the API`,
       WAF_DETAILS,
