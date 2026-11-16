@@ -76,7 +76,6 @@ const OWNED_SYMBOLS = [
   'IJsonObject',
   'JsonArray',
   'JsonScalar',
-  'JsonObject',
   'JsonUnknown',
   'JsonUnknownRecord',
   'JsonUnknownList',
@@ -89,13 +88,7 @@ const OWNED_NAMES: readonly string[] = OWNED_SYMBOLS;
  * Arms of the algebra that promise a *recursively* closed document —
  * every nested value is itself a {@link JsonValue}.
  */
-const CLOSED_NAMES: readonly string[] = [
-  'JsonValue',
-  'IJsonObject',
-  'JsonArray',
-  'JsonScalar',
-  'JsonObject',
-];
+const CLOSED_NAMES: readonly string[] = ['JsonValue', 'IJsonObject', 'JsonArray', 'JsonScalar'];
 
 /** Arms that carry an un-narrowed value, e.g. straight from `JSON.parse`. */
 const OPEN_NAMES: readonly string[] = ['JsonUnknown', 'JsonUnknownRecord', 'JsonUnknownList'];
@@ -859,14 +852,14 @@ describe('RC-5 — JsonValue single source of truth', () => {
       'declare type JsonArray = readonly unknown[];',
       'export default interface IJsonObject {}',
       "declare module 'vendor' { type JsonScalar = string; }",
-      'namespace Nested { export type JsonObject = object; }',
+      'namespace Nested { export type JsonUnknown = object; }',
     ].join('\n');
     const symbols = declaredSymbolsIn(evasive);
     expect(symbols).toStrictEqual([
       'IJsonObject',
       'JsonArray',
-      'JsonObject',
       'JsonScalar',
+      'JsonUnknown',
       'JsonValue',
     ]);
   });

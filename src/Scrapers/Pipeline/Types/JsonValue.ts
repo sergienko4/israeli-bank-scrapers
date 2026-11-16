@@ -20,7 +20,7 @@
  * instead — see its own JSDoc below and
  * `docs/architecture/json-algebra.md`. Because that exemption is
  * file-scoped, it silences S6564 for this whole module — including
- * {@link JsonObject}, a deliberate rename of {@link IJsonObject}.
+ * the scalar and array aliases declared beside it.
  * `JsonValueSingleSource.test.ts` puts the guard back at declaration
  * granularity: it runs S6564 itself with the exemption overridden
  * and asserts the rule reports exactly one alias here — this one.
@@ -79,9 +79,6 @@ type JsonArray = readonly JsonValue[];
  */
 type JsonValue = JsonScalar | IJsonObject | JsonArray;
 
-/** Plain-record alias — JSON object reused at many sig positions. */
-type JsonObject = IJsonObject;
-
 /**
  * Boundary value — a JSON tree that has not been narrowed yet.
  *
@@ -132,7 +129,7 @@ type JsonUnknown = unknown;
 /**
  * Un-narrowed record — the result of an `isRecord`-style guard.
  *
- * <p>Distinct from {@link JsonObject}: its *values* are still
+ * <p>Distinct from {@link IJsonObject}: its *values* are still
  * {@link JsonUnknown}, because narrowing a boundary value to "some
  * object" says nothing about what its properties hold. Extractors
  * that walk a captured response body (`BalanceExtractor`,
@@ -156,7 +153,6 @@ type JsonUnknownList = readonly JsonUnknown[];
 export type {
   IJsonObject,
   JsonArray,
-  JsonObject,
   JsonScalar,
   JsonUnknown,
   JsonUnknownList,
