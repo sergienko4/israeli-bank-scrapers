@@ -73,7 +73,7 @@ export const PIPELINE_CLUSTERS: readonly IClusterExpectations[] = [
   },
   {
     clusterName: 'Network (§11)',
-    representativeFile: 'src/Scrapers/Pipeline/Mediator/Network/FetchConfig.ts',
+    representativeFile: 'src/Scrapers/Pipeline/Strategy/Fetch/FetchConfig.ts',
     expectations: [
       { ruleId: 'max-lines', maxAllowed: 150 },
       { ruleId: 'max-lines-per-function', maxAllowed: 10 },

@@ -134,7 +134,7 @@ graphemeCount
 LITERAL_TEXT_PII_PATTERNS
 
 # --- Phase 8.5a / commit 9 (CR PR #280 follow-up Ã¢â‚¬â€ Scoring/ShapeAwareLogs export surface) ---
-# Reason: NETWORK_FETCH_TIMEOUT_MS Ã¢â‚¬â€ Network/FetchConfig.ts AbortController-driven native-fetch timeout (30s); shared by Fetch/NativeFetch.ts so bank API stalls cannot hang the scraper indefinitely (CR PR #280 #124).
+# Reason: NETWORK_FETCH_TIMEOUT_MS Ã¢â‚¬â€ Strategy/Fetch/FetchConfig.ts AbortController-driven native-fetch timeout (30s); shared by Fetch/NativeFetch.ts so bank API stalls cannot hang the scraper indefinitely (CR PR #280 #124).
 NETWORK_FETCH_TIMEOUT_MS
 
 # --- Phase 2 / CR fix (EndpointUrlHelpers Ã¢â‚¬â€ WK constant for pending/clearance-requests URL) ---
