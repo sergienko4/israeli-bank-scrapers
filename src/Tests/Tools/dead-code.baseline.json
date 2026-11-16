@@ -14,7 +14,6 @@
     "src/Scrapers/Pipeline/Logging/RootLogger.ts#buildTransport",
     "src/Scrapers/Pipeline/Logging/RootLogger.ts#getActiveRootFileLeaseForTest",
     "src/Scrapers/Pipeline/Logging/RootLogger.ts#instantiateLogger",
-    "src/Scrapers/Pipeline/Mediator/ApiDirectCall/ApiDirectCallActions.pre.ts#readPersistentAuthInput",
     "src/Scrapers/Pipeline/Mediator/ApiDirectCall/Envelope/JsonPointer.ts#JsonPrimitive",
     "src/Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.extractRules.ts#applyExtractRules",
     "src/Scrapers/Pipeline/Mediator/Timing/SharedTimingConstants.ts#SECOND",

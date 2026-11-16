@@ -15,7 +15,7 @@ import type ITokenStrategy from '../../../../../Scrapers/Pipeline/Mediator/Api/I
 import { runApiDirectCallAction } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ApiDirectCallActions.js';
 import {
   mergeOptionsIntoCreds,
-  readPersistentAuthInput,
+  resolveContextAuthMode,
 } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ApiDirectCallActions.pre.js';
 import type { IApiDirectCallConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import SENSITIVE_PATHS from '../../../../../Scrapers/Pipeline/Types/DebugConfig.js';
@@ -23,6 +23,7 @@ import type { ITokenContext } from '../../../../../Scrapers/Pipeline/Types/Domai
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import { createCensorFn } from '../../../../../Scrapers/Pipeline/Types/PiiRedactor.js';
 import type { IPipelineContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
 import { makeStubMediator } from './Flow/StubMediator.js';
 
@@ -128,29 +129,69 @@ function logThroughProductionRedaction(payload: Readonly<Record<string, unknown>
   return output;
 }
 
-describe('readPersistentAuthInput', () => {
-  it('reports both options absent when neither is supplied', () => {
-    const ctx = makeCtxWithOptions({});
-    const input = readPersistentAuthInput(ctx);
-    expect(input).toEqual({ state: { has: false }, onUpdate: { has: false }, isMalformed: false });
+/** Synthetic account phone used by the durable block. */
+const ACCOUNT_PHONE = '972500000017';
+
+/** One inert renewal step for a bound-device block. */
+const DURABLE_BLOCK: NonNullable<IApiDirectCallConfig['persistentAuth']> = {
+  kind: 'bound-device',
+  provider: 'synthetic-test',
+  resumeSteps: [{ name: 'login', urlTag: 'auth.login', body: { shape: {} }, extractsToCarry: {} }],
+  clientInstanceIdField: 'clientInstanceId',
+  deviceIdField: 'deviceId',
+  accountField: 'phoneNumber',
+  freshnessMarginSeconds: 300,
+};
+
+/**
+ * Config declaring a durable block.
+ * @returns Api-direct-call config.
+ */
+function makeDurableConfig(): IApiDirectCallConfig {
+  return { flow: 'sms-otp', envelope: {}, steps: [], persistentAuth: DURABLE_BLOCK };
+}
+
+/**
+ * Build a durable-ready context from raw option values.
+ * @param extra - Raw option overrides.
+ * @returns Pipeline context carrying the account phone.
+ */
+function makeDurableCtx(extra: Readonly<Record<string, unknown>>): IPipelineContext {
+  const ctx = makeCtxWithOptions(extra);
+  const credentials = { ...ctx.credentials, phoneNumber: ACCOUNT_PHONE };
+  return { ...ctx, credentials };
+}
+
+describe('durable option reading through resolveContextAuthMode', () => {
+  it('stays legacy when neither option is supplied', () => {
+    const config = makeDurableConfig();
+    const ctx = makeDurableCtx({});
+    const mode = resolveContextAuthMode(config, ctx);
+    const isSuccess = isOk(mode);
+    expect(isSuccess).toBe(true);
+    if (mode.success) expect(mode.value.kind).toBe('legacy');
   });
 
-  it('lifts a string state and a function callback', () => {
-    const ctx = makeCtxWithOptions({
+  it('lifts a string state and a function callback into a resume mode', () => {
+    const ctx = makeDurableCtx({
       persistentAuthState: OPAQUE_STATE,
       onPersistentAuthStateUpdate: storeStateStub,
     });
-    const input = readPersistentAuthInput(ctx);
-    expect(input.state).toEqual({ has: true, value: OPAQUE_STATE });
-    expect(input.onUpdate).toEqual({ has: true, value: storeStateStub });
-    expect(input.isMalformed).toBe(false);
+    const config = makeDurableConfig();
+    const mode = resolveContextAuthMode(config, ctx);
+    if (!isOk(mode) || mode.value.kind !== 'resume') throw new TypeError('expected resume');
+    expect(mode.value.encodedState).toBe(OPAQUE_STATE);
   });
 
   it('keeps an empty-string state present so the codec can reject it', () => {
-    const ctx = makeCtxWithOptions({ persistentAuthState: '' });
-    const input = readPersistentAuthInput(ctx);
-    expect(input.state).toEqual({ has: true, value: '' });
-    expect(input.isMalformed).toBe(false);
+    const ctx = makeDurableCtx({
+      persistentAuthState: '',
+      onPersistentAuthStateUpdate: storeStateStub,
+    });
+    const config = makeDurableConfig();
+    const mode = resolveContextAuthMode(config, ctx);
+    if (!isOk(mode) || mode.value.kind !== 'resume') throw new TypeError('expected resume');
+    expect(mode.value.encodedState).toBe('');
   });
 
   it.each([
@@ -160,9 +201,12 @@ describe('readPersistentAuthInput', () => {
     ['a string callback', { onPersistentAuthStateUpdate: 'storeState' }],
     ['a null callback', { onPersistentAuthStateUpdate: null }],
   ])('flags %s as malformed instead of treating it as absent', (_label, extra) => {
-    const ctx = makeCtxWithOptions(extra);
-    const input = readPersistentAuthInput(ctx);
-    expect(input.isMalformed).toBe(true);
+    const config = makeDurableConfig();
+    const ctx = makeDurableCtx(extra);
+    const mode = resolveContextAuthMode(config, ctx);
+    const isSuccess = isOk(mode);
+    expect(isSuccess).toBe(false);
+    if (!isOk(mode)) expect(mode.errorMessage).toContain('malformed');
   });
 });
 
