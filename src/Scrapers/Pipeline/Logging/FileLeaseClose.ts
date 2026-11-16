@@ -59,7 +59,7 @@ export function markLeaseClosedByWorker(lease: IFileLease | false): DidCloseLeas
  * @param onCloseError - Error reporter for unexpected `fs.close` errors.
  * @returns `fs.NoParamCallback`-compatible handler.
  */
-export function makeLeaseCloseCallback(
+function makeLeaseCloseCallback(
   lease: IFileLease,
   onCloseError: (reason: string) => boolean,
 ): fs.NoParamCallback {

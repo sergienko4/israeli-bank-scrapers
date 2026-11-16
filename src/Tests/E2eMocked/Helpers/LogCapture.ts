@@ -15,10 +15,7 @@ import pino, { type Logger, type LoggerOptions } from 'pino';
 // The logger modules are imported statically, never inside the factory: the
 // factory runs while the module graph is still linking, and a dynamic import of
 // RootLogger's PiiRedactor graph from there races that link on Node 22.
-import {
-  getActiveLogContext,
-  runWithBankContext,
-} from '../../../Scrapers/Pipeline/Logging/BankContext.js';
+import { runWithBankContext } from '../../../Scrapers/Pipeline/Logging/BankContext.js';
 import { buildSilentOptions } from '../../../Scrapers/Pipeline/Logging/RootLogger.js';
 
 /** Every serialized log line any pipeline module emitted. */
@@ -26,7 +23,6 @@ export const LOG_LINES: string[] = [];
 
 /** The Debug module, every logger the capturing one. */
 interface ICapturingDebug {
-  readonly getActiveLogContext: typeof getActiveLogContext;
   readonly runWithBankContext: typeof runWithBankContext;
   readonly getDebug: () => Logger;
   readonly getDebugByName: () => Logger;
@@ -66,5 +62,5 @@ export function capturingDebugModule(): ICapturingDebug {
    * @returns The capturing logger.
    */
   const getDebug = (): Logger => logger;
-  return { getActiveLogContext, runWithBankContext, getDebug, getDebugByName: getDebug };
+  return { runWithBankContext, getDebug, getDebugByName: getDebug };
 }

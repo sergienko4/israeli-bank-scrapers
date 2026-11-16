@@ -13,7 +13,6 @@ import { jest } from '@jest/globals';
 import {
   RACE_TIMED_OUT,
   raceTimeout,
-  timeoutPromise,
 } from '../../../../../Scrapers/Pipeline/Mediator/Timing/TimingActions.js';
 
 const LONG_BUDGET_MS = 600_000;
@@ -49,13 +48,6 @@ describe('raceTimeout timer cancellation', () => {
     const rejected = Promise.reject(new Error('boom'));
     const raced = raceTimeout(LONG_BUDGET_MS, rejected);
     await expect(raced).rejects.toThrow('boom');
-    const pendingTimers = jest.getTimerCount();
-    expect(pendingTimers).toBe(0);
-  });
-
-  it('T-TIMER-3 — clears the pending timer on the timeoutPromise success path', async () => {
-    const settled = Promise.resolve('ok');
-    await timeoutPromise(LONG_BUDGET_MS, settled, 'probe');
     const pendingTimers = jest.getTimerCount();
     expect(pendingTimers).toBe(0);
   });

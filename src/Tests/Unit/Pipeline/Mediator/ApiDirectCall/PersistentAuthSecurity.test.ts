@@ -13,10 +13,7 @@ import { PassThrough } from 'node:stream';
 import { jest } from '@jest/globals';
 import pino, { type Logger, type LoggerOptions } from 'pino';
 
-import {
-  getActiveLogContext,
-  runWithBankContext,
-} from '../../../../../Scrapers/Pipeline/Logging/BankContext.js';
+import { runWithBankContext } from '../../../../../Scrapers/Pipeline/Logging/BankContext.js';
 import { buildSilentOptions } from '../../../../../Scrapers/Pipeline/Logging/RootLogger.js';
 
 /** Every serialized log line any pipeline module emitted. */
@@ -48,7 +45,7 @@ jest.unstable_mockModule('../../../../../Scrapers/Pipeline/Logging/Debug.js', ()
    * @returns The capturing logger.
    */
   const getDebug = (): Logger => logger;
-  return { getActiveLogContext, runWithBankContext, getDebug, getDebugByName: getDebug };
+  return { runWithBankContext, getDebug, getDebugByName: getDebug };
 });
 
 const FIXTURES = await import('./Flow/DurableAuthFixtures.js');

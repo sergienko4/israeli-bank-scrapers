@@ -1,23 +1,16 @@
 /**
- * Timing utilities — sleep, humanDelay, raceTimeout, runSerial.
+ * Timing utilities — raceTimeout and its cancellable timer machinery.
  * Extracted from Waiting.ts to respect max-lines.
  */
-
-import { randomInt } from 'node:crypto';
-
-import type { Procedure } from '../../Types/Procedure.js';
-import { succeed } from '../../Types/Procedure.js';
-import { HUMAN_DELAY_MAX_MS, HUMAN_DELAY_MIN_MS } from './SharedTimingConstants.js';
-
 /** Error thrown when an async wait operation exceeds its timeout. */
-export class TimeoutError extends Error {}
+class TimeoutError extends Error {}
 
 /**
  * Create a TimeoutError instance via Reflect.construct (avoids DI rule on `new`).
  * @param message - Error description.
  * @returns A TimeoutError instance.
  */
-export function createTimeoutError(message: string): TimeoutError {
+function createTimeoutError(message: string): TimeoutError {
   return Reflect.construct(TimeoutError, [message]);
 }
 
@@ -26,7 +19,7 @@ export function createTimeoutError(message: string): TimeoutError {
  * @param executor - The promise executor function.
  * @returns A new Promise instance.
  */
-export function createPromise<T>(
+function createPromise<T>(
   executor: (resolve: (value: T) => boolean, reject: (reason: Error) => boolean) => boolean,
 ): Promise<T> {
   return Reflect.construct(Promise, [executor]) as Promise<T>;
@@ -85,11 +78,7 @@ function createTimeoutRejector<T>(ms: number, error: TimeoutError): ICancellable
  * @param description - A description for the timeout error message.
  * @returns The resolved promise value if it completes before the timeout.
  */
-export function timeoutPromise<T>(
-  ms: number,
-  promise: Promise<T>,
-  description: string,
-): Promise<T> {
+function timeoutPromise<T>(ms: number, promise: Promise<T>, description: string): Promise<T> {
   const error = createTimeoutError(description);
   const timeout = createTimeoutRejector<T>(ms, error);
   return Promise.race([promise, timeout.promise]).finally(timeout.cancel);
@@ -123,72 +112,4 @@ export async function raceTimeout<T>(ms: number, promise: Promise<T>): RaceTimeo
   } catch (error) {
     return handleRaceError(error as Error);
   }
-}
-
-/**
- * Execute async actions sequentially, collecting all results.
- * @param actions - The array of async action factories.
- * @returns An array of all action results in order.
- */
-export function runSerial<T>(actions: (() => Promise<T>)[]): Promise<T[]> {
-  const initialValue = Promise.resolve<T[]>([]);
-  return actions.reduce(
-    (memo, action): Promise<T[]> =>
-      memo.then(async (accumulated): Promise<T[]> => [...accumulated, await action()]),
-    initialValue,
-  );
-}
-
-/**
- * Pause execution for a given number of milliseconds.
- * @param ms - The duration to sleep in milliseconds.
- * @returns A promise that resolves after the delay.
- */
-export function sleep(ms: number): Promise<boolean> {
-  return createPromise<boolean>((resolve): boolean => {
-    globalThis.setTimeout((): boolean => resolve(true), ms);
-    return true;
-  });
-}
-
-/**
- * Pick a uniform delay in [minMs, maxMs). Uses crypto.randomInt for
- * Sonar S2245 compliance; falls back to minMs when bounds collapse
- * (randomInt rejects max<=min, but the prior Math.random() code
- * returned minMs in that case — fixed-delay test fixtures rely on it).
- * @param minMs - Lower bound (inclusive).
- * @param maxMs - Upper bound (exclusive).
- * @returns Chosen delay in milliseconds.
- */
-function pickHumanDelay(minMs: number, maxMs: number): number {
-  if (minMs >= maxMs) return minMs;
-  return randomInt(minMs, maxMs);
-}
-
-/**
- * Schedule the human-delay resolver — pulled out so {@link humanDelay}
- * stays under the per-function LoC budget.
- * @param delay - Milliseconds before the resolver fires.
- * @param resolve - Promise resolver from the outer {@link createPromise}.
- * @returns Always true (sentinel for the executor).
- */
-function scheduleHumanDelay(delay: number, resolve: (v: Procedure<void>) => boolean): boolean {
-  const done = succeed(undefined);
-  globalThis.setTimeout((): boolean => resolve(done), delay);
-  return true;
-}
-
-/**
- * Random delay between `minMs` (inclusive) and `maxMs` (exclusive), so repeated
- * waits do not land on a fixed beat. Default range: 300-1200ms.
- * @param minMs - The minimum delay in milliseconds.
- * @param maxMs - The maximum delay in milliseconds.
- * @returns A promise that resolves after a random delay.
- */
-export function humanDelay(
-  minMs = HUMAN_DELAY_MIN_MS,
-  maxMs = HUMAN_DELAY_MAX_MS,
-): Promise<Procedure<void>> {
-  const delay = pickHumanDelay(minMs, maxMs);
-  return createPromise<Procedure<void>>((resolve): boolean => scheduleHumanDelay(delay, resolve));
 }

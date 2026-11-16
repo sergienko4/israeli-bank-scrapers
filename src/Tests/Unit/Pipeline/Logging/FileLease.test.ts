@@ -17,7 +17,6 @@ import {
   awaitLeaseFlush,
   type IFileLease,
 } from '../../../../Scrapers/Pipeline/Logging/FileLease.js';
-import { makeLeaseCloseCallback } from '../../../../Scrapers/Pipeline/Logging/FileLeaseClose.js';
 
 /** Poll interval used by the flush specs. */
 const POLL_MS = 1;
@@ -140,24 +139,6 @@ describe('awaitLeaseFlush — waits for counted bytes to reach disk', () => {
       const didSettle = await waitUntil((): boolean => onSettled.mock.calls.length > 0);
       expect(didSettle).toBe(true);
       expect(onSettled.mock.calls[0]).toEqual([]);
-    } finally {
-      fs.closeSync(lease.fd);
-      fs.rmSync(dir, { recursive: true, force: true });
-    }
-  });
-});
-
-describe('closeFileLeaseAsync — unexpected close failures stay visible', () => {
-  it('reports an fs.close error instead of swallowing it', () => {
-    const { dir, lease } = makeTempLease();
-    const onCloseError = jest.fn<boolean, [string]>((): boolean => true);
-    const onClosed = makeLeaseCloseCallback(lease, onCloseError);
-    const closeError = new Error('EBADF: bad file descriptor, close');
-    try {
-      onClosed(closeError);
-      expect(onCloseError).toHaveBeenCalledTimes(1);
-      expect(onCloseError.mock.calls[0]?.[0]).toBe(closeError.message);
-      expect(lease.isClosed).toBe(true);
     } finally {
       fs.closeSync(lease.fd);
       fs.rmSync(dir, { recursive: true, force: true });

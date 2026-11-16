@@ -201,4 +201,4 @@ function checkServerCertificate(
   return new Error(SERVER_CERT_FLOOR_REASON);
 }
 
-export { checkServerCertificate, isServerChainAboveFloor };
+export default checkServerCertificate;

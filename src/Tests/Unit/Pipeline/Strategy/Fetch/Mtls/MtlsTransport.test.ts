@@ -28,7 +28,7 @@ import { sendUnderPolicy } from '../../../../../../Scrapers/Pipeline/Strategy/Fe
 
 /** Same 8 MiB ceiling the transport enforces. */
 const MTLS_MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
-import { checkServerCertificate } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Tls/ServerCertificateFloor.js';
+import checkServerCertificate from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Tls/ServerCertificateFloor.js';
 import type { IResponseReading } from '../../../../../../Scrapers/Pipeline/Types/Domain/FetchPolicy.js';
 import type { IMtlsInvokeOptions } from '../../../../../../Scrapers/Pipeline/Types/Domain/MtlsInvokeTypes.js';
 

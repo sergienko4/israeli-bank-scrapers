@@ -231,8 +231,8 @@ describe('Debug buildTransport — env-permutation branches', () => {
     jest.resetModules();
     const tc = await import('../../../../Scrapers/Pipeline/Types/TraceConfig.js');
     tc.setActiveBank('beinleumi');
-    const dbg = await import('../../../../Scrapers/Pipeline/Logging/Debug.js');
-    const fields = dbg.getActiveLogContext();
+    const bank = await import('../../../../Scrapers/Pipeline/Logging/BankContext.js');
+    const fields = bank.getBankMixin();
     const expectedRunId = tc.getActiveRunId();
     expect(expectedRunId).not.toBe('');
     expect(fields.runId).toBe(expectedRunId);
@@ -246,8 +246,8 @@ describe('Debug buildTransport — env-permutation branches', () => {
     jest.resetModules();
     const tc = await import('../../../../Scrapers/Pipeline/Types/TraceConfig.js');
     tc.resetTraceConfigCache();
-    const dbg = await import('../../../../Scrapers/Pipeline/Logging/Debug.js');
-    const fields = dbg.getActiveLogContext();
+    const bank = await import('../../../../Scrapers/Pipeline/Logging/BankContext.js');
+    const fields = bank.getBankMixin();
     expect(fields.runId).toBeUndefined();
   });
 

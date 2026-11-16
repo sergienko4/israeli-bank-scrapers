@@ -11,7 +11,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
-import { getDebugByName } from '../../../../Scrapers/Pipeline/Logging/Debug.js';
+import { getDebug } from '../../../../Scrapers/Pipeline/Logging/Debug.js';
 import type { IFileLease } from '../../../../Scrapers/Pipeline/Logging/FileLease.js';
 import {
   getActiveRootFileLeaseForTest,
@@ -36,7 +36,7 @@ const RUN_ID_SHAPE = /^\d{2}-\d{2}-\d{4}_\d{8}$/;
 const SENTINEL = 'cleanup-oracle-sentinel';
 const TMP_BASE = os.tmpdir();
 const ROOT_PREFIX = path.join(TMP_BASE, 'cleanup-oracle-');
-const LOG = getDebugByName('cleanup-oracle');
+const LOG = getDebug(import.meta.url);
 
 /** One line of a retained `pipeline.log`. */
 interface IRetainedLine {

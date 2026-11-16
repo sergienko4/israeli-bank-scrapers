@@ -18,7 +18,7 @@ import { CompanyTypes } from '../../../../Definitions.js';
 import type { ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
 import executePipeline from '../../../../Scrapers/Pipeline/Core/Executor/PipelineExecutor.js';
 import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
-import { getDebugByName } from '../../../../Scrapers/Pipeline/Logging/Debug.js';
+import { getDebug } from '../../../../Scrapers/Pipeline/Logging/Debug.js';
 import type { IFileLease } from '../../../../Scrapers/Pipeline/Logging/FileLease.js';
 import {
   getActiveRootFileLeaseForTest,
@@ -49,7 +49,7 @@ const CREDENTIALS = { username: 'user', password: 'pass' };
 const LINES_PER_HALF = 5;
 const LINES_PER_RUN = LINES_PER_HALF * 2;
 const FLUSH_DEADLINE_MS = 8000;
-const LOG = getDebugByName('artifact-oracle');
+const LOG = getDebug(import.meta.url);
 
 type ActionFn = (ctx: IActionContext, input: IActionContext) => Promise<Procedure<IActionContext>>;
 
