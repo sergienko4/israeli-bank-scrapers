@@ -368,7 +368,7 @@ describe('Pipeline layer-direction policy', () => {
   it('does not flag a shadowing parameter or miss namespace destructuring (negative control)', () => {
     const shadowSource = [
       "import { CompanyTypes } from 'probe';",
-      "import * as defs from 'probe';",
+      "import * as defs from '../../Definitions.js';",
       'function f(CompanyTypes: { Leumi: string }) { return CompanyTypes.Leumi; }',
       'function g(banks: { Leumi: string }) { return banks.Leumi; }',
       'function h<CT>(x: CT) { type S = typeof CT["Hapoalim"]; }',
@@ -385,7 +385,7 @@ describe('Pipeline layer-direction policy', () => {
     expect(shadowFound).toStrictEqual([]);
 
     const aliasSource = [
-      "import * as defs from 'probe';",
+      "import * as defs from '../../Definitions.js';",
       "const { CompanyTypes: banks, 'CompanyTypes': banks2 } = defs;",
       'const { CompanyTypes: { Leumi: nested } } = defs;',
       'const value = banks.Leumi;',
@@ -447,9 +447,19 @@ describe('Pipeline layer-direction policy', () => {
     expect(members).toStrictEqual([]);
   });
 
+  it('ignores an unrelated namespace alias (negative control)', () => {
+    const source = [
+      "import * as fs from 'node:fs';",
+      'const io = fs;',
+      'const value = io.readFileSync;',
+    ].join('\n');
+    const members = enumMembersOf(source);
+    expect(members).toStrictEqual([]);
+  });
+
   it('records shorthand namespace destructuring (negative control)', () => {
     const source = [
-      "import * as defs from 'probe';",
+      "import * as defs from '../../Definitions.js';",
       'const { CompanyTypes } = defs;',
       'const value = CompanyTypes.Leumi;',
     ].join('\n');

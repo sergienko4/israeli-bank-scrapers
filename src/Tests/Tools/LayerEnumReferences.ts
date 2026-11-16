@@ -29,6 +29,7 @@ export function literalTextOf(node: ts.Node): string {
 interface IEnumBindings {
   readonly direct: Set<string>;
   readonly namespaces: Set<string>;
+  readonly loaderNamespaces: Set<string>;
   readonly requireLoaders: Set<string>;
 }
 
@@ -43,15 +44,30 @@ const BANK_MEMBERS: ReadonlySet<string> = new Set(Object.keys(CompanyTypes));
 function enumBindings(sourceFile: ts.SourceFile): IEnumBindings {
   const direct = new Set<string>();
   const namespaces = new Set<string>();
+  const loaderNamespaces = new Set<string>();
   const requireLoaders = new Set<string>();
   for (const statement of sourceFile.statements) {
     if (!ts.isImportDeclaration(statement)) continue;
     const bindings = statement.importClause?.namedBindings;
     if (bindings === undefined) continue;
-    if (ts.isNamespaceImport(bindings)) namespaces.add(bindings.name.text);
+    if (ts.isNamespaceImport(bindings)) {
+      loaderNamespaces.add(bindings.name.text);
+      const specifier = statement.moduleSpecifier;
+      const isEnumModule = ts.isStringLiteral(specifier) && isEnumNamespaceModule(specifier.text);
+      if (isEnumModule) namespaces.add(bindings.name.text);
+    }
     if (ts.isNamedImports(bindings)) collectDirectBindings(bindings, direct, requireLoaders);
   }
-  return { direct, namespaces, requireLoaders };
+  return { direct, namespaces, loaderNamespaces, requireLoaders };
+}
+
+/**
+ * Whether a module namespace exposes `CompanyTypes`.
+ * @param specifier - Import module specifier.
+ * @returns True for the Definitions module and the package index re-export.
+ */
+function isEnumNamespaceModule(specifier: string): boolean {
+  return /(?:^|\/)(?:Definitions|index)(?:\.js)?$/u.test(specifier);
 }
 
 /**
@@ -794,7 +810,7 @@ function isRequireFactory(expression: ts.Expression, bindings: IEnumBindings): b
     ts.isIdentifier(expression.expression);
   return (
     isNamespaceFactory &&
-    (bindings.namespaces.has(expression.expression.text) ||
+    (bindings.loaderNamespaces.has(expression.expression.text) ||
       bindings.requireLoaders.has(expression.expression.text))
   );
 }
