@@ -155,9 +155,4 @@ async function runApiDirectCallPre(
   return succeed(ctx);
 }
 
-export {
-  mergeOptionsIntoCreds,
-  readPersistentAuthInput,
-  resolveContextAuthMode,
-  runApiDirectCallPre,
-};
+export { mergeOptionsIntoCreds, resolveContextAuthMode, runApiDirectCallPre };
