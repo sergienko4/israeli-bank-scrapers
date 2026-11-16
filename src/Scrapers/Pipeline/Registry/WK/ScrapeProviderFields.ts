@@ -3,8 +3,7 @@
  * alongside its date/amount/description core.
  *
  * Split out of {@link ./ScrapeFieldMappings.js} to keep that module under the
- * 150-line `max-lines` ceiling, following the precedent already set there by
- * keep this module under the 150-line ceiling.
+ * 150-line `max-lines` ceiling.
  *
  * Each group is spread back into `PIPELINE_WELL_KNOWN_TXN_FIELDS`, so callers
  * see one dictionary and covering another institution stays a one-line edit
