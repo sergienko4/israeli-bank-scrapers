@@ -144,6 +144,13 @@ describe('pretty logs opt-in', () => {
     }).not.toThrow();
   });
 
+  it('[LOG-7b] keeps the supplied snapshot level when degrading', () => {
+    const unresolvable = activeOptionsFor({ target: 'pino-file-not-installed' });
+    const env = readEnvironment({ LOG_LEVEL: 'error' });
+    const logger = instantiateLogger(LOG_FILE, unresolvable, env);
+    expect(logger.level).toBe('error');
+  });
+
   /**
    * The degradation warning is a diagnostic, so it has to name the real
    * cause. A trace-file transport can fail for reasons of its own — a

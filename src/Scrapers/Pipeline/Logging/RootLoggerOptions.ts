@@ -117,12 +117,16 @@ export function buildPinoOptions(
 /**
  * The options {@link buildTransport} would have produced without pretty output.
  * @param logFile - Resolved log file path (empty string for no file output).
+ * @param env - Environment snapshot; defaults to the active execution.
  * @returns Pino options with the pretty target dropped.
  */
-export function optionsWithoutPretty(logFile: string): LoggerOptions {
+export function optionsWithoutPretty(
+  logFile: string,
+  env: IEnvironment = activeEnvironment(),
+): LoggerOptions {
   if (!logFile) return buildSilentOptions();
   const transport = buildFileTransport(logFile);
-  return buildActiveOptions(transport);
+  return buildActiveOptions(transport, env);
 }
 
 /**

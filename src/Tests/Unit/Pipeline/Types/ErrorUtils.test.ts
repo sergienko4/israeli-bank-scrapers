@@ -5,9 +5,11 @@
 import {
   errorCauseCodeOf,
   errorNameOf,
+  isErrorLike,
   toError,
   toErrorMessage,
 } from '../../../../Scrapers/Pipeline/Types/ErrorUtils.js';
+import foreignRealmError from '../../../Helpers/ForeignRealmError.js';
 
 const UNREPRESENTABLE_ERROR = '[unrepresentable error value]';
 
@@ -180,6 +182,13 @@ describe('toError — never-throws contract', () => {
     crossRealmError[Symbol.toStringTag] = 'Error';
     const normalized = toError(crossRealmError);
     expect(normalized).toBe(crossRealmError as unknown as Error);
+  });
+
+  it('recognizes a foreign-realm Error with isErrorLike', () => {
+    const error = foreignRealmError('cross-realm');
+    expect(error instanceof Error).toBe(false);
+    const isError = isErrorLike(error);
+    expect(isError).toBe(true);
   });
 
   it('never throws for any input value', () => {

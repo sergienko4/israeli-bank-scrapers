@@ -15,7 +15,7 @@ import pino, { type Logger } from 'pino';
 
 import type { Brand } from '../Types/Brand.js';
 import { activeEnvironment, type IEnvironment } from '../Types/Environment.js';
-import { toError } from '../Types/ErrorUtils.js';
+import { isErrorLike, toError } from '../Types/ErrorUtils.js';
 import { currentRunScope, noteRunLogFile } from '../Types/RunScope.js';
 import { closeActiveRunTrace, getLogFile } from '../Types/TraceConfig.js';
 import {
@@ -107,12 +107,13 @@ function tryPino(options: pino.LoggerOptions): Logger | Error {
  * Build the degraded logger, and if even that cannot be constructed fall
  * back to a transportless silent instance.
  * @param logFile - Resolved log file path, used to choose the fallback.
+ * @param env - Environment snapshot for the degraded logger's level.
  * @returns A usable logger — the degraded one, or a silent one.
  */
-function degradeLogger(logFile: string): Logger {
-  const options = optionsWithoutPretty(logFile);
+function degradeLogger(logFile: string, env: IEnvironment): Logger {
+  const options = optionsWithoutPretty(logFile, env);
   const built = tryPino(options);
-  return built instanceof Error ? silentLogger(built) : built;
+  return isErrorLike(built) ? silentLogger(built) : built;
 }
 
 /**
@@ -142,9 +143,9 @@ export function instantiateLogger(
   env: IEnvironment = activeEnvironment(),
 ): Logger {
   const built = tryPino(options);
-  if (!(built instanceof Error)) return built;
+  if (!isErrorLike(built)) return built;
   warnTransportFailure(built, logFile, env);
-  return degradeLogger(logFile);
+  return degradeLogger(logFile, env);
 }
 
 /**
