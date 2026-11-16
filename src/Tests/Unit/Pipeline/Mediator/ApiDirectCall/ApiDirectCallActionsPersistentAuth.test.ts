@@ -17,11 +17,7 @@ import {
   runApiDirectCallAction,
   runApiDirectCallPre,
 } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ApiDirectCallActions.js';
-import resolvePersistentAuthMode from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ApiDirectCallActions.persistent.js';
-import {
-  readPersistentAuthInput,
-  resolveContextAuthMode,
-} from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ApiDirectCallActions.pre.js';
+import { resolveContextAuthMode } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ApiDirectCallActions.pre.js';
 import type {
   IApiDirectCallConfig,
   IPersistentAuthConfig,
@@ -283,10 +279,8 @@ describe('resolvePersistentAuthMode — durable bank', () => {
 
   it('treats an empty legacy token as absent', () => {
     const config = makeDurableConfig();
-    const ctx = makeCtx({ options: CALLBACK, hasToken: false });
-    const input = readPersistentAuthInput(ctx);
-    const creds = { phoneNumber: ACCOUNT_PHONE, otpLongTermToken: '' };
-    const mode = resolvePersistentAuthMode(config, input, creds);
+    const creds = { otpLongTermToken: '' };
+    const mode = resolveFor(config, { options: CALLBACK, hasToken: false, creds });
     expect(isOk(mode) && mode.value.kind).toBe('enroll');
   });
 });
