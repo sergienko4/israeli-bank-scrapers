@@ -8,9 +8,13 @@ there are no screenshots or DOM snapshots. The default root is
 `<os tmpdir>/israeli-bank-scrapers-<uid>/runs`, created `0700` with a `0600`
 log file; `RUNS_ROOT` overrides it. The UID segment keeps one user's private
 `0700` root from blocking another user of a shared `/tmp`; on Windows the
-temp directory is already per-user. On a failed CI job the diagnostics bundle
-uploads to the access-controlled private store, not a public artifact. Keep
-redaction enabled and inspect captures before sharing.
+temp directory is already per-user. `ensurePrivateRunRoot` provisions the
+root component by component: each component must be a real directory owned by
+the current user, and a group/world-writable or symlinked path fails closed
+before any forensic data is written. `RUNS_ROOT` must therefore point at a
+private location. On a failed CI job the diagnostics bundle uploads to the
+access-controlled private store, not a public artifact. Keep redaction
+enabled and inspect captures before sharing.
 
 ## In this section
 

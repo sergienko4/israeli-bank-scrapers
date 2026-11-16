@@ -36,6 +36,7 @@ import { type BankSlugLower, KNOWN_BANK_SLUGS } from './BankSlugs.js';
 import type { Brand } from './Brand.js';
 import { activeEnvironment } from './Environment.js';
 import { currentRunScope, type IRunTrace, makeRunTrace } from './RunScope.js';
+import ensurePrivateRunRoot from './SecureRunRoot.js';
 import type { RunStampStr } from './TraceStamp.js';
 import { nextRunStamp, resetRunStampState } from './TraceStamp.js';
 
@@ -186,6 +187,7 @@ function runSeed(): IRunSeed | false {
  * @returns The folder's absolute path.
  */
 function makeRunFolder(seed: IRunSeed): string {
+  ensurePrivateRunRoot(seed.root);
   const folder = path.join(seed.root, PIPELINE_SEGMENT, seed.bank, seed.stamp);
   fs.mkdirSync(folder, { recursive: true, mode: 0o700 });
   return folder;
