@@ -14,6 +14,8 @@ import type {
 import literalHeaders from './PipelineBankConfigLiteralHeaders.js';
 import type { ITelebankBrand } from './PipelineBankConfigTelebankFamilyConstants.js';
 import {
+  LOGON_ERROR_CODE_POINTERS,
+  LOGON_ERROR_TYPES,
   TELEBANK_ORIGIN,
   telebankDocumentHeaders,
   telebankLoginHeaders,
@@ -148,6 +150,8 @@ const LOGON_STEP = {
     ],
   },
   failIfPresent: BANK_ERROR_POINTERS,
+  bankErrorCodePointers: LOGON_ERROR_CODE_POINTERS,
+  bankErrorTypeByCode: LOGON_ERROR_TYPES,
   classify: { into: 'loginStatus', cases: STATUS_CASES },
   extractsToCarry: { mi6: '/Login/MI6' },
   extractRules: { mi6: { type: 'string', equalsRef: 'carry.uidMd5' } },

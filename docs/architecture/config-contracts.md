@@ -107,8 +107,9 @@ Notes:
 - `IAnswerClassifier` is owned by `ClassifyTypes` and referenced by
   `FlowTypes.IStepBase.classify` — see
   [Answer classifier](../phases/api-direct-call/codecs.md#answer-classifier).
-- `IStepFailureTyping` (`failIfPresent`, `bankErrorType`, `httpFailureMap`) is
-  owned by `FailureTypes`; `FlowTypes.IStepBase` extends it.
+- `IStepFailureTyping` (`failIfPresent`, `bankErrorType`,
+  `bankErrorCodePointers`, `bankErrorTypeByCode`, `httpFailureMap`) is owned by
+  `FailureTypes`; `FlowTypes.IStepBase` extends it.
 
 Every file is **≤ 150 effective LoC** (blank and comment lines skipped;
 current max: `FlowTypes.ts` at 133) and is held there by an ESLint guard
@@ -167,6 +168,10 @@ Fields marked `transport.` sit in the bank's HTTP transport config
 | A returned certificate checked against its key                                                                                 | `extractRules` `pemCertificate` (`IPemCertificateRule`)           | ExtractRuleTypes                   | [Extract rules](../phases/api-direct-call/codecs.md#extract-rules)                                  |
 | A returned value that must equal one the run already holds                                                                     | `extractRules` `equalsRef` (`RefToken`)                           | ExtractRuleTypes                   | [Extract rules](../phases/api-direct-call/codecs.md#extract-rules)                                  |
 | Present a device certificate the run obtained                                                                                  | `clientCert` (`IStepClientCert`), `transport.clientCert`          | FlowTypes                          | [Device certificate](../phases/api-direct-call/signing.md#device-certificate)                        |
+
+The bank-error guard also accepts `bankErrorCodePointers` and
+`bankErrorTypeByCode` to type one known bank code; see the
+[Bank-error guard](../phases/api-direct-call/errors.md#bank-error-guard).
 
 Cross-field rules (for example `authScheme: 'none'` needs
 `transport.sessionCookies`) fail the build; see

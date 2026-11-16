@@ -85,6 +85,22 @@ The type covers every `<step> bank error` of that step, a guard hit or a codec
 on a step with no `failIfPresent` entry and no codec, since it would type an
 error the step never raises.
 
+A step that can distinguish one known bank code from the rest names where the
+code lives and how to type it:
+
+```ts
+failIfPresent: ['/Error', '/error'],
+bankErrorCodePointers: ['/Error/ReturnedCode', '/Error/GeneratedCode'],
+bankErrorTypeByCode: { E100129: ScraperErrorTypes.ChangePassword },
+```
+
+The first code pointer that resolves to a string or finite number is the code.
+A mapped code uses its type; an unknown code falls back to `bankErrorType`,
+then `Generic`. The message stays `<step> bank error` and never echoes the
+bank's value. The build refuses a map without code pointers, code pointers
+without a map, a code pointer that is not a body pointer, and a map on a step
+with no `failIfPresent` entry and no codec.
+
 An outcome failure in a warm resume is a failure like any other, so the
 resolver still falls back to one cold flow. When the cold flow also fails, its
 own failure type is the one reported.

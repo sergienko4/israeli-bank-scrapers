@@ -18,6 +18,16 @@ interface IStepFailureTyping {
   readonly failIfPresent?: readonly string[];
   /** Failure type of `<step> bank error`: a guard hit or a codec `error_code`; default Generic. */
   readonly bankErrorType?: ScraperErrorTypes;
+  /**
+   * Body pointers holding the bank's stable error code, read in order. The
+   * first string or finite number that resolves is the code.
+   */
+  readonly bankErrorCodePointers?: readonly string[];
+  /**
+   * Failure type by the code at `bankErrorCodePointers`; an unknown code falls
+   * back to `bankErrorType`, then Generic.
+   */
+  readonly bankErrorTypeByCode?: Readonly<Record<string, ScraperErrorTypes>>;
   /** Failure type per 4xx reply status of `<step> HTTP <status>`; default the transport's. */
   readonly httpFailureMap?: Readonly<Record<string, ScraperErrorTypes>>;
 }

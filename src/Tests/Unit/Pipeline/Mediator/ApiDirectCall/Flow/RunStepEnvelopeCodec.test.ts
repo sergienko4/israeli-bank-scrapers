@@ -62,6 +62,13 @@ const SEALED_STEP: IPostStep = {
 /** The sealed step, typing its bank errors as a wrong OTP. */
 const TYPED_STEP: IPostStep = { ...SEALED_STEP, bankErrorType: ScraperErrorTypes.InvalidOtp };
 
+/** The sealed step, mapping opened error code 4001 to ChangePassword. */
+const MAPPED_STEP: IPostStep = {
+  ...SEALED_STEP,
+  bankErrorCodePointers: ['/data/error_code'],
+  bankErrorTypeByCode: { 4001: ScraperErrorTypes.ChangePassword },
+};
+
 const PLAINTEXT_ANSWER = { headers: [SESSION_HEADER], data: { state: 'pending' } };
 const PLAINTEXT_ERROR = { error_code: 10, error_message: 'syn-text' };
 
@@ -201,6 +208,18 @@ describe('sealed step', () => {
       success: false,
       errorType: ScraperErrorTypes.Generic,
       errorMessage: 'login envelope invalid',
+    });
+  });
+
+  it('maps an opened error code through the codec path', async () => {
+    const answer = sealedAnswer({ error_code: 4001, state: 'pending' });
+    serve(answer);
+    const scope = scopeWith();
+    const result = await fireSealed(scope, MAPPED_STEP);
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.ChangePassword,
+      errorMessage: 'login bank error',
     });
   });
 

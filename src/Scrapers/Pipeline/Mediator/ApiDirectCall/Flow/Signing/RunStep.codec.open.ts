@@ -67,7 +67,7 @@ function logOpened(bundle: IDispatchBundle, data: JsonValue): true {
  * @returns The opened answer, or `<step> bank error`.
  */
 function screenOpened(bundle: IDispatchBundle, opened: IJsonObject): Procedure<IOpenedAnswer> {
-  if (hasBankErrorCode(opened.data)) return bankErrorOf(bundle.fireScope.step);
+  if (hasBankErrorCode(opened.data)) return bankErrorOf(bundle.fireScope.step, opened);
   logOpened(bundle, opened.data);
   return succeed({ bundle, answer: opened });
 }

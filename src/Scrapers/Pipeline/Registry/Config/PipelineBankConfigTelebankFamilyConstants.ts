@@ -5,6 +5,8 @@
  * headers; only a brand's literals (`ITelebankBrand`) tell them apart.
  */
 
+import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
+
 /** The literals that tell one Telebank bank's login from another's. */
 interface ITelebankBrand {
   /** The app context's `Bank` code. */
@@ -21,6 +23,15 @@ interface ITelebankBrand {
 
 /** Telebank online-banking origin — login, the retail app and its data API. */
 const TELEBANK_ORIGIN = 'https://start.telebank.co.il';
+
+/** The login answer's business error code, in the order the bank fills it. */
+const LOGON_ERROR_CODE_POINTERS = ['/Error/ReturnedCode', '/Error/GeneratedCode'] as const;
+
+/** The bank's expired-password codes; every other logon code stays Generic. */
+const LOGON_ERROR_TYPES = {
+  E100129: ScraperErrorTypes.ChangePassword,
+  '100129': ScraperErrorTypes.ChangePassword,
+} as const;
 
 /** The library's research user agent, sent on every call. */
 const TELEBANK_UA = 'BankApiInteroperabilityResearch/1.0';
@@ -98,6 +109,8 @@ function telebankDocumentHeaders(brand: ITelebankBrand): Readonly<Record<string,
 
 export type { ITelebankBrand };
 export {
+  LOGON_ERROR_CODE_POINTERS,
+  LOGON_ERROR_TYPES,
   TELEBANK_ORIGIN,
   TELEBANK_STATIC_HEADERS,
   TELEBANK_TITAN_HEADERS,
