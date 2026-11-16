@@ -21,4 +21,4 @@ const PAGI_API_DIRECT_CALL: IApiDirectCallConfig = buildFibiApiDirectCall(PAGI_B
 
 const PAGI_TRANSPORT: ITransportConfig = buildFibiTransport(PAGI_BRAND);
 
-export { PAGI_API_DIRECT_CALL, PAGI_TRANSPORT };
+export { PAGI_API_DIRECT_CALL, PAGI_BRAND, PAGI_TRANSPORT };

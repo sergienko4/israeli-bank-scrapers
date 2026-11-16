@@ -17,18 +17,18 @@ import {
   customerUrl,
   extractAccounts,
   secondaryUrl,
-} from '../../../../../Scrapers/Pipeline/Banks/Massad/scrape/MassadShapeAccounts.js';
+} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeAccounts.js';
 import {
   balanceExtract,
   balanceUrl,
   BFF_BASE,
   USER_DATA_PATH,
-} from '../../../../../Scrapers/Pipeline/Banks/Massad/scrape/MassadShapeHelpers.js';
+} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeHelpers.js';
 import {
   txnsExtractPage,
   txnsUrl,
   txnsVars,
-} from '../../../../../Scrapers/Pipeline/Banks/Massad/scrape/MassadShapeTxns.js';
+} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeTxns.js';
 import type {
   ApiBody,
   IExtractAccountsArgs,
@@ -36,7 +36,8 @@ import type {
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 
 const MASSAD_API = 'https://online.bankmassad.co.il';
-type IMassadAcct = Parameters<typeof balanceUrl>[0];
+const CFG = { apiOrigin: MASSAD_API };
+type IMassadAcct = Parameters<typeof balanceUrl>[1];
 
 const ACCT: IMassadAcct = { accountNumber: '555001', branch: '770', accountType: 105 };
 
@@ -117,26 +118,26 @@ describe('MassadShape balance + identity urls', () => {
   });
 
   it('customerUrl targets userData with a fresh uid on each call', () => {
-    const first = customerUrl();
-    const second = customerUrl();
+    const first = customerUrl(CFG);
+    const second = customerUrl(CFG);
     expect(first).toContain(`${MASSAD_API}${USER_DATA_PATH}?uid=`);
     expect(first).not.toBe(second);
   });
 
   it('secondaryUrl targets the session accountType lookup', () => {
-    const url = secondaryUrl();
+    const url = secondaryUrl(CFG);
     expect(url).toContain(`${MASSAD_API}${BFF_BASE}/accountType?uid=`);
   });
 
   it('balanceUrl embeds the numeric accountType as the path segment', () => {
-    const url = balanceUrl(ACCT);
+    const url = balanceUrl(CFG, ACCT);
     expect(url).toContain(`${BFF_BASE}/balances/105?uid=`);
   });
 });
 
 describe('MassadShape transactions', () => {
   it('txnsUrl is the static BFF list endpoint (params ride the body)', () => {
-    const url = txnsUrl();
+    const url = txnsUrl(CFG);
     expect(url).toBe(`${MASSAD_API}${BFF_BASE}/list`);
   });
 

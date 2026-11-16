@@ -10,24 +10,29 @@
  */
 
 import massadShape from '../../../../Scrapers/Pipeline/Banks/Massad/scrape/MassadShape.js';
-import * as massadA from '../../../../Scrapers/Pipeline/Banks/Massad/scrape/MassadShapeAccounts.js';
-import * as massadH from '../../../../Scrapers/Pipeline/Banks/Massad/scrape/MassadShapeHelpers.js';
-import * as massadT from '../../../../Scrapers/Pipeline/Banks/Massad/scrape/MassadShapeTxns.js';
 import otsarShape from '../../../../Scrapers/Pipeline/Banks/OtsarHahayal/scrape/OtsarHahayalShape.js';
-import * as otsarA from '../../../../Scrapers/Pipeline/Banks/OtsarHahayal/scrape/OtsarHahayalShapeAccounts.js';
-import * as otsarH from '../../../../Scrapers/Pipeline/Banks/OtsarHahayal/scrape/OtsarHahayalShapeHelpers.js';
-import * as otsarT from '../../../../Scrapers/Pipeline/Banks/OtsarHahayal/scrape/OtsarHahayalShapeTxns.js';
 import pagiShape from '../../../../Scrapers/Pipeline/Banks/Pagi/scrape/PagiShape.js';
-import * as pagiA from '../../../../Scrapers/Pipeline/Banks/Pagi/scrape/PagiShapeAccounts.js';
-import * as pagiH from '../../../../Scrapers/Pipeline/Banks/Pagi/scrape/PagiShapeHelpers.js';
-import * as pagiT from '../../../../Scrapers/Pipeline/Banks/Pagi/scrape/PagiShapeTxns.js';
+import {
+  accountNumberOf,
+  customerUrl,
+  extractAccounts,
+  secondaryUrl,
+} from '../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeAccounts.js';
+import {
+  balanceExtract,
+  balanceUrl,
+  noVars,
+} from '../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeHelpers.js';
+import {
+  txnsExtractPage,
+  txnsUrl,
+  txnsVars,
+} from '../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeTxns.js';
 import type {
   ApiBody,
   IApiDirectScrapeShape,
   IExtractAccountsArgs,
-  IExtractPageArgs,
 } from '../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
-import type { IPage } from '../../../../Scrapers/Pipeline/Strategy/Fetch/Pagination.js';
 import type { IActionContext } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 
 interface IAcct {
@@ -36,36 +41,12 @@ interface IAcct {
   readonly accountType: number;
 }
 
-interface ISibMod {
-  extractAccounts(a: IExtractAccountsArgs): readonly IAcct[];
-  accountNumberOf(a: IAcct): string;
-  customerUrl(): string;
-  secondaryUrl(): string;
-  balanceExtract(b: ApiBody): number;
-  balanceUrl(a: IAcct): string;
-  noVars(): object;
-  txnsUrl(): string;
-  txnsVars(a: IAcct, c: false, ctx: IActionContext): { initialRequest: Record<string, unknown> };
-  txnsExtractPage(a: IExtractPageArgs<IAcct, never>): IPage<object, never>;
-}
-
 interface ISib {
   readonly name: string;
   readonly api: string;
   readonly step: string;
   readonly shape: IApiDirectScrapeShape<IAcct, never>;
-  readonly mod: ISibMod;
-}
-
-/**
- * Merge a bank's three scrape modules into one uniform accessor.
- * @param a - Accounts module namespace.
- * @param h - Helpers module namespace.
- * @param t - Transactions module namespace.
- * @returns Combined sibling module.
- */
-function asMod(a: object, h: object, t: object): ISibMod {
-  return Object.assign({}, a, h, t) as unknown as ISibMod;
+  readonly cfg: { readonly apiOrigin: string };
 }
 
 const SIBLINGS: readonly ISib[] = [
@@ -74,21 +55,21 @@ const SIBLINGS: readonly ISib[] = [
     api: 'https://online.bankmassad.co.il',
     step: 'MassadScrape',
     shape: massadShape,
-    mod: asMod(massadA, massadH, massadT),
+    cfg: { apiOrigin: 'https://online.bankmassad.co.il' },
   },
   {
     name: 'OtsarHahayal',
     api: 'https://online.bankotsar.co.il',
     step: 'OtsarHahayalScrape',
     shape: otsarShape,
-    mod: asMod(otsarA, otsarH, otsarT),
+    cfg: { apiOrigin: 'https://online.bankotsar.co.il' },
   },
   {
     name: 'Pagi',
     api: 'https://online.pagi.co.il',
     step: 'PagiScrape',
     shape: pagiShape,
-    mod: asMod(pagiA, pagiH, pagiT),
+    cfg: { apiOrigin: 'https://online.pagi.co.il' },
   },
 ];
 
@@ -123,26 +104,26 @@ describe.each(SIBLINGS)('$name FIBI-sibling shape', bank => {
       ],
     };
     const args = accountsArgs(body, { accountType: [{ accountType: 105 }] });
-    const accounts = bank.mod.extractAccounts(args);
+    const accounts = extractAccounts(args);
     expect(accounts).toEqual([{ accountNumber: '555001', branch: '770', accountType: 105 }]);
   });
 
   it('extractAccounts falls back to the whole list when no row is marked selected', () => {
     const body = { accounts: [{ account: '555001', branch: '770' }] };
     const args = accountsArgs(body, { accountType: [{ accountType: 105 }] });
-    const accounts = bank.mod.extractAccounts(args);
+    const accounts = extractAccounts(args);
     expect(accounts).toEqual([{ accountNumber: '555001', branch: '770', accountType: 105 }]);
   });
 
   it('extractAccounts rejects a row when the accountType lookup is absent', () => {
     const body = { accounts: [{ account: '555001', branch: '770' }] };
     const args = accountsArgs(body);
-    expect(() => bank.mod.extractAccounts(args)).toThrow(/no usable type code/);
+    expect(() => extractAccounts(args)).toThrow(/no usable type code/);
   });
 
   it('extractAccounts returns empty when userData accounts are absent', () => {
     const args = accountsArgs({});
-    const accounts = bank.mod.extractAccounts(args);
+    const accounts = extractAccounts(args);
     expect(accounts).toEqual([]);
   });
 
@@ -151,7 +132,7 @@ describe.each(SIBLINGS)('$name FIBI-sibling shape', bank => {
       { accounts: [{ selected: true }] },
       { accountType: [{ accountType: 105 }] },
     );
-    expect(() => bank.mod.extractAccounts(args)).toThrow(/no wire-usable account number/);
+    expect(() => extractAccounts(args)).toThrow(/no wire-usable account number/);
   });
 
   it('extractAccounts rejects a userData row carrying no branch', () => {
@@ -159,7 +140,7 @@ describe.each(SIBLINGS)('$name FIBI-sibling shape', bank => {
       { accounts: [{ account: '555001', selected: true }] },
       { accountType: [{ accountType: 105 }] },
     );
-    expect(() => bank.mod.extractAccounts(args)).toThrow(/missing its branch code/);
+    expect(() => extractAccounts(args)).toThrow(/missing its branch code/);
   });
 
   it('extractAccounts keeps a leading-zero branch as a string', () => {
@@ -167,24 +148,24 @@ describe.each(SIBLINGS)('$name FIBI-sibling shape', bank => {
       { accounts: [{ account: '555001', branch: '099', selected: true }] },
       { accountType: [{ accountType: 105 }] },
     );
-    const accounts = bank.mod.extractAccounts(args);
+    const accounts = extractAccounts(args);
     expect(accounts).toEqual([{ accountNumber: '555001', branch: '099', accountType: 105 }]);
   });
 
   it('balanceExtract prefers currentBalance, then withdrawable, then 0', () => {
-    const primary = bank.mod.balanceExtract({ currentBalance: 150, withdrawableBalance: 999 });
-    const fallback = bank.mod.balanceExtract({ withdrawableBalance: 42 });
-    const zero = bank.mod.balanceExtract({});
+    const primary = balanceExtract({ currentBalance: 150, withdrawableBalance: 999 });
+    const fallback = balanceExtract({ withdrawableBalance: 42 });
+    const zero = balanceExtract({});
     expect(primary).toBe(150);
     expect(fallback).toBe(42);
     expect(zero).toBe(0);
   });
 
   it('identity + balance urlTags target the bank host with a fresh uid', () => {
-    const customer = bank.mod.customerUrl();
-    const secondary = bank.mod.secondaryUrl();
-    const balance = bank.mod.balanceUrl(ACCT);
-    const customerAgain = bank.mod.customerUrl();
+    const customer = customerUrl(bank.cfg);
+    const secondary = secondaryUrl(bank.cfg);
+    const balance = balanceUrl(bank.cfg, ACCT);
+    const customerAgain = customerUrl(bank.cfg);
     expect(customer).toContain(`${bank.api}${USER_DATA}?uid=`);
     expect(secondary).toContain(`${bank.api}${BFF}/accountType?uid=`);
     expect(balance).toContain(`${BFF}/balances/105?uid=`);
@@ -192,17 +173,17 @@ describe.each(SIBLINGS)('$name FIBI-sibling shape', bank => {
   });
 
   it('accountNumberOf + noVars expose the display number and empty vars', () => {
-    const number = bank.mod.accountNumberOf(ACCT);
-    const vars = bank.mod.noVars();
+    const number = accountNumberOf(ACCT);
+    const vars = noVars();
     expect(number).toBe('555001');
     expect(vars).toEqual({});
   });
 
   it('txnsUrl is the static list endpoint and txnsVars builds the initialRequest', () => {
-    const url = bank.mod.txnsUrl();
+    const url = txnsUrl(bank.cfg);
     const ctx = ctxWithStart();
-    const vars = bank.mod.txnsVars(ACCT, false, ctx);
-    const req = vars.initialRequest;
+    const vars = txnsVars(ACCT, false, ctx);
+    const req = vars.initialRequest as Record<string, unknown>;
     expect(url).toBe(`${bank.api}${BFF}/list`);
     expect(req.accountNumber).toBe(555001);
     expect(req.accountType).toBe(105);
@@ -211,13 +192,13 @@ describe.each(SIBLINGS)('$name FIBI-sibling shape', bank => {
 
   it('txnsExtractPage returns raw rows (or empty) with a terminal cursor', () => {
     const ctx = ctxWithStart();
-    const full = bank.mod.txnsExtractPage({
+    const full = txnsExtractPage({
       body: { transactions: [{ x: 1 }] },
       cursor: false,
       acct: ACCT,
       ctx,
     });
-    const empty = bank.mod.txnsExtractPage({ body: {}, cursor: false, acct: ACCT, ctx });
+    const empty = txnsExtractPage({ body: {}, cursor: false, acct: ACCT, ctx });
     expect(full.items).toHaveLength(1);
     expect(full.nextCursor).toBe(false);
     expect(empty.items).toEqual([]);

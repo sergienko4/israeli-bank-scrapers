@@ -17,18 +17,18 @@ import {
   customerUrl,
   extractAccounts,
   secondaryUrl,
-} from '../../../../../Scrapers/Pipeline/Banks/OtsarHahayal/scrape/OtsarHahayalShapeAccounts.js';
+} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeAccounts.js';
 import {
   balanceExtract,
   balanceUrl,
   BFF_BASE,
   USER_DATA_PATH,
-} from '../../../../../Scrapers/Pipeline/Banks/OtsarHahayal/scrape/OtsarHahayalShapeHelpers.js';
+} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeHelpers.js';
 import {
   txnsExtractPage,
   txnsUrl,
   txnsVars,
-} from '../../../../../Scrapers/Pipeline/Banks/OtsarHahayal/scrape/OtsarHahayalShapeTxns.js';
+} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeTxns.js';
 import type {
   ApiBody,
   IExtractAccountsArgs,
@@ -36,7 +36,8 @@ import type {
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 
 const OTSAR_HAHAYAL_API = 'https://online.bankotsar.co.il';
-type IOtsarHahayalAcct = Parameters<typeof balanceUrl>[0];
+const CFG = { apiOrigin: OTSAR_HAHAYAL_API };
+type IOtsarHahayalAcct = Parameters<typeof balanceUrl>[1];
 
 const ACCT: IOtsarHahayalAcct = { accountNumber: '555001', branch: '770', accountType: 105 };
 
@@ -117,26 +118,26 @@ describe('OtsarHahayalShape balance + identity urls', () => {
   });
 
   it('customerUrl targets userData with a fresh uid on each call', () => {
-    const first = customerUrl();
-    const second = customerUrl();
+    const first = customerUrl(CFG);
+    const second = customerUrl(CFG);
     expect(first).toContain(`${OTSAR_HAHAYAL_API}${USER_DATA_PATH}?uid=`);
     expect(first).not.toBe(second);
   });
 
   it('secondaryUrl targets the session accountType lookup', () => {
-    const url = secondaryUrl();
+    const url = secondaryUrl(CFG);
     expect(url).toContain(`${OTSAR_HAHAYAL_API}${BFF_BASE}/accountType?uid=`);
   });
 
   it('balanceUrl embeds the numeric accountType as the path segment', () => {
-    const url = balanceUrl(ACCT);
+    const url = balanceUrl(CFG, ACCT);
     expect(url).toContain(`${BFF_BASE}/balances/105?uid=`);
   });
 });
 
 describe('OtsarHahayalShape transactions', () => {
   it('txnsUrl is the static BFF list endpoint (params ride the body)', () => {
-    const url = txnsUrl();
+    const url = txnsUrl(CFG);
     expect(url).toBe(`${OTSAR_HAHAYAL_API}${BFF_BASE}/list`);
   });
 

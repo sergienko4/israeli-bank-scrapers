@@ -17,18 +17,18 @@ import {
   customerUrl,
   extractAccounts,
   secondaryUrl,
-} from '../../../../../Scrapers/Pipeline/Banks/Pagi/scrape/PagiShapeAccounts.js';
+} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeAccounts.js';
 import {
   balanceExtract,
   balanceUrl,
   BFF_BASE,
   USER_DATA_PATH,
-} from '../../../../../Scrapers/Pipeline/Banks/Pagi/scrape/PagiShapeHelpers.js';
+} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeHelpers.js';
 import {
   txnsExtractPage,
   txnsUrl,
   txnsVars,
-} from '../../../../../Scrapers/Pipeline/Banks/Pagi/scrape/PagiShapeTxns.js';
+} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeTxns.js';
 import type {
   ApiBody,
   IExtractAccountsArgs,
@@ -36,7 +36,8 @@ import type {
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 
 const PAGI_API = 'https://online.pagi.co.il';
-type IPagiAcct = Parameters<typeof balanceUrl>[0];
+const CFG = { apiOrigin: PAGI_API };
+type IPagiAcct = Parameters<typeof balanceUrl>[1];
 
 const ACCT: IPagiAcct = { accountNumber: '555001', branch: '770', accountType: 105 };
 
@@ -117,26 +118,26 @@ describe('PagiShape balance + identity urls', () => {
   });
 
   it('customerUrl targets userData with a fresh uid on each call', () => {
-    const first = customerUrl();
-    const second = customerUrl();
+    const first = customerUrl(CFG);
+    const second = customerUrl(CFG);
     expect(first).toContain(`${PAGI_API}${USER_DATA_PATH}?uid=`);
     expect(first).not.toBe(second);
   });
 
   it('secondaryUrl targets the session accountType lookup', () => {
-    const url = secondaryUrl();
+    const url = secondaryUrl(CFG);
     expect(url).toContain(`${PAGI_API}${BFF_BASE}/accountType?uid=`);
   });
 
   it('balanceUrl embeds the numeric accountType as the path segment', () => {
-    const url = balanceUrl(ACCT);
+    const url = balanceUrl(CFG, ACCT);
     expect(url).toContain(`${BFF_BASE}/balances/105?uid=`);
   });
 });
 
 describe('PagiShape transactions', () => {
   it('txnsUrl is the static BFF list endpoint (params ride the body)', () => {
-    const url = txnsUrl();
+    const url = txnsUrl(CFG);
     expect(url).toBe(`${PAGI_API}${BFF_BASE}/list`);
   });
 
