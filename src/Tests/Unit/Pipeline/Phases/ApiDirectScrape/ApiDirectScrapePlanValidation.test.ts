@@ -134,7 +134,10 @@ function accountContext(
   shape: IApiDirectScrapeShape<IAcct, string> = SHAPE,
 ): IAcctCtx<IAcct, string> {
   const options = { startDate: new Date('2026-01-01T00:00:00Z') };
-  const base = makeMockContext({ apiMediator: some(bus), options } as Partial<IPipelineContext>);
+  const base = makeMockContext({
+    apiMediator: some(bus),
+    options,
+  } as unknown as Partial<IPipelineContext>);
   const ctx = { ...base, windowEnd: none() } as unknown as IActionContext;
   return { shape, bus, ctx, acct: { id: 'acct-1' }, ledger: makeEvidenceLedger() };
 }

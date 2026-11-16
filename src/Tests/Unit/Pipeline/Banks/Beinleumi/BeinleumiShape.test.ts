@@ -10,24 +10,24 @@
  * balances.currentBalance, transactions[]).
  */
 
-import BEINLEUMI_SHAPE from '../../../../../Scrapers/Pipeline/Banks/Beinleumi/scrape/BeinleumiShape.js';
 import {
   accountNumberOf,
   customerUrl,
   extractAccounts,
   secondaryUrl,
-} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeAccounts.js';
+} from '../../../../../Scrapers/Pipeline/Banks/_Shared/FibiGroup/FibiGroupShapeAccounts.js';
 import {
   balanceExtract,
   balanceUrl,
   BFF_BASE,
   USER_DATA_PATH,
-} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeHelpers.js';
+} from '../../../../../Scrapers/Pipeline/Banks/_Shared/FibiGroup/FibiGroupShapeHelpers.js';
 import {
   txnsExtractPage,
   txnsUrl,
   txnsVars,
-} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeTxns.js';
+} from '../../../../../Scrapers/Pipeline/Banks/_Shared/FibiGroup/FibiGroupShapeTxns.js';
+import BEINLEUMI_SHAPE from '../../../../../Scrapers/Pipeline/Banks/Beinleumi/scrape/BeinleumiShape.js';
 import type {
   ApiBody,
   IExtractAccountsArgs,

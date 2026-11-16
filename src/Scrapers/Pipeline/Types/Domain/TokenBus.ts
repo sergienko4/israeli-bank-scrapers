@@ -8,12 +8,12 @@
  * outside the ApiMediator SCC.
  */
 
-import type { WKUrlOrLiteral } from '../../Registry/WK/UrlsWK.js';
 import type { Procedure } from '../Procedure.js';
 import type { ApiPostData } from './ApiPostData.js';
 import type { IApiQueryOpts } from './ApiQueryOpts.js';
 import type { IClientCertControl } from './ClientCertControl.js';
 import type { ICookieSession } from './CookieSession.js';
+import type { WKUrlOrLiteral } from './WKUrl.js';
 
 interface ITokenBus {
   apiPost: <T>(

@@ -9,13 +9,13 @@
 
 import { randomUUID } from 'node:crypto';
 
+import type { HeaderMap } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import {
   type IRingConstants,
   ringStaticHeaders,
 } from '../../../Registry/Config/PipelineBankConfigRingConstants.js';
 import { isSome } from '../../../Types/Option.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
-import type { HeaderMap } from '../IApiDirectScrapeShape.js';
 
 /** Headers builder handed to every ring scrape step. */
 export type RingHeaders = (ctx: IActionContext) => HeaderMap;

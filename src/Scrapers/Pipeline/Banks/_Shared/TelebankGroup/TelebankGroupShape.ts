@@ -15,7 +15,10 @@
  * scans) and no bank ever imports another bank.
  */
 
-import type { IApiDirectScrapeShape, WindowNarrowing } from '../IApiDirectScrapeShape.js';
+import type {
+  IApiDirectScrapeShape,
+  WindowNarrowing,
+} from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import checkTitanBody from './TelebankGroupShapeCheck.js';
 import {
   accountNumberOf,

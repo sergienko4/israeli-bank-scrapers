@@ -10,7 +10,7 @@
  * merge and extractors; this file supplies the brand record, step name and
  * coverage-backfill stance.
  */
-import makeFibiGroupShape from '../../../Phases/ApiDirectScrape/FibiGroup/FibiGroupShape.js';
+import makeFibiGroupShape from '../../../Banks/_Shared/FibiGroup/FibiGroupShape.js';
 import { MASSAD_BRAND } from '../../../Registry/Config/PipelineBankConfigMassad.js';
 
 /** Massad hard-model shape — passed to `.withApiDirect(...)`. */

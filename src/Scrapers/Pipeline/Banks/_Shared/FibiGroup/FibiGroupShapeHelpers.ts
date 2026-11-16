@@ -16,9 +16,9 @@
 
 import { randomUUID } from 'node:crypto';
 
+import type { ApiBody, VarsMap } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import { literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import type { Brand } from '../../../Types/Brand.js';
-import type { ApiBody, VarsMap } from '../IApiDirectScrapeShape.js';
 
 /** userData path — accounts source (account number + branch). */
 export const USER_DATA_PATH = '/MatafAngularRestApiService/rest/utils/userData';

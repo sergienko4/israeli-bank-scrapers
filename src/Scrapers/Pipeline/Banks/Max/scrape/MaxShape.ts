@@ -12,7 +12,7 @@
  * MaxShapeExtract.ts to hold the file-size cap.
  */
 
-import { validateCardIssuerPlan } from '../../../Phases/ApiDirectScrape/CardIssuer/CardIssuerShapeTxns.js';
+import { validateCardIssuerPlan } from '../../../Banks/_Shared/CardIssuer/CardIssuerShapeTxns.js';
 import type {
   ApiBody,
   IApiDirectScrapeShape,

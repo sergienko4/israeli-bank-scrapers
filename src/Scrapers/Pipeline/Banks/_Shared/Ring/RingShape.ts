@@ -20,17 +20,17 @@
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
-import type { IRingConstants } from '../../../Registry/Config/PipelineBankConfigRingConstants.js';
-import type { LiteralUrl } from '../../../Registry/WK/UrlsWK.js';
-import type { Procedure } from '../../../Types/Procedure.js';
-import { fail, succeed } from '../../../Types/Procedure.js';
-import { validateCardIssuerPlan } from '../CardIssuer/CardIssuerShapeTxns.js';
 import {
   type ApiBody,
   BALANCE_UNKNOWN,
   type IApiDirectScrapeShape,
   type WindowNarrowing,
-} from '../IApiDirectScrapeShape.js';
+} from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
+import type { IRingConstants } from '../../../Registry/Config/PipelineBankConfigRingConstants.js';
+import type { LiteralUrl } from '../../../Registry/WK/UrlsWK.js';
+import type { Procedure } from '../../../Types/Procedure.js';
+import { fail, succeed } from '../../../Types/Procedure.js';
+import { validateCardIssuerPlan } from '../CardIssuer/CardIssuerShapeTxns.js';
 import { balanceIsAbsent, balanceVars, nextDebitOf } from './RingShapeBalance.js';
 import {
   accountNumberOf,

@@ -11,10 +11,10 @@
 import { randomUUID } from 'node:crypto';
 
 import type { SessionContext } from '../../../Mediator/Api/ApiMediator.js';
+import type { HeaderMap } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import { FIBI_UA } from '../../../Registry/Config/PipelineBankConfigFibiFamilyConstants.js';
 import { isSome } from '../../../Types/Option.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
-import type { HeaderMap } from '../IApiDirectScrapeShape.js';
 
 /** Header naming one financial call, fresh per call. */
 const TXN_ID_HEADER = 'X-FIBI-Transaction-Id';

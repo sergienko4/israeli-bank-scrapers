@@ -7,52 +7,9 @@
 import type { CompanyTypes } from '../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import ScraperError from '../../../Base/ScraperError.js';
-import type { Brand } from '../../Types/Brand.js';
+import type { LiteralUrl, WKUrlGroup, WKUrlOrLiteral } from '../../Types/Domain/WKUrl.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
-
-/** Supported WK URL groups — generic API endpoints. */
-export type WKUrlGroup =
-  | 'identityBase'
-  | 'graphql'
-  | 'identity.deviceToken'
-  | 'identity.otpPrepare'
-  | 'identity.otpVerify'
-  | 'identity.getIdToken'
-  | 'identity.sessionToken'
-  | 'identity.phoneValidate'
-  | 'identity.pinValidation'
-  | 'identity.loginBySms'
-  | 'auth.bind'
-  | 'auth.login'
-  | 'auth.assert'
-  | 'auth.logout'
-  | 'auth.prime'
-  | 'auth.resume'
-  | 'auth.service'
-  | 'auth.bootstrap'
-  | 'auth.landing'
-  | 'auth.logon'
-  | 'auth.encryptionKey'
-  | 'auth.identify'
-  | 'auth.verify'
-  | 'auth.otpInit'
-  | 'auth.otpVerify'
-  | 'auth.step1'
-  | 'auth.arcotid'
-  | 'auth.stepupInit'
-  | 'auth.stepupVerify'
-  | 'auth.arcotidAfter'
-  | 'data.sync'
-  | 'data.getKey'
-  | 'data.getUserHistory'
-  | 'data.virtualCardTranRequest';
-
-/** Absolute REST URL declared inline by an api-direct shape (bypasses the WK map). */
-export type LiteralUrl = Brand<string, 'WkLiteralUrl'>;
-
-/** A urlTag: either a registered WK group OR an inline absolute URL. */
-export type WKUrlOrLiteral = WKUrlGroup | LiteralUrl;
 
 /** Internal registry: group -> bankHint -> url string. */
 const WK_URLS = new Map<WKUrlGroup, Map<CompanyTypes, string>>();
@@ -143,3 +100,5 @@ export function resetWkRegistryForTest(): true {
   isFrozen = false;
   return true;
 }
+
+export type { LiteralUrl, WKUrlGroup, WKUrlOrLiteral } from '../../Types/Domain/WKUrl.js';

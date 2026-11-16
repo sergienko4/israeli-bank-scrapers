@@ -30,9 +30,9 @@
 
 import { jest } from '@jest/globals';
 
+import { mergeRingRows } from '../../../../Scrapers/Pipeline/Banks/_Shared/Ring/RingShapeExtract.js';
 import { findCurrencyHit } from '../../../../Scrapers/Pipeline/Mediator/Scrape/TxnMapper/TxnCurrency.js';
 import autoMapTransaction from '../../../../Scrapers/Pipeline/Mediator/Scrape/TxnMapper/TxnMapper.js';
-import { mergeRingRows } from '../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/Ring/RingShapeExtract.js';
 import type { ITransaction } from '../../../../Transactions.js';
 import {
   CURRENCY_BANKS,

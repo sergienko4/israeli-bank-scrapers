@@ -6,12 +6,33 @@
 
 import type { CompanyTypes } from '../../../Definitions.js';
 import type { ScraperCredentials, ScraperOptions } from '../../Base/Interface.js';
-import type { ScraperLogger } from '../Logging/Debug.js';
-import type { IApiMediator } from '../Mediator/Api/ApiMediator.js';
-import type { IPipelineBankConfig } from '../Registry/Config/PipelineBankConfig.js';
 import type { IDurableAuthState } from './Domain/DurableAuthState.js';
+import type { ScraperLogger } from './Domain/ScraperLogger.js';
 import type { IScrapeState } from './Domain/ScrapeState.js';
 import type { Option } from './Option.js';
+
+/**
+ * Mediator capabilities the context exposes to phases. The concrete
+ * `IApiMediator` is wider; this port keeps Types independent of Mediator.
+ */
+interface IPipelineMediator {
+  /** Session-context snapshot installed by the login flow. */
+  getSessionContext(): Readonly<Record<string, unknown>>;
+  /** Release any owned transport resources. */
+  readonly dispose?: () => Promise<void>;
+}
+
+/** Transport slice the phone normaliser reads without depending on Registry. */
+interface IPipelineContextTransport {
+  readonly phoneNumberFormat?:
+    'international-plus' | 'international-dash' | 'international-flat' | 'local-only';
+}
+
+/** Registry config slice the context exposes without depending on Registry. */
+interface IPipelineContextConfig {
+  readonly urls: { readonly base: string };
+  readonly transport?: IPipelineContextTransport;
+}
 
 /** Read-only context accumulated through the pipeline. */
 interface IPipelineContext {
@@ -19,7 +40,7 @@ interface IPipelineContext {
   readonly credentials: ScraperCredentials;
   readonly companyId: CompanyTypes;
   readonly logger: ScraperLogger;
-  readonly config: IPipelineBankConfig;
+  readonly config: IPipelineContextConfig;
   /**
    * Upper bound of the scrape window. `none()` on the ordinary pass, where
    * every shape reaches today; set by the coverage backfill to re-request an
@@ -28,7 +49,7 @@ interface IPipelineContext {
    */
   readonly windowEnd: Option<Date>;
   /** API mediator driving every HTTP call (set by buildInitialContext). */
-  readonly apiMediator: Option<IApiMediator>;
+  readonly apiMediator: Option<IPipelineMediator>;
   /** Accounts and transactions committed by the API-direct scrape phase. */
   readonly scrape: Option<IScrapeState>;
   /**

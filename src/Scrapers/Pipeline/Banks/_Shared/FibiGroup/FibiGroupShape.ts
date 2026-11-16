@@ -16,8 +16,11 @@
  * scans) and no bank ever imports another bank.
  */
 
+import type {
+  IApiDirectScrapeShape,
+  WindowNarrowing,
+} from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { IFibiBrand } from '../../../Registry/Config/PipelineBankConfigFibiFamilyConstants.js';
-import type { IApiDirectScrapeShape, WindowNarrowing } from '../IApiDirectScrapeShape.js';
 import {
   accountNumberOf,
   customerUrl as fibiCustomerUrl,

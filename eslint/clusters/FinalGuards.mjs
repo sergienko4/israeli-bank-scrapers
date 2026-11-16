@@ -4,10 +4,7 @@
  * exemptions, and the JsonUnknown alias exemption. Emitted last so nothing
  * can overwrite them.
  */
-import {
-  RULE10_NO_RAW_PAGE_RULE,
-  SHAPE_TXNS_WINDOW_END_RULE,
-} from '../rules/GuardRules.mjs';
+import { RULE10_NO_RAW_PAGE_RULE, SHAPE_TXNS_WINDOW_END_RULE } from '../rules/GuardRules.mjs';
 import { CANARY_EXTRA_BLOCKS } from '../rules/CanaryRegistry.mjs';
 import {
   PIPELINE_CANARY_SYNTAX_RULES,
@@ -100,6 +97,7 @@ export const FINAL_GUARD_BLOCKS = [
   {
     files: [
       'src/Scrapers/Pipeline/Banks/**/scrape/*ShapeTxns.ts',
+      'src/Scrapers/Pipeline/Banks/_Shared/**/*ShapeTxns.ts',
       'src/Scrapers/Pipeline/Phases/ApiDirectScrape/**/*ShapeTxns.ts',
     ],
     ignores: [

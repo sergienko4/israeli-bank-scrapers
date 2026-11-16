@@ -5,11 +5,11 @@
  * reconciliation for that same container. Bodies are synthetic — zero PII.
  */
 
-import { auditDeclaredRows } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/DeclaredRows.js';
 import {
   mergeRingRows,
   RING_DECLARED_ROWS,
-} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/Ring/RingShapeExtract.js';
+} from '../../../../../Scrapers/Pipeline/Banks/_Shared/Ring/RingShapeExtract.js';
+import { auditDeclaredRows } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/DeclaredRows.js';
 
 /**
  * Build a transactions body carrying only the out-of-statement container —

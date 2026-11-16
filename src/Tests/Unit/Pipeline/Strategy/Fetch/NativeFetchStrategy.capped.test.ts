@@ -8,7 +8,7 @@
 import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
-import { NETWORK_CONNECT_RETRIES } from '../../../../../Scrapers/Pipeline/Mediator/Network/FetchConfig.js';
+import { NETWORK_CONNECT_RETRIES } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/FetchConfig.js';
 import type {
   IManualRedirect,
   StatusAction,

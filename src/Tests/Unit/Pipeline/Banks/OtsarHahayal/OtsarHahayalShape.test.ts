@@ -11,24 +11,24 @@
  * accountType[0].accountType, balances.currentBalance, transactions[]).
  */
 
-import OTSAR_HAHAYAL_SHAPE from '../../../../../Scrapers/Pipeline/Banks/OtsarHahayal/scrape/OtsarHahayalShape.js';
 import {
   accountNumberOf,
   customerUrl,
   extractAccounts,
   secondaryUrl,
-} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeAccounts.js';
+} from '../../../../../Scrapers/Pipeline/Banks/_Shared/FibiGroup/FibiGroupShapeAccounts.js';
 import {
   balanceExtract,
   balanceUrl,
   BFF_BASE,
   USER_DATA_PATH,
-} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeHelpers.js';
+} from '../../../../../Scrapers/Pipeline/Banks/_Shared/FibiGroup/FibiGroupShapeHelpers.js';
 import {
   txnsExtractPage,
   txnsUrl,
   txnsVars,
-} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeTxns.js';
+} from '../../../../../Scrapers/Pipeline/Banks/_Shared/FibiGroup/FibiGroupShapeTxns.js';
+import OTSAR_HAHAYAL_SHAPE from '../../../../../Scrapers/Pipeline/Banks/OtsarHahayal/scrape/OtsarHahayalShape.js';
 import type {
   ApiBody,
   IExtractAccountsArgs,

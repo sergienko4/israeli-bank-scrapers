@@ -7,13 +7,13 @@
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
-import { NETWORK_CONNECT_RETRIES } from '../../Mediator/Network/FetchConfig.js';
 import type { IResponseReading } from '../../Types/Domain/FetchPolicy.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail } from '../../Types/Procedure.js';
 import type { ICappedRequest } from './CappedBody.js';
 import { fetchWithinCap } from './CappedBody.js';
 import retryOnConnectTimeout from './ConnectRetry.js';
+import { NETWORK_CONNECT_RETRIES } from './FetchConfig.js';
 import type { FetchInvoke, IFetchInvokePolicy } from './FetchStrategy.js';
 import { toNetworkFailure } from './NativeFetchNetwork.js';
 import { safeUrlForLog } from './SafeUrlForLog.js';

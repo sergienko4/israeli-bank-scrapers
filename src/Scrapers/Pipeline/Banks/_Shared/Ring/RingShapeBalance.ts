@@ -11,9 +11,9 @@
 import type moment from 'moment';
 
 import { bankMomentOfInstant } from '../../../Mediator/Scrape/BankCalendar.js';
+import type { ApiBody, VarsMap } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { Brand } from '../../../Types/Brand.js';
 import type { TBillingMonth } from '../CardIssuer/CardIssuerShapeTxns.js';
-import type { ApiBody, VarsMap } from '../IApiDirectScrapeShape.js';
 import type { IRingCard } from './RingShapeCards.js';
 import { gatewayBody } from './RingShapeTxns.js';
 

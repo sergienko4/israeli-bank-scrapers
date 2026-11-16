@@ -13,6 +13,7 @@
 
 import { jest } from '@jest/globals';
 
+import type { IFibiAcct } from '../../../../../Scrapers/Pipeline/Banks/_Shared/FibiGroup/FibiGroupShapeHelpers.js';
 import BEINLEUMI_SHAPE from '../../../../../Scrapers/Pipeline/Banks/Beinleumi/scrape/BeinleumiShape.js';
 import MASSAD_SHAPE from '../../../../../Scrapers/Pipeline/Banks/Massad/scrape/MassadShape.js';
 import OTSAR_HAHAYAL_SHAPE from '../../../../../Scrapers/Pipeline/Banks/OtsarHahayal/scrape/OtsarHahayalShape.js';
@@ -23,7 +24,6 @@ import type {
 } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import { fetchAccounts } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeSteps.js';
 import type { IDriverCtx } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeTypes.js';
-import type { IFibiAcct } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeHelpers.js';
 import type {
   ApiBody,
   ApiDirectScrapeHeadersLike,

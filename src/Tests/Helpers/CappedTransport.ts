@@ -3,7 +3,7 @@
  * PIPELINE_BANK_CONFIG; tests need them without the registry.
  */
 
-import { NETWORK_FETCH_TIMEOUT_MS } from '../../Scrapers/Pipeline/Mediator/Network/FetchConfig.js';
+import { NETWORK_FETCH_TIMEOUT_MS } from '../../Scrapers/Pipeline/Strategy/Fetch/FetchConfig.js';
 import GraphQLFetchStrategy from '../../Scrapers/Pipeline/Strategy/Fetch/GraphQLFetchStrategy.js';
 import type { INativeFetchOptions } from '../../Scrapers/Pipeline/Strategy/Fetch/NativeFetchStrategy.js';
 import {
