@@ -38,12 +38,63 @@ function isErrorAt(resp: JsonValue, pointer: string): boolean {
 }
 
 /**
+ * Read a value as a bank error code.
+ * @param value - Value found at a code pointer.
+ * @returns The code text, or empty when the value is not a string or finite number.
+ */
+function asCode(value: JsonValue): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return '';
+}
+
+/**
+ * Read the code at one pointer.
+ * @param resp - Parsed response body.
+ * @param pointer - Code pointer.
+ * @returns The code text, or empty when the pointer does not resolve.
+ */
+function codeAt(resp: JsonValue, pointer: string): string {
+  const walked = walkPointer(resp, pointer);
+  return isOk(walked) ? asCode(walked.value) : '';
+}
+
+/**
+ * Read the first bank error code named by the step's code pointers.
+ * @param resp - Parsed response body.
+ * @param pointers - Code pointers, checked in order.
+ * @returns The first code text, or empty when none resolves.
+ */
+function firstCode(resp: JsonValue, pointers: readonly string[]): string {
+  const codes = pointers.map((pointer): string => codeAt(resp, pointer));
+  return codes.find((code): boolean => code !== '') ?? '';
+}
+
+/**
+ * Read a mapped type for a code, ignoring inherited object properties.
+ * @param map - The step's code map, when it has one.
+ * @param code - Bank error code.
+ * @returns The mapped type, or false for an unknown code.
+ */
+function mappedType(
+  map: Readonly<Record<string, ScraperErrorTypes>> | false,
+  code: string,
+): ScraperErrorTypes | false {
+  if (map === false) return false;
+  if (!Object.hasOwn(map, code)) return false;
+  return map[code];
+}
+
+/**
  * The failure a step fails with when its answer reports a bank error.
  * @param step - The step that answered.
- * @returns A `<step> bank error` of the step's `bankErrorType`, naming no value.
+ * @param resp - Parsed response body, when it holds the bank's code.
+ * @returns A `<step> bank error` of the mapped type, naming no value.
  */
-function bankErrorOf(step: IStepConfig): IProcedureFailure {
-  const errorType = step.bankErrorType ?? ScraperErrorTypes.Generic;
+function bankErrorOf(step: IStepConfig, resp?: JsonValue): IProcedureFailure {
+  const code = resp === undefined ? '' : firstCode(resp, step.bankErrorCodePointers ?? []);
+  const mapped = code === '' ? false : mappedType(step.bankErrorTypeByCode ?? false, code);
+  const errorType = mapped === false ? (step.bankErrorType ?? ScraperErrorTypes.Generic) : mapped;
   return fail(errorType, `${step.name} bank error`);
 }
 
@@ -57,7 +108,7 @@ function guardBankError(step: IStepConfig, resp: JsonValue): Procedure<true> {
   const pointers = step.failIfPresent ?? [];
   const isBankError = pointers.some((pointer): boolean => isErrorAt(resp, pointer));
   if (!isBankError) return succeed(true);
-  return bankErrorOf(step);
+  return bankErrorOf(step, resp);
 }
 
 export { bankErrorOf, guardBankError };

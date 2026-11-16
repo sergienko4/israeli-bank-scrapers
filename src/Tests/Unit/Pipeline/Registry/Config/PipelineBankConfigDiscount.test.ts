@@ -36,6 +36,7 @@ import {
 } from './DiscountConfigTestHelpers.js';
 
 const GENERIC = ScraperErrorTypes.Generic;
+const CHANGE_PASSWORD = ScraperErrorTypes.ChangePassword;
 const INVALID_PASSWORD = ScraperErrorTypes.InvalidPassword;
 
 /** The JSON headers a login call sends from the login page. */
@@ -257,20 +258,70 @@ describe('Discount login config — key and login answers', () => {
     expect(result).toEqual(expected);
   });
 
-  it.each<{ name: string; resp: JsonValue; isError: boolean }>([
-    { name: 'encryptionKey', resp: { Error: { Code: 1 } }, isError: true },
-    { name: 'encryptionKey', resp: { error: 'x' }, isError: true },
-    { name: 'encryptionKey', resp: { actionRequired: { Kind: 'otp' } }, isError: true },
-    { name: 'logon', resp: { Error: { Code: 1 } }, isError: true },
-    { name: 'logon', resp: { actionRequired: 'step-up' }, isError: true },
-    { name: 'logon', resp: { Error: null, error: null, actionRequired: null }, isError: false },
-  ])('$name answer $resp → bank error $isError', async ({ name, resp, isError }) => {
+  it.each<{ name: string; resp: JsonValue; expected: unknown }>([
+    {
+      name: 'encryptionKey',
+      resp: { Error: { Code: 1 } },
+      expected: [GENERIC, 'encryptionKey bank error'],
+    },
+    {
+      name: 'encryptionKey',
+      resp: { error: 'x' },
+      expected: [GENERIC, 'encryptionKey bank error'],
+    },
+    {
+      name: 'encryptionKey',
+      resp: { actionRequired: { Kind: 'otp' } },
+      expected: [GENERIC, 'encryptionKey bank error'],
+    },
+    { name: 'logon', resp: { Error: { Code: 1 } }, expected: [GENERIC, 'logon bank error'] },
+    {
+      name: 'logon',
+      resp: { actionRequired: 'step-up' },
+      expected: [GENERIC, 'logon bank error'],
+    },
+    {
+      name: 'logon',
+      resp: { Error: { ReturnedCode: 'E100129' } },
+      expected: [CHANGE_PASSWORD, 'logon bank error'],
+    },
+    {
+      name: 'logon',
+      resp: { Error: { GeneratedCode: 100129 } },
+      expected: [CHANGE_PASSWORD, 'logon bank error'],
+    },
+    {
+      name: 'logon',
+      resp: { Error: { ReturnedCode: 'E100132' } },
+      expected: [GENERIC, 'logon bank error'],
+    },
+    {
+      name: 'encryptionKey',
+      resp: { Error: { ReturnedCode: 'E100129' } },
+      expected: [GENERIC, 'encryptionKey bank error'],
+    },
+    {
+      name: 'logon',
+      resp: { Error: null, error: null, actionRequired: null },
+      expected: true,
+    },
+  ])('$name answer $resp → $expected', async ({ name, resp, expected }) => {
     const { call } = await loadModule();
     const step = stepNamed(call, name);
     const verdict = guardBankError(step, resp);
-    const expected = isError ? [GENERIC, `${name} bank error`] : true;
     const result = verdictOf(verdict);
     expect(result).toEqual(expected);
+  });
+
+  it('maps only the logon step’s expired-password codes', async () => {
+    const { call } = await loadModule();
+    const logon = stepNamed(call, 'logon');
+    const key = stepNamed(call, 'encryptionKey');
+    expect(logon).toMatchObject({
+      bankErrorCodePointers: ['/Error/ReturnedCode', '/Error/GeneratedCode'],
+      bankErrorTypeByCode: { E100129: CHANGE_PASSWORD, '100129': CHANGE_PASSWORD },
+    });
+    expect(key.bankErrorTypeByCode).toBeUndefined();
   });
 
   it('logs in with the formatted id, sealing the user code then the password', async () => {

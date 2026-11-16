@@ -66,9 +66,17 @@ POSTs `telebankLoginPostHeaders` (the same with a JSON content type) and
 
 An `Error`, `error` or `actionRequired` holding a truthy scalar or a
 non-empty array or object in the `getInfo` or `login` answer fails as
-`GENERIC` (`<step> bank error`); so does an `MI6` mismatch. A `Status` other than
-`SUCCESS` (`null`, empty or any other value) fails as `INVALID_PASSWORD`. The
-config sets `omitBankText`, so no failure message carries the bank's own text.
+`<step> bank error`; so does an `MI6` mismatch. The `login` step maps the
+bank's expired-password code to `CHANGE_PASSWORD`. The guard checks
+`/Error/ReturnedCode` first and only falls back to `/Error/GeneratedCode` when
+`ReturnedCode` is empty, so `E100129` or `100129` maps to `CHANGE_PASSWORD`.
+A different non-empty `ReturnedCode` keeps the failure `GENERIC` even when
+`GeneratedCode` is `100129`; every other bank-error code stays `GENERIC`.
+A `Status` other than `SUCCESS` (`null`, empty or any other value) fails as
+`INVALID_PASSWORD`. The family keeps the pointer list and map in
+`PipelineBankConfigTelebankFamilyConstants.ts`
+(`LOGON_ERROR_CODE_POINTERS`, `LOGON_ERROR_TYPES`). The config sets
+`omitBankText`, so no failure message carries the bank's own text.
 
 ## Hard-model post-auth
 

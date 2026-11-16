@@ -38,6 +38,16 @@ const GUARDED: IStepConfig = { ...PLAIN, failIfPresent: ERRORS };
 /** The guarded step, typing its bank errors as a wrong password. */
 const TYPED: IStepConfig = { ...GUARDED, bankErrorType: ScraperErrorTypes.InvalidPassword };
 
+/** The guarded step, mapping its expired-password code to ChangePassword. */
+const CODED: IStepConfig = {
+  ...GUARDED,
+  bankErrorCodePointers: ['/Error/ReturnedCode', '/Error/GeneratedCode'],
+  bankErrorTypeByCode: {
+    E100129: ScraperErrorTypes.ChangePassword,
+    '100129': ScraperErrorTypes.ChangePassword,
+  },
+};
+
 /** Expected failure for a bank error. */
 const BANK_ERROR = {
   success: false,
@@ -47,6 +57,9 @@ const BANK_ERROR = {
 
 /** Expected failure for a bank error on the typed step. */
 const TYPED_ERROR = { ...BANK_ERROR, errorType: ScraperErrorTypes.InvalidPassword };
+
+/** Expected failure for the mapped expired-password code. */
+const CODED_ERROR = { ...BANK_ERROR, errorType: ScraperErrorTypes.ChangePassword };
 
 /** An outcome whose default failure is a wrong OTP. */
 const OTP_OUTCOME = {
@@ -111,6 +124,29 @@ describe('guardBankError', () => {
     const text = JSON.stringify(guarded);
     expect(text).not.toContain(SECRET);
   });
+
+  it.each<[string, JsonValue]>([
+    ['a return code', { Error: { ReturnedCode: 'E100129' } }],
+    ['a generated code', { Error: { GeneratedCode: '100129' } }],
+    ['a numeric generated code', { Error: { GeneratedCode: 100129 } }],
+  ])('maps %s to ChangePassword', (_label, resp) => {
+    const guarded = guardBankError(CODED, resp);
+    expect(guarded).toMatchObject(CODED_ERROR);
+    const text = JSON.stringify(guarded);
+    expect(text).not.toContain('E100129');
+  });
+
+  it.each<[string, JsonValue]>([
+    ['an unknown code', { Error: { ReturnedCode: 'E999' } }],
+    ['no code', { Error: { MsgText: 'x' } }],
+    ['a code the step does not map', { Error: { ReturnedCode: 'E100132' } }],
+    ['an inherited constructor', { Error: { ReturnedCode: 'constructor' } }],
+    ['an inherited toString', { Error: { ReturnedCode: 'toString' } }],
+    ['an inherited __proto__', { Error: { ReturnedCode: '__proto__' } }],
+  ])('keeps %s Generic', (_label, resp) => {
+    const guarded = guardBankError(CODED, resp);
+    expect(guarded).toMatchObject(BANK_ERROR);
+  });
 });
 
 describe('SmsOtpFlow with failIfPresent', () => {
@@ -129,6 +165,15 @@ describe('SmsOtpFlow with failIfPresent', () => {
     const step = { ...TYPED, outcome: OTP_OUTCOME };
     const result = await runOne(step, { state: 'nope', error: 'x' });
     expect(result).toMatchObject(TYPED_ERROR);
+  });
+
+  it('maps an expired-password code before the outcome runs', async () => {
+    const step = { ...CODED, outcome: OTP_OUTCOME };
+    const result = await runOne(step, {
+      state: 'nope',
+      Error: { ReturnedCode: 'E100129' },
+    });
+    expect(result).toMatchObject(CODED_ERROR);
   });
 
   it('fails before the extracts run', async () => {

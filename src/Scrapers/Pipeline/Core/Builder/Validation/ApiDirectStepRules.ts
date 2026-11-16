@@ -3,8 +3,9 @@
  * Outcome rules run before warm-start checks; the remaining rules run after
  * seal rules. Each `failIfPresent` entry must be a
  * JSON pointer below the body root: a bare key would never resolve, and the
- * root would fail every answer. A `bankErrorType` needs a `failIfPresent`
- * guard or a codec, else it types an error the step never raises. Each
+ * root would fail every answer. A `bankErrorType` or `bankErrorTypeByCode`
+ * needs a `failIfPresent` guard or a codec, else it types an error the step
+ * never raises; code pointers must be body pointers and pair with a map. Each
  * `extractRules` key must name a
  * body or header extract of its step; a `pattern` must be anchored (`^…$`)
  * and compile; `maxChars` must be an integer from 1 to 65536; `oneOf` and
@@ -28,6 +29,7 @@ import {
 } from '../ApiDirectRuleInput.js';
 import API_DIRECT_OPTIONAL_EXTRACT_RULES from '../Captures/ApiDirectOptionalExtractRules.js';
 import { isBadRegex, isFlatPattern } from '../FlatPattern.js';
+import API_DIRECT_BANK_ERROR_CODE_RULES from './ApiDirectBankErrorCodeRules.js';
 import API_DIRECT_TAIL_RULES from './ApiDirectTailRules.js';
 
 /**
@@ -76,8 +78,7 @@ function hasBadGuard(step: IStepConfig): boolean {
  * @returns True when a `failIfPresent` entry is not a body pointer.
  */
 function hasBadGuardPointer(input: IApiDirectRuleInput): boolean {
-  const steps = allSteps(input.call);
-  return steps.some(hasBadGuard);
+  return allSteps(input.call).some(hasBadGuard);
 }
 
 /**
@@ -248,6 +249,7 @@ const API_DIRECT_STEP_RULES: readonly IApiDirectRule[] = [
     message: 'steps.bankErrorType: needs failIfPresent or a codec',
     isBroken: hasIdleErrorType,
   },
+  ...API_DIRECT_BANK_ERROR_CODE_RULES,
   {
     message: 'steps.extractRules: each key must name a body or header extract',
     isBroken: hasStrayExtractRule,

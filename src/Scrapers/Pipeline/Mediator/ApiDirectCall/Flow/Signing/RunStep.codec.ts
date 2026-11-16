@@ -89,7 +89,7 @@ function sealGuardedBody(step: IStepConfig, prepared: IPreparedBody): Procedure<
 function openStepAnswer(bundle: IDispatchBundle, resp: JsonValue): Procedure<IOpenedAnswer> {
   const codec = bundle.fireScope.step.codec;
   if (codec === undefined) return succeed({ bundle, answer: resp });
-  if (hasBankErrorCode(resp)) return bankErrorOf(bundle.fireScope.step);
+  if (hasBankErrorCode(resp)) return bankErrorOf(bundle.fireScope.step, resp);
   return modeOf(codec).open(bundle, codec, resp);
 }
 
