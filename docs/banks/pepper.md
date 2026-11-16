@@ -10,7 +10,7 @@
 | Phase chain    | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md)                                                        |
 | Phone format   | `international-flat` (`972000000000`)                                                                                                                        |
 | Durable auth   | Opt-in — see [Durable device auth](#durable-device-auth-opt-in)                                                                                              |
-| Source         | [`Banks/Pepper/PepperPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Pepper/PepperPipeline.ts) |
+| Source         | [`Banks/BankPipelineTableD.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/BankPipelineTableD.ts) |
 
 ## Quick example
 

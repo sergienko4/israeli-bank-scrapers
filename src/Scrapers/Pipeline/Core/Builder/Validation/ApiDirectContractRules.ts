@@ -8,6 +8,7 @@
  */
 
 import type { IStepConfig } from '../../../Mediator/ApiDirectCall/ConfigContracts/index.js';
+import { isValidWkUrlGroup } from '../../../Types/Domain/WKUrl.js';
 import {
   allSteps,
   type IApiDirectRule,
@@ -94,9 +95,6 @@ function hasIdleCodeMap(input: IApiDirectRuleInput): boolean {
 /** Step-name shape: 1–64 letters or digits, first character a letter. */
 const STEP_NAME_PATTERN = /^[A-Z][A-Z0-9]{0,63}$/i;
 
-/** URL-group shape: one or more dot-separated name segments. */
-const URL_GROUP_PATTERN = /^[A-Z][A-Z0-9]*(?:\.[A-Z][A-Z0-9]*){0,7}$/i;
-
 /**
  * Whether a step name breaks the shape rule.
  * @param step - Step config.
@@ -121,7 +119,7 @@ function hasBadStepNameAny(input: IApiDirectRuleInput): boolean {
  * @returns True for a bad URL group.
  */
 function hasBadUrlTag(step: IStepConfig): boolean {
-  return !URL_GROUP_PATTERN.test(step.urlTag);
+  return !isValidWkUrlGroup(step.urlTag);
 }
 
 /**

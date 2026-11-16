@@ -4,28 +4,31 @@
  * the HTTP-only phase sequence.
  */
 
-import buildOneZeroPipeline from '../../../../../Scrapers/Pipeline/Banks/OneZero/OneZeroPipeline.js';
+import { CompanyTypes } from '../../../../../Definitions.js';
 import { assertOk } from '../../../../Helpers/AssertProcedure.js';
+import { factoryOf } from '../../Banks/PipelineRegistryTestHelpers.js';
 import { makeMockOptions } from '../../Infrastructure/MockFactories.js';
 
-describe('buildOneZeroPipeline', () => {
+const BUILD_ONE_ZERO = factoryOf(CompanyTypes.OneZero);
+
+describe('BUILD_ONE_ZERO', () => {
   it('returns success Procedure for valid options', () => {
     const opts = makeMockOptions();
-    const result = buildOneZeroPipeline(opts);
+    const result = BUILD_ONE_ZERO(opts);
     expect(result.success).toBe(true);
     assertOk(result);
   });
 
   it('descriptor preserves the provided options (identity)', () => {
     const opts = makeMockOptions();
-    const result = buildOneZeroPipeline(opts);
+    const result = BUILD_ONE_ZERO(opts);
     assertOk(result);
     expect(result.value.options).toBe(opts);
   });
 
   it('phase list EXCLUDES browser phases (init/home/pre-login/dashboard/terminate)', () => {
     const opts = makeMockOptions();
-    const result = buildOneZeroPipeline(opts);
+    const result = BUILD_ONE_ZERO(opts);
     assertOk(result);
     const names = result.value.phases.map(p => p.name);
     expect(names).not.toContain('init');
@@ -37,7 +40,7 @@ describe('buildOneZeroPipeline', () => {
 
   it('phase list INCLUDES api-direct-call + api-direct-scrape (otp phases folded into api-direct-call)', () => {
     const opts = makeMockOptions();
-    const result = buildOneZeroPipeline(opts);
+    const result = BUILD_ONE_ZERO(opts);
     assertOk(result);
     const names = result.value.phases.map(p => p.name);
     expect(names).toContain('api-direct-call');

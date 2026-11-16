@@ -55,13 +55,15 @@ describe('pipeline bank registry completeness', () => {
     expect(missing).toStrictEqual([]);
   });
 
-  it('has no duplicate registry entries across the two registry shards', async () => {
-    const { default: first } =
-      await import('../../../../Scrapers/Pipeline/Banks/PipelineRegistryAmexToMax.js');
-    const { default: second } =
-      await import('../../../../Scrapers/Pipeline/Banks/PipelineRegistryMercantileToVisaCal.js');
-    const overlap = Object.keys(first).filter((bank): boolean => bank in second);
-    expect(overlap).toStrictEqual([]);
+  it('has no duplicate registry entries across the four table shards', async () => {
+    const shards = await Promise.all([
+      import('../../../../Scrapers/Pipeline/Banks/BankPipelineTableA.js'),
+      import('../../../../Scrapers/Pipeline/Banks/BankPipelineTableB.js'),
+      import('../../../../Scrapers/Pipeline/Banks/BankPipelineTableC.js'),
+      import('../../../../Scrapers/Pipeline/Banks/BankPipelineTableD.js'),
+    ]);
+    const keys = shards.flatMap(shard => Object.keys(shard.default));
+    expect(new Set(keys).size).toBe(keys.length);
   });
 
   it('has no unknown keys in the partial DNS-host map', () => {

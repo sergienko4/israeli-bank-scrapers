@@ -8,7 +8,11 @@ import type { CompanyTypes } from '../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import ScraperError from '../../../Base/ScraperError.js';
 import type { Brand } from '../../Types/Brand.js';
-import type { LiteralUrl, WKUrlOrLiteral } from '../../Types/Domain/WKUrl.js';
+import {
+  isValidWkUrlGroup,
+  type LiteralUrl,
+  type WKUrlOrLiteral,
+} from '../../Types/Domain/WKUrl.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 
@@ -27,6 +31,16 @@ let isFrozen = false;
  */
 function ensureFrozen(): true {
   isFrozen = true;
+  return true;
+}
+
+/**
+ * Reject a malformed URL group before it enters the registry.
+ * @param group - Candidate group name.
+ * @returns True when the group is well formed.
+ */
+function assertValidGroup(group: string): true {
+  if (!isValidWkUrlGroup(group)) throw new ScraperError(`invalid WK url group: ${group}`);
   return true;
 }
 
@@ -56,6 +70,7 @@ export function registerWkUrl(group: string, bankHint: CompanyTypes, url: string
   if (isFrozen) {
     throw new ScraperError(`WK URL registry is frozen; refused ${group}/${bankHint}`);
   }
+  assertValidGroup(group);
   const inner = bankMapFor(group as RegisteredWkUrlGroup);
   inner.set(bankHint, url);
   return true;
@@ -67,7 +82,7 @@ export function registerWkUrl(group: string, bankHint: CompanyTypes, url: string
  * @returns True when the tag begins with the http scheme.
  */
 function isLiteralUrl(tag: WKUrlOrLiteral): tag is LiteralUrl {
-  return tag.startsWith('http');
+  return tag.startsWith('http://') || tag.startsWith('https://');
 }
 
 /**

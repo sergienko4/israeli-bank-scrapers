@@ -23,4 +23,17 @@ type LiteralUrl = Brand<string, 'WkLiteralUrl'>;
 /** A urlTag: a registered WK group or an inline absolute URL. */
 type WKUrlOrLiteral = WKUrlGroup | LiteralUrl;
 
+/** URL-group shape: one or more dot-separated name segments. */
+const WK_URL_GROUP_PATTERN = /^[A-Z][A-Z0-9]*(?:\.[A-Z][A-Z0-9]*){0,7}$/i;
+
+/**
+ * Whether a string is a well-formed WK URL group.
+ * @param value - Candidate group name.
+ * @returns True for dot-separated name segments.
+ */
+function isValidWkUrlGroup(value: string): boolean {
+  return WK_URL_GROUP_PATTERN.test(value);
+}
+
 export type { LiteralUrl, WKUrlGroup, WKUrlOrLiteral };
+export { isValidWkUrlGroup };

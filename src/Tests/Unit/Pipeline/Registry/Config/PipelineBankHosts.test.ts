@@ -102,7 +102,7 @@ async function coldTransportHosts(
     config.transport.identityBase,
     config.transport.graphql,
     ...Object.values(config.transport.paths),
-  ];
+  ].filter((url): url is string => url !== undefined);
   const hosts = new Set(urls.map(url => new URL(url).hostname));
   const warmed = [new URL(config.urls.base).hostname, ...(manifest[companyId] ?? [])];
   const cold = [...hosts].filter(host => !warmed.includes(host));

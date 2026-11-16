@@ -5,11 +5,17 @@
  * letter, and URL groups are dot-separated name segments.
  */
 
+import { CompanyTypes } from '../../../../../Definitions.js';
 import {
   type IApiDirectRuleInput,
   validateApiDirectConfig,
 } from '../../../../../Scrapers/Pipeline/Core/Builder/Validation/ApiDirectConfigRules.js';
 import type { IStepConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
+import {
+  registerWkUrl,
+  resetWkRegistryForTest,
+  resolveWkUrl,
+} from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 
 const BAD_NAME = 'steps.name: must be 1-64 letters or digits, starting with a letter';
 const BAD_URL = 'steps.urlTag: must be dot-separated letters or digits';
@@ -34,11 +40,42 @@ function runOf(steps: readonly IStepConfig[]): IApiDirectRuleInput {
 }
 
 describe('validateApiDirectConfig — open step and URL names', () => {
+  afterEach(() => {
+    resetWkRegistryForTest();
+  });
+
   it('accepts a synthetic step and URL group without editing a shared union', () => {
     const step = stepOf('syntheticStep', 'synthetic.group');
     const input = runOf([step]);
     const result = validateApiDirectConfig(input);
     expect(result).toEqual({ success: true, value: true });
+  });
+
+  it('seeds and resolves a new typed transport group whose name starts with http', () => {
+    const group = 'http.login';
+    const url = 'https://bank.example/login';
+    const transport = {
+      identityBase: 'https://bank.example',
+      graphql: 'https://bank.example/graphql',
+      paths: { [group]: url },
+    };
+    const step = stepOf('syntheticStep', group);
+    const input = {
+      call: { flow: 'sms-otp' as const, envelope: {}, steps: [step] },
+      transport,
+    } satisfies IApiDirectRuleInput;
+    const result = validateApiDirectConfig(input);
+    expect(result).toEqual({ success: true, value: true });
+
+    registerWkUrl(group, CompanyTypes.OneZero, url);
+    const resolved = resolveWkUrl(group, CompanyTypes.OneZero);
+    expect(resolved).toEqual({ success: true, value: url });
+  });
+
+  it('rejects a malformed transport-only group before registering', () => {
+    expect(() => {
+      registerWkUrl('bad group', CompanyTypes.OneZero, 'https://bank.example/login');
+    }).toThrow(/invalid WK url group/);
   });
 
   it.each([

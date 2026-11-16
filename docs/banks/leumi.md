@@ -8,7 +8,7 @@
 | Credentials    | `username`, `password`                                                                                                                                   |
 | OTP            | Unsupported challenges stop the run                                                                                                                      |
 | Phase chain    | API-DIRECT-CALL → API-DIRECT-SCRAPE                                                                                                                      |
-| Source         | [`Banks/Leumi/LeumiPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Leumi/LeumiPipeline.ts) |
+| Source         | [`Banks/BankPipelineTableB.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/BankPipelineTableB.ts) |
 
 ## Quick example
 

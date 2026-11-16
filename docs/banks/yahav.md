@@ -7,7 +7,7 @@
 | Credentials    | `num`, `nationalID`, `password`; optional `otpLongTermToken` ([warm start](#warm-start))                                                                 |
 | OTP            | None observed: the app's login has asked for no code                                                                                                     |
 | Phase chain    | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md)                                                    |
-| Source         | [`Banks/Yahav/YahavPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Yahav/YahavPipeline.ts) |
+| Source         | [`Banks/BankPipelineTableD.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/BankPipelineTableD.ts) |
 
 ## Quick example
 

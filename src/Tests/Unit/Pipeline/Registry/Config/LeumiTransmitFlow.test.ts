@@ -352,7 +352,7 @@ async function portalSetup(): Promise<{
   const paths = { ...transmit.LEUMI_TRANSMIT_PATHS, ...portal.LEUMI_PORTAL_PATHS };
   resetWkRegistryForTest();
   for (const [tag, url] of Object.entries(paths)) {
-    registerWkUrl(tag as keyof typeof paths, HINT, url);
+    registerWkUrl(tag, HINT, url);
   }
   const { LEUMI_API_DIRECT_CALL: config, LEUMI_TRANSPORT: transportConfig } = assembled;
   const valid = validateApiDirectConfig({ call: config, transport: transportConfig });

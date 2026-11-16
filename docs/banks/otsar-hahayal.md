@@ -7,7 +7,7 @@
 | Credentials    | `username`, `password`; an `otpCodeRetriever` callback, in the options or the credentials                                                                                            |
 | OTP            | When the bank asks; a remembered device may skip it ([warm start](#warm-start)), so keep `otpCodeRetriever` set                                                                      |
 | Phase chain    | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md)                                                                                |
-| Source         | [`Banks/OtsarHahayal/OtsarHahayalPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/OtsarHahayal/OtsarHahayalPipeline.ts) |
+| Source         | [`Banks/BankPipelineTableC.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/BankPipelineTableC.ts) |
 
 ## Quick example
 

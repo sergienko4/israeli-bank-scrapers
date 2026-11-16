@@ -4,28 +4,31 @@
  * the HTTP-only phase sequence.
  */
 
-import buildPepperPipeline from '../../../../../Scrapers/Pipeline/Banks/Pepper/PepperPipeline.js';
+import { CompanyTypes } from '../../../../../Definitions.js';
 import { assertOk } from '../../../../Helpers/AssertProcedure.js';
+import { factoryOf } from '../../Banks/PipelineRegistryTestHelpers.js';
 import { makeMockOptions } from '../../Infrastructure/MockFactories.js';
 
-describe('buildPepperPipeline', () => {
+const BUILD_PEPPER = factoryOf(CompanyTypes.Pepper);
+
+describe('BUILD_PEPPER', () => {
   it('returns success Procedure for valid options', () => {
     const opts = makeMockOptions();
-    const result = buildPepperPipeline(opts);
+    const result = BUILD_PEPPER(opts);
     expect(result.success).toBe(true);
     assertOk(result);
   });
 
   it('descriptor preserves the provided options (identity)', () => {
     const opts = makeMockOptions();
-    const result = buildPepperPipeline(opts);
+    const result = BUILD_PEPPER(opts);
     assertOk(result);
     expect(result.value.options).toBe(opts);
   });
 
   it('phase list excludes browser phases and includes api-direct-call + api-direct-scrape', () => {
     const opts = makeMockOptions();
-    const result = buildPepperPipeline(opts);
+    const result = BUILD_PEPPER(opts);
     assertOk(result);
     const names = result.value.phases.map((p): string => p.name);
     expect(names).not.toContain('init');

@@ -88,12 +88,14 @@ shared union, and the build validates the shape at registration
 (`steps.name`, `steps.urlTag`). The flow never branches on a name: it labels
 the step in failure messages (`<step> HTTP <status>`, `<step> outcome <code>`,
 `<step> outcome unmapped`, `<step> bank error`) and in the per-step log
-context. The URL comes from the bank's `transport.paths`, keyed by
-`AuthPathKey`; the registry seeder registers each entry under the same key,
-and the step's `urlTag` selects it.
+context. The URL comes from the bank's `transport.paths`, keyed by the open
+`WKUrlGroup` contract; the registry seeder registers each entry under the same
+key, and the step's `urlTag` selects it.
 
 The table lists the values the current banks use; a new bank may add another
-name or group without changing a shared union.
+name or group without changing a shared union. The shared grammar is
+`isValidWkUrlGroup` in `Types/Domain/WKUrl.ts`; `registerWkUrl` rejects a
+malformed group before storing it.
 
 | Kind       | Values                                                                                                                                                                                                                                       |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

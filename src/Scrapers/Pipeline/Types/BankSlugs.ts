@@ -6,6 +6,7 @@
  * Split out of `TraceConfig` so run identity and bank recognition each own one
  * thing.
  */
+import { CompanyTypes } from '../../../Definitions.js';
 import type { Brand } from './Brand.js';
 
 /** Lowercase bank slug, or `''` when none is known. */
@@ -14,26 +15,13 @@ type BankSlugLower = Brand<string, 'BankSlugLower'>;
 /** Whether a slug names a bank the trace layer knows. */
 type IsKnownBank = Brand<boolean, 'IsKnownBank'>;
 
-/** Bank slugs the auto-detector recognises in test argv. Lowercase, single token. */
-const KNOWN_BANK_SLUGS: readonly string[] = [
-  'amex',
-  'beinleumi',
-  'discount',
-  'hapoalim',
-  'isracard',
-  'leumi',
-  'max',
-  'massad',
-  'mercantile',
-  'mizrahi',
-  'onezero',
-  'otsarhahayal',
-  'pagi',
-  'paybox',
-  'pepper',
-  'visacal',
-  'yahav',
-];
+/**
+ * Bank slugs the auto-detector recognises in test argv. Derived from the
+ * public enum so a new bank cannot be forgotten. Lowercase, single token.
+ */
+const KNOWN_BANK_SLUGS: readonly string[] = Object.values(CompanyTypes).map(bank =>
+  bank.toLowerCase(),
+);
 
 /**
  * Build the regex that matches a bank slug in the canonical test-file name
