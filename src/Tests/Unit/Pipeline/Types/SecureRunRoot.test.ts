@@ -85,6 +85,33 @@ DESCRIBE_POSIX('ensurePrivateRunRoot', () => {
     expect(mode).toBe(0o700);
   });
 
+  it('rejects a non-sticky world-writable ancestor without group write', () => {
+    const base = makeTempDir('secure-root-world-only-');
+    const parent = path.join(base, 'shared');
+    fs.mkdirSync(parent, { mode: 0o700 });
+    fs.chmodSync(parent, 0o707);
+    const root = path.join(parent, 'runs');
+    expect(() => ensurePrivateRunRoot(root)).toThrow(/runs root ancestor is not safe/);
+  });
+
+  it('rejects a file where the root should be a directory', () => {
+    const base = makeTempDir('secure-root-file-');
+    const root = path.join(base, 'runs');
+    fs.writeFileSync(root, '');
+    expect(() => ensurePrivateRunRoot(root)).toThrow(/runs root ancestor is not safe/);
+  });
+
+  it('rethrows a non-EEXIST creation failure', () => {
+    const base = makeTempDir('secure-root-eacces-');
+    const root = path.join(base, 'runs');
+    fs.chmodSync(base, 0o500);
+    try {
+      expect(() => ensurePrivateRunRoot(root)).toThrow(/EACCES|permission denied/i);
+    } finally {
+      fs.chmodSync(base, 0o700);
+    }
+  });
+
   it('rejects a group/world-writable ancestor', () => {
     const base = makeTempDir('secure-root-unsafe-parent-');
     const parent = path.join(base, 'shared');
