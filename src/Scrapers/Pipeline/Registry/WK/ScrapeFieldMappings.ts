@@ -3,49 +3,12 @@
  * Extracted from ScrapeWK.ts — SOLID single-responsibility for field dictionaries.
  */
 
-// ID-field tuples are split into {@link ./ScrapeIdFields.js} to keep
-// this module under the 150-line max-lines ceiling.
-import { DISPLAY_ID_FIELDS, QUERY_ID_FIELDS } from './ScrapeIdFields.js';
 // Provider-annotation aliases (memo/category/chargedCurrency) are split into
 // {@link ./ScrapeProviderFields.js} for the same reason.
 import PROVIDER_ANNOTATION_FIELDS from './ScrapeProviderFields.js';
 // Transaction-identifier aliases are split into
 // {@link ./ScrapeTxnIdentifierFields.js} for the same reason.
 import TXN_IDENTIFIER_FIELDS from './ScrapeTxnIdentifierFields.js';
-
-/**
- * WellKnown ACCOUNT-side field mappings — owned by ACCOUNT-RESOLVE
- * and any SCRAPE caller that needs an account/card identifier.
- *
- * <p>Phase 7d split: every account-side field that was historically
- * grouped under {@link PIPELINE_WELL_KNOWN_TXN_FIELDS} lives here so
- * the two concerns no longer share a dictionary. ACCOUNT-RESOLVE
- * imports this constant; SCRAPE keeps using the TXN dictionary for
- * date/amount/description/etc.
- */
-export const PIPELINE_WELL_KNOWN_ACCOUNT_FIELDS = {
-  /**
-   * Container key names that hold an array of account-shape records
-   * inside a discovered API response. Order matters for downstream
-   * iteration: card-level containers come first because the pipeline
-   * iterates per-card (POST replays carry card4Number, not
-   * bankAccountUniqueId). VisaCal regressed when `bankAccounts`
-   * was matched before `cards` — replays then targeted bank
-   * accounts and returned 0 txns. Bank-account-level containers stay
-   * last. `accountsItems` is Leumi's WCF `UC_SO_GetAccounts` container
-   * (`{AccountsItems:[{AccountIndex,MaskedNumber,…}]}` after the
-   * `jsonResp` envelope is unwrapped) — bank-account level, so it is
-   * appended last. Matching is suffix-based (`key.endsWith(wkName)`),
-   * and `accountsItems` is not a suffix of any other bank's key.
-   */
-  containers: ['cardsList', 'cards', 'accounts', 'bankAccounts', 'accountsItems'],
-  /** Combined identifier list — query-style first, display-style second. */
-  id: [...QUERY_ID_FIELDS, ...DISPLAY_ID_FIELDS],
-  /** Display identifiers (last-4 / short forms shown on the card). */
-  displayId: [...DISPLAY_ID_FIELDS],
-  /** Query identifiers (long unique ids the API uses on POST bodies). */
-  queryId: [...QUERY_ID_FIELDS],
-} satisfies Record<string, readonly string[]>;
 
 /** WellKnown transaction field name mappings — cross-bank BFS dictionary.
  *
@@ -55,7 +18,7 @@ export const PIPELINE_WELL_KNOWN_ACCOUNT_FIELDS = {
  * resolves to its computed flat field. This is a provable no-op for every
  * other bank: no non-BaNCS record carries a `bancs*` key, so the alias fails
  * to match and resolution falls straight through to the existing aliases. */
-export const PIPELINE_WELL_KNOWN_TXN_FIELDS = {
+const PIPELINE_WELL_KNOWN_TXN_FIELDS = {
   date: [
     'bancsDate',
     'OperationDate',
@@ -187,4 +150,4 @@ export const PIPELINE_WELL_KNOWN_TXN_FIELDS = {
   toDate: ['toTransDate', 'toDate', 'ToDate', 'endDate', 'retrievalEndDate'],
 } satisfies Record<string, string[]>;
 
-export { DISPLAY_ID_FIELDS, QUERY_ID_FIELDS } from './ScrapeIdFields.js';
+export default PIPELINE_WELL_KNOWN_TXN_FIELDS;
