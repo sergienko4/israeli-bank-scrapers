@@ -4,9 +4,17 @@
 
 The package redacts PII before writing `pipeline.log` or captured
 `network/*.json` bodies. `FORENSIC_TRACE=true` opts into that run folder;
-there are no screenshots or DOM snapshots. On a failed CI job the diagnostics
-bundle uploads to the access-controlled private store, not a public artifact.
-Keep redaction enabled and inspect captures before sharing.
+there are no screenshots or DOM snapshots. The default root is
+`<os tmpdir>/israeli-bank-scrapers-<uid>/runs`, created `0700` with a `0600`
+log file; `RUNS_ROOT` overrides it. The UID segment keeps one user's private
+`0700` root from blocking another user of a shared `/tmp`; on Windows the
+temp directory is already per-user. `ensurePrivateRunRoot` provisions the
+root component by component: each component must be a real directory owned by
+the current user, and a group/world-writable or symlinked path fails closed
+before any forensic data is written. `RUNS_ROOT` must therefore point at a
+private location. On a failed CI job the diagnostics bundle uploads to the
+access-controlled private store, not a public artifact. Keep redaction
+enabled and inspect captures before sharing.
 
 ## In this section
 
@@ -62,6 +70,15 @@ Two pieces of `RootLogger.ts` implement this:
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `buildTransport`    | Chooses the transport for a given log file — the pretty target only when `PRETTY_LOGS=true`, the `pino/file` target only when `FORENSIC_TRACE` produced a path, both when both apply, and `false` when neither does |
 | `instantiateLogger` | Builds the logger, and if the chosen transport cannot be constructed emits a `process.emitWarning` and degrades one step rather than throwing                                                                       |
+
+The failure checks use `isErrorLike` from `Types/ErrorUtils.ts`, so a
+cross-realm Error takes the degradation path instead of being returned as a
+logger.
+
+The option builders live in `Logging/RootLoggerOptions.ts`: `buildPinoOptions`
+and `buildSilentOptions` compose the pino options, `buildFdOptions` and
+`buildPreferredFd` select the file-descriptor transport, and
+`optionsWithoutPretty` builds the one-step-down fallback.
 
 That second guarantee matters outside development. `pino-pretty` is a
 devDependency, so it is **absent from a consumer's production install**. The

@@ -50,6 +50,15 @@ interaction flow.
 | unset / `false` / any other value  | `getRunFolder` returns `''`. No run folder, file log or HTTP dumps. **Default.**                                                                        |
 | `true` (trimmed, case-insensitive) | Writes `pipeline.log` and `network/*.json` in the run folder under `RUNS_ROOT`. Failed CI runs route the bundle to the access-controlled private store. |
 
+The default run root is `<os tmpdir>/israeli-bank-scrapers-<uid>/runs`; set
+`RUNS_ROOT` explicitly to keep a different location. The per-user segment
+(POSIX UID; Windows temp is already per-user) keeps one user's private `0700`
+root from blocking another user of a shared `/tmp`. The run, network and
+sub-step directories are created with mode `0700`, and `pipeline.log` with
+mode `0600`. This replaces the old literal `C:\tmp\runs` default, which
+created a `C:\tmp\runs` directory under the current working directory on
+macOS and Linux.
+
 `FORENSIC_TRACE` is decoupled from `LOG_LEVEL` (pino verbosity only) and `CI`
 (OTP / Telegram). Set it explicitly when triaging a failure:
 
@@ -61,11 +70,11 @@ FORENSIC_TRACE=true npm run test:e2e:real
 
 V8's `SyntaxError` for `JSON.parse` can quote the rejected input: the whole text when it is short, otherwise a 10-character prefix (`"card=45801"... is not valid JSON`). Position-only messages quote nothing. The parse carriers that would pass that message into failure text or a log line go through [`Types/JsonParseFailure.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Types/JsonParseFailure.ts) instead:
 
-| Symbol                                      | Behaviour                                                                                                                                                                                                                          |
-| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `describeJsonParseFailure(caught)`          | Returns a `JsonParseFailureText` of `invalid JSON (SyntaxError)`, or `invalid JSON (SyntaxError at position N)`. Other errors pass through as their message. It matches on `error.name`, so errors from another realm are covered. |
-| Fetch JSON responses (`JsonResponse`)       | Catches the parse error, formats `<verb> <safe-url> parse error: <reason>` and fails without chaining the cause.                                                                                                                   |
-| JWT/bootstrap payloads (`FlowInitCarry`)    | Catches the parse error, formats `jwt-claim: payload decode failed: <reason>` and fails without chaining the cause.                                                                                                                |
+| Symbol                                   | Behaviour                                                                                                                                                                                                                          |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `describeJsonParseFailure(caught)`       | Returns a `JsonParseFailureText` of `invalid JSON (SyntaxError)`, or `invalid JSON (SyntaxError at position N)`. Other errors pass through as their message. It matches on `error.name`, so errors from another realm are covered. |
+| Fetch JSON responses (`JsonResponse`)    | Catches the parse error, formats `<verb> <safe-url> parse error: <reason>` and fails without chaining the cause.                                                                                                                   |
+| JWT/bootstrap payloads (`FlowInitCarry`) | Catches the parse error, formats `jwt-claim: payload decode failed: <reason>` and fails without chaining the cause.                                                                                                                |
 
 The position is read only from V8's trailing `JSON at position N` suffix, so digits inside a quoted body are never mistaken for it.
 

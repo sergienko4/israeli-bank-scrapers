@@ -5,6 +5,7 @@ import type { LifecyclePromise } from '../../../Base/Interfaces/CallbackTypes.js
 import ScraperError from '../../../Base/ScraperError.js';
 import { runWithBankContext } from '../../Logging/Debug.js';
 import { retireRunLogger } from '../../Logging/RootLogger.js';
+import { type IEnvironment, readEnvironment } from '../../Types/Environment.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isKnownBankSlug } from '../../Types/TraceConfig.js';
@@ -91,30 +92,76 @@ async function runWithCleanup(
 }
 
 /**
- * Build the zero-arg cleanup thunk passed to {@link runWithBankContext}.
- * @param tracker - Context tracker.
- * @param initialCtx - Initial pipeline context.
- * @returns Thunk invoking {@link runWithCleanup}.
+ * Run a synchronous initializer, retiring the run's logger when it throws.
+ * Context construction can log (and thus open the run's file logger) before
+ * failing; `runWithCleanup` never starts, so the executor must retire it.
+ * @param build - Initializer to run inside the open scope.
+ * @returns The initializer's result.
  */
-function makeCleanupThunk(
-  tracker: IContextTracker,
-  initialCtx: IPipelineContext,
-): () => Promise<Procedure<IPipelineContext>> {
-  return (): Promise<Procedure<IPipelineContext>> => runWithCleanup(tracker, initialCtx);
+function retireLoggerOnThrow<T>(build: () => T): T {
+  try {
+    return build();
+  } catch (error) {
+    retireRunLogger();
+    throw error;
+  }
+}
+
+/**
+ * Build and register the initial context, retiring the run logger on failure.
+ * @param descriptor - The pipeline to execute.
+ * @param credentials - User bank credentials.
+ * @returns The registered initial context.
+ */
+function buildReadyContext(
+  descriptor: IPipelineDescriptor,
+  credentials: ScraperCredentials,
+): IPipelineContext {
+  /**
+   * Build the unregistered initial context.
+   * @returns The initial context.
+   */
+  const build = (): IPipelineContext => buildInitialContext(descriptor, credentials);
+  const initialCtx = retireLoggerOnThrow(build);
+  registerOrFail(initialCtx);
+  return initialCtx;
+}
+
+/**
+ * Build the context and run phase reduction inside the execution's scope.
+ * @param descriptor - The pipeline to execute.
+ * @param credentials - User bank credentials.
+ * @returns Pipeline result Procedure.
+ */
+function runInsideScope(
+  descriptor: IPipelineDescriptor,
+  credentials: ScraperCredentials,
+): Promise<Procedure<IPipelineContext>> {
+  const initialCtx = buildReadyContext(descriptor, credentials);
+  const tracker: IContextTracker = { phases: descriptor.phases, lastCtx: initialCtx };
+  return runWithCleanup(tracker, initialCtx);
 }
 
 /**
  * Run phase reduction + cleanup inside the bank's async-local log context.
- * @param tracker - Context tracker.
- * @param initialCtx - Initial pipeline context carrying companyId.
+ * The context is built inside the scope so environment-dependent construction
+ * (logger, PII policy, client certificate) sees this execution's snapshot.
+ * @param descriptor - The pipeline to execute.
+ * @param credentials - User bank credentials.
+ * @param env - Environment snapshot for this execution.
  * @returns Pipeline result Procedure.
  */
 function runInBankContext(
-  tracker: IContextTracker,
-  initialCtx: IPipelineContext,
+  descriptor: IPipelineDescriptor,
+  credentials: ScraperCredentials,
+  env: IEnvironment,
 ): Promise<Procedure<IPipelineContext>> {
-  const run = makeCleanupThunk(tracker, initialCtx);
-  return runWithBankContext(initialCtx.companyId, run);
+  /**
+   * Build the context and reduce phases inside the scope.
+   * @returns Pipeline result Procedure.
+   */
+  const run = (): Promise<Procedure<IPipelineContext>> => runInsideScope(descriptor, credentials);
+  return runWithBankContext(descriptor.options.companyId, run, env);
 }
 
 /**
@@ -135,16 +182,15 @@ function registerOrFail(ctx: IPipelineContext): true {
  * Execute a pipeline descriptor against credentials.
  * @param descriptor - The pipeline to execute.
  * @param credentials - User bank credentials.
+ * @param env - Environment snapshot; defaults to the process boundary.
  * @returns Legacy result shape.
  */
 async function executePipeline(
   descriptor: IPipelineDescriptor,
   credentials: ScraperCredentials,
+  env: IEnvironment = readEnvironment(),
 ): Promise<IScraperScrapingResult> {
-  const initialCtx = buildInitialContext(descriptor, credentials);
-  registerOrFail(initialCtx);
-  const tracker: IContextTracker = { phases: descriptor.phases, lastCtx: initialCtx };
-  return toResult(await runInBankContext(tracker, initialCtx));
+  return toResult(await runInBankContext(descriptor, credentials, env));
 }
 
 export default executePipeline;

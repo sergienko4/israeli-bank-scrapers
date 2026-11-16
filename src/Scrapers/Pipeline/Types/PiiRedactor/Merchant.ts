@@ -20,7 +20,7 @@ export const CATEGORY: PiiCategory = 'merchant';
  * @returns Stable hint.
  */
 function redact(value: string): PiiHintString {
-  if (isPiiRedactionDisabled) return value as PiiHintString;
+  if (isPiiRedactionDisabled()) return value as PiiHintString;
   if (value.length === 0) return '' as PiiHintString;
   const n = graphemeCount(value);
   return `<merchant:${String(n)}>` as PiiHintString;

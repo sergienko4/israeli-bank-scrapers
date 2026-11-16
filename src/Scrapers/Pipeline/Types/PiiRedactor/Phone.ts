@@ -29,7 +29,7 @@ export const CATEGORY: PiiCategory = 'phone';
  * @returns Stable hint.
  */
 function redact(value: string): PiiHintString {
-  if (isPiiRedactionDisabled) return value as PiiHintString;
+  if (isPiiRedactionDisabled()) return value as PiiHintString;
   if (value.length === 0) return '' as PiiHintString;
   const digits = value.replaceAll(NON_DIGIT_RE, '');
   if (digits.length < MIN_HINT_LEN) return REDACTED_HINT as PiiHintString;

@@ -39,7 +39,7 @@ function replaceValueAttr(_match: string, content: string): PiiHintString {
  * @returns Redacted HTML.
  */
 function redact(html: string): PiiHintString {
-  if (isPiiRedactionDisabled) return html as PiiHintString;
+  if (isPiiRedactionDisabled()) return html as PiiHintString;
   if (html.length === 0) return '' as PiiHintString;
   let out = html;
   for (const p of LITERAL_TEXT_PII_PATTERNS) out = out.replaceAll(p.re, p.to);

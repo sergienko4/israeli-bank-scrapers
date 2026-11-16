@@ -14,6 +14,7 @@ import {
   type IBackfillPlanArgs,
   planBackfill,
 } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/WindowBackfill.js';
+import { readEnvironment } from '../../../../../Scrapers/Pipeline/Types/Environment.js';
 import type { Option } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import { isSome, none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { WindowNarrowing } from '../../../../../Scrapers/Pipeline/Types/WindowNarrowing.js';
@@ -148,26 +149,17 @@ describe('planBackfill/stance', () => {
 });
 
 describe('planBackfill/kill switch', () => {
-  // Restore rather than delete: an operator running the suite with the switch
-  // already set would otherwise have it silently cleared for every later test.
-  const original = process.env.WINDOW_BACKFILL;
-
-  afterEach(() => {
-    if (original === undefined) delete process.env.WINDOW_BACKFILL;
-    else process.env.WINDOW_BACKFILL = original;
-  });
-
   it('issues no extra request when an operator turns backfill off', () => {
-    process.env.WINDOW_BACKFILL = 'off';
-    const args = argsFor();
+    const env = readEnvironment({ WINDOW_BACKFILL: 'off' });
+    const args = argsFor({ env });
     const plan = planBackfill(args);
     expect(plan.shouldAsk).toBe(false);
     expect(plan.reason).toContain('WINDOW_BACKFILL=off');
   });
 
   it('stays on for any other value, so a typo cannot disable it', () => {
-    process.env.WINDOW_BACKFILL = 'false';
-    const args = argsFor();
+    const env = readEnvironment({ WINDOW_BACKFILL: 'false' });
+    const args = argsFor({ env });
     const plan = planBackfill(args);
     expect(plan.shouldAsk).toBe(true);
   });
@@ -176,14 +168,14 @@ describe('planBackfill/kill switch', () => {
     // Precedence matters beyond the log line: the coverage classifier reads
     // this code, so reporting a covered window as "switched off" would put an
     // account in doubt that the audit had just proved complete.
-    process.env.WINDOW_BACKFILL = 'off';
+    const env = readEnvironment({ WINDOW_BACKFILL: 'off' });
     const coverage: IWindowResult = {
       verdict: 'covered',
       requestedStartReadable: true,
       oldest: '2025-12-25',
       gapDays: 0,
     };
-    const args = argsFor({ coverage });
+    const args = argsFor({ coverage, env });
     const plan = planBackfill(args);
     expect(plan.shouldAsk).toBe(false);
     const stop = plan.shouldAsk ? 'asking' : plan.stop;

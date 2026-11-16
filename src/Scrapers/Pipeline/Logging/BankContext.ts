@@ -10,6 +10,7 @@
  */
 
 import { getActivePhase, getActiveStage } from '../Types/ActiveState.js';
+import { ENVIRONMENT, type IEnvironment } from '../Types/Environment.js';
 import { currentRunScope, openRunScope } from '../Types/RunScope.js';
 import { getActiveRunId } from '../Types/TraceConfig.js';
 
@@ -53,10 +54,15 @@ export function getBankMixin(): Record<string, string> {
  * identity, injected into every pino log line the function emits.
  * @param bank - The bank identifier (companyId).
  * @param fn - The function to execute within the scope.
+ * @param env - Environment snapshot for this execution.
  * @returns The result of the function.
  */
-export function runWithBankContext<T>(bank: string, fn: () => T): T {
-  return openRunScope(bank, fn);
+export function runWithBankContext<T>(
+  bank: string,
+  fn: () => T,
+  env: IEnvironment = ENVIRONMENT,
+): T {
+  return openRunScope(bank, env, fn);
 }
 
 /**

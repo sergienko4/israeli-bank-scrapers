@@ -36,6 +36,7 @@ import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import ScraperError from '../../../../Base/ScraperError.js';
 import { getDebug } from '../../../Logging/Debug.js';
 import type { ICertBundle } from '../../../Types/Domain/CertBundle.js';
+import { activeEnvironment, type IEnvironment } from '../../../Types/Environment.js';
 import { toErrorMessage } from '../../../Types/ErrorUtils.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
@@ -109,24 +110,23 @@ function resolveOverride(raw: string): Procedure<string> {
 }
 
 /**
- * Is an override configured for this env var?
- * @param envVar - Name of the override env var.
- * @returns True when the var is set to a non-empty value.
+ * Is an override configured?
+ * @param value - Environment override value.
+ * @returns True when the value is non-empty.
  */
-function hasOverride(envVar: string): boolean {
-  const raw = process.env[envVar];
-  return raw !== undefined && raw !== '';
+function hasOverride(value: string): boolean {
+  return value !== '';
 }
 
 /**
  * Resolve a single PEM part (cert or key) from its env override. Throws rather
  * than falling back, so a broken override never silently swaps the identity.
- * @param envVar - Name of the override env var.
+ * @param value - Environment override value.
+ * @param envVar - Name of the override env var, for diagnostics.
  * @returns The resolved PEM text.
  */
-function resolveOverridePart(envVar: string): string {
-  const raw = process.env[envVar] ?? '';
-  const resolved = resolveOverride(raw);
+function resolveOverridePart(value: string, envVar: string): string {
+  const resolved = resolveOverride(value);
   if (!isOk(resolved)) throw new ScraperError(resolved.errorMessage);
   if (looksLikePem(resolved.value)) return resolved.value;
   const detail = `mtls override is not PEM material (${envVar})`;
@@ -164,11 +164,12 @@ function checkKeyPair(bundle: ICertBundle): boolean {
 
 /**
  * Resolve the cert + key from the env overrides, requiring both halves.
+ * @param env - Environment snapshot holding the overrides.
  * @returns The override-supplied PEM pair.
  */
-function resolveFromOverrides(): ICertBundle {
-  const cert = resolveOverridePart(CERT_ENV);
-  const key = resolveOverridePart(KEY_ENV);
+function resolveFromOverrides(env: IEnvironment): ICertBundle {
+  const cert = resolveOverridePart(env.oneZeroMtlsCert, CERT_ENV);
+  const key = resolveOverridePart(env.oneZeroMtlsKey, KEY_ENV);
   const bundle: ICertBundle = { cert, key };
   assertPairMatches(bundle);
   return bundle;
@@ -269,11 +270,12 @@ function warnIfExpiring(cert: string): boolean {
 /**
  * Assert the override pair is all-or-nothing, so an override certificate is
  * never paired with the bundled key (or vice versa).
+ * @param env - Environment snapshot holding the overrides.
  * @returns True when at least one override is configured.
  */
-function hasCompleteOverride(): boolean {
-  const isCertSet = hasOverride(CERT_ENV);
-  const isKeySet = hasOverride(KEY_ENV);
+function hasCompleteOverride(env: IEnvironment): boolean {
+  const isCertSet = hasOverride(env.oneZeroMtlsCert);
+  const isKeySet = hasOverride(env.oneZeroMtlsKey);
   if (isCertSet === isKeySet) return isCertSet;
   throw new ScraperError(PAIR_MSG);
 }
@@ -281,11 +283,12 @@ function hasCompleteOverride(): boolean {
 /**
  * Resolve the OneZero client certificate bundle (complete env override pair →
  * bundled default), logging a near-expiry warning as a side effect.
+ * @param env - Environment snapshot; defaults to the process boundary.
  * @returns The resolved cert + key PEM pair.
  */
-function resolveOneZeroClientCert(): ICertBundle {
-  const isOverridden = hasCompleteOverride();
-  const bundle = isOverridden ? resolveFromOverrides() : resolveBundledDefault();
+function resolveOneZeroClientCert(env: IEnvironment = activeEnvironment()): ICertBundle {
+  const isOverridden = hasCompleteOverride(env);
+  const bundle = isOverridden ? resolveFromOverrides(env) : resolveBundledDefault();
   warnIfExpiring(bundle.cert);
   return bundle;
 }

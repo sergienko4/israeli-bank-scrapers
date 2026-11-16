@@ -14,6 +14,7 @@ import { join } from 'node:path';
 
 import { jest } from '@jest/globals';
 
+import { readEnvironment } from '../../../../../../Scrapers/Pipeline/Types/Environment.js';
 import { MTLS_TEST_KEY_B64 } from './MtlsTestCertData.js';
 
 /** Logger shared by the module under test and the assertion surface. */
@@ -40,6 +41,15 @@ jest.unstable_mockModule(
 
 const ONE_ZERO =
   await import('../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/OneZeroClientCert.js');
+
+/**
+ * Resolve with the process environment captured at call time.
+ * @returns The resolved certificate bundle.
+ */
+function resolveCurrent(): ReturnType<typeof ONE_ZERO.resolveOneZeroClientCert> {
+  const env = readEnvironment(process.env);
+  return ONE_ZERO.resolveOneZeroClientCert(env);
+}
 
 /** Whole days in one day. */
 const MS_PER_DAY = 86_400_000;
@@ -127,13 +137,13 @@ describe('resolveOneZeroClientCert', () => {
   });
 
   it('decodes the bundled base64 default into valid PEM cert + key', () => {
-    const bundle = ONE_ZERO.resolveOneZeroClientCert();
+    const bundle = resolveCurrent();
     expect(bundle.cert).toContain('BEGIN CERTIFICATE');
     expect(bundle.key).toContain('PRIVATE KEY');
   });
 
   it('bundles a private key that pairs with the bundled certificate', () => {
-    const bundle = ONE_ZERO.resolveOneZeroClientCert();
+    const bundle = resolveCurrent();
     const x509 = new X509Certificate(bundle.cert);
     const privateKey = createPrivateKey(bundle.key);
     const isPaired = x509.checkPrivateKey(privateKey);
@@ -141,19 +151,19 @@ describe('resolveOneZeroClientCert', () => {
   });
 
   it('uses an inline-PEM env override verbatim for the cert', () => {
-    const reference = ONE_ZERO.resolveOneZeroClientCert();
+    const reference = resolveCurrent();
     process.env[CERT_ENV] = reference.cert;
     process.env[KEY_ENV] = reference.key;
-    const bundle = ONE_ZERO.resolveOneZeroClientCert();
+    const bundle = resolveCurrent();
     expect(bundle.cert).toBe(reference.cert);
   });
 
   it('reads a filesystem-path env override for the cert', () => {
-    const reference = ONE_ZERO.resolveOneZeroClientCert();
+    const reference = resolveCurrent();
     const filePath = writeTempFile(reference.cert);
     process.env[CERT_ENV] = filePath;
     process.env[KEY_ENV] = reference.key;
-    const bundle = ONE_ZERO.resolveOneZeroClientCert();
+    const bundle = resolveCurrent();
     expect(bundle.cert).toBe(reference.cert);
   });
 
@@ -162,33 +172,33 @@ describe('resolveOneZeroClientCert', () => {
     const missing = join(base, 'oz-mtls-does-not-exist.pem');
     process.env[CERT_ENV] = missing;
     process.env[KEY_ENV] = missing;
-    expect(ONE_ZERO.resolveOneZeroClientCert).toThrow(/read failed/);
+    expect(resolveCurrent).toThrow(/read failed/);
   });
 
   it('throws rather than falling back when the override file holds no PEM', () => {
     const filePath = writeTempFile('this file has no pem material');
     process.env[CERT_ENV] = filePath;
     process.env[KEY_ENV] = filePath;
-    expect(ONE_ZERO.resolveOneZeroClientCert).toThrow(/not PEM material/);
+    expect(resolveCurrent).toThrow(/not PEM material/);
   });
 
   it('throws when only the cert override is set (incomplete pair)', () => {
-    const reference = ONE_ZERO.resolveOneZeroClientCert();
+    const reference = resolveCurrent();
     process.env[CERT_ENV] = reference.cert;
-    expect(ONE_ZERO.resolveOneZeroClientCert).toThrow(/set both/);
+    expect(resolveCurrent).toThrow(/set both/);
   });
 
   it('throws when only the key override is set (incomplete pair)', () => {
-    const reference = ONE_ZERO.resolveOneZeroClientCert();
+    const reference = resolveCurrent();
     process.env[KEY_ENV] = reference.key;
-    expect(ONE_ZERO.resolveOneZeroClientCert).toThrow(/set both/);
+    expect(resolveCurrent).toThrow(/set both/);
   });
 
   it('throws when the override key does not match the override cert', () => {
-    const reference = ONE_ZERO.resolveOneZeroClientCert();
+    const reference = resolveCurrent();
     process.env[CERT_ENV] = reference.cert;
     process.env[KEY_ENV] = MISMATCHED_KEY_PEM;
-    expect(ONE_ZERO.resolveOneZeroClientCert).toThrow(/do not match/);
+    expect(resolveCurrent).toThrow(/do not match/);
   });
 });
 
@@ -196,7 +206,7 @@ describe('expiry warning branches', () => {
   let validToMs: number;
 
   beforeAll(() => {
-    const reference = ONE_ZERO.resolveOneZeroClientCert();
+    const reference = resolveCurrent();
     const x509 = new X509Certificate(reference.cert);
     validToMs = Date.parse(x509.validTo);
   });
@@ -213,7 +223,7 @@ describe('expiry warning branches', () => {
     { title: 'warns with the expired text after validity', days: -1, message: EXPIRED_MSG },
   ])('$title', ({ days, message }) => {
     jest.spyOn(Date, 'now').mockReturnValue(validToMs - days * MS_PER_DAY);
-    const bundle = ONE_ZERO.resolveOneZeroClientCert();
+    const bundle = resolveCurrent();
     expect(bundle.cert).toContain('BEGIN CERTIFICATE');
     if (message === '') {
       expect(LOG.warn).not.toHaveBeenCalled();

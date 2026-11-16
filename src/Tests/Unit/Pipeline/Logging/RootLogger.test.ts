@@ -12,7 +12,6 @@ import type pino from 'pino';
 
 import ScraperError from '../../../../Scrapers/Base/ScraperError.js';
 import {
-  buildActiveOptions,
   buildPinoOptions,
   buildSilentOptions,
   getRootLogger,
@@ -375,9 +374,9 @@ describe('Feature — buildPinoOptions silent vs active dispatch (CR #337)', () 
     expect(typeof opts.mixin).toBe('function');
   });
 
-  it('buildActiveOptions carries the transport reference unchanged', () => {
+  it('buildPinoOptions carries the transport reference unchanged', () => {
     const fakeTransport = { target: 'pino-pretty', options: { colorize: true } };
-    const opts = buildActiveOptions(fakeTransport);
+    const opts = buildPinoOptions(fakeTransport);
     expect(opts.transport).toBe(fakeTransport);
   });
 });
