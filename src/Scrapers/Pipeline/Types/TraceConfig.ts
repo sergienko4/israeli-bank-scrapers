@@ -11,10 +11,10 @@
  *     pipeline.log
  *     network/<NNNN>-<METHOD>-<safe-url>.json
  *
- * `<bank>` is auto-detected from the test pattern in process.argv (e.g.
- * `Beinleumi.e2e-real.test.ts` → `beinleumi`); also accepts an explicit
- * registration via `setActiveBank(slug)` from the pipeline orchestrator.
- * Throws when no bank can be resolved — there is no run without a bank.
+ * `<bank>` comes from the execution's run scope. Outside a scope, tests may
+ * register one explicitly with `setActiveBank(slug)`; there is no look at
+ * `process.argv`. Throws when no bank can be resolved — there is no run
+ * without a bank.
  * `cc` is centiseconds (1/100 s) for sub-second uniqueness across parallel
  * jest invocations.
  *
@@ -24,16 +24,17 @@
  * `LOG_LEVEL` independently controls log verbosity only — it
  * no longer decides whether artefacts land on disk.
  *
- * Override with `RUNS_ROOT` env var when the default `C:\tmp\runs` is wrong
- * (e.g. CI). Folder paths and `runId` are cached within one bank run and
- * reset automatically when `setActiveBank` switches to a different bank slug.
+ * The root comes from the environment boundary (`RUNS_ROOT`). Folder paths
+ * and `runId` are cached within one bank run and reset automatically when
+ * `setActiveBank` switches to a different bank slug.
  */
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-import { type BankSlugLower, detectBankFromArgv, KNOWN_BANK_SLUGS } from './BankSlugs.js';
+import { type BankSlugLower, KNOWN_BANK_SLUGS } from './BankSlugs.js';
 import type { Brand } from './Brand.js';
+import { activeEnvironment } from './Environment.js';
 import { currentRunScope, type IRunTrace, makeRunTrace } from './RunScope.js';
 import type { RunStampStr } from './TraceStamp.js';
 import { nextRunStamp, resetRunStampState } from './TraceStamp.js';
@@ -50,8 +51,6 @@ type LogFilePath = Brand<string, 'LogFilePath'>;
 /** Absolute network-dump directory (or empty). */
 type NetworkDumpDirPath = Brand<string, 'NetworkDumpDirPath'>;
 
-/** Default root for per-run artefact folders — overridable via RUNS_ROOT. */
-const DEFAULT_RUNS_ROOT = String.raw`C:\tmp\runs`;
 /** Sub-directory for network response body dumps. */
 const NETWORK_SUBDIR = 'network';
 /** Filename for the pipeline log inside the run folder. */
@@ -109,12 +108,11 @@ function traceOwner(): IRunTrace {
 }
 
 /**
- * The process-global bank: the registered slug, else the one detected from argv.
+ * The process-global bank: the slug tests or pre-run callers registered.
  * @returns Bank slug, or empty string when not yet known.
  */
 function globalBankSlug(): BankSlugLower {
-  if (activeBankCache) return activeBankCache as BankSlugLower;
-  return detectBankFromArgv();
+  return (activeBankCache || '') as BankSlugLower;
 }
 
 /**
@@ -140,8 +138,7 @@ function resolveBankSlug(): BankSlugLower {
  * @returns True only when the flag is the literal `true`.
  */
 export function isForensicTrace(): IsForensicTraceActive {
-  const v = (process.env.FORENSIC_TRACE ?? '').trim().toLowerCase();
-  return (v === 'true') as IsForensicTraceActive;
+  return activeEnvironment().forensicTrace as IsForensicTraceActive;
 }
 
 /**
@@ -180,8 +177,7 @@ function runSeed(): IRunSeed | false {
   if (bank.length === 0) return false;
   const stamp = getActiveRunId();
   if (stamp.length === 0) return false;
-  const root = process.env.RUNS_ROOT ?? DEFAULT_RUNS_ROOT;
-  return { root, bank, stamp };
+  return { root: activeEnvironment().runsRoot, bank, stamp };
 }
 
 /**
@@ -316,5 +312,5 @@ export function resetTraceConfigCache(): true {
   return true;
 }
 
-export { detectBankFromArgv, isKnownBankSlug } from './BankSlugs.js';
+export { isKnownBankSlug } from './BankSlugs.js';
 export { formatRunStamp } from './TraceStamp.js';

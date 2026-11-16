@@ -10,6 +10,7 @@
  */
 
 import type { Brand } from '../Brand.js';
+import { ENVIRONMENT } from '../Environment.js';
 
 /**
  * Default-deny replacement string — used whenever a value fails to
@@ -51,10 +52,10 @@ export const AMOUNT_POSITIVE_HINT = '+***' as const;
  * this on — the unified `redact()` entry point in the Facade enforces
  * the no-bypass invariant via the `AuthCredentials` strategy.
  *
- * Read exactly once at module load; every downstream module reads
+ * Read once from the environment boundary; every downstream module reads
  * only this constant.
  */
-export const isPiiRedactionDisabled: boolean = process.env.PII_REDACTION === 'off';
+export const isPiiRedactionDisabled: boolean = ENVIRONMENT.piiRedactionOff;
 
 /** Stable PII hint string emitted by every redact strategy. */
 export type PiiHintString = Brand<string, 'PiiHintString'>;

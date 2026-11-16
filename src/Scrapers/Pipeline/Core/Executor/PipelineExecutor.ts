@@ -5,6 +5,7 @@ import type { LifecyclePromise } from '../../../Base/Interfaces/CallbackTypes.js
 import ScraperError from '../../../Base/ScraperError.js';
 import { runWithBankContext } from '../../Logging/Debug.js';
 import { retireRunLogger } from '../../Logging/RootLogger.js';
+import { type IEnvironment, readEnvironment } from '../../Types/Environment.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isKnownBankSlug } from '../../Types/TraceConfig.js';
@@ -107,14 +108,16 @@ function makeCleanupThunk(
  * Run phase reduction + cleanup inside the bank's async-local log context.
  * @param tracker - Context tracker.
  * @param initialCtx - Initial pipeline context carrying companyId.
+ * @param env - Environment snapshot for this execution.
  * @returns Pipeline result Procedure.
  */
 function runInBankContext(
   tracker: IContextTracker,
   initialCtx: IPipelineContext,
+  env: IEnvironment,
 ): Promise<Procedure<IPipelineContext>> {
   const run = makeCleanupThunk(tracker, initialCtx);
-  return runWithBankContext(initialCtx.companyId, run);
+  return runWithBankContext(initialCtx.companyId, run, env);
 }
 
 /**
@@ -135,16 +138,18 @@ function registerOrFail(ctx: IPipelineContext): true {
  * Execute a pipeline descriptor against credentials.
  * @param descriptor - The pipeline to execute.
  * @param credentials - User bank credentials.
+ * @param env - Environment snapshot; defaults to the process boundary.
  * @returns Legacy result shape.
  */
 async function executePipeline(
   descriptor: IPipelineDescriptor,
   credentials: ScraperCredentials,
+  env: IEnvironment = readEnvironment(),
 ): Promise<IScraperScrapingResult> {
   const initialCtx = buildInitialContext(descriptor, credentials);
   registerOrFail(initialCtx);
   const tracker: IContextTracker = { phases: descriptor.phases, lastCtx: initialCtx };
-  return toResult(await runInBankContext(tracker, initialCtx));
+  return toResult(await runInBankContext(tracker, initialCtx, env));
 }
 
 export default executePipeline;

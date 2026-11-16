@@ -10,6 +10,7 @@ import * as path from 'node:path';
 import { jest } from '@jest/globals';
 
 import type * as TraceConfigModuleType from '../../../../Scrapers/Pipeline/Types/TraceConfig.js';
+import { detectBankFromArgv } from '../../../Helpers/DetectBankFromArgv.js';
 
 type TraceConfigModule = typeof TraceConfigModuleType;
 
@@ -159,18 +160,24 @@ describe('TraceConfig — FORENSIC_TRACE=true gates artefact emission', () => {
     const hasEmptyWarmed = warmed.some((value): boolean => value === '');
     expect(hasEmptyWarmed).toBe(false);
     process.env.FORENSIC_TRACE = 'false';
+    jest.resetModules();
+    const offMod = await loadTraceConfig();
+    offMod.setActiveBank('beinleumi');
     const afterFalse = [
-      mod.getRunFolder(),
-      mod.getLogFile(),
-      mod.getNetworkDumpDir(),
-      mod.getSubStepNetworkDumpDir('home', 'PRE'),
+      offMod.getRunFolder(),
+      offMod.getLogFile(),
+      offMod.getNetworkDumpDir(),
+      offMod.getSubStepNetworkDumpDir('home', 'PRE'),
     ];
     delete process.env.FORENSIC_TRACE;
+    jest.resetModules();
+    const unsetMod = await loadTraceConfig();
+    unsetMod.setActiveBank('beinleumi');
     const afterUnset = [
-      mod.getRunFolder(),
-      mod.getLogFile(),
-      mod.getNetworkDumpDir(),
-      mod.getSubStepNetworkDumpDir('home', 'PRE'),
+      unsetMod.getRunFolder(),
+      unsetMod.getLogFile(),
+      unsetMod.getNetworkDumpDir(),
+      unsetMod.getSubStepNetworkDumpDir('home', 'PRE'),
     ];
     expect(afterFalse).toEqual(['', '', '', '']);
     expect(afterUnset).toEqual(['', '', '', '']);
@@ -251,11 +258,8 @@ describe('TraceConfig — FORENSIC_TRACE=true gates artefact emission', () => {
     expect(stamp).toBe('28-04-2026_18453025');
   });
 
-  it('detectBankFromArgv returns "" when no bank test pattern is in argv', async () => {
-    delete process.env.FORENSIC_TRACE;
-    jest.resetModules();
-    const mod = await loadTraceConfig();
-    const detected = mod.detectBankFromArgv();
+  it('detectBankFromArgv returns "" when no bank test pattern is in argv', () => {
+    const detected = detectBankFromArgv(['node', 'jest', 'src/Tests/Unit/Pipeline']);
     expect(detected).toBe('');
   });
 
@@ -377,34 +381,24 @@ describe('TraceConfig — FORENSIC_TRACE=true gates artefact emission', () => {
     ['onezero', 'onezero.e2e-real.test.ts'],
     ['pepper', 'pepper.e2e-real.test.ts'],
     ['visacal', 'visacal.e2e-real.test.ts'],
-  ])('detectBankFromArgv recognises %s', async (slug: string, argv: string) => {
-    const originalArgv = process.argv;
-    process.argv = ['node', 'jest', argv];
-    jest.resetModules();
-    const mod = await loadTraceConfig();
-    const detected = mod.detectBankFromArgv();
-    process.argv = originalArgv;
+  ])('detectBankFromArgv recognises %s', (slug: string, argv: string) => {
+    const detected = detectBankFromArgv(['node', 'jest', argv]);
     expect(detected).toBe(slug);
   });
 
-  it('detectBankFromArgv recognises jest --testPathPatterns regex-escaped form', async () => {
-    const originalArgv = process.argv;
+  it('detectBankFromArgv recognises jest --testPathPatterns regex-escaped form', () => {
     const argvFlag = String.raw`--testPathPatterns=Beinleumi\.e2e-real\.test\.ts$`;
-    process.argv = ['node', 'jest', argvFlag];
-    jest.resetModules();
-    const mod = await loadTraceConfig();
-    const detected = mod.detectBankFromArgv();
-    process.argv = originalArgv;
+    const detected = detectBankFromArgv(['node', 'jest', argvFlag]);
     expect(detected).toBe('beinleumi');
   });
 
-  it('detectBankFromArgv ignores text that does not match the test-file pattern', async () => {
-    const originalArgv = process.argv;
-    process.argv = ['node', 'jest', '--maxWorkers=2', '--testPathPatterns=Foo'];
-    jest.resetModules();
-    const mod = await loadTraceConfig();
-    const detected = mod.detectBankFromArgv();
-    process.argv = originalArgv;
+  it('detectBankFromArgv ignores text that does not match the test-file pattern', () => {
+    const detected = detectBankFromArgv([
+      'node',
+      'jest',
+      '--maxWorkers=2',
+      '--testPathPatterns=Foo',
+    ]);
     expect(detected).toBe('');
   });
 
@@ -437,17 +431,15 @@ describe('TraceConfig — FORENSIC_TRACE=true gates artefact emission', () => {
     expect(accepted).toBe(true);
   });
 
-  it('on-trace: bank slug derived from argv shows up in folder path', async () => {
+  it('on-trace: the registered bank slug shows up in the folder path', async () => {
     const tmpRoot = makeTmpRoot('traceconfig-bank');
-    const originalArgv = process.argv;
-    process.argv = ['node', 'jest', 'src/Tests/E2eReal/beinleumi.e2e-real.test.ts'];
     process.env.FORENSIC_TRACE = 'true';
     process.env.RUNS_ROOT = tmpRoot;
     jest.resetModules();
     const mod = await loadTraceConfig();
+    mod.setActiveBank('beinleumi');
     const folder = mod.getRunFolder();
     const expectedSeg = `${path.sep}beinleumi${path.sep}`;
-    process.argv = originalArgv;
     expect(folder).toContain(expectedSeg);
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   });
@@ -497,10 +489,11 @@ describe('TraceConfig — setActiveBank bank-switch cache isolation', () => {
     jest.resetModules();
     const mod = await loadTraceConfig();
     const scopes = await import('../../../../Scrapers/Pipeline/Types/RunScope.js');
+    const environment = await import('../../../../Scrapers/Pipeline/Types/Environment.js');
     mod.setActiveBank('beinleumi');
     const folderBefore = mod.getRunFolder();
     const runIdBefore = mod.getActiveRunId();
-    scopes.openRunScope('discount', () => mod.setActiveBank('discount'));
+    scopes.openRunScope('discount', environment.ENVIRONMENT, () => mod.setActiveBank('discount'));
     const folderAfter = mod.getRunFolder();
     expect(folderBefore).toContain(`${path.sep}beinleumi${path.sep}`);
     expect(folderAfter).toContain(`${path.sep}discount${path.sep}`);

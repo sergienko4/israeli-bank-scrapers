@@ -11,6 +11,7 @@
  */
 
 import type { WindowUnprovenReason } from '../../../../WindowCoverage.js';
+import { activeEnvironment, type IEnvironment } from '../../Types/Environment.js';
 import type { Option } from '../../Types/Option.js';
 import type { WindowNarrowing } from '../../Types/WindowNarrowing.js';
 import { BACKFILL_EXCLUSION } from '../../Types/WindowNarrowing.js';
@@ -26,11 +27,10 @@ import type { IWindowResult } from './CoverageAudit/WindowCoverage.js';
  */
 const MAX_BACKFILL_ASKS = 12;
 
-/** Operator kill-switch: `WINDOW_BACKFILL=off` suppresses every extra ask. */
-const KILL_SWITCH = 'off';
-
 /** Inputs for one backfill decision. */
 export interface IBackfillPlanArgs {
+  /** Environment override; defaults to the active run's boundary. */
+  readonly env?: IEnvironment;
   /** The bank's declared stance — decides whether a re-ask is possible. */
   readonly stance: WindowNarrowing;
   /** Verdict for everything collected so far. */
@@ -67,10 +67,11 @@ interface IBlockRule {
 
 /**
  * Whether the operator switched backfill off for this run.
+ * @param args - The decision inputs.
  * @returns True when the kill-switch is set.
  */
-function isDisabled(): boolean {
-  return process.env.WINDOW_BACKFILL === KILL_SWITCH;
+function isDisabled(args: IBackfillPlanArgs): boolean {
+  return args.env?.windowBackfillOff ?? activeEnvironment().windowBackfillOff;
 }
 
 /**

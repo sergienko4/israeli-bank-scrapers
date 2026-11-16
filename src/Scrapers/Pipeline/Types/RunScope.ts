@@ -15,6 +15,8 @@
  */
 import { AsyncLocalStorage } from 'node:async_hooks';
 
+import type { IEnvironment } from './Domain/EnvironmentTypes.js';
+
 /** The run identity and artefact folders of one execution. */
 interface IRunTrace {
   runId: string | false;
@@ -30,6 +32,7 @@ interface IRunTrace {
 /** Everything one execution owns. */
 interface IRunScope {
   readonly bank: string;
+  readonly env: IEnvironment;
   phase: string;
   stage: string;
   readonly trace: IRunTrace;
@@ -80,11 +83,12 @@ function currentRunScope(): IRunScope | false {
  * Run a function inside a fresh scope for `bank`. Phase and stage start at the
  * same values the process-global fallback starts with.
  * @param bank - The bank identifier (companyId).
+ * @param env - The environment snapshot this execution uses.
  * @param fn - The function to run inside the scope.
  * @returns Whatever `fn` returns.
  */
-function openRunScope<T>(bank: string, fn: () => T): T {
-  const scope: IRunScope = { bank, phase: 'init', stage: 'PRE', trace: makeRunTrace() };
+function openRunScope<T>(bank: string, env: IEnvironment, fn: () => T): T {
+  const scope: IRunScope = { bank, env, phase: 'init', stage: 'PRE', trace: makeRunTrace() };
   return RUN_SCOPE.run(scope, fn);
 }
 

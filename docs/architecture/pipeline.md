@@ -279,6 +279,15 @@ A login step can set cookies the bank expects the client to have written, and re
 
 A step fails before any request, naming no value: `ref cookie.<name> miss` when no required cookie applies or the run has no domain jar; `ref cookie.<name> bad` when the raw value is over 4096 characters or holds a malformed escape; `<step> setCookies <name> invalid` when a ref does not resolve to cookie-octets; `<step> setCookies needs a cookie session` when the run has no cookie jar. The build refuses `setCookies` without `transport.cookieDomains`, a cookie name that is not an HTTP token, and malformed sources (`API_DIRECT_NATIVE_RULES` and `API_DIRECT_COOKIE_RULES`).
 
+## Environment boundary
+
+Production Pipeline code reads `process.env` and `process.argv` only in
+`Types/Environment.ts`. `readEnvironment()` produces an immutable
+`IEnvironment`; `ENVIRONMENT` is the process snapshot used outside a run and
+`activeEnvironment()` returns the copy carried by the current execution. A
+flag changed mid-run therefore affects the next execution, not the one already
+in flight.
+
 ## Source pointers
 
 - [`PipelineAssembly.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Core/Builder/PipelineAssembly.ts) — `PHASE_CHAIN` slot declarations

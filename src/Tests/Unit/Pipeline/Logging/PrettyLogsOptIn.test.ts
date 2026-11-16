@@ -25,10 +25,11 @@
 import { jest } from '@jest/globals';
 
 import {
-  buildActiveOptions,
+  buildPinoOptions,
   buildTransport,
   instantiateLogger,
 } from '../../../../Scrapers/Pipeline/Logging/RootLogger.js';
+import { readEnvironment } from '../../../../Scrapers/Pipeline/Types/Environment.js';
 
 /** A resolved trace-file destination. */
 const LOG_FILE = '/tmp/pipeline-pretty-opt-in.log';
@@ -40,6 +41,36 @@ const NO_LOG_FILE = '';
 const PRETTY_TARGET = 'pino-pretty';
 
 /**
+ * Environment captured at call time, so each spec controls the flags.
+ * @returns The current environment snapshot.
+ */
+function envNow(): ReturnType<typeof readEnvironment> {
+  return readEnvironment(process.env);
+}
+
+/**
+ * Choose a transport using the current flags.
+ * @param logFile - Resolved log file path.
+ * @returns The transport choice.
+ */
+function transportFor(logFile: string): ReturnType<typeof buildTransport> {
+  const env = envNow();
+  return buildTransport(logFile, env);
+}
+
+/**
+ * Build active pino options using the current flags.
+ * @param target - Transport target.
+ * @returns Pino logger options.
+ */
+function activeOptionsFor(
+  target: Parameters<typeof buildPinoOptions>[0],
+): ReturnType<typeof buildPinoOptions> {
+  const env = envNow();
+  return buildPinoOptions(target, env);
+}
+
+/**
  * Serialise a transport choice so a spec can assert on the targets it names
  * without destructuring pino's single-vs-multi union.
  *
@@ -47,7 +78,7 @@ const PRETTY_TARGET = 'pino-pretty';
  * @returns JSON form of the chosen transport.
  */
 function describeTransport(logFile: string): string {
-  const transport = buildTransport(logFile);
+  const transport = transportFor(logFile);
   return JSON.stringify(transport);
 }
 
@@ -67,7 +98,7 @@ describe('pretty logs opt-in', () => {
 
   it('[LOG-1] a consumer who asked for nothing gets no transport at all', () => {
     delete process.env.PRETTY_LOGS;
-    const transport = buildTransport(NO_LOG_FILE);
+    const transport = transportFor(NO_LOG_FILE);
     expect(transport).toBe(false);
   });
 
@@ -81,7 +112,7 @@ describe('pretty logs opt-in', () => {
     delete process.env.PRETTY_LOGS;
     delete process.env.CI;
     process.env.NODE_ENV = 'development';
-    const transport = buildTransport(NO_LOG_FILE);
+    const transport = transportFor(NO_LOG_FILE);
     expect(transport).toBe(false);
   });
 
@@ -100,13 +131,14 @@ describe('pretty logs opt-in', () => {
 
   it('[LOG-6] the flag is default-deny, not truthy-anything', () => {
     process.env.PRETTY_LOGS = '1';
-    const transport = buildTransport(NO_LOG_FILE);
+    const transport = transportFor(NO_LOG_FILE);
     expect(transport).toBe(false);
   });
 
   it('[LOG-7] a transport that cannot be built degrades instead of throwing', () => {
-    const unresolvable = buildActiveOptions({ target: 'pino-pretty-not-installed' });
-    const logger = instantiateLogger(NO_LOG_FILE, unresolvable);
+    const unresolvable = activeOptionsFor({ target: 'pino-pretty-not-installed' });
+    const env = envNow();
+    const logger = instantiateLogger(NO_LOG_FILE, unresolvable, env);
     expect(() => {
       logger.info('still usable');
     }).not.toThrow();
@@ -126,8 +158,9 @@ describe('pretty logs opt-in', () => {
       const text = String(warning);
       warnings.push(text);
     });
-    const unresolvable = buildActiveOptions({ target: 'pino-file-not-installed' });
-    instantiateLogger(NO_LOG_FILE, unresolvable);
+    const unresolvable = activeOptionsFor({ target: 'pino-file-not-installed' });
+    const env = envNow();
+    instantiateLogger(NO_LOG_FILE, unresolvable, env);
     spy.mockRestore();
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).not.toContain('PRETTY_LOGS');
@@ -148,8 +181,9 @@ describe('pretty logs opt-in', () => {
       const text = String(warning);
       warnings.push(text);
     });
-    const unresolvable = buildActiveOptions({ target: 'pino-file-not-installed' });
-    instantiateLogger(LOG_FILE, unresolvable);
+    const unresolvable = activeOptionsFor({ target: 'pino-file-not-installed' });
+    const env = envNow();
+    instantiateLogger(LOG_FILE, unresolvable, env);
     spy.mockRestore();
     expect(warnings[0]).not.toContain('PRETTY_LOGS');
   });
@@ -168,8 +202,9 @@ describe('pretty logs opt-in', () => {
       const text = String(warning);
       warnings.push(text);
     });
-    const unresolvable = buildActiveOptions({ target: 'pino-pretty-not-installed' });
-    instantiateLogger(NO_LOG_FILE, unresolvable);
+    const unresolvable = activeOptionsFor({ target: 'pino-pretty-not-installed' });
+    const env = envNow();
+    instantiateLogger(NO_LOG_FILE, unresolvable, env);
     spy.mockRestore();
     expect(warnings[0]).toContain('PRETTY_LOGS');
   });

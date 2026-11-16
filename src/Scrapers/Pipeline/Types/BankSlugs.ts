@@ -1,5 +1,5 @@
 /**
- * The banks the trace layer knows, and how a run's bank is recognised.
+ * The banks the trace layer knows, and whether a slug names one.
  *
  * <p>Pure and stateless: nothing here registers or remembers a bank, so an
  * execution can validate its own bank without touching process-global state.
@@ -16,41 +16,12 @@ type BankSlugLower = Brand<string, 'BankSlugLower'>;
 type IsKnownBank = Brand<boolean, 'IsKnownBank'>;
 
 /**
- * Bank slugs the auto-detector recognises in test argv. Derived from the
- * public enum so a new bank cannot be forgotten. Lowercase, single token.
+ * Bank slugs the trace layer recognises. Derived from the public enum so a
+ * new bank cannot be forgotten. Lowercase, single token.
  */
 const KNOWN_BANK_SLUGS: readonly string[] = Object.values(CompanyTypes).map(bank =>
   bank.toLowerCase(),
 );
-
-/**
- * Build the regex that matches a bank slug in the canonical test-file name
- * `<Bank>.e2e-real.test.ts`. Extracted to flatten detectBankFromArgv (the
- * codebase forbids nesting `RegExp` inside the loop).
- * @param slug - Lowercase bank slug.
- * @returns Anchored regex for that slug.
- */
-function bankSlugRegex(slug: string): RegExp {
-  // Slug must be preceded by start-of-string or any non-word char (`\W`)
-  // so substrings like `--maxWorkers=2` don't trigger a false match for
-  // the `max` slug (the `s` after `max` is a word char), but a real path
-  // (`/Tests/E2eReal/isracard.e2e-real.test.ts`) and a jest-flag form
-  // (`--testPathPatterns=Isracard\.e2e-real\.test\.ts$`) do match. Each
-  // dot is `\\?\.` so we accept BOTH literal and regex-escaped forms.
-  return new RegExp(String.raw`(^|\W)${slug}\\?\.e2e-real\\?\.test\\?\.ts`);
-}
-
-/**
- * Detect the active bank slug from `process.argv` by matching the canonical
- * test-file pattern `<Bank>.e2e-real.test.ts`. Returns the lowercase slug
- * when matched, else `''` so the caller can decide how to handle it.
- * @returns Lowercase bank slug, or empty string when no match.
- */
-export function detectBankFromArgv(): BankSlugLower {
-  const haystack = process.argv.join(' ').toLowerCase();
-  const match = KNOWN_BANK_SLUGS.find((slug): boolean => bankSlugRegex(slug).test(haystack));
-  return (match ?? '') as BankSlugLower;
-}
 
 /**
  * Whether `slug` names a bank the trace layer knows. Pure: it registers nothing,
