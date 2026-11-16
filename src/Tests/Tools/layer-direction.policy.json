@@ -1,0 +1,14 @@
+{
+  "note": "Allowed import targets per Pipeline layer. The ratchet may only remove targets.",
+  "layers": ["Banks", "Core", "Phases", "Mediator", "Strategy", "Registry", "Logging", "Types"],
+  "allowed": {
+    "Banks": ["Banks", "Core", "Phases", "Mediator", "Strategy", "Registry", "Logging", "Types"],
+    "Core": ["Core", "Phases", "Mediator", "Strategy", "Registry", "Logging", "Types"],
+    "Phases": ["Phases", "Mediator", "Strategy", "Registry", "Logging", "Types"],
+    "Mediator": ["Mediator", "Strategy", "Registry", "Logging", "Types"],
+    "Strategy": ["Strategy", "Registry", "Logging", "Types"],
+    "Registry": ["Registry", "Strategy", "Logging", "Types"],
+    "Logging": ["Logging", "Types"],
+    "Types": ["Types"]
+  }
+}

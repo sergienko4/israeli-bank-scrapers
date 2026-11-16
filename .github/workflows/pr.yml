@@ -524,6 +524,15 @@ jobs:
             || echo '{"note":"absent on base","cycleCount":0,"cycles":[]}' > "${base_file}"
           npx tsx src/Tests/Tools/lint-import-cycles.ts --guard-against "${base_file}"
 
+      # The same tamper-guard for the layer-direction ratchet: adding a
+      # forbidden edge AND its baseline entry in one PR must not pass.
+      - name: Layer-direction baseline tamper-guard
+        if: ${{ !cancelled() && steps.ready.outcome == 'success' && (github.event_name == 'pull_request' && (needs.changes.outputs.src == 'true' || needs.changes.outputs.ci_scripts == 'true')) }}
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: bash .github/scripts/ci/layer-direction-baseline-guard.sh
+
       # A lockfile-only bump (`deps` without `full_suite`) is precisely the
       # change that can pull in a vulnerable transitive dependency, so these
       # carry the same `|| deps` fallback as setup-node-deps above.
