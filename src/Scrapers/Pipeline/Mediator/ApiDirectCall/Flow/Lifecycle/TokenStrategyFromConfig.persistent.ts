@@ -1,15 +1,13 @@
 /**
- * Durable branch of the config token strategy.
- *
- * <p>Enrollment walks the bank's existing SMS flow once and publishes the
- * completed device state. Resume replays a still-fresh token locally, or renews
- * an expired one through the bank's resume steps on the persisted device. Each
- * path publishes at most once, before its bearer is returned, and none writes
- * the legacy long-term-token slot — so the legacy token outputs stay empty.
+ * Durable branch of the config token strategy. Enrollment publishes the
+ * completed device state after the existing SMS flow; resume replays a fresh
+ * token or renews an expired one on the persisted device. Each path publishes
+ * once before its bearer is returned and never writes the legacy token slot.
  */
 
 import { ScraperErrorTypes } from '../../../../../Base/ErrorTypes.js';
 import { getDebug } from '../../../../Logging/Debug.js';
+import withCallbackDeadline from '../../../../Types/CallbackDeadline.js';
 import type { Procedure } from '../../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../../Types/Procedure.js';
 import type { IBoundDeviceAuthConfig } from '../../ConfigContracts/index.js';
@@ -32,6 +30,7 @@ import type {
   IDurablePrimeArgs,
   IPrimeArgs,
   IRunFlowArgs,
+  ISettledFlow,
 } from './TokenStrategyFromConfig.types.js';
 
 const LOG = getDebug(import.meta.url);
@@ -39,20 +38,11 @@ const LOG = getDebug(import.meta.url);
 /** Carry slot every flow leaves its bearer in — see SmsOtpFlow's `carry.token`. */
 const BEARER_CARRY_FIELD = 'token';
 
-/** Freshness claim read when the bank config declares none. */
-const DEFAULT_FRESHNESS_FIELD = 'exp';
-
 /** One bound-device prime: prime args, mode and the narrowed block. */
 type IDurableRun = IDurablePrimeArgs<'bound-device'>;
 
 /** Device identity enrollment captures from the completed flow's carry. */
 type DeviceIdentity = Pick<IPersistentAuthStateV1, 'clientInstanceId' | 'deviceId'>;
-
-/** A completed flow's outcome: the state to publish and the carry to expose. */
-interface ISettledFlow {
-  readonly state: IPersistentAuthStateV1;
-  readonly carrySnapshot: Readonly<Record<string, JsonValue>>;
-}
 
 /**
  * Category-only failure — never carries a token, key, state or server text.
@@ -81,7 +71,8 @@ function expectationOf(mode: DurableAuthMode): IPersistentAuthExpectation {
  */
 async function invokeOnUpdate(mode: DurableAuthMode, encoded: string): Promise<Procedure<true>> {
   try {
-    await mode.onUpdate(encoded);
+    const work = mode.onUpdate(encoded);
+    await withCallbackDeadline(work, mode.callbackTimeoutMs);
     return succeed(true);
   } catch {
     return durableFail('callback');
@@ -198,7 +189,7 @@ async function enrollDurable(run: IDurableRun): Promise<Procedure<string>> {
  * @returns True when it may be replayed without a request.
  */
 function isReplayable(run: IDurableRun, accessToken: string): boolean {
-  const freshnessField = run.prime.config.jwtClaims?.freshnessField ?? DEFAULT_FRESHNESS_FIELD;
+  const freshnessField = run.prime.config.jwtClaims?.freshnessField ?? 'exp';
   const skewSeconds = run.block.freshnessMarginSeconds;
   return isJwtFresh(accessToken, { freshnessField, skewSeconds });
 }

@@ -40,6 +40,14 @@ interface IDurableArgs {
   readonly creds: GenericCreds;
 }
 
+/** Every durable mode's shared, validated fields. */
+interface IDurableBase {
+  readonly block: IPersistentAuthConfig;
+  readonly onUpdate: PersistentAuthStateCallback;
+  readonly account: string;
+  readonly callbackTimeoutMs?: number;
+}
+
 /** The single legacy verdict — no durable behaviour at all. */
 const LEGACY_MODE: PersistentAuthMode = { kind: 'legacy' };
 
@@ -138,6 +146,18 @@ function collectFacts(args: IDurableArgs, hasToken: boolean): IOptionFacts {
 }
 
 /**
+ * Build the shared fields every durable mode carries.
+ * @param args - Validated durable inputs.
+ * @param onUpdate - The caller's storage callback.
+ * @returns Validated block, callback, account and callback budget.
+ */
+function modeBase(args: IDurableArgs, onUpdate: PersistentAuthStateCallback): IDurableBase {
+  const account = readCredText(args.creds, args.block.accountField);
+  const callbackTimeoutMs = args.input.callbackTimeoutMs;
+  return { block: args.block, onUpdate, account, callbackTimeoutMs };
+}
+
+/**
  * Build the durable mode: enrollment without state, resume with it.
  * @param args - Validated durable inputs.
  * @param onUpdate - The caller's storage callback.
@@ -147,11 +167,11 @@ function buildDurableMode(
   args: IDurableArgs,
   onUpdate: PersistentAuthStateCallback,
 ): PersistentAuthMode {
-  const account = readCredText(args.creds, args.block.accountField);
-  const base = { block: args.block, onUpdate, account };
+  const base = modeBase(args, onUpdate);
   const { state } = args.input;
-  if (!state.has) return { kind: 'enroll', ...base };
-  return { kind: 'resume', ...base, encodedState: state.value };
+  return state.has
+    ? { kind: 'resume', ...base, encodedState: state.value }
+    : { kind: 'enroll', ...base };
 }
 
 /**

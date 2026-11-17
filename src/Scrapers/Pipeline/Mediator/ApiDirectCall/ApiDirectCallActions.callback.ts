@@ -1,10 +1,10 @@
 /**
  * Auth-flow completion callback dispatcher for the ApiDirectCall ACTION stage.
- * Catches user-callback throws so scrape success isn't invalidated by them,
- * and logs them by error name only: the callback was handed the
- * long-term token and the bearer, so its message may repeat either.
+ * Catches user-callback throws so scrape success isn't invalidated, logging by
+ * error name only: its message may repeat the token or bearer it was handed.
  */
 
+import withCallbackDeadline from '../../Types/CallbackDeadline.js';
 import { errorNameOf } from '../../Types/ErrorUtils.js';
 import { isSome, none, type Option, some } from '../../Types/Option.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
@@ -51,7 +51,9 @@ interface IRunCallbackArgs {
  */
 async function runAuthFlowCallback(args: IRunCallbackArgs): Promise<boolean> {
   try {
-    await args.bundle.callback(args.bundle.payload);
+    const work = args.bundle.callback(args.bundle.payload);
+    const pending = Promise.resolve(work);
+    await withCallbackDeadline(pending, args.ctx.options.callbackTimeoutMs);
     return true;
   } catch (error) {
     return logCallbackThrow(args.ctx, error);

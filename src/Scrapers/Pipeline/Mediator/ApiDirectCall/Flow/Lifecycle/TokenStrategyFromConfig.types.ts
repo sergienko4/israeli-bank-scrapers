@@ -14,6 +14,7 @@ import type {
   PersistentAuthKind,
 } from '../../ConfigContracts/index.js';
 import type { JsonValue } from '../../Envelope/JsonPointer.js';
+import type { IPersistentAuthStateV1 } from '../../PersistentAuthStateCodec.js';
 
 /** Generic creds shape — strategies read named fields via config. */
 type GenericCreds = Readonly<Record<string, unknown>>;
@@ -29,6 +30,8 @@ interface IDurableAuthModeBase {
   readonly block: IPersistentAuthConfig;
   /** Caller hook that stores replacement state before a bearer is used. */
   readonly onUpdate: PersistentAuthStateCallback;
+  /** Maximum wait for that callback, in milliseconds. */
+  readonly callbackTimeoutMs?: number;
   /** Normalised account the durable state is bound to. */
   readonly account: string;
 }
@@ -47,6 +50,12 @@ interface IDurableResumeMode extends IDurableAuthModeBase {
 
 /** A mode that owns device-bound state — everything except legacy. */
 type DurableAuthMode = IDurableEnrollMode | IDurableResumeMode;
+
+/** A completed flow's outcome: the state to publish and the carry to expose. */
+interface ISettledFlow {
+  readonly state: IPersistentAuthStateV1;
+  readonly carrySnapshot: Readonly<Record<string, JsonValue>>;
+}
 
 /** Durable device-auth mode, resolved once before any auth request. */
 type PersistentAuthMode = ILegacyAuthMode | DurableAuthMode;
@@ -227,6 +236,7 @@ export type {
   IMakeWarmArgs,
   IPrimeArgs,
   IRunFlowArgs,
+  ISettledFlow,
   IStrategyBindings,
   IWarmRunArgs,
   IWarmSeedVerdict,

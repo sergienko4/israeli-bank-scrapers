@@ -92,7 +92,8 @@ function readPersistentAuthInput(ctx: IPipelineContext): IPersistentAuthInput {
   const rawState: unknown = ctx.options.persistentAuthState;
   const rawUpdate: unknown = ctx.options.onPersistentAuthStateUpdate;
   const isMalformed = isWrongType(rawState, 'string') || isWrongType(rawUpdate, 'function');
-  return { state: readStateOption(ctx), onUpdate: readUpdateOption(ctx), isMalformed };
+  const input = { state: readStateOption(ctx), onUpdate: readUpdateOption(ctx), isMalformed };
+  return { ...input, callbackTimeoutMs: ctx.options.callbackTimeoutMs };
 }
 
 /**

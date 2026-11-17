@@ -148,6 +148,27 @@ interface IScraperOptions {
   otpTimeoutMs?: number;
 
   /**
+   * Aborts the scrape when this signal fires. In-flight requests receive the
+   * same signal, and no further phase starts after it aborts.
+   */
+  signal?: AbortSignal;
+
+  /**
+   * Whole-run deadline in milliseconds, measured from the start of the
+   * execution. Equivalent to aborting a signal after this delay.
+   */
+  deadlineMs?: number;
+
+  /**
+   * Maximum time (ms) to wait for `onAuthFlowComplete` and
+   * `onPersistentAuthStateUpdate`. A callback that exceeds it is treated as a
+   * throw: the auth-flow callback is logged and swallowed, and a durable-state
+   * update fails authentication before its bearer is used.
+   * @default 30000 (30 seconds)
+   */
+  callbackTimeoutMs?: number;
+
+  /**
    * Login chain log verbosity.
    * - 'info' (default): chain plan, step pass/fail with timing, masked result summary.
    * - 'trace': all of info plus per-step HTTP request context.

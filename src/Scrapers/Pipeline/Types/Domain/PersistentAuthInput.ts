@@ -19,6 +19,8 @@ interface IPersistentAuthInput {
   readonly state: Option<string>;
   /** State-update callback, when supplied as a function. */
   readonly onUpdate: Option<PersistentAuthStateCallback>;
+  /** Maximum wait for the callback, in milliseconds. */
+  readonly callbackTimeoutMs?: number;
   /** True when either option was supplied with the wrong runtime type. */
   readonly isMalformed: boolean;
 }
