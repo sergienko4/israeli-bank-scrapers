@@ -106,6 +106,9 @@ function stopAfterHeaders(response: Response, controller: AbortController): Resp
 /** Fixed reason when a failure body stream cannot be read. */
 const UNREADABLE_BODY_REASON = 'response body unreadable';
 
+/** Fixed reason when the edge challenged an unreadable body. */
+const CHALLENGE_REASON = 'challenged by Cloudflare edge (WAF) before reaching the API';
+
 /** Error names a request rejects with once its abort signal fires. */
 const ABORT_ERROR_NAMES: ReadonlySet<unknown> = new Set(['TimeoutError', 'AbortError']);
 
@@ -128,6 +131,10 @@ function isAbortRejection(error: unknown): boolean {
  */
 function unreadableFailure(response: Response, error: unknown): Procedure<Response> | false {
   if (isApiSuccess(response) || isAbortRejection(error)) return false;
+  const headers = Object.fromEntries(response.headers);
+  if (hasCloudflareChallengeHeader(headers)) {
+    return fail(ScraperErrorTypes.WafBlocked, CHALLENGE_REASON, response.status);
+  }
   return fail(ScraperErrorTypes.Generic, UNREADABLE_BODY_REASON, response.status);
 }
 

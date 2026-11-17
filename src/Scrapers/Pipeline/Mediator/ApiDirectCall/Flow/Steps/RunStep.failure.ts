@@ -98,8 +98,18 @@ function readRefusal(message: string): string {
  * @returns `HTTP <status>` when a status is known, a policy refusal's fixed
  *   tail, else the error type.
  */
+function statusOf(failure: IProcedureFailure): string {
+  if (failure.httpStatus !== undefined) return String(failure.httpStatus);
+  return readStatus(failure.errorMessage);
+}
+
+/**
+ * Describe a failure for a step-level message.
+ * @param failure - Failure returned by the transport.
+ * @returns A safe status, fixed refusal or the error type.
+ */
 function describeFailure(failure: IProcedureFailure): string {
-  const status = readStatus(failure.errorMessage);
+  const status = statusOf(failure);
   if (status.length > 0) return `HTTP ${status}`;
   const refusal = readRefusal(failure.errorMessage);
   if (refusal.length > 0) return refusal;
@@ -124,7 +134,7 @@ function isFixedReason(failure: IProcedureFailure): boolean {
  * @returns The mapped type, else the transport's.
  */
 function typeByStatus(step: FailedStep, failure: IProcedureFailure): ScraperErrorTypes {
-  const status = readStatus(failure.errorMessage);
+  const status = statusOf(failure);
   const mapped = step.httpFailureMap?.[status];
   return mapped ?? failure.errorType;
 }
