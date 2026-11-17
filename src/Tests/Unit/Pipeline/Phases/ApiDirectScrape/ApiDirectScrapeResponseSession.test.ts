@@ -9,6 +9,7 @@
 import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
+import isAuthRejectedFailure from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.authReject.js';
 import type {
   IApiMediator,
   IApiQueryOpts,
@@ -32,7 +33,7 @@ import emitResponseHeaders from '../../../../../Scrapers/Pipeline/Strategy/Fetch
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
-import { fail, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { fail, isOk, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import runScrapeAction from '../../../../Helpers/ScrapeAction.js';
 import { makeMockContext, makeRecoverySessionStubs } from '../../Infrastructure/MockFactories.js';
 import { SYN_CASE } from './ApiDirectScrapeBankShapes.js';
@@ -488,6 +489,25 @@ describe('ApiDirectScrapeResponseSession/throwing patch', () => {
     const args = balanceArgs(sb.bus, { responseSession: sessionSpec(patch) });
     const result = await dispatchStep(args);
     expect(result).toEqual(REFUSED);
+  });
+
+  it('[RST-6] keeps structured auth fields from a failed patch', async () => {
+    const typed = fail(ScraperErrorTypes.Generic, 'response body unreadable', 401);
+    const sb = makeSessionBus(OK_PLAN);
+    const patch = makePatch(typed);
+    const args = balanceArgs(sb.bus, { responseSession: sessionSpec(patch) });
+    const result = await dispatchStep(args);
+    expect(result).toMatchObject({
+      success: false,
+      httpStatus: 401,
+      errorMessage: 'balance response body unreadable',
+    });
+    const isSuccess = isOk(result);
+    expect(isSuccess).toBe(false);
+    if (!isSuccess) {
+      const isRejected = isAuthRejectedFailure(result);
+      expect(isRejected).toBe(true);
+    }
   });
 
   it('[RST-5] does not recover when the patch throws on a warm session', async () => {

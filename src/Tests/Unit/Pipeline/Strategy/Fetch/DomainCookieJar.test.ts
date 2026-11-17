@@ -374,13 +374,22 @@ describe('DomainCookieJar/session operations', () => {
   });
 });
 
+/**
+ * Build numbered cookies for cap tests.
+ * @param count - Number of cookies.
+ * @returns Cookies named `cookie-0` upward.
+ */
+function numberedCookies(count: number): readonly IStoredCookie[] {
+  return Array.from({ length: count }, (_value, index) => {
+    const name = `cookie-${String(index)}`;
+    return stored({ name });
+  });
+}
+
 describe('DomainCookieJar/size cap', () => {
   it('keeps the newest 300 cookies and evicts the oldest', () => {
     const jar = makeJar();
-    const cookies = Array.from({ length: 301 }, (_value, index) => {
-      const name = `cookie-${String(index)}`;
-      return stored({ name });
-    });
+    const cookies = numberedCookies(301);
     const size = jar.importAll(cookies);
     const names = jar.exportAll().map((cookie): string => cookie.name);
     expect(size).toBe(300);
@@ -395,10 +404,7 @@ describe('DomainCookieJar/size cap', () => {
     try {
       const nowS = Math.floor(Date.now() / 1000);
       const jar = makeJar();
-      const live = Array.from({ length: 300 }, (_value, index) => {
-        const name = `cookie-${String(index)}`;
-        return stored({ name });
-      });
+      const live = numberedCookies(300);
       const expiring = { ...live[1], expiresEpochS: nowS + 1 };
       jar.importAll([live[0], expiring, ...live.slice(2)]);
       jest.advanceTimersByTime(2000);
@@ -415,10 +421,7 @@ describe('DomainCookieJar/size cap', () => {
 
   it('replaces an existing key at the cap without evicting another', () => {
     const jar = makeJar();
-    const full = Array.from({ length: 300 }, (_value, index) => {
-      const name = `cookie-${String(index)}`;
-      return stored({ name });
-    });
+    const full = numberedCookies(300);
     jar.importAll(full);
     const size = jar.set(WWW, { name: 'cookie-0', value: 'new' });
     const exported = jar.exportAll();
