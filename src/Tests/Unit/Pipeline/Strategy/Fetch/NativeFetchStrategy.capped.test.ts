@@ -646,6 +646,10 @@ describe('capped NativeFetchStrategy — connect timeout retry', () => {
       const rejection = fetchFailedWith(code);
       const mock = installFetchMock(() => Promise.reject(rejection));
       const result = await strategy.fetchGet(ITEMS_URL, { extraHeaders: {} });
+      expect(result).toMatchObject({
+        success: false,
+        errorType: ScraperErrorTypes.NetworkError,
+      });
       const message = !isOk(result) && result.errorMessage;
       expect(message).toBe(
         `GET https://api.bank.example/v1/items network error: fetch failed (${code})`,

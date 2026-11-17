@@ -6,7 +6,6 @@
  * two concurrent runs cannot overwrite each other's fallback or timeout.
  */
 
-import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type {
   IMtlsFallbackRequest,
   IMtlsInvokeOptions,
@@ -18,6 +17,7 @@ import type { FetchInvoke, IFetchInvokePolicy } from '../FetchStrategy.js';
 import { isMediaTypeMismatch } from '../MediaTypeCheck.js';
 import { isApiSuccess } from '../NativeFetchStrategy.js';
 import { safeUrlForLog, scrubUrlFromText } from '../SafeUrlForLog.js';
+import transportErrorType from '../TransportFailure.js';
 import type { AgentSource, IPresentedCert } from './MtlsAgentSource.js';
 import type { IMtlsRequest } from './MtlsRequest.js';
 import { sendRequest } from './MtlsRequest.js';
@@ -36,7 +36,9 @@ function toMtlsFailure(error: unknown, request: IMtlsRequest): Procedure<Respons
   const rawReason = toError(error).message;
   const reason = scrubUrlFromText(rawReason, request.url, request.redactUrlValues);
   const safeUrl = safeUrlForLog(request.url, request.redactUrlValues);
-  return fail(ScraperErrorTypes.Generic, `${request.verb} ${safeUrl} mtls error: ${reason}`);
+  const message = `${request.verb} ${safeUrl} mtls error: ${reason}`;
+  const errorType = transportErrorType(error);
+  return fail(errorType, message);
 }
 
 /**
