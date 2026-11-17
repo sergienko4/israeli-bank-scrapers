@@ -15,7 +15,8 @@ additive public options on `ScraperOptions`; neither changes the result shape.
 `PipelineExecutor.runAbortSignal` combines the caller's `signal` with
 `AbortSignal.timeout(deadlineMs)` through `AbortSignal.any`. The result lives in
 the run scope, and `currentAbortSignal()` exposes it to the phases and both
-transports without threading it through every call.
+transports without threading it through every call. `isRunAborted()` is the
+shared boolean check used by the reducer, transports and recovery gate.
 
 Before each phase, `PipelineReducer` asks `currentAbortSignal()`. An aborted
 run returns a `TIMEOUT` failure with the fixed message `scrape aborted`; the

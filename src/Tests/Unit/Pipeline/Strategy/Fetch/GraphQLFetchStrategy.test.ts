@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
+import isAuthRejectedFailure from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.authReject.js';
 import GraphQLFetchStrategy from '../../../../../Scrapers/Pipeline/Strategy/Fetch/GraphQLFetchStrategy.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
@@ -242,8 +243,36 @@ describe('GraphQLFetchStrategy.query — transport behaviour', () => {
     expect(result).toMatchObject({
       success: false,
       errorType: ScraperErrorTypes.Generic,
+      httpStatus: 500,
     });
     if (!result.success) expect(result.errorMessage).toContain('response body unreadable');
+  });
+
+  it('keeps a broken 401 body status so auth recovery still sees it', async () => {
+    const body = new ReadableStream<Uint8Array>({
+      /**
+       * Fail the stream before a reader can consume it.
+       * @param controller - Stream controller.
+       * @returns True once the failure is installed.
+       */
+      start(controller): boolean {
+        controller.error(new Error('ECONNRESET'));
+        return true;
+      },
+    });
+    const response = new Response(body, { status: 401 });
+    installFetchMock((): Promise<Response> => Promise.resolve(response));
+    const strategy = new GraphQLFetchStrategy('https://gql.example/graphql');
+    const result = await strategy.query('{ x }', {});
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Generic,
+      httpStatus: 401,
+    });
+    if (!result.success) {
+      const isAuthShaped = isAuthRejectedFailure(result);
+      expect(isAuthShaped).toBe(true);
+    }
   });
 
   it('propagates transport failure (fetch throws) as fail — not silently swallowed', async () => {

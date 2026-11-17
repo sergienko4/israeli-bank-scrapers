@@ -112,6 +112,26 @@ describe('unbounded Cloudflare challenges', () => {
     });
   });
 
+  it('classifies an oversized challenge from headers without reading it', async () => {
+    const oversize = new Uint8Array(8 * 1024 * 1024 + 1);
+    const response = new Response(oversize, {
+      status: 403,
+      headers: CLOUDFLARE_CHALLENGE_HEADERS,
+    });
+    /**
+     * Answer with the oversized challenge.
+     * @returns The challenge response.
+     */
+    const impl = (): Promise<Response> => Promise.resolve(response);
+    globalThis.fetch = impl;
+    const strategy = cappedNative(BASE_URL, { timeoutMs: 1000 });
+    const result = await strategy.fetchGet(ITEMS_URL, { extraHeaders: {} });
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.WafBlocked,
+    });
+  });
+
   it('keeps an abort-sensitive 203 challenge body and reports WAF_BLOCKED', async () => {
     globalThis.fetch = ((_url: string, init: RequestInit): Promise<Response> => {
       const response = abortSensitiveResponse(init, {

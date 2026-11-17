@@ -374,13 +374,22 @@ describe('DomainCookieJar/session operations', () => {
   });
 });
 
+/**
+ * Build `count` distinct stored cookies in insertion order.
+ * @param count - Number of cookies.
+ * @returns The cookie fixtures.
+ */
+function capCookies(count: number): readonly IStoredCookie[] {
+  return Array.from({ length: count }, (_value, index) => {
+    const name = `cookie-${String(index)}`;
+    return stored({ name });
+  });
+}
+
 describe('DomainCookieJar/size cap', () => {
   it('keeps the newest 300 cookies and evicts the oldest', () => {
     const jar = makeJar();
-    const cookies = Array.from({ length: 301 }, (_value, index) => {
-      const name = `cookie-${String(index)}`;
-      return stored({ name });
-    });
+    const cookies = capCookies(301);
     const size = jar.importAll(cookies);
     const names = jar.exportAll().map((cookie): string => cookie.name);
     expect(size).toBe(300);
@@ -390,12 +399,25 @@ describe('DomainCookieJar/size cap', () => {
     expect(newest).toBe('cookie-300');
   });
 
+  it('purges expired cookies before evicting a live one', () => {
+    const jar = makeJar();
+    const base = capCookies(299);
+    const live = base.map((cookie, index) => ({
+      ...cookie,
+      name: `live-${String(index)}`,
+    }));
+    jar.importAll([stored({ name: 'expired', expiresEpochS: 1 }), ...live]);
+    const size = jar.set(WWW, { name: 'new', value: '1' });
+    const names = jar.exportAll().map((cookie): string => cookie.name);
+    expect(size).toBe(300);
+    expect(names).toContain('live-0');
+    expect(names).not.toContain('expired');
+    expect(names).toContain('new');
+  });
+
   it('replaces an existing key at the cap without evicting another', () => {
     const jar = makeJar();
-    const full = Array.from({ length: 300 }, (_value, index) => {
-      const name = `cookie-${String(index)}`;
-      return stored({ name });
-    });
+    const full = capCookies(300);
     jar.importAll(full);
     const size = jar.set(WWW, { name: 'cookie-0', value: 'new' });
     const exported = jar.exportAll();

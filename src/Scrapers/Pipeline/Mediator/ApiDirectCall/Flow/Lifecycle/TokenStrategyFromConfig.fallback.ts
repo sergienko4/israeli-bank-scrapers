@@ -7,7 +7,7 @@
  */
 
 import type { IProcedureFailure } from '../../../../Types/Procedure.js';
-import { isAuthRejectedFailure } from '../../../Api/ApiMediator.authReject.js';
+import isAuthRejectedFailure from '../../../Api/ApiMediator.authReject.js';
 import type { ColdFallback, IApiDirectCallConfig } from '../../ConfigContracts/index.js';
 import { carryBundleWarmOf } from '../WarmStartKind.js';
 

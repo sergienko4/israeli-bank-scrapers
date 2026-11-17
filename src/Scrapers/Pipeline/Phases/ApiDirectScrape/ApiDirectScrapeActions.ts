@@ -8,13 +8,21 @@
  * ceiling. Zero bank-name coupling.
  */
 
-import { isAuthRejectedFailure } from '../../Mediator/Api/ApiMediator.authReject.js';
+import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
+import isAuthRejectedFailure from '../../Mediator/Api/ApiMediator.authReject.js';
 import type { IApiMediator } from '../../Mediator/Api/ApiMediator.js';
 import resolveApiMediator from '../../Mediator/Api/ApiMediatorAccessor.js';
 import { isSome, some } from '../../Types/Option.js';
 import type { IActionContext, IScrapeState } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { isOk, isTerminalFailure, preferTerminalFailure, succeed } from '../../Types/Procedure.js';
+import {
+  fail,
+  isOk,
+  isTerminalFailure,
+  preferTerminalFailure,
+  succeed,
+} from '../../Types/Procedure.js';
+import { isRunAborted } from '../../Types/RunScope.js';
 import type { IAccountResult } from './ApiDirectScrapeAccountWalk.js';
 import { iterateAccounts } from './ApiDirectScrapeAccountWalk.js';
 import runBootstrap from './ApiDirectScrapeBootstrap.js';
@@ -153,10 +161,19 @@ async function runScrapeWithRecovery<TAcct, TCursor>(
   d: IDriverCtx<TAcct, TCursor>,
 ): Promise<Procedure<ApiDirectScrapeResult>> {
   const first = await runScrape(d);
-  if (!shouldRecoverSession(first, d.bus)) return first;
+  const canRecover = !isRunAborted() && shouldRecoverSession(first, d.bus);
+  if (!canRecover) return isRunAborted() ? abortedRun() : first;
   const recovered = await d.bus.recoverSession();
-  if (isOk(recovered)) return runScrape(d);
-  return preferTerminalFailure(recovered, first);
+  if (isRunAborted()) return abortedRun();
+  return isOk(recovered) ? runScrape(d) : preferTerminalFailure(recovered, first);
+}
+
+/**
+ * The fixed result of a run cancelled between its steps.
+ * @returns Timeout failure.
+ */
+function abortedRun(): Procedure<ApiDirectScrapeResult> {
+  return fail(ScraperErrorTypes.Timeout, 'scrape aborted');
 }
 
 /**

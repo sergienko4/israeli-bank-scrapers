@@ -64,7 +64,7 @@ type TRunScopeSetup = IEnvironment | IRunScopeSetup;
  * @returns True for the setup bundle.
  */
 function isScopeSetup(setup: TRunScopeSetup): setup is IRunScopeSetup {
-  return 'signal' in setup;
+  return 'signal' in setup || 'env' in setup;
 }
 
 /**

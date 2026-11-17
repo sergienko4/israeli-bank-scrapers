@@ -5,8 +5,8 @@
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { fail, isOk, isTerminalFailure, preferTerminalFailure } from '../../Types/Procedure.js';
-import { isAuthRejectionMessage } from './ApiMediator.authReject.js';
+import { fail, isOk, preferTerminalFailure } from '../../Types/Procedure.js';
+import isAuthRejectedFailure from './ApiMediator.authReject.js';
 import { getSessionWarmOp, setRawAuthOp, setSessionWarmOp } from './ApiMediator.state.js';
 import type { IMediatorState } from './ApiMediator.types.js';
 import type { ITokenResolver } from './ITokenResolver.js';
@@ -137,8 +137,7 @@ function applyRefreshedAuth(state: IMediatorState, refreshed: Procedure<string>)
  */
 function isUnauthorizedFailure<T>(first: Procedure<T>): boolean {
   if (first.success) return false;
-  if (isTerminalFailure(first)) return false;
-  return isAuthRejectionMessage(first.errorMessage);
+  return isAuthRejectedFailure(first);
 }
 
 /**

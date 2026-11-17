@@ -44,6 +44,25 @@ class EmptyStatusMtlsFetchStrategy extends MtlsFetchStrategy {
 }
 
 const HEADER_TEST_TIMEOUT_MS = 1_000;
+const HEADERS_SETTLE_MS = 25;
+
+/**
+ * Wait for headers to arrive without a manual timer.
+ * @returns Resolves after the settle delay.
+ */
+async function settleHeaders(): Promise<void> {
+  const signal = AbortSignal.timeout(HEADERS_SETTLE_MS);
+  await new Promise<void>(resolve => {
+    signal.addEventListener(
+      'abort',
+      (): boolean => {
+        resolve();
+        return true;
+      },
+      { once: true },
+    );
+  });
+}
 
 describe('MtlsFetchStrategy — REST over the mTLS gate', () => {
   let server: IGateServer;
@@ -112,6 +131,37 @@ describe('MtlsFetchStrategy — REST over the mTLS gate', () => {
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(false);
     if (!isOk(result)) expect(result.errorMessage).toContain('403');
+  });
+
+  it('decides a 429 from headers without waiting for its body', async () => {
+    const strategy = new MtlsFetchStrategy(server.baseUrl, certSource, { timeoutMs: 5000 });
+    const result = await strategy.fetchGet(`${server.baseUrl}rate-limited`, {
+      extraHeaders: {},
+    });
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.WafBlocked,
+      errorMessage: `GET ${server.baseUrl}rate-limited 429: rate limited`,
+    });
+  });
+
+  it('reports TIMEOUT when the run aborts after headers and a partial body', async () => {
+    const controller = new AbortController();
+    const strategy = new MtlsFetchStrategy(server.baseUrl, certSource, { timeoutMs: 5000 });
+    /**
+     * Read the partial response inside the caller's run scope.
+     * @returns The fetch result.
+     */
+    const work = (): ReturnType<typeof strategy.fetchGet> =>
+      strategy.fetchGet(`${server.baseUrl}partial`, { extraHeaders: {} });
+    const pending = runWithBankContext('onezero', work, { signal: controller.signal });
+    await settleHeaders();
+    controller.abort();
+    const result = await pending;
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Timeout,
+    });
   });
 
   it('aborts an in-flight request when the whole-run signal fires', async () => {

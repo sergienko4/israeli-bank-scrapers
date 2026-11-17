@@ -62,9 +62,10 @@ function isAuthRejectionMessage(message: string): boolean {
 function isAuthRejectedFailure(failure: IProcedureFailure): boolean {
   if (isTerminalFailure(failure)) return false;
   if (failure.authRejected === true) return true;
+  if (failure.shapeGuardFailure === true) return false;
   if (failure.httpStatus !== undefined) return isAuthStatus(failure.httpStatus);
   return (
-    AUTH_REJECT_REGEX.test(failure.errorMessage) ||
+    isAuthRejectionMessage(failure.errorMessage) ||
     AUTH_REJECTED_SUFFIX_REGEX.test(failure.errorMessage)
   );
 }
@@ -78,4 +79,4 @@ function isAuthStatus(status: number): boolean {
   return status === 401 || status === 403;
 }
 
-export { isAuthRejectedFailure, isAuthRejectionMessage };
+export default isAuthRejectedFailure;

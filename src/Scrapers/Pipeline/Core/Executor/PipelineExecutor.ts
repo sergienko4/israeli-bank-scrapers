@@ -19,6 +19,9 @@ import toResult from '../PipelineResult.js';
 import reportCleanupFailure from './CleanupDiagnostic.js';
 import { type IContextTracker, reducePhases, wrapError } from './PipelineReducer.js';
 
+/** Largest delay the platform timer accepts, in milliseconds. */
+const MAX_TIMER_MS = 4_294_967_295;
+
 /**
  * Awaits an optional dispose() callback. A failure never masks the already
  * produced scrape outcome and never escapes; it is reported once, allowlisted,
@@ -154,7 +157,9 @@ function runInsideScope(
 function deadlineSignals(deadlineMs?: number): AbortSignal[] {
   if (deadlineMs === undefined) return [];
   if (!Number.isFinite(deadlineMs) || deadlineMs <= 0) return [];
-  return [AbortSignal.timeout(deadlineMs)];
+  const wholeMs = Math.floor(deadlineMs);
+  const ms = Math.min(wholeMs, MAX_TIMER_MS);
+  return [AbortSignal.timeout(ms)];
 }
 
 /**

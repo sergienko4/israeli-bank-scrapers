@@ -12,6 +12,7 @@ import { jest } from '@jest/globals';
 
 import { CompanyTypes } from '../../../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js';
+import { runWithBankContext } from '../../../../../../Scrapers/Pipeline/Logging/BankContext.js';
 import { createNativeApiMediator } from '../../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import type {
   IApiDirectCallConfig,
@@ -628,6 +629,28 @@ describe('SmsOtpFlow — pre-hook guards', () => {
       errorMessage: 'preHook: otpTimeoutMs invalid',
     });
     expect(run.hints).toEqual([]);
+    expect(run.captures).toHaveLength(1);
+  });
+
+  it('stops a pending retriever as soon as the run is aborted', async () => {
+    const controller = new AbortController();
+    const request = runWithBankContext(
+      'onezero',
+      () =>
+        runGuarded({
+          hook: HOOK,
+          bind: FULL_BIND,
+          retriever: pendingOtpCode,
+        }),
+      { signal: controller.signal },
+    );
+    controller.abort();
+    const run = await request;
+    expect(run.result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Timeout,
+      errorMessage: 'scrape aborted',
+    });
     expect(run.captures).toHaveLength(1);
   });
 

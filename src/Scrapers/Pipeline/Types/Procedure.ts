@@ -25,6 +25,8 @@ interface IProcedureFailure {
   readonly httpStatus?: number;
   /** Set when a successful-looking response still rejected the session. */
   readonly authRejected?: true;
+  /** Set when a shape callback throw was converted into a failure. */
+  readonly shapeGuardFailure?: true;
 }
 
 /** Discriminated union — every pipeline step returns this. */

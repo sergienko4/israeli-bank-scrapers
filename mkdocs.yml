@@ -140,6 +140,7 @@ nav:
   - Architecture:
       - Overview: architecture/index.md
       - Pipeline architecture: architecture/pipeline.md
+      - Cancellation and run deadlines: architecture/cancellation.md
       - Layer separation: architecture/layers.md
       - Config Contracts (api-direct-call): architecture/config-contracts.md
       - Device identity: architecture/device-identity.md

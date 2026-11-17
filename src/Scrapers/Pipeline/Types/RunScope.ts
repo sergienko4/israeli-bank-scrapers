@@ -116,5 +116,14 @@ function currentAbortSignal(): AbortSignal | false {
   return scope ? scope.signal : false;
 }
 
+/**
+ * Whether the current run has been cancelled.
+ * @returns True inside an aborted run, false otherwise.
+ */
+function isRunAborted(): boolean {
+  const signal = currentAbortSignal();
+  return signal !== false && signal.aborted;
+}
+
 export type { IRunTrace };
-export { currentAbortSignal, currentRunScope, noteRunLogFile, openRunScope };
+export { currentAbortSignal, currentRunScope, isRunAborted, noteRunLogFile, openRunScope };

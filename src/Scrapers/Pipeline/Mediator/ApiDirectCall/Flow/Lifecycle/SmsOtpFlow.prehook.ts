@@ -13,6 +13,7 @@
 import { ScraperErrorTypes } from '../../../../../Base/ErrorTypes.js';
 import type { Procedure } from '../../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../../Types/Procedure.js';
+import { currentAbortSignal } from '../../../../Types/RunScope.js';
 import DEFAULT_OTP_TIMEOUT_MS from '../../../Timing/OtpTimingConfig.js';
 import { RACE_TIMED_OUT, raceTimeout } from '../../../Timing/TimingActions.js';
 import type { IPreStepHook } from '../../ConfigContracts/EnvelopeTypes.js';
@@ -25,6 +26,7 @@ type PreHookRetriever = (hint: string) => Promise<unknown>;
 
 const CARRY_PREFIX = 'carry.';
 const OTP_TIMEOUT_MESSAGE = 'OTP timeout — code not received';
+const RACE_ABORTED = Symbol('RACE_ABORTED');
 
 /**
  * Build the missing-fn failure used by the resolver.
@@ -92,6 +94,58 @@ function otpBudget(creds: Readonly<Record<string, unknown>>): Procedure<number> 
 }
 
 /**
+ * Build the listener that resolves the abort race.
+ * @param resolve - The race promise's resolve function.
+ * @returns The abort listener.
+ */
+function abortListener(resolve: (value: typeof RACE_ABORTED) => unknown): () => boolean {
+  return (): boolean => {
+    resolve(RACE_ABORTED);
+    return true;
+  };
+}
+
+/**
+ * Build the rejection that fires when the run aborts.
+ * @returns The pending rejection, or false outside a cancellation run.
+ */
+function runAbortWait(): Promise<typeof RACE_ABORTED> | false {
+  const signal = currentAbortSignal();
+  if (signal === false) return false;
+  return new Promise<typeof RACE_ABORTED>(resolve => {
+    const abort = abortListener(resolve);
+    if (signal.aborted) abort();
+    else signal.addEventListener('abort', abort, { once: true });
+  });
+}
+
+/**
+ * Convert a settled OTP race into a Procedure.
+ * @param result - The acquired value or a race sentinel.
+ * @returns The acquired value or the matching timeout failure.
+ */
+function budgetResult(result: Procedure<string> | symbol): Procedure<string> {
+  if (result === RACE_ABORTED) return fail(ScraperErrorTypes.Timeout, 'scrape aborted');
+  if (result === RACE_TIMED_OUT) return fail(ScraperErrorTypes.Timeout, OTP_TIMEOUT_MESSAGE);
+  return result as Procedure<string>;
+}
+
+/**
+ * Race the OTP acquisition against its budget and the run signal.
+ * @param budgetMs - OTP wait budget.
+ * @param acquired - The pending acquisition.
+ * @returns The acquired value or a race sentinel.
+ */
+async function raceBudget(
+  budgetMs: number,
+  acquired: Promise<Procedure<string>>,
+): Promise<Procedure<string> | symbol> {
+  const timeout = raceTimeout(budgetMs, acquired);
+  const abort = runAbortWait();
+  return Promise.race(abort === false ? [timeout] : [timeout, abort]);
+}
+
+/**
  * Bounds callback acquisition even when the caller's retriever never settles.
  * @param args - Scope, credentials, hook and flow-scoped cache.
  * @returns The acquired value or a timeout failure.
@@ -102,9 +156,8 @@ async function acquireWithinBudget(args: IApplyPreHookArgs): Promise<Procedure<s
   const budget = otpBudget(args.creds);
   if (!isOk(budget)) return budget;
   const acquired = acquirePreHookValue({ cache: args.cache, hook: args.hook, fn: fnProc.value });
-  const result = await raceTimeout(budget.value, acquired);
-  if (result === RACE_TIMED_OUT) return fail(ScraperErrorTypes.Timeout, OTP_TIMEOUT_MESSAGE);
-  return result;
+  const result = await raceBudget(budget.value, acquired);
+  return budgetResult(result);
 }
 
 /**

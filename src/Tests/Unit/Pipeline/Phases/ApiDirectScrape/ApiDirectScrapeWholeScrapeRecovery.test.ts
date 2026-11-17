@@ -11,6 +11,7 @@ import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
+import { runWithBankContext } from '../../../../../Scrapers/Pipeline/Logging/BankContext.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import type { ApiDirectScrapeResult } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeTypes.js';
 import type {
@@ -199,6 +200,22 @@ describe('whole-scrape recovery — what triggers it', () => {
     const result = await scrapeOver(handle.bus);
     assertOk(result);
     expect(handle.recoverSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not recover an already-cancelled run', async () => {
+    const router = routerWith('balance', UNAUTHORIZED);
+    const handle = makeRecoveryBus({ router, isWarm: true, isWholeScrape: true });
+    const controller = new AbortController();
+    controller.abort();
+    const pending = runWithBankContext('pepper', () => scrapeOver(handle.bus), {
+      signal: controller.signal,
+    });
+    const result = await pending;
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Timeout,
+    });
+    expect(handle.recoverSession).not.toHaveBeenCalled();
   });
 
   it.each([

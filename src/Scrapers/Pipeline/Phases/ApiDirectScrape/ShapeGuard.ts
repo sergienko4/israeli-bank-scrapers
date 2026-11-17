@@ -37,7 +37,8 @@ import { fail, succeed } from '../../Types/Procedure.js';
  * @returns A `Generic` failure naming the callback that threw.
  */
 function shapeThrew<T>(name: string, error: unknown): Procedure<T> {
-  return fail(ScraperErrorTypes.Generic, `shape ${name} threw: ${toError(error).message}`);
+  const failure = fail(ScraperErrorTypes.Generic, `shape ${name} threw: ${toError(error).message}`);
+  return { ...failure, shapeGuardFailure: true };
 }
 
 /**

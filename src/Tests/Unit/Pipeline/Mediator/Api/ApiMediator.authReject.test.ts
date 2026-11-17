@@ -6,7 +6,7 @@
  */
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
-import { isAuthRejectedFailure } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.authReject.js';
+import isAuthRejectedFailure from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.authReject.js';
 import { fail } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
 /** A transport failure prefix: verb, safe URL. */
@@ -61,6 +61,15 @@ describe('isAuthRejectedFailure', () => {
     const marked = { ...failure, authRejected: true as const };
     const isRejected = isAuthRejectedFailure(marked);
     expect(isRejected).toBe(true);
+  });
+
+  it('refuses a shape-guard failure even when its message quotes an auth marker', (): void => {
+    const failure = {
+      ...fail(ScraperErrorTypes.Generic, 'shape extractPage threw: upstream 401: expired'),
+      shapeGuardFailure: true as const,
+    };
+    const isRejected = isAuthRejectedFailure(failure);
+    expect(isRejected).toBe(false);
   });
 
   it('refuses a timeout', (): void => {

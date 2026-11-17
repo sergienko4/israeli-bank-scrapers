@@ -260,6 +260,23 @@ describe('ApiMediator.retryOn401 — strategy registered via withTokenStrategy',
     expect(freshCount).toBe(0);
   });
 
+  it('does not refresh on a 500 whose body quotes an auth marker', async () => {
+    const quoted = fail(
+      ScraperErrorTypes.Generic,
+      'POST https://bank.example.com/customer 500: upstream said 401: expired',
+      500,
+    );
+    const fetchStrat = scriptedFetchStrategy([quoted]);
+    const graphql = stubGraphqlStrategy();
+    const mediator = createApiMediator(CompanyTypes.OneZero, fetchStrat, graphql);
+    const strategy = scriptedStrategy([succeed(FRESH_HEADER)]);
+    const ctx0 = makeStubCtx();
+    const creds0 = { marker: 'x' };
+    mediator.withTokenStrategy(strategy, ctx0, creds0);
+    const result = await mediator.apiPost(TEST_URL_TAG, {});
+    expect(result).toEqual(quoted);
+  });
+
   it('refreshes once + retries on 401 + returns success', async () => {
     const initial401 = fail(ScraperErrorTypes.Generic, MSG_401_FIRST);
     const retriedOk = succeed({ ok: 'retried' });

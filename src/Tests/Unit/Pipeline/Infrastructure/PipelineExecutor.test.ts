@@ -321,6 +321,33 @@ describe('PipelineExecutor/cancellation', () => {
     expect(didPhaseRun).toBe(false);
   });
 
+  it('reports cancellation even when the final phase returns success', async () => {
+    const controller = new AbortController();
+    const phase = new SimplePhase('api-direct-call', (_ctx, input) => {
+      controller.abort();
+      const result = succeed(input);
+      return Promise.resolve(result);
+    });
+    const options = { ...MOCK_OPTIONS, signal: controller.signal };
+    const result = await executePipeline({ options, phases: [phase] }, MOCK_CREDENTIALS);
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Timeout,
+    });
+  });
+
+  it.each([-1, Number.NaN])('ignores an unusable deadline %s', async deadlineMs => {
+    const options = { ...MOCK_OPTIONS, deadlineMs };
+    const result = await executePipeline({ options, phases: [] }, MOCK_CREDENTIALS);
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts a fractional deadline without throwing', async () => {
+    const options = { ...MOCK_OPTIONS, deadlineMs: 1.5 };
+    const result = await executePipeline({ options, phases: [] }, MOCK_CREDENTIALS);
+    expect(result.success).toBe(true);
+  });
+
   it('stops before the next phase once the run deadline passes', async () => {
     let didSecondPhaseRun = false;
     const slow = new SimplePhase('api-direct-call', async (_ctx, input) => {

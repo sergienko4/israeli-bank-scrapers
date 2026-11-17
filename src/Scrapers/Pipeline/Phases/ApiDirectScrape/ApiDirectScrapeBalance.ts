@@ -7,7 +7,7 @@
  * or the call did not carry one), and a hard failure that discards the run.
  */
 
-import { isAuthRejectedFailure } from '../../Mediator/Api/ApiMediator.authReject.js';
+import isAuthRejectedFailure from '../../Mediator/Api/ApiMediator.authReject.js';
 import type { IProcedureFailure, Procedure } from '../../Types/Procedure.js';
 import { isOk, isTerminalFailure, succeed } from '../../Types/Procedure.js';
 import { dispatchStep } from './ApiDirectScrapeDispatch.js';

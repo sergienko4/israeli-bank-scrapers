@@ -128,6 +128,8 @@ async function reducePhases(
   ctx: IPipelineContext,
   index: number,
 ): Promise<Procedure<IPipelineContext>> {
+  const aborted = abortRefusal();
+  if (aborted !== false) return aborted;
   if (index >= tracker.phases.length) return succeed(ctx);
   return runNextPhase(tracker, ctx, index);
 }
@@ -144,8 +146,6 @@ async function runNextPhase(
   ctx: IPipelineContext,
   index: number,
 ): Promise<Procedure<IPipelineContext>> {
-  const aborted = abortRefusal();
-  if (aborted !== false) return aborted;
   const result = await executeTracedPhase(tracker, ctx, index);
   return isOk(result) ? reducePhases(tracker, result.value, index + 1) : result;
 }
