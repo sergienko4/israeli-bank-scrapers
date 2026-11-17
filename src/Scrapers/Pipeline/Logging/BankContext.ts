@@ -59,12 +59,21 @@ interface IRunScopeSetup {
 type TRunScopeSetup = IEnvironment | IRunScopeSetup;
 
 /**
+ * Whether the third argument carries the complete environment shape.
+ * @param setup - Environment snapshot or setup bundle.
+ * @returns True for an environment snapshot.
+ */
+function isEnvironment(setup: TRunScopeSetup): setup is IEnvironment {
+  return 'forensicTrace' in setup && 'runsRoot' in setup;
+}
+
+/**
  * Whether the third argument is a setup bundle rather than an environment.
  * @param setup - Environment snapshot or setup bundle.
  * @returns True for the setup bundle.
  */
 function isScopeSetup(setup: TRunScopeSetup): setup is IRunScopeSetup {
-  return 'signal' in setup;
+  return !isEnvironment(setup);
 }
 
 /**

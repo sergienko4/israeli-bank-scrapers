@@ -7,6 +7,8 @@ import {
   getBankMixin,
   runWithBankContext,
 } from '../../../../Scrapers/Pipeline/Logging/BankContext.js';
+import { ENVIRONMENT } from '../../../../Scrapers/Pipeline/Types/Environment.js';
+import { currentRunScope } from '../../../../Scrapers/Pipeline/Types/RunScope.js';
 
 describe('Feature — runWithBankContext', () => {
   it('returns the inner function result synchronously', () => {
@@ -23,6 +25,17 @@ describe('Feature — runWithBankContext', () => {
     runWithBankContext('mizrahi', (): void => {
       expect(getBankMixin().bank).toBe('mizrahi');
     });
+  });
+
+  it('keeps the supplied environment when the setup bundle omits signal', () => {
+    const env = { ...ENVIRONMENT, forensicTrace: true };
+    const observed = runWithBankContext('hapoalim', () => currentRunScope(), { env });
+    expect(observed && observed.env).toBe(env);
+  });
+
+  it('treats an empty setup bundle as a bundle, not an environment', () => {
+    const observed = runWithBankContext('hapoalim', () => currentRunScope(), {});
+    expect(observed && observed.env).toBe(ENVIRONMENT);
   });
 
   it('clears the bank field outside the callback', () => {
