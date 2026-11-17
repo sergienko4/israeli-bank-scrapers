@@ -422,20 +422,20 @@ const HOSTILE_THROWS = [
 ];
 
 describe('body check that throws', () => {
-  it('[BCT-0] recovers a typed refusal once on a warm session (control)', async () => {
+  it('[BCT-0] does not recover a non-auth typed refusal on a warm session', async () => {
     const { bus, recover } = recoveryBusWith(SYN_CASE.fixtures.balance, true);
     const shape = onCustomerOperation(refuseCustomer);
     const result = await runShape(shape, bus);
     expect(result.success).toBe(false);
-    expect(recover).toHaveBeenCalledTimes(1);
+    expect(recover).not.toHaveBeenCalled();
   });
 
-  it.each(PLACEMENTS)('[BCT-1] recovers once on a warm session when $name throws', async row => {
+  it.each(PLACEMENTS)('[BCT-1] does not recover when $name throws warm', async row => {
     const { bus, recover } = recoveryBusWith(SYN_CASE.fixtures.balance, true);
     const check = throwingCheck(CHECK_FAILURE);
     const shape = row.place(check);
     await runShape(shape, bus);
-    expect(recover).toHaveBeenCalledTimes(1);
+    expect(recover).not.toHaveBeenCalled();
   });
 
   it.each(PLACEMENTS)(

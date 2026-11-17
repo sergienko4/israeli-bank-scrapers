@@ -3,7 +3,8 @@
  * `empty` answers `{}`, `fail` refuses with the log-safe URL and the status,
  * and `rate-limit` reports WafBlocked without reading the body. A
  * document step skips `empty`, because its reader judges a 204 as an empty
- * document against the step's marker.
+ * document against the step's marker. HTTP 429 is always a rate limit, whatever
+ * the bank's policy says, and its body is never read.
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
@@ -15,6 +16,9 @@ import { fail, succeed } from '../../Types/Procedure.js';
 import type { HttpVerb } from './FetchStrategy.js';
 import cancelResponseBody from './ResponseBody.js';
 import { safeUrlForLog } from './SafeUrlForLog.js';
+
+/** The status every bank treats as a rate limit. */
+const RATE_LIMIT_STATUS = 429;
 
 /** One answered call, with how its transport reads it. */
 interface IAnswer {
@@ -75,11 +79,13 @@ const DECISIONS: Readonly<Record<StatusAction, Decide>> = {
 };
 
 /**
- * The action the bank names for this answer's status, when it applies.
+ * The action this answer's status takes: a rate limit for 429, else the
+ * bank's named action.
  * @param answer - The answered call.
  * @returns The action; none when unnamed, or `empty` on a document step.
  */
 function statusActionFor(answer: Pick<IAnswer, 'response' | 'reading'>): Option<StatusAction> {
+  if (answer.response.status === RATE_LIMIT_STATUS) return some('rate-limit');
   const action = answer.reading.statusPolicy[answer.response.status];
   if (!action) return none();
   const isDocument = answer.reading.responseKind === 'document';

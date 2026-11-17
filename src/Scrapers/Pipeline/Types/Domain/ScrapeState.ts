@@ -19,6 +19,12 @@ interface IScrapeState {
    */
   readonly balanceDegraded?: boolean;
   /**
+   * True when at least one account's balance fallback answered an auth-shaped
+   * failure (401/403). Lets warm recovery tell a silently rejected token from
+   * a transient fallback; only this flag makes a degraded slot auth-shaped.
+   */
+  readonly authRejected?: boolean;
+  /**
    * True when at least one account's backfill was spent without covering the
    * requested window: the provider was re-asked for the missing older slice
    * and did not serve it.

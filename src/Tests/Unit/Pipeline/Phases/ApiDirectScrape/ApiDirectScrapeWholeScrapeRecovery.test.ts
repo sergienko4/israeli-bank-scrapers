@@ -227,7 +227,7 @@ describe('whole-scrape recovery — what triggers it', () => {
 });
 
 describe('per-request recovery — a throwing shape callback', () => {
-  it('guards the throw, re-grants once and retries the scrape', async () => {
+  it('guards the throw without a non-auth re-login', async () => {
     const router = routerWith('transactions', OK_ANSWERS.transactions);
     const handle = makeRecoveryBus({ router, isWarm: true, isWholeScrape: false });
     let attempts = 0;
@@ -251,9 +251,9 @@ describe('per-request recovery — a throwing shape callback', () => {
       },
     };
     const result = await scrapeOver(handle.bus, flaky);
-    assertOk(result);
-    expect(handle.recoverSession).toHaveBeenCalledTimes(1);
-    expect(attempts).toBe(2);
+    expect(result).toMatchObject({ success: false });
+    expect(handle.recoverSession).not.toHaveBeenCalled();
+    expect(attempts).toBe(1);
   });
 });
 
@@ -276,7 +276,7 @@ const CHECK_THREW = 'shape checkBodyByOperation threw: ScraperError';
 
 describe('recovery — a throwing body check is a typed failure', () => {
   it.each([
-    { name: 'a warm per-request session', isWarm: true, isWholeScrape: false, recoveries: 1 },
+    { name: 'a warm per-request session', isWarm: true, isWholeScrape: false, recoveries: 0 },
     { name: 'a cold per-request session', isWarm: false, isWholeScrape: false, recoveries: 0 },
     { name: 'a warm whole-scrape session', isWarm: true, isWholeScrape: true, recoveries: 0 },
     { name: 'a cold whole-scrape session', isWarm: false, isWholeScrape: true, recoveries: 0 },
@@ -301,7 +301,7 @@ describe('recovery — a throwing body check is a typed failure', () => {
   });
 });
 
-describe('per-request recovery — the warm-session rule is unchanged', () => {
+describe('per-request recovery — auth-shaped outcomes only', () => {
   it('a cold session does not recover from a 401', async () => {
     const router = routerWith('balance', UNAUTHORIZED);
     const handle = makeRecoveryBus({ router, isWarm: false, isWholeScrape: false });
@@ -310,8 +310,16 @@ describe('per-request recovery — the warm-session rule is unchanged', () => {
     expect(handle.recoverSession).not.toHaveBeenCalled();
   });
 
-  it('a warm session recovers from a 5xx', async () => {
+  it('a warm session does not recover from a 5xx', async () => {
     const router = routerWith('balance', UNAVAILABLE);
+    const handle = makeRecoveryBus({ router, isWarm: true, isWholeScrape: false });
+    const result = await scrapeOver(handle.bus);
+    expect(result).toEqual(UNAVAILABLE);
+    expect(handle.recoverSession).not.toHaveBeenCalled();
+  });
+
+  it('a warm session recovers from a 401', async () => {
+    const router = routerWith('balance', UNAUTHORIZED);
     const handle = makeRecoveryBus({ router, isWarm: true, isWholeScrape: false });
     const result = await scrapeOver(handle.bus);
     assertOk(result);

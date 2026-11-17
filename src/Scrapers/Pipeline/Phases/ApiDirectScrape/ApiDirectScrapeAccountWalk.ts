@@ -24,6 +24,8 @@ import type { IBalanceOutcome } from './IApiDirectScrapeShape.js';
 export interface IAccountResult {
   readonly account: IAuditedAccount;
   readonly degraded: boolean;
+  /** The balance fallback answered an auth-shaped (401/403) failure. */
+  readonly authRejected: boolean;
   /** Backfill was asked for the missing slice and did not get it. */
   readonly backfillExhausted: boolean;
   readonly observedCaveats: readonly WindowCaveat[];
@@ -73,9 +75,11 @@ function heldAccount(
  */
 function outcomeOf(bal: IBalanceOutcome, txns: IAccountTxns): Omit<IAccountResult, 'account'> {
   const isDegraded = bal.degraded;
+  const isAuthRejected = bal.authRejected === true;
   const isBackfillExhausted = txns.backfillExhausted;
   const observedCaveats = txns.observedCaveats;
-  return { degraded: isDegraded, backfillExhausted: isBackfillExhausted, observedCaveats };
+  const facts = { degraded: isDegraded, backfillExhausted: isBackfillExhausted };
+  return { ...facts, authRejected: isAuthRejected, observedCaveats };
 }
 
 /**

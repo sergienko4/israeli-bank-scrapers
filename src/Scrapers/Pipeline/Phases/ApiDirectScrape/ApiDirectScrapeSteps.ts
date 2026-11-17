@@ -60,9 +60,9 @@ function checkSecondaryBody<TAcct, TCursor>(
  * Extract the account list, then report anything the shape filtered out.
  *
  * <p>Shapes reject an unusable account identity by throwing (see the FIBI
- * group factory). {@link guardShape} converts that throw into the failed
- * `Procedure` `isScrapeSuspicious` reads, which is what keeps the documented
- * recover-once path reachable.
+ * group factory). {@link guardShape} converts that throw into a typed failed
+ * `Procedure`, so it is reported as a scrape failure instead of escaping the
+ * phase; the converted failure is not auth-shaped and does not re-login.
  *
  * <p>The reporting call sits OUTSIDE the guard deliberately: only
  * `extractAccounts` may be blamed for its own throw, and

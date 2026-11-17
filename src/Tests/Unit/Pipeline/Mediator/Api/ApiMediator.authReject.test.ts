@@ -65,6 +65,13 @@ describe('isAuthRejectedFailure', () => {
     expect(isRejected).toBe(false);
   });
 
+  it('accepts an explicit auth-shaped marker from a body check', (): void => {
+    const failure = { ...fail(ScraperErrorTypes.Generic, 'ring session expired') };
+    const marked = { ...failure, authRejected: true as const };
+    const isRejected = isAuthRejectedFailure(marked);
+    expect(isRejected).toBe(true);
+  });
+
   it('refuses a timeout', (): void => {
     const failure = fail(ScraperErrorTypes.Timeout, `token ${ScraperErrorTypes.Timeout}`);
     const isRejected = isAuthRejectedFailure(failure);

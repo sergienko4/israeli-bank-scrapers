@@ -27,6 +27,8 @@ interface IProcedureFailure {
   readonly shapeGuardFailure?: true;
   /** Set when the message is bank text that must never drive auth recovery. */
   readonly messageOnlyFailure?: true;
+  /** Set when a successful-looking response still rejected the session. */
+  readonly authRejected?: true;
 }
 
 /** Discriminated union — every pipeline step returns this. */

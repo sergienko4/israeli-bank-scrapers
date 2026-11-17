@@ -239,10 +239,14 @@ describe('capped NativeFetchStrategy', () => {
     expect(signalOf(mock.mock.calls[0][1]).aborted).toBe(true);
   });
 
-  it('keeps an unconfigured 429 under the shared failure policy', async () => {
+  it('treats an unconfigured 429 as a rate limit without reading its body', async () => {
     installFetchMock(() => Promise.resolve(new Response('slow down', { status: 429 })));
     const result = await strategy.fetchGet(ITEMS_URL, { extraHeaders: {} });
-    expect(result).toMatchObject({ success: false, errorType: ScraperErrorTypes.Generic });
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.WafBlocked,
+      errorMessage: 'GET https://api.bank.example/v1/items 429: rate limited',
+    });
   });
 
   it('keeps a broken success body as a transport failure', async () => {
