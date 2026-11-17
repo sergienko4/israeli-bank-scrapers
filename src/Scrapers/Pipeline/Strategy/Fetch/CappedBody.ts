@@ -6,9 +6,10 @@
  * under the request's timeout and optional response-integrity policy.
  */
 
+import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { IResponseIntegrity, IResponseReading } from '../../Types/Domain/FetchPolicy.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { isOk, succeed } from '../../Types/Procedure.js';
+import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import { hasCloudflareChallengeHeader } from './HttpFailureClassifier.js';
 import { isMediaTypeMismatch } from './MediaTypeCheck.js';
 import { isApiSuccess } from './NativeFetchDispatch.js';
@@ -102,14 +103,65 @@ function stopAfterHeaders(response: Response, controller: AbortController): Resp
   return response;
 }
 
+/** Fixed reason when a failure body stream cannot be read. */
+const UNREADABLE_BODY_REASON = 'response body unreadable';
+
+/** Fixed reason when the edge challenged an unreadable body. */
+const CHALLENGE_REASON = 'challenged by Cloudflare edge (WAF) before reaching the API';
+
+/** Error names a request rejects with once its abort signal fires. */
+const ABORT_ERROR_NAMES: ReadonlySet<unknown> = new Set(['TimeoutError', 'AbortError']);
+
+/**
+ * Whether a rejection came from an aborted request.
+ * @param error - The caught value.
+ * @returns True for a timeout or abort rejection.
+ */
+function isAbortRejection(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  const name: unknown = Reflect.get(error, 'name');
+  return ABORT_ERROR_NAMES.has(name);
+}
+
+/**
+ * Keep a non-2xx response's status when its failure body cannot be read.
+ * @param response - Response whose body failed.
+ * @param error - The stream failure.
+ * @returns A typed failure, or false when the error must be rethrown.
+ */
+function unreadableFailure(response: Response, error: unknown): Procedure<Response> | false {
+  if (isApiSuccess(response) || isAbortRejection(error)) return false;
+  const headers = Object.fromEntries(response.headers);
+  if (hasCloudflareChallengeHeader(headers)) {
+    return fail(ScraperErrorTypes.WafBlocked, CHALLENGE_REASON, response.status);
+  }
+  return fail(ScraperErrorTypes.Generic, UNREADABLE_BODY_REASON, response.status);
+}
+
+/**
+ * Convert a failed body read, or rethrow when it must stay a transport error.
+ * @param response - Response whose body failed.
+ * @param error - The stream failure.
+ * @returns The typed failure for a non-2xx read.
+ */
+function handleReadFailure(response: Response, error: unknown): Procedure<Response> {
+  const failure = unreadableFailure(response, error);
+  if (failure === false) throw error;
+  return failure;
+}
+
 /**
  * Buffers a response under the existing timeout when no byte policy is named.
  * @param response - Response whose headers have passed policy checks.
  * @returns The buffered response.
  */
 async function readUnbounded(response: Response): Promise<Procedure<Response>> {
-  await response.clone().arrayBuffer();
-  return succeed(response);
+  try {
+    await response.clone().arrayBuffer();
+    return succeed(response);
+  } catch (error) {
+    return handleReadFailure(response, error);
+  }
 }
 
 /**
@@ -137,13 +189,34 @@ function appliedIntegrity(
  * @param policy - The validated byte and digest policy.
  * @returns The buffered response or a fixed integrity refusal.
  */
-async function checkBoundedBody(
-  response: Response,
-  controller: AbortController,
-  policy: IResponseIntegrity,
-): Promise<Procedure<Response>> {
+interface IBoundedRead {
+  readonly response: Response;
+  readonly controller: AbortController;
+  readonly policy: IResponseIntegrity;
+}
+
+/**
+ * Verify one bounded body and release its clone on success.
+ * @param read - Response, controller and effective policy.
+ * @returns Success carrying the original response, or the integrity refusal.
+ */
+async function verifyOrRefuse(read: IBoundedRead): Promise<Procedure<Response>> {
+  const { response, controller, policy } = read;
   const checked = await verifyResponseIntegrity(response, policy, controller);
   return isOk(checked) ? succeed(response) : checked;
+}
+
+/**
+ * Verifies successful bytes and bounds failures for their normal classification.
+ * @param read - Response, controller and effective policy.
+ * @returns The buffered response or a fixed integrity refusal.
+ */
+async function checkBoundedBody(read: IBoundedRead): Promise<Procedure<Response>> {
+  try {
+    return await verifyOrRefuse(read);
+  } catch (error) {
+    return handleReadFailure(read.response, error);
+  }
 }
 
 /**
@@ -161,7 +234,7 @@ async function readWithinCap(
   const policy = reading.responseIntegrity;
   if (policy === undefined) return readUnbounded(response);
   const applied = appliedIntegrity(response, reading, policy);
-  return checkBoundedBody(response, controller, applied);
+  return checkBoundedBody({ response, controller, policy: applied });
 }
 
 /**

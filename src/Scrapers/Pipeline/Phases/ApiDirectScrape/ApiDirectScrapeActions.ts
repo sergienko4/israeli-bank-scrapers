@@ -8,7 +8,7 @@
  * ceiling. Zero bank-name coupling.
  */
 
-import { isAuthRejectedFailure } from '../../Mediator/Api/ApiMediator.authReject.js';
+import isAuthRejectedFailure from '../../Mediator/Api/ApiMediator.authReject.js';
 import type { IApiMediator } from '../../Mediator/Api/ApiMediator.js';
 import resolveApiMediator from '../../Mediator/Api/ApiMediatorAccessor.js';
 import { isSome, some } from '../../Types/Option.js';

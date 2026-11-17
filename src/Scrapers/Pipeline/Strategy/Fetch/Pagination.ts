@@ -87,6 +87,8 @@ interface IPaginationState<TItem, TCursor> {
   readonly acc: readonly TItem[];
   readonly cursor: TCursor | false;
   readonly page: number;
+  /** Serialized cursors this walk has already handed back. */
+  readonly seen: ReadonlySet<string>;
   readonly termination?: PaginationTermination;
 }
 
@@ -119,25 +121,37 @@ function advance<TItem, TCursor>(
   state: IPaginationState<TItem, TCursor>,
   page: IPage<TItem, TCursor>,
 ): IPaginationState<TItem, TCursor> {
-  const merge = args.merge ?? concatPages;
-  const mergedAcc = merge(state.acc, page.items);
+  const mergedAcc = (args.merge ?? concatPages)(state.acc, page.items);
   const termination = page.nextCursor === false ? page.termination : undefined;
-  return { acc: mergedAcc, cursor: page.nextCursor, page: state.page + 1, termination };
+  const seen = nextSeen(state.seen, page.nextCursor);
+  return { acc: mergedAcc, cursor: page.nextCursor, page: state.page + 1, seen, termination };
 }
 
 /**
- * Whether the walk derived the cursor it just used.
+ * Add a page's cursor to the walk's seen set.
+ * @param seen - Cursors already handed back.
+ * @param cursor - Cursor the new page handed back, or false at exhaustion.
+ * @returns The updated seen set.
+ */
+function nextSeen(seen: ReadonlySet<string>, cursor: unknown): ReadonlySet<string> {
+  if (cursor === false) return seen;
+  return new Set([...seen, JSON.stringify(cursor)]);
+}
+
+/**
+ * Whether the walk handed back a cursor it already used.
  *
  * The seed cursor is `false`, meaning "none yet" rather than a value, so it can
  * never count as a repeat.
  *
  * @param next - Cursor the new page handed back.
- * @param previous - Cursor the request carried.
- * @returns True when the two are the same value.
+ * @param seen - Cursors already handed back by this walk.
+ * @returns True when the cursor was seen before.
  */
-function isCursorRepeat<TCursor>(next: TCursor | false, previous: TCursor | false): boolean {
-  if (previous === false) return false;
-  return JSON.stringify(next) === JSON.stringify(previous);
+function isCursorRepeat(next: unknown, seen: ReadonlySet<string>): boolean {
+  if (next === false) return false;
+  const key = JSON.stringify(next);
+  return seen.has(key);
 }
 
 /**
@@ -150,7 +164,7 @@ function haltCode<TItem, TCursor>(
   next: IPaginationState<TItem, TCursor>,
   state: IPaginationState<TItem, TCursor>,
 ): HaltCode | false {
-  if (isCursorRepeat(next.cursor, state.cursor)) return 'cursorRepeat';
+  if (isCursorRepeat(next.cursor, state.seen)) return 'cursorRepeat';
   if (next.page >= MAX_PAGES) return 'pageCeiling';
   return false;
 }
@@ -269,6 +283,14 @@ async function paginateStep<TItem, TCursor>(
 }
 
 /**
+ * Build the seed state for one walk.
+ * @returns Empty accumulator, no cursor and an empty seen set.
+ */
+function initialState<TItem, TCursor>(): IPaginationState<TItem, TCursor> {
+  return { acc: [], cursor: false, page: 0, seen: new Set<string>() };
+}
+
+/**
  * Accumulate items across pages until stop predicate fires or cursor exhausts.
  * @param args - Caller-supplied fetchPage (cursor → Procedure<Page>) + stop predicate.
  * @returns Procedure carrying the walk and how it ended, or the first propagated fail.
@@ -276,7 +298,7 @@ async function paginateStep<TItem, TCursor>(
 async function fetchPaginated<TItem, TCursor>(
   args: IFetchPaginatedArgs<TItem, TCursor>,
 ): Promise<Procedure<IPaginatedWalk<TItem>>> {
-  const initial: IPaginationState<TItem, TCursor> = { acc: [], cursor: false, page: 0 };
+  const initial = initialState<TItem, TCursor>();
   return paginateStep(args, initial);
 }
 

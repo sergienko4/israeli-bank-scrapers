@@ -282,6 +282,34 @@ describe('Pagination.fetchPaginated/walks that stop making progress', () => {
     expect(termination).toBe('cursorRepeat');
   });
 
+  it('halts on a cursor that returns after another cursor', async () => {
+    const asks: (string | false)[] = [];
+    const nextCursors = ['cursor-a', 'cursor-b', 'cursor-a'] as const;
+    let page = 0;
+    /**
+     * Serve an A → B → A cursor cycle.
+     * @param cursor - Cursor the walk asked under.
+     * @returns The next page in the cycle.
+     */
+    const fetchPage: PageFetcher<string, string> = (
+      cursor: string | false,
+    ): Promise<Procedure<IPage<string, string>>> => {
+      asks.push(cursor);
+      const nextCursor = nextCursors[page] ?? 'cursor-a';
+      page += 1;
+      const result = succeed({ items: [nextCursor], nextCursor });
+      return Promise.resolve(result);
+    };
+    const args: IFetchPaginatedArgs<string, string> = { fetchPage, stop: NEVER_STOP };
+    const result = await fetchPaginated(args);
+    expect(asks).toEqual([false, 'cursor-a', 'cursor-b']);
+    const isSuccess = isOk(result);
+    expect(isSuccess).toBe(true);
+    if (isOk(result)) {
+      expect(result.value.termination).toBe('cursorRepeat');
+    }
+  });
+
   it('lets a merge collapse the rows a repeated ask re-served', async () => {
     // What an overlap-declaring shape gets: the second ask re-serves the row,
     // and the merge drops it rather than reporting the same transaction twice.

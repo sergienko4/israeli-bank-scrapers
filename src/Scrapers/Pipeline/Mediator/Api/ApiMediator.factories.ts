@@ -87,13 +87,14 @@ function nativePolicies(args: IGraphQLTransportArgs): INativeFetchOptions {
 }
 
 /**
- * GraphQL policies: the shared native policies plus the inherited cap rule —
- * an operation without an integrity policy keeps the base transport.
+ * GraphQL policies: the shared native policies. Every GraphQL attempt is
+ * capped by the request timeout, including operations without an integrity
+ * policy; the byte cap still applies only when integrity is declared.
  * @param args - Mediator args bundle.
  * @returns Policies for the GraphQL transport.
  */
 function graphqlPolicies(args: IGraphQLTransportArgs): INativeFetchOptions {
-  return { ...nativePolicies(args), capOnlyWithIntegrity: true };
+  return nativePolicies(args);
 }
 
 /**

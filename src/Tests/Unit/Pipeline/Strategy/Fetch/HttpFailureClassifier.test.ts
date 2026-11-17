@@ -5,11 +5,12 @@
  */
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
-import { isAuthRejectionMessage } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.authReject.js';
+import isAuthRejectedFailure from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.authReject.js';
 import {
   classifyHttpFailure,
   CLOUDFLARE_BLOCK_REASON,
 } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/HttpFailureClassifier.js';
+import { fail } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import {
   BLOCK_PAGE_CLIENT_IP,
   BLOCK_PAGE_RAY_ID,
@@ -133,7 +134,11 @@ describe('classifyHttpFailure', () => {
   it.each(CLASSIFY_CASES)('$label → $expectedType', (row: IClassifyCase) => {
     const failure = { verb: 'POST', url: TARGET_URL, ...row };
     const result = classifyHttpFailure(failure);
-    expect(result).toMatchObject({ success: false, errorType: row.expectedType });
+    expect(result).toMatchObject({
+      success: false,
+      errorType: row.expectedType,
+      httpStatus: row.status,
+    });
   });
 
   it.each([undefined, true])('reports a safe Cloudflare block, omitBankText=%s', omitBankText => {
@@ -146,7 +151,8 @@ describe('classifyHttpFailure', () => {
     const serialized = JSON.stringify(result);
     expect(serialized).not.toContain(BLOCK_PAGE_CLIENT_IP);
     expect(serialized).not.toContain(BLOCK_PAGE_RAY_ID);
-    const isStillAuthShaped = isAuthRejectionMessage(expectedMessage);
+    const authFailure = fail(ScraperErrorTypes.Generic, expectedMessage);
+    const isStillAuthShaped = isAuthRejectedFailure(authFailure);
     expect(isStillAuthShaped).toBe(true);
   });
 

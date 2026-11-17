@@ -21,6 +21,12 @@ interface IProcedureFailure {
   readonly errorMessage: string;
   readonly errorDetails: Option<IWafErrorDetails>;
   readonly responseIntegrityRefusal?: true;
+  /** HTTP status the bank answered, when the failure came from a response. */
+  readonly httpStatus?: number;
+  /** Set when a shape callback throw was converted into a failure. */
+  readonly shapeGuardFailure?: true;
+  /** Set when the message is bank text that must never drive auth recovery. */
+  readonly messageOnlyFailure?: true;
 }
 
 /** Discriminated union — every pipeline step returns this. */
@@ -39,10 +45,28 @@ function succeed<T>(value: T): IProcedureSuccess<T> {
  * Create a failure result.
  * @param errorType - The categorized error type.
  * @param errorMessage - Human-readable error description.
+ * @param httpStatus - HTTP status the bank answered, when one is known.
  * @returns A failure Procedure.
  */
-function fail(errorType: ScraperErrorTypes, errorMessage: string): IProcedureFailure {
-  return { success: false, errorType, errorMessage, errorDetails: none() };
+function fail(
+  errorType: ScraperErrorTypes,
+  errorMessage: string,
+  httpStatus?: number,
+): IProcedureFailure {
+  return attachStatus(
+    { success: false, errorType, errorMessage, errorDetails: none() },
+    httpStatus,
+  );
+}
+
+/**
+ * Attach a response status when one is known.
+ * @param failure - Failure to extend.
+ * @param httpStatus - HTTP status, or undefined when unknown.
+ * @returns The failure, carrying the status when known.
+ */
+function attachStatus(failure: IProcedureFailure, httpStatus?: number): IProcedureFailure {
+  return httpStatus === undefined ? failure : { ...failure, httpStatus };
 }
 
 /**
@@ -95,6 +119,25 @@ function preferTerminalFailure<T, TRepair>(
   return earlier;
 }
 
+/** Auth statuses whose marker must survive legacy conversion. */
+const AUTH_STATUSES: ReadonlySet<number> = new Set([401, 403]);
+
+/** Matches either existing auth marker the legacy message may already carry. */
+const AUTH_MARKER = /\s(?:(?:401|403):\s|HTTP (?:401|403)$)/;
+
+/**
+ * Preserve an auth status as a marker when the message has none.
+ * @param proc - The internal failure result.
+ * @returns The legacy message.
+ */
+function legacyMessage(proc: IProcedureFailure): string {
+  const { httpStatus, errorMessage } = proc;
+  if (httpStatus === undefined || !AUTH_STATUSES.has(httpStatus)) return errorMessage;
+  if (AUTH_MARKER.test(errorMessage)) return errorMessage;
+  const status = String(httpStatus);
+  return `${errorMessage} HTTP ${status}`;
+}
+
 /**
  * The error fields every legacy failure carries.
  * @param proc - The internal failure result.
@@ -104,7 +147,7 @@ function legacyBase(proc: IProcedureFailure): IScraperScrapingResult {
   return {
     success: false,
     errorType: proc.errorType,
-    errorMessage: proc.errorMessage,
+    errorMessage: legacyMessage(proc),
   };
 }
 

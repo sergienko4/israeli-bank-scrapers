@@ -16,17 +16,19 @@ import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js
 import type { IWafErrorDetails } from '../../../../../../Scrapers/Base/Interfaces/WafErrorDetails.js';
 import { runWithBankContext } from '../../../../../../Scrapers/Pipeline/Logging/BankContext.js';
 import { buildSilentOptions } from '../../../../../../Scrapers/Pipeline/Logging/RootLogger.js';
+import isAuthRejectedFailure from '../../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.authReject.js';
 import type ITokenStrategy from '../../../../../../Scrapers/Pipeline/Mediator/Api/ITokenStrategy.js';
 import type {
   IApiDirectCallConfig,
   IStepConfig,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
+import sanitiseStepFailure from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.failure.js';
 import type { ITemplateScope } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/RefResolver.js';
 import type GraphQLFetchStrategy from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/GraphQLFetchStrategy.js';
 import type { ITokenBus } from '../../../../../../Scrapers/Pipeline/Types/Domain/TokenBus.js';
 import type { IPipelineContext } from '../../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
-import { fail, succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { fail, succeed, toLegacy } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import {
   ENVELOPE_KEY_TEXT,
   ENVELOPE_SESSION_ID,
@@ -456,5 +458,31 @@ describe('login-step failure message through the native transport and the mediat
     });
     expect(fake.calls).toHaveLength(1);
     expect(JSON.stringify(result) + LOG_LINES.join('\n')).not.toContain('cf-error');
+  });
+});
+
+describe('sanitiseStepFailure — structured HTTP status', () => {
+  it('uses httpStatus when the message carries no status prefix', (): void => {
+    const failure = fail(ScraperErrorTypes.Generic, 'response body unreadable', 401);
+    const step = {
+      name: 'bind',
+      httpFailureMap: { '401': ScraperErrorTypes.InvalidPassword },
+    };
+    const sanitised = sanitiseStepFailure(step, failure);
+    expect(sanitised).toMatchObject({
+      errorType: ScraperErrorTypes.InvalidPassword,
+      errorMessage: 'bind HTTP 401',
+    });
+  });
+});
+
+describe('sanitiseStepFailure — legacy auth evidence', () => {
+  it('keeps the auth marker through legacy conversion', (): void => {
+    const failure = fail(ScraperErrorTypes.Generic, 'response body unreadable', 401);
+    const sanitised = sanitiseStepFailure({ name: 'customer' }, failure);
+    const legacy = toLegacy(sanitised);
+    const rebuilt = fail(ScraperErrorTypes.Generic, legacy.errorMessage ?? '');
+    const isRejected = isAuthRejectedFailure(rebuilt);
+    expect(isRejected).toBe(true);
   });
 });

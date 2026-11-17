@@ -40,6 +40,9 @@ const READERS: Readonly<Record<ResponseKind, Reader>> = {
   text: readText,
 };
 
+/** Fixed reason when a failure body stream cannot be read. */
+const UNREADABLE_BODY_REASON = 'response body unreadable';
+
 /** Trace messages, one per dispatch checkpoint. */
 const FIRE_MESSAGE = '[fetch] FIRE';
 const FAIL_MESSAGE = '[fetch] NETWORK FAIL';
@@ -57,6 +60,19 @@ function hasHeaderChallenge(answer: IAnswer, headers: Record<string, string>): b
 }
 
 /**
+ * Read a failure body without letting a broken stream escape the dispatcher.
+ * @param response - Failed response.
+ * @returns The body text, or a fixed unreadable-body reason.
+ */
+async function readFailureBody(response: Response): Promise<string> {
+  try {
+    return await response.text();
+  } catch {
+    return UNREADABLE_BODY_REASON;
+  }
+}
+
+/**
  * Classify a failed or challenged answer into a Procedure failure.
  * @param answer - The answered call: non-2xx, or a 2xx challenge.
  * @returns WafBlocked for an edge refusal, else Generic honoring body omission.
@@ -64,7 +80,7 @@ function hasHeaderChallenge(answer: IAnswer, headers: Record<string, string>): b
 async function classifyStatus<T>(answer: IAnswer): Promise<Procedure<T>> {
   const { response, verb, url } = answer;
   const headers = Object.fromEntries(response.headers);
-  const body = hasHeaderChallenge(answer, headers) ? '' : await response.text();
+  const body = hasHeaderChallenge(answer, headers) ? '' : await readFailureBody(response);
   const privacy = { omitBankText: answer.reading.omitBankText };
   const redaction = { redactUrlValues: answer.reading.redactUrlValues };
   const failure = { verb, url, status: response.status, body, headers, ...privacy, ...redaction };

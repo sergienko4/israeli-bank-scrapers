@@ -6,7 +6,7 @@
  */
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
-import { isAuthRejectedFailure } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.authReject.js';
+import isAuthRejectedFailure from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.authReject.js';
 import { fail } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
 /** A transport failure prefix: verb, safe URL. */
@@ -33,6 +33,34 @@ describe('isAuthRejectedFailure', () => {
     ['a step that got no response', `token ${ScraperErrorTypes.Generic}`],
   ])('refuses %s', (_label, message): void => {
     const failure = fail(ScraperErrorTypes.Generic, message);
+    const isRejected = isAuthRejectedFailure(failure);
+    expect(isRejected).toBe(false);
+  });
+
+  it.each([401, 403])('accepts a failure that carries HTTP %s', (status: number): void => {
+    const failure = fail(ScraperErrorTypes.Generic, `${CALL} refused`, status);
+    const isRejected = isAuthRejectedFailure(failure);
+    expect(isRejected).toBe(true);
+  });
+
+  it.each([400, 500, 503])(
+    'refuses a status %s even when the body quotes an auth marker',
+    (status: number): void => {
+      const failure = fail(
+        ScraperErrorTypes.Generic,
+        `${CALL} ${String(status)}: upstream said Error 401: expired`,
+        status,
+      );
+      const isRejected = isAuthRejectedFailure(failure);
+      expect(isRejected).toBe(false);
+    },
+  );
+
+  it('refuses a shape-guard failure even when its message quotes an auth marker', (): void => {
+    const failure = {
+      ...fail(ScraperErrorTypes.Generic, 'shape extractPage threw: upstream 401: expired'),
+      shapeGuardFailure: true as const,
+    };
     const isRejected = isAuthRejectedFailure(failure);
     expect(isRejected).toBe(false);
   });

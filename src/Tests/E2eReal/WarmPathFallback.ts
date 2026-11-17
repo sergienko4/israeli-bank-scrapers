@@ -24,10 +24,12 @@
  * The guard is the budget, not the branch.
  */
 
+import { ScraperErrorTypes } from '../../Scrapers/Base/ErrorTypes.js';
 import type { IScraperScrapingResult, ScraperCredentials } from '../../Scrapers/Base/Interface.js';
 import type { ScraperLogger } from '../../Scrapers/Pipeline/Logging/Debug.js';
-import { isAuthRejectionMessage } from '../../Scrapers/Pipeline/Mediator/Api/ApiMediator.authReject.js';
+import isAuthRejectedFailure from '../../Scrapers/Pipeline/Mediator/Api/ApiMediator.authReject.js';
 import { redactErrorMessage } from '../../Scrapers/Pipeline/Types/PiiRedactor/ErrorLog.js';
+import { fail } from '../../Scrapers/Pipeline/Types/Procedure.js';
 import type { ILoginWitness } from './LoginWitness.js';
 import type { IOtpBudget } from './OtpBudget.js';
 import type { ITokenCacheHandle } from './TokenCache.js';
@@ -110,7 +112,8 @@ function hasSpentSms(args: IWarmFallbackArgs): boolean {
 function isRetrySafe(args: IWarmFallbackArgs, failed: IScraperScrapingResult): boolean {
   const hasSpent = hasSpentSms(args);
   if (hasSpent) return false;
-  const isRejected = isAuthRejectionMessage(failed.errorMessage ?? '');
+  const failedProcedure = fail(ScraperErrorTypes.Generic, failed.errorMessage ?? '');
+  const isRejected = isAuthRejectedFailure(failedProcedure);
   if (isRejected) return false;
   const witnessed = args.loginWitness.lastToken();
   return witnessed === args.cachedToken;

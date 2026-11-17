@@ -381,6 +381,17 @@ describe('scrapeWithWarmFallback — proving the first attempt spent nothing', (
     expect(attempt).toHaveBeenCalledTimes(1);
   });
 
+  it('refuses an unreadable 401 with no spent budget and a cached-token witness', async () => {
+    const warmOk = stubWitness(CACHED_TOKEN);
+    const unreadable = {
+      success: false,
+      errorType: 'GENERIC',
+      errorMessage: 'response body unreadable HTTP 401',
+    } as unknown as IScraperScrapingResult;
+    const attempt = await runRejectedWarm(warmOk, unreadable);
+    expect(attempt).toHaveBeenCalledTimes(1);
+  });
+
   it('refuses on an auth rejection, which may have spent a mid-scrape login', async () => {
     const warmOk = stubWitness(CACHED_TOKEN);
     const attempt = await runRejectedWarm(warmOk, AUTH_REJECTED);

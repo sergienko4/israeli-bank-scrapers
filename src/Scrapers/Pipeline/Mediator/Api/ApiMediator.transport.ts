@@ -163,7 +163,8 @@ function operationLabel(operation: string): string {
  */
 function envelopeErrorFail<T>(label: string, operation: string): Procedure<T> {
   const at = operationLabel(operation);
-  return fail(ScraperErrorTypes.Generic, `graphql errors${at}: ${label}`);
+  const failure = fail(ScraperErrorTypes.Generic, `graphql errors${at}: ${label}`);
+  return { ...failure, messageOnlyFailure: true };
 }
 
 /**
