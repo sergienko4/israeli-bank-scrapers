@@ -223,8 +223,10 @@ reader.
 
 `isApiSuccess`, `statusActionFor` and `isMediaTypeMismatch` are shared by response
 routing and the capped HTTP transport. When the status or media-type policy
-decides from headers, only that request's body is cancelled; undecided,
-challenged and document-empty responses still need a body read under the cap.
+decides from headers, only that request's body is cancelled. A challenge header
+also decides from headers: its body is released through `cancelResponseBody`,
+not read. Undecided and document-empty responses still need a body read under
+the cap.
 A per-query empty-status notification preserves an approved GraphQL empty
 result without accepting a parsed `{}` as a valid GraphQL envelope or sharing
 the verdict with another query.
