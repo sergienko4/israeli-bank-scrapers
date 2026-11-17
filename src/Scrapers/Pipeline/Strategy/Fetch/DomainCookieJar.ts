@@ -80,13 +80,30 @@ function keyOf(cookie: IStoredCookie): string {
  * @param key - Key about to be written.
  * @returns True when a cookie was evicted.
  */
+/**
+ * Remove every expired cookie so capacity belongs to live sessions.
+ * @param state - Jar state.
+ * @returns True when at least one cookie was removed.
+ */
+function purgeExpired(state: IJarState): boolean {
+  const nowS = nowEpochS();
+  const expired = [...state.store].filter(([, cookie]): boolean => isExpired(cookie, nowS));
+  for (const [key] of expired) state.store.delete(key);
+  return expired.length > 0;
+}
+
+/**
+ * Drop the oldest live cookie when the store is full and a new key is entering.
+ * @param state - Jar state.
+ * @param key - Key about to be written.
+ * @returns True when a cookie was evicted.
+ */
 function evictOldest(state: IJarState, key: string): boolean {
-  if (state.store.has(key) || state.store.size < MAX_COOKIES) return false;
-  for (const oldest of state.store.keys()) {
-    state.store.delete(oldest);
-    break;
-  }
-  return true;
+  if (state.store.has(key)) return false;
+  purgeExpired(state);
+  if (state.store.size < MAX_COOKIES) return false;
+  const oldest = String(state.store.keys().next().value);
+  return state.store.delete(oldest);
 }
 
 /**

@@ -64,19 +64,27 @@ function framedHeaders(init: RequestInit, bytes: Buffer | false): Record<string,
 }
 
 /**
+ * Build the per-request timeout signal.
+ * @param timeoutMs - Per-request timeout.
+ * @returns The signal handed to node:https and body collection.
+ */
+function requestSignal(timeoutMs: number): AbortSignal {
+  return AbortSignal.timeout(timeoutMs);
+}
+
+/**
  * Assemble node:https RequestOptions for one request.
  * @param request - The fully-specified mTLS request.
  * @param bytes - The body bytes, or false for no body.
- * @param timeoutMs - Per-request timeout.
+ * @param signal - Per-request timeout signal.
  * @returns RequestOptions ready for https.request.
  */
 function buildOptions(
   request: IMtlsRequest,
   bytes: Buffer | false,
-  timeoutMs: number,
+  signal: AbortSignal,
 ): RequestOptions {
   const headers = framedHeaders(request.init, bytes);
-  const signal = AbortSignal.timeout(timeoutMs);
   return { agent: request.agent, method: request.verb, headers, signal };
 }
 
@@ -98,12 +106,12 @@ function endRequest(req: ReturnType<typeof httpsRequest>, bytes: Buffer | false)
 /**
  * Issue the HTTPS request and resolve with the raw IncomingMessage.
  * @param request - The fully-specified mTLS request.
- * @param timeoutMs - Per-request timeout.
+ * @param signal - Per-request timeout signal.
  * @returns Promise resolving with node's IncomingMessage (rejects on socket error).
  */
-function sendRequest(request: IMtlsRequest, timeoutMs: number): Promise<IncomingMessage> {
+function sendRequest(request: IMtlsRequest, signal: AbortSignal): Promise<IncomingMessage> {
   const bytes = bodyBytes(request.init);
-  const options = buildOptions(request, bytes, timeoutMs);
+  const options = buildOptions(request, bytes, signal);
   return new Promise((resolve, reject) => {
     const req = httpsRequest(request.url, options, resolve);
     req.on('error', reject);
@@ -112,4 +120,4 @@ function sendRequest(request: IMtlsRequest, timeoutMs: number): Promise<Incoming
 }
 
 export type { IMtlsRequest };
-export { sendRequest };
+export { requestSignal, sendRequest };

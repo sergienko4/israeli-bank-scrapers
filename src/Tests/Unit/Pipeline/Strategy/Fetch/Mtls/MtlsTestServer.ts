@@ -108,6 +108,28 @@ function sendHang(): boolean {
 }
 
 /**
+ * Write headers and half a body, then leave the response open.
+ * @param res - The response to start.
+ * @returns True (the socket is intentionally left open).
+ */
+function sendPartial(res: ServerResponse): boolean {
+  res.writeHead(200, { 'content-type': 'application/json' });
+  res.write('{"ok":');
+  return true;
+}
+
+/**
+ * Answer 429 with an unfinished body; the transport must decide from headers.
+ * @param res - The response to start.
+ * @returns True (the socket is intentionally left open).
+ */
+function sendRateLimited(res: ServerResponse): boolean {
+  res.writeHead(429, { 'content-type': 'application/json' });
+  res.write('slow down');
+  return true;
+}
+
+/**
  * Answer after a delay long enough to miss a short timeout but fit a long one.
  * @param req - The incoming request.
  * @param res - The response to write.
@@ -220,6 +242,8 @@ type GateHandler = (req: IncomingMessage, res: ServerResponse) => boolean;
 const GATE_ROUTES: readonly (readonly [string, GateHandler])[] = [
   ['wrong-media-headers', (_req, res): boolean => sendWrongMediaHeaders(res)],
   ['challenge', (_req, res): boolean => sendChallenge(res)],
+  ['rate-limited', (_req, res): boolean => sendRateLimited(res)],
+  ['partial', (_req, res): boolean => sendPartial(res)],
   ['hang', sendHang],
   ['delayed', sendDelayedOk],
   ['premature', (_req, res): boolean => sendPremature(res)],

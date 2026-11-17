@@ -390,6 +390,29 @@ describe('DomainCookieJar/size cap', () => {
     expect(newest).toBe('cookie-300');
   });
 
+  it('purges expired cookies before evicting a live one', () => {
+    jest.useFakeTimers({ now: new Date('2026-01-01T00:00:00Z') });
+    try {
+      const nowS = Math.floor(Date.now() / 1000);
+      const jar = makeJar();
+      const live = Array.from({ length: 300 }, (_value, index) => {
+        const name = `cookie-${String(index)}`;
+        return stored({ name });
+      });
+      const expiring = { ...live[1], expiresEpochS: nowS + 1 };
+      jar.importAll([live[0], expiring, ...live.slice(2)]);
+      jest.advanceTimersByTime(2000);
+      const size = jar.set(WWW, { name: 'new', value: '1' });
+      const names = jar.exportAll().map((cookie): string => cookie.name);
+      expect(size).toBe(300);
+      expect(names).toContain('cookie-0');
+      expect(names).not.toContain('cookie-1');
+      expect(names).toContain('new');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('replaces an existing key at the cap without evicting another', () => {
     const jar = makeJar();
     const full = Array.from({ length: 300 }, (_value, index) => {

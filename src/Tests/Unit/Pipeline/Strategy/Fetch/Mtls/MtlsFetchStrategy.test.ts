@@ -113,6 +113,29 @@ describe('MtlsFetchStrategy — REST over the mTLS gate', () => {
     if (!isOk(result)) expect(result.errorMessage).toContain('403');
   });
 
+  it('decides a 429 from headers without waiting for its body', async () => {
+    const strategy = new MtlsFetchStrategy(server.baseUrl, certSource, { timeoutMs: 5000 });
+    const result = await strategy.fetchGet(`${server.baseUrl}rate-limited`, {
+      extraHeaders: {},
+    });
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.WafBlocked,
+      errorMessage: `GET ${server.baseUrl}rate-limited 429: rate limited`,
+    });
+  });
+
+  it('reports TIMEOUT when the body stalls after headers', async () => {
+    const strategy = new MtlsFetchStrategy(server.baseUrl, certSource, { timeoutMs: 100 });
+    const result = await strategy.fetchGet(`${server.baseUrl}partial`, {
+      extraHeaders: {},
+    });
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Timeout,
+    });
+  });
+
   it('refuses mismatched headers without waiting for a body, preserving cookie hooks', async () => {
     const captured: string[] = [];
     /**
