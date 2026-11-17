@@ -14,6 +14,9 @@ const DEFAULT_CALLBACK_TIMEOUT_MS = 30_000;
 const MAX_TIMER_MS = 2_147_483_647;
 const RUN_ABORT_MESSAGE = 'scrape aborted';
 
+/** Rejection raised when a caller callback exceeds its budget. */
+class CallbackTimeoutError extends ScraperError {}
+
 /** A pending rejection plus its cleanup hook. */
 interface ITimeoutWait {
   readonly promise: Promise<never>;
@@ -33,7 +36,7 @@ interface IAbortWait {
  */
 function timeoutRejection(reject: (error: unknown) => unknown): () => boolean {
   return (): boolean => {
-    reject(new ScraperError('callback timed out'));
+    reject(new CallbackTimeoutError('callback timed out'));
     return true;
   };
 }
@@ -179,4 +182,5 @@ async function withCallbackDeadline<T>(work: Promise<T>, timeoutMs?: number): Pr
   return Promise.race(races).finally(cleanup);
 }
 
+export { CallbackTimeoutError };
 export default withCallbackDeadline;

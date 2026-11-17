@@ -303,6 +303,20 @@ async function afterDelay(ms: number): Promise<void> {
 }
 
 describe('PipelineExecutor/cancellation', () => {
+  it('reports cancellation when a phase throws after the abort', async () => {
+    const controller = new AbortController();
+    const phase = new SimplePhase('api-direct-call', () => {
+      controller.abort();
+      throw new ScraperError('phase exploded');
+    });
+    const options = { ...MOCK_OPTIONS, signal: controller.signal };
+    const result = await executePipeline({ options, phases: [phase] }, MOCK_CREDENTIALS);
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Timeout,
+    });
+  });
+
   it('stops before the first phase when the caller signal is already aborted', async () => {
     const controller = new AbortController();
     controller.abort();

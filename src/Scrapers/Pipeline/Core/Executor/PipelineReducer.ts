@@ -177,4 +177,4 @@ function wrapError(error: Error): Procedure<IPipelineContext> {
   return fail(ScraperErrorTypes.Generic, message);
 }
 
-export { reducePhases, wrapError };
+export { failedPhase, reducePhases, wrapError };

@@ -17,7 +17,7 @@ import buildInitialContext from '../PipelineContextFactory.js';
 import type { IPipelineDescriptor } from '../PipelineDescriptor.js';
 import toResult from '../PipelineResult.js';
 import reportCleanupFailure from './CleanupDiagnostic.js';
-import { type IContextTracker, reducePhases, wrapError } from './PipelineReducer.js';
+import { failedPhase, type IContextTracker, reducePhases, wrapError } from './PipelineReducer.js';
 
 /** Largest delay the platform timer accepts, in milliseconds. */
 const MAX_TIMER_MS = 2_147_483_647;
@@ -54,6 +54,16 @@ async function disposeApiMediatorSafe(ctx: IPipelineContext): LifecyclePromise {
 }
 
 /**
+ * Convert a phase throw, preferring the abort verdict when the run was cancelled.
+ * @param error - The caught value.
+ * @returns The abort failure or the wrapped error.
+ */
+function caughtPhaseFailure(error: unknown): Procedure<IPipelineContext> {
+  const failure = wrapError(error as Error);
+  return failedPhase(failure);
+}
+
+/**
  * Run phase reduction and convert any unexpected throw into a Procedure failure.
  * @param tracker - Context tracker.
  * @param initialCtx - Initial pipeline context.
@@ -66,7 +76,7 @@ async function runGuardedPhases(
   try {
     return await reducePhases(tracker, initialCtx, 0);
   } catch (error) {
-    return wrapError(error as Error);
+    return caughtPhaseFailure(error);
   }
 }
 

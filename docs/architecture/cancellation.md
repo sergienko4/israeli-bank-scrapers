@@ -21,7 +21,9 @@ shared boolean check used by the reducer, transports and recovery gate.
 Before each phase, `PipelineReducer` asks `currentAbortSignal()`. An aborted
 run returns a `TIMEOUT` failure with the fixed message `scrape aborted`; the
 phase that was running is never re-run, which matters because the auth phase can
-send an SMS OTP.
+send an SMS OTP. `failedPhase` applies the same precedence when a phase fails or
+throws after cancellation, so the abort verdict is never replaced by the
+phase's own error.
 
 ## Both transports
 
@@ -39,7 +41,9 @@ mTLS socket, so settlement leaves no open body or socket.
 ## Caller callbacks
 
 `withCallbackDeadline` races each callback against an `AbortSignal.timeout`
-deadline. The timer is unref'd by Node, so it never keeps the process alive, and
+deadline. A rejection from that deadline is a dedicated `CallbackTimeoutError`,
+so `raceTimeout` converts only that class to its sentinel and leaves unrelated
+rejections untouched. The timer is unref'd by Node, so it never keeps the process alive, and
 the deadline listener fires once. A callback that outlives its budget behaves
 like a throw:
 

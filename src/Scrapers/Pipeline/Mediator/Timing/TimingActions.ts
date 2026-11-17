@@ -6,8 +6,7 @@
  * cancelled or completed wait.
  */
 
-import withCallbackDeadline from '../../Types/CallbackDeadline.js';
-import { toError } from '../../Types/ErrorUtils.js';
+import withCallbackDeadline, { CallbackTimeoutError } from '../../Types/CallbackDeadline.js';
 
 /** Sentinel indicating the race timed out before the promise resolved. */
 export const RACE_TIMED_OUT = Symbol('RACE_TIMED_OUT');
@@ -18,7 +17,7 @@ export const RACE_TIMED_OUT = Symbol('RACE_TIMED_OUT');
  * @returns The timeout sentinel.
  */
 function timeoutSentinel(error: unknown): typeof RACE_TIMED_OUT {
-  if (toError(error).message === 'callback timed out') return RACE_TIMED_OUT;
+  if (error instanceof CallbackTimeoutError) return RACE_TIMED_OUT;
   throw error;
 }
 

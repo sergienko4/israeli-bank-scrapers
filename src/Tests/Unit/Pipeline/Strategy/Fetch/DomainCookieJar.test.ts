@@ -405,14 +405,14 @@ describe('DomainCookieJar/size cap', () => {
       const nowS = Math.floor(Date.now() / 1000);
       const jar = makeJar();
       const live = capCookies(300);
-      const expiring = { ...live[0], expiresEpochS: nowS + 1 };
-      jar.importAll([expiring, ...live.slice(1)]);
+      const expiring = { ...live[1], expiresEpochS: nowS + 1 };
+      jar.importAll([live[0], expiring, ...live.slice(2)]);
       jest.advanceTimersByTime(2000);
       const size = jar.set(WWW, { name: 'new', value: '1' });
       const names = jar.exportAll().map((cookie): string => cookie.name);
       expect(size).toBe(300);
-      expect(names).toContain('cookie-1');
-      expect(names).not.toContain('cookie-0');
+      expect(names).toContain('cookie-0');
+      expect(names).not.toContain('cookie-1');
       expect(names).toContain('new');
     } finally {
       jest.useRealTimers();

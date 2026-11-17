@@ -656,7 +656,7 @@ describe('SmsOtpFlow — pre-hook guards', () => {
   });
 
   describe('SmsOtpFlow — pre-hook cancellation', () => {
-    it('stops a pending retriever as soon as the run is aborted', async () => {
+    it('aborts before the retriever is requested when the run is already aborted', async () => {
       const controller = new AbortController();
       const request = runWithBankContext(
         'onezero',
@@ -676,6 +676,45 @@ describe('SmsOtpFlow — pre-hook guards', () => {
         errorMessage: 'scrape aborted',
       });
       expect(run.captures).toHaveLength(1);
+      expect(run.hints).toEqual([]);
+    });
+
+    it('aborts an in-flight retriever once it has been entered', async () => {
+      const controller = new AbortController();
+      let signalEntered: (() => unknown) | false = false;
+      const entered = new Promise<void>(resolve => {
+        /**
+         * Release the entered signal.
+         * @returns True.
+         */
+        const signal = (): unknown => {
+          resolve();
+          return true;
+        };
+        signalEntered = signal;
+      });
+      /**
+       * Signal entry, then wait forever.
+       * @param hint - Hint from the flow.
+       * @returns A pending retriever promise.
+       */
+      const retriever = (hint: string): Promise<string> => {
+        if (hint.length > 0 && signalEntered !== false) signalEntered();
+        return pendingOtpCode();
+      };
+      const request = runWithBankContext(
+        'onezero',
+        () => runGuarded({ hook: HOOK, bind: FULL_BIND, retriever }),
+        { signal: controller.signal },
+      );
+      await entered;
+      controller.abort();
+      const run = await request;
+      expect(run.result).toMatchObject({
+        success: false,
+        errorType: ScraperErrorTypes.Timeout,
+        errorMessage: 'scrape aborted',
+      });
     });
 
     it.each<[string, number | undefined, number]>([

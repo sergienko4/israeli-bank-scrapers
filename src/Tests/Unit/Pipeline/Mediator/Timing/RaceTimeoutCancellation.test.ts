@@ -65,6 +65,12 @@ describe('raceTimeout timer cancellation', () => {
     await expect(raced).resolves.toBe(RACE_TIMED_OUT);
   });
 
+  it('T-TIMER-7 — rethrows an unrelated rejection with the timeout wording', async () => {
+    const rejected = Promise.reject(new Error('callback timed out'));
+    const raced = raceTimeout(LONG_BUDGET_MS, rejected);
+    await expect(raced).rejects.toThrow('callback timed out');
+  });
+
   it('T-TIMER-6 — leaves no timer behind after the timeout path settles', async () => {
     const hung = neverSettles();
     const raced = raceTimeout(SHORT_BUDGET_MS, hung);
