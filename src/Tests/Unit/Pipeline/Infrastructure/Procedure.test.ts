@@ -89,6 +89,18 @@ describe('Procedure/toLegacy', () => {
     expect(legacy.errorMessage).toBe('timed out');
   });
 
+  it('keeps an unreadable auth status as a legacy message marker', () => {
+    const proc = fail(ScraperErrorTypes.Generic, 'response body unreadable', 401);
+    const legacy = toLegacy(proc);
+    expect(legacy.errorMessage).toBe('response body unreadable HTTP 401');
+  });
+
+  it('does not duplicate an existing transport auth marker', () => {
+    const proc = fail(ScraperErrorTypes.Generic, 'POST /x 401: denied', 401);
+    const legacy = toLegacy(proc);
+    expect(legacy.errorMessage).toBe('POST /x 401: denied');
+  });
+
   it('includes errorDetails in legacy when present', () => {
     const details: IWafErrorDetails = {
       provider: 'cloudflare',

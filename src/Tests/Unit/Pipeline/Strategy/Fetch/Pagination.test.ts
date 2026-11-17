@@ -303,6 +303,8 @@ describe('Pagination.fetchPaginated/walks that stop making progress', () => {
     const args: IFetchPaginatedArgs<string, string> = { fetchPage, stop: NEVER_STOP };
     const result = await fetchPaginated(args);
     expect(asks).toEqual([false, 'cursor-a', 'cursor-b']);
+    const isSuccess = isOk(result);
+    expect(isSuccess).toBe(true);
     if (isOk(result)) {
       expect(result.value.termination).toBe('cursorRepeat');
     }

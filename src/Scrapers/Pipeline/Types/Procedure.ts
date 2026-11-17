@@ -119,6 +119,25 @@ function preferTerminalFailure<T, TRepair>(
   return earlier;
 }
 
+/** Auth statuses whose marker must survive legacy conversion. */
+const AUTH_STATUSES: ReadonlySet<number> = new Set([401, 403]);
+
+/** Matches either existing auth marker the legacy message may already carry. */
+const AUTH_MARKER = /\s(?:401|403):\s|\sHTTP (?:401|403)$/;
+
+/**
+ * Preserve an auth status as a marker when the message has none.
+ * @param proc - The internal failure result.
+ * @returns The legacy message.
+ */
+function legacyMessage(proc: IProcedureFailure): string {
+  const { httpStatus, errorMessage } = proc;
+  if (httpStatus === undefined || !AUTH_STATUSES.has(httpStatus)) return errorMessage;
+  if (AUTH_MARKER.test(errorMessage)) return errorMessage;
+  const status = String(httpStatus);
+  return `${errorMessage} HTTP ${status}`;
+}
+
 /**
  * The error fields every legacy failure carries.
  * @param proc - The internal failure result.
@@ -128,7 +147,7 @@ function legacyBase(proc: IProcedureFailure): IScraperScrapingResult {
   return {
     success: false,
     errorType: proc.errorType,
-    errorMessage: proc.errorMessage,
+    errorMessage: legacyMessage(proc),
   };
 }
 
