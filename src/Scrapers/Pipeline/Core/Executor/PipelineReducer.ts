@@ -8,6 +8,7 @@ import type PhaseName from '../../Types/Phase.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
+import { currentAbortSignal } from '../../Types/RunScope.js';
 import { buildPhaseIndex, traceResult, traceStart } from '../PipelineTraceService.js';
 
 /** Mutable state for phase reduction. */
@@ -103,9 +104,20 @@ async function executeTracedPhase(
 }
 
 /**
+ * Refuse to start another phase once the run's signal has aborted.
+ * @returns The abort failure, or false to continue.
+ */
+function abortRefusal(): Procedure<IPipelineContext> | false {
+  const signal = currentAbortSignal();
+  if (signal === false || !signal.aborted) return false;
+  return fail(ScraperErrorTypes.Timeout, 'scrape aborted');
+}
+
+/**
  * Reduce phases sequentially with trace. A failed phase is returned as-is:
  * both phases have real-world side effects (api-direct-call sends a fresh
- * SMS OTP), so none is ever re-run.
+ * SMS OTP), so none is ever re-run. An aborted run stops before its next phase
+ * without re-running the current one.
  * @param tracker - Context tracker.
  * @param ctx - Current context.
  * @param index - Current phase index.
@@ -117,9 +129,25 @@ async function reducePhases(
   index: number,
 ): Promise<Procedure<IPipelineContext>> {
   if (index >= tracker.phases.length) return succeed(ctx);
+  return runNextPhase(tracker, ctx, index);
+}
+
+/**
+ * Run the next phase unless the run has aborted, then continue reducing.
+ * @param tracker - Context tracker.
+ * @param ctx - Current context.
+ * @param index - Current phase index.
+ * @returns The final accumulated context or the first failure.
+ */
+async function runNextPhase(
+  tracker: IContextTracker,
+  ctx: IPipelineContext,
+  index: number,
+): Promise<Procedure<IPipelineContext>> {
+  const aborted = abortRefusal();
+  if (aborted !== false) return aborted;
   const result = await executeTracedPhase(tracker, ctx, index);
-  if (!isOk(result)) return result;
-  return reducePhases(tracker, result.value, index + 1);
+  return isOk(result) ? reducePhases(tracker, result.value, index + 1) : result;
 }
 
 /**

@@ -9,6 +9,7 @@
 import type { Agent } from 'node:https';
 
 import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js';
+import { runWithBankContext } from '../../../../../../Scrapers/Pipeline/Logging/BankContext.js';
 import type { IFetchOpts } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js';
 import {
   type AgentSource,
@@ -111,6 +112,24 @@ describe('MtlsFetchStrategy — REST over the mTLS gate', () => {
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(false);
     if (!isOk(result)) expect(result.errorMessage).toContain('403');
+  });
+
+  it('aborts an in-flight request when the whole-run signal fires', async () => {
+    const controller = new AbortController();
+    const strategy = new MtlsFetchStrategy(server.baseUrl, certSource, { timeoutMs: 5000 });
+    /**
+     * Send the hanging request inside the caller's run scope.
+     * @returns The fetch result.
+     */
+    const work = (): ReturnType<typeof strategy.fetchGet> =>
+      strategy.fetchGet(`${server.baseUrl}hang`, { extraHeaders: {} });
+    const pending = runWithBankContext('onezero', work, { signal: controller.signal });
+    controller.abort();
+    const result = await pending;
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Timeout,
+    });
   });
 
   it('refuses mismatched headers without waiting for a body, preserving cookie hooks', async () => {

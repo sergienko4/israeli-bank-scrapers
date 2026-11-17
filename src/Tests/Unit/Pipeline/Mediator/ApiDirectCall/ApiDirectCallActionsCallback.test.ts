@@ -50,6 +50,28 @@ function callbackCtx(callback: AuthFlowCallback): IPipelineContext {
   return { ...base, options };
 }
 
+describe('invokeAuthFlowComplete — callback deadline', () => {
+  it('gives up on a callback that never settles and keeps the scrape successful', async () => {
+    /**
+     * Never settle.
+     * @returns A pending promise.
+     */
+    const callback = (): Promise<void> =>
+      new Promise<void>(() => {
+        // Never resolves: the deadline must win.
+      });
+    const base = callbackCtx(callback);
+    const ctx = { ...base, options: { ...base.options, callbackTimeoutMs: 5 } };
+    const warn = jest.spyOn(ctx.logger, 'warn').mockImplementation(() => undefined);
+    const strategy = { getLatestLongTermToken: latestToken };
+    const isDone = await invokeAuthFlowComplete(ctx, strategy, BEARER);
+    expect(isDone).toBe(false);
+    expect(warn).toHaveBeenCalledWith({
+      message: 'api-direct-call onAuthFlowComplete callback threw ScraperError',
+    });
+  });
+});
+
 describe('invokeAuthFlowComplete — callback throw', () => {
   it.each([
     ['RangeError', 'RangeError'],

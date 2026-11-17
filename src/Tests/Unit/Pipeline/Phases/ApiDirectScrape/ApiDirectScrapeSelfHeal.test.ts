@@ -283,6 +283,24 @@ describe('ApiDirectScrape self-heal — gating + recovery failure (synthetic)', 
     expect(scr.value.accounts).toHaveLength(0);
   });
 
+  it('SH-10 — warm + aborted run does not recover', async () => {
+    const aborted = fail(ScraperErrorTypes.Timeout, 'scrape aborted');
+    const { bus, recoverSession } = makeSelfHealBus({
+      router: {
+        customer: [succeed(SYN_CASE.fixtures.customer)],
+        balance: [aborted],
+        transactions: [succeed(SYN_CASE.fixtures.transactions)],
+      },
+      isWarm: true,
+      recover: succeed('unused'),
+    });
+    const phase = runScrapeAction(synShape);
+    const ctx = ctxOf(bus, SYN_CASE.name);
+    const result = await phase(ctx);
+    expect(result).toEqual(aborted);
+    expect(recoverSession).not.toHaveBeenCalled();
+  });
+
   it('SH-9 — warm + rate-limited balance does not recover', async () => {
     const rateLimited = fail(ScraperErrorTypes.WafBlocked, 'GET /balance 429: rate limited');
     const { bus, recoverSession } = makeSelfHealBus({

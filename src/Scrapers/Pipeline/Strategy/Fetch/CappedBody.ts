@@ -9,6 +9,7 @@
 import type { IResponseIntegrity, IResponseReading } from '../../Types/Domain/FetchPolicy.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
+import { currentAbortSignal } from '../../Types/RunScope.js';
 import { NETWORK_MAX_RESPONSE_BYTES } from './FetchConfig.js';
 import { hasCloudflareChallengeHeader } from './HttpFailureClassifier.js';
 import { isMediaTypeMismatch } from './MediaTypeCheck.js';
@@ -168,6 +169,19 @@ async function readWithinCap(
 }
 
 /**
+ * Combine this request's controller, its timeout and the whole-run signal.
+ * @param controller - Request-local abort controller.
+ * @param timeoutMs - Per-attempt timeout ceiling.
+ * @returns The signal handed to fetch.
+ */
+function requestSignal(controller: AbortController, timeoutMs: number): AbortSignal {
+  const signals = [controller.signal, AbortSignal.timeout(timeoutMs)];
+  const runSignal = currentAbortSignal();
+  if (runSignal !== false) signals.push(runSignal);
+  return AbortSignal.any(signals);
+}
+
+/**
  * Cap connect and required-body reads; leave header-only outcomes unbuffered.
  * The clone preserves the original body for the inherited response reader.
  * @param request - Request, reading policy and timeout ceiling.
@@ -175,7 +189,7 @@ async function readWithinCap(
  */
 async function fetchWithinCap(request: ICappedRequest): Promise<Procedure<Response>> {
   const controller = new AbortController();
-  const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(request.timeoutMs)]);
+  const signal = requestSignal(controller, request.timeoutMs);
   const response = await globalThis.fetch(request.url, { ...request.init, signal });
   if (needsBody(response, request)) return readWithinCap(response, controller, request.reading);
   const stopped = stopAfterHeaders(response, controller);

@@ -278,12 +278,12 @@ describe.each(ISSUERS)('$bank browserless login', issuer => {
     expect(run.steps).toEqual(COLD_STEPS);
   });
 
-  it('logs in cold once, then fails, when the gateway refuses a warm run', async () => {
+  it('fails without a cold re-login when the gateway refuses a warm run', async () => {
     const creds = { ...RING_MOCK_CREDS, otpLongTermToken: SYN_STORED_KEY };
     const run = await runRing({ issuer, creds, fault: 'refuseMonth' });
     expect(run.result.success).toBe(false);
     expect(run.result.errorType).toBe(ScraperErrorTypes.Generic);
-    expect(run.steps).toEqual([...WARM_STEPS, ...COLD_STEPS]);
+    expect(run.steps).toEqual(WARM_STEPS);
   });
 
   it.each(REFUSALS)('fails $name before any data call', async (refusal: IRefusal) => {

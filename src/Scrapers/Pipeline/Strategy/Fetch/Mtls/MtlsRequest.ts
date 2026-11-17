@@ -8,6 +8,7 @@
 import type { IncomingMessage } from 'node:http';
 import { type Agent, request as httpsRequest, type RequestOptions } from 'node:https';
 
+import { currentAbortSignal } from '../../../Types/RunScope.js';
 import type { IFetchInvokePolicy } from '../FetchStrategy.js';
 
 /** Fully-specified mTLS request bundle — keeps params under the 3-ceiling. */
@@ -64,6 +65,18 @@ function framedHeaders(init: RequestInit, bytes: Buffer | false): Record<string,
 }
 
 /**
+ * Combine the request timeout with the whole-run cancellation signal.
+ * @param timeoutMs - Per-request timeout.
+ * @returns The signal handed to node:https.
+ */
+function requestSignal(timeoutMs: number): AbortSignal {
+  const signals = [AbortSignal.timeout(timeoutMs)];
+  const runSignal = currentAbortSignal();
+  if (runSignal !== false) signals.push(runSignal);
+  return AbortSignal.any(signals);
+}
+
+/**
  * Assemble node:https RequestOptions for one request.
  * @param request - The fully-specified mTLS request.
  * @param bytes - The body bytes, or false for no body.
@@ -76,7 +89,7 @@ function buildOptions(
   timeoutMs: number,
 ): RequestOptions {
   const headers = framedHeaders(request.init, bytes);
-  const signal = AbortSignal.timeout(timeoutMs);
+  const signal = requestSignal(timeoutMs);
   return { agent: request.agent, method: request.verb, headers, signal };
 }
 
