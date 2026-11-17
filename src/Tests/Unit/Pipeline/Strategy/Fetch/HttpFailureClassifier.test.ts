@@ -133,7 +133,11 @@ describe('classifyHttpFailure', () => {
   it.each(CLASSIFY_CASES)('$label → $expectedType', (row: IClassifyCase) => {
     const failure = { verb: 'POST', url: TARGET_URL, ...row };
     const result = classifyHttpFailure(failure);
-    expect(result).toMatchObject({ success: false, errorType: row.expectedType });
+    expect(result).toMatchObject({
+      success: false,
+      errorType: row.expectedType,
+      httpStatus: row.status,
+    });
   });
 
   it.each([undefined, true])('reports a safe Cloudflare block, omitBankText=%s', omitBankText => {

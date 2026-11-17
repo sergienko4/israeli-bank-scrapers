@@ -13,6 +13,11 @@
  * <p>{@link isAuthRejectedFailure} asks the wider question a warm-start
  * gate needs: a login step's failure is sanitised to `<step> HTTP 401`, which
  * the transport marker above never matches.
+ *
+ * <p>When a failure carries the response's {@link IProcedureFailure.httpStatus},
+ * that status is authoritative: a 500 whose body merely quotes an auth marker
+ * is not a rejection, and a 401 whose body says nothing is. The message
+ * patterns remain as a fallback for failures sanitised past their response.
  */
 
 import type { IProcedureFailure } from '../../Types/Procedure.js';
@@ -54,6 +59,9 @@ function isAuthRejectionMessage(message: string): boolean {
  */
 function isAuthRejectedFailure(failure: IProcedureFailure): boolean {
   if (isTerminalFailure(failure)) return false;
+  if (failure.httpStatus !== undefined) {
+    return failure.httpStatus === 401 || failure.httpStatus === 403;
+  }
   return (
     AUTH_REJECT_REGEX.test(failure.errorMessage) ||
     AUTH_REJECTED_SUFFIX_REGEX.test(failure.errorMessage)

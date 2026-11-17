@@ -37,6 +37,25 @@ describe('isAuthRejectedFailure', () => {
     expect(isRejected).toBe(false);
   });
 
+  it.each([401, 403])('accepts a failure that carries HTTP %s', (status: number): void => {
+    const failure = fail(ScraperErrorTypes.Generic, `${CALL} refused`, status);
+    const isRejected = isAuthRejectedFailure(failure);
+    expect(isRejected).toBe(true);
+  });
+
+  it.each([400, 500, 503])(
+    'refuses a status %s even when the body quotes an auth marker',
+    (status: number): void => {
+      const failure = fail(
+        ScraperErrorTypes.Generic,
+        `${CALL} ${String(status)}: upstream said Error 401: expired`,
+        status,
+      );
+      const isRejected = isAuthRejectedFailure(failure);
+      expect(isRejected).toBe(false);
+    },
+  );
+
   it('refuses a timeout', (): void => {
     const failure = fail(ScraperErrorTypes.Timeout, `token ${ScraperErrorTypes.Timeout}`);
     const isRejected = isAuthRejectedFailure(failure);

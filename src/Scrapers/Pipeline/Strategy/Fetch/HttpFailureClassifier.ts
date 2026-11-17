@@ -15,7 +15,7 @@
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
-import type { Procedure } from '../../Types/Procedure.js';
+import type { IProcedureFailure, Procedure } from '../../Types/Procedure.js';
 import { fail } from '../../Types/Procedure.js';
 import { safeUrlForLog } from './SafeUrlForLog.js';
 
@@ -127,6 +127,23 @@ const EDGE_REFUSAL_RULES: readonly IEdgeRefusalRule[] = [
 ];
 
 /**
+ * Build the failure for a response, keeping its status for later classification.
+ * @param failure - Verb, URL, status, body and headers of the response.
+ * @param prefix - Verb, safe URL and status prefix.
+ * @returns WafBlocked for an edge refusal, otherwise Generic.
+ */
+function failureFor(failure: IHttpFailure, prefix: string): IProcedureFailure {
+  const refusal = EDGE_REFUSAL_RULES.find((rule): boolean => rule.matches(failure));
+  if (refusal) {
+    return fail(ScraperErrorTypes.WafBlocked, prefix + refusal.reason, failure.status);
+  }
+  const snippet = failure.omitBankText
+    ? OMITTED_BODY_REASON
+    : failure.body.slice(0, ERROR_BODY_SNIPPET_LEN);
+  return fail(ScraperErrorTypes.Generic, prefix + snippet, failure.status);
+}
+
+/**
  * Classify a failed or challenged response into a failure Procedure.
  * @param failure - Verb, URL, status, body and headers of the response.
  * @returns WafBlocked with a fixed reason for an edge refusal, otherwise
@@ -135,12 +152,7 @@ const EDGE_REFUSAL_RULES: readonly IEdgeRefusalRule[] = [
 function classifyHttpFailure<T>(failure: IHttpFailure): Procedure<T> {
   const safeUrl = safeUrlForLog(failure.url, failure.redactUrlValues);
   const prefix = `${failure.verb} ${safeUrl} ${String(failure.status)}: `;
-  const refusal = EDGE_REFUSAL_RULES.find((rule): boolean => rule.matches(failure));
-  if (refusal) return fail(ScraperErrorTypes.WafBlocked, prefix + refusal.reason);
-  const snippet = failure.omitBankText
-    ? OMITTED_BODY_REASON
-    : failure.body.slice(0, ERROR_BODY_SNIPPET_LEN);
-  return fail(ScraperErrorTypes.Generic, prefix + snippet);
+  return failureFor(failure, prefix);
 }
 
 export {

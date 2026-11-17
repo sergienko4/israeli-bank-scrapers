@@ -21,6 +21,8 @@ interface IProcedureFailure {
   readonly errorMessage: string;
   readonly errorDetails: Option<IWafErrorDetails>;
   readonly responseIntegrityRefusal?: true;
+  /** HTTP status the bank answered, when the failure came from a response. */
+  readonly httpStatus?: number;
 }
 
 /** Discriminated union — every pipeline step returns this. */
@@ -39,10 +41,28 @@ function succeed<T>(value: T): IProcedureSuccess<T> {
  * Create a failure result.
  * @param errorType - The categorized error type.
  * @param errorMessage - Human-readable error description.
+ * @param httpStatus - HTTP status the bank answered, when one is known.
  * @returns A failure Procedure.
  */
-function fail(errorType: ScraperErrorTypes, errorMessage: string): IProcedureFailure {
-  return { success: false, errorType, errorMessage, errorDetails: none() };
+function fail(
+  errorType: ScraperErrorTypes,
+  errorMessage: string,
+  httpStatus?: number,
+): IProcedureFailure {
+  return attachStatus(
+    { success: false, errorType, errorMessage, errorDetails: none() },
+    httpStatus,
+  );
+}
+
+/**
+ * Attach a response status when one is known.
+ * @param failure - Failure to extend.
+ * @param httpStatus - HTTP status, or undefined when unknown.
+ * @returns The failure, carrying the status when known.
+ */
+function attachStatus(failure: IProcedureFailure, httpStatus?: number): IProcedureFailure {
+  return httpStatus === undefined ? failure : { ...failure, httpStatus };
 }
 
 /**
