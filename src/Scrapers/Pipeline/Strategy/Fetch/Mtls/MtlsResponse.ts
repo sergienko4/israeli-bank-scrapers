@@ -2,17 +2,21 @@
  * Response side of the node:https transport: buffers an IncomingMessage body
  * and synthesises the Web Response the shared dispatchFetch pipeline parses.
  * Split from MtlsTransport so the request side stays under the file cap. The
- * buffer is capped: a body past MTLS_MAX_RESPONSE_BYTES destroys the
+ * buffer is capped: a body past NETWORK_MAX_RESPONSE_BYTES destroys the
  * stream and fails `response too large`.
  */
 
 import type { IncomingMessage } from 'node:http';
 
-/** Largest response body the node:https transport buffers, in bytes (8 MiB). */
-const MTLS_MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
+import { NETWORK_MAX_RESPONSE_BYTES } from '../FetchConfig.js';
 
 /** Fixed reason a response past the cap fails with. */
 const RESPONSE_TOO_LARGE_REASON = 'response too large';
+
+/** Raised when the socket closes before the response body ends. */
+class PrematureCloseError extends Error {
+  public readonly code = 'ECONNRESET';
+}
 
 /** HTTP statuses whose Web Response must have a null body. */
 const NO_BODY_STATUSES: ReadonlySet<number> = new Set([204, 205, 304]);
@@ -49,7 +53,7 @@ interface IBodyState {
  */
 function appendChunk(state: IBodyState, chunk: Buffer): boolean {
   state.size += chunk.byteLength;
-  if (state.size > MTLS_MAX_RESPONSE_BYTES) return refuseOversize(state.message, state.reject);
+  if (state.size > NETWORK_MAX_RESPONSE_BYTES) return refuseOversize(state.message, state.reject);
   state.chunks.push(chunk);
   return true;
 }
@@ -74,7 +78,7 @@ function finishBody(state: IBodyState, resolve: (body: Buffer) => unknown): bool
  */
 function rejectPrematureClose(message: IncomingMessage, reject: BodyReject): boolean {
   if (message.readableEnded) return false;
-  reject(new Error('mtls response closed before end'));
+  reject(new PrematureCloseError('mtls response closed before end'));
   return true;
 }
 
@@ -82,7 +86,7 @@ function rejectPrematureClose(message: IncomingMessage, reject: BodyReject): boo
  * Buffer the full response body without decoding it. Rejects on a stream error or
  * a premature close (socket dropped mid-body) so a truncated Cloudflare response
  * surfaces as a network failure instead of a silently-empty body, and rejects
- * `response too large` once the body passes MTLS_MAX_RESPONSE_BYTES.
+ * `response too large` once the body passes NETWORK_MAX_RESPONSE_BYTES.
  * @param message - The response IncomingMessage.
  * @returns Raw body bytes, or a stream failure.
  */

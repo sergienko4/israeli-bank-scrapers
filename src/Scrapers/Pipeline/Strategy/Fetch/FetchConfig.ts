@@ -7,3 +7,7 @@ export const NETWORK_FETCH_TIMEOUT_MS = 30_000;
  * Bank edges that drop about half of new handshakes need several tries.
  */
 export const NETWORK_CONNECT_RETRIES = 4;
+
+/** Largest body a capped native transport buffers, in bytes (8 MiB). The base
+ * uncapped transport keeps fetch's own streaming behavior. */
+export const NETWORK_MAX_RESPONSE_BYTES = 8 * 1024 * 1024;

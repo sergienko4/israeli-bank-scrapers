@@ -18,9 +18,10 @@ import type { FetchInvoke, IFetchInvokePolicy } from '../FetchStrategy.js';
 import { isMediaTypeMismatch } from '../MediaTypeCheck.js';
 import { isApiSuccess } from '../NativeFetchStrategy.js';
 import { safeUrlForLog, scrubUrlFromText } from '../SafeUrlForLog.js';
+import transportErrorType from '../TransportFailure.js';
 import type { AgentSource, IPresentedCert } from './MtlsAgentSource.js';
 import type { IMtlsRequest } from './MtlsRequest.js';
-import { sendRequest } from './MtlsRequest.js';
+import { requestSignal, sendRequest } from './MtlsRequest.js';
 import { collectBody, toResponse } from './MtlsResponse.js';
 
 /** Production ceiling for one mTLS request (connect + full response). */
@@ -36,7 +37,9 @@ function toMtlsFailure(error: unknown, request: IMtlsRequest): Procedure<Respons
   const rawReason = toError(error).message;
   const reason = scrubUrlFromText(rawReason, request.url, request.redactUrlValues);
   const safeUrl = safeUrlForLog(request.url, request.redactUrlValues);
-  return fail(ScraperErrorTypes.Generic, `${request.verb} ${safeUrl} mtls error: ${reason}`);
+  const message = `${request.verb} ${safeUrl} mtls error: ${reason}`;
+  const errorType = transportErrorType(error);
+  return fail(errorType, message);
 }
 
 /**
@@ -60,6 +63,15 @@ async function readBody(message: Awaited<ReturnType<typeof sendRequest>>): Promi
 }
 
 /**
+ * Whether the answer is a rate limit whose body is never needed.
+ * @param message - The received status and headers.
+ * @returns True for HTTP 429.
+ */
+function isRateLimited(message: Awaited<ReturnType<typeof sendRequest>>): boolean {
+  return message.statusCode === 429;
+}
+
+/**
  * Whether the response headers alone refuse the expected media type.
  * @param response - Header-only response.
  * @param mediaType - Expected media type, when one is named.
@@ -80,7 +92,7 @@ async function readMtlsResponse(
   mediaType?: string,
 ): Promise<Response> {
   const response = emptyResponse(message);
-  if (!isHeaderRefusal(response, mediaType)) return readBody(message);
+  if (!isRateLimited(message) && !isHeaderRefusal(response, mediaType)) return readBody(message);
   message.destroy();
   return response;
 }
@@ -92,13 +104,31 @@ async function readMtlsResponse(
  * @returns Procedure carrying the synthesised Response, or a network failure.
  */
 async function mtlsInvoke(request: IMtlsRequest, timeoutMs: number): Promise<Procedure<Response>> {
+  const signal = requestSignal(timeoutMs);
   try {
-    const message = await sendRequest(request, timeoutMs);
+    const message = await sendRequest(request, signal);
     const response = await readMtlsResponse(message, request.mediaType);
     return succeed(response);
   } catch (error) {
-    return toMtlsFailure(error, request);
+    return mtlsFailure(error, request, signal);
   }
+}
+
+/**
+ * Classify one rejected mTLS call, preferring the signal's timeout.
+ * @param error - The caught failure.
+ * @param request - The request that failed.
+ * @param signal - Per-request timeout signal.
+ * @returns Timeout or the shared network failure.
+ */
+function mtlsFailure(
+  error: unknown,
+  request: IMtlsRequest,
+  signal: AbortSignal,
+): Procedure<Response> {
+  if (!signal.aborted) return toMtlsFailure(error, request);
+  const safeUrl = safeUrlForLog(request.url, request.redactUrlValues);
+  return fail(ScraperErrorTypes.Timeout, `${request.verb} ${safeUrl} mtls error: timeout`);
 }
 
 /**

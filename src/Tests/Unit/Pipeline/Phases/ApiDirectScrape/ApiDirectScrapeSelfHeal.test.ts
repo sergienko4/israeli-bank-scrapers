@@ -3,12 +3,14 @@
  * ({@link ../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeActions!buildGenericApiDirectScrape}).
  *
  * A cached "warm" long-term token is only an optimization: when a warm scrape
- * yields a suspicious outcome (hard failure OR degraded balance — the server
- * silently rejecting a locally-fresh token), the wrapper discards it, runs the
- * full cold re-login via `recoverSession`, and re-scrapes ONCE. The mechanism
- * is shared by every api-direct bank with zero per-bank coupling, so the warm +
- * degraded scenario runs cross-bank over the synthetic, Pepper and OneZero
- * shapes; the gating + recovery-failure edges run on the synthetic case.
+ * yields an auth-shaped outcome (a 401/403 hard failure, or a balance fallback
+ * that answered a 401/403 — the server silently rejecting a locally-fresh
+ * token), the wrapper discards it, runs the full cold re-login via
+ * `recoverSession`, and re-scrapes ONCE. A transient failure, a rate limit or
+ * an empty body no longer buys a cold login. The mechanism is shared by every
+ * api-direct bank with zero per-bank coupling, so the warm + degraded scenario
+ * runs cross-bank over the synthetic, Pepper and OneZero shapes; the gating +
+ * recovery-failure edges run on the synthetic case.
  */
 import { jest } from '@jest/globals';
 
@@ -104,7 +106,7 @@ function degradedShape<TAcct, TCursor>(
   };
 }
 
-const BALANCE_REJECTED = fail(ScraperErrorTypes.Generic, 'warm token rejected');
+const BALANCE_REJECTED = fail(ScraperErrorTypes.Generic, 'warm token rejected', 401);
 
 describe.each([SYN_CASE, PEPPER_CASE, ONEZERO_CASE] as readonly AnyBankCase[])(
   'ApiDirectScrape self-heal — $name',
@@ -180,11 +182,11 @@ describe('ApiDirectScrape self-heal — gating + recovery failure (synthetic)', 
     expect(scr.value.balanceDegraded).toBe(true);
   });
 
-  it('SH-4 — warm + hard-fail + recover fails surfaces the failure', async () => {
+  it('SH-4 — warm + auth hard-fail + recover fails surfaces the failure', async () => {
     const { bus, recoverSession } = makeSelfHealBus({
       router: {
         customer: [succeed(SYN_CASE.fixtures.customer)],
-        balance: [fail(ScraperErrorTypes.Generic, 'balance down')],
+        balance: [fail(ScraperErrorTypes.Generic, 'balance down', 401)],
       },
       isWarm: true,
       recover: fail(ScraperErrorTypes.Generic, 'cold re-login failed'),
@@ -194,6 +196,23 @@ describe('ApiDirectScrape self-heal — gating + recovery failure (synthetic)', 
     const result = await phase(ctx);
     expect(result.success).toBe(false);
     expect(recoverSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('SH-4b — warm + non-auth hard-fail does not recover', async () => {
+    const failure = fail(ScraperErrorTypes.Generic, 'balance down');
+    const { bus, recoverSession } = makeSelfHealBus({
+      router: {
+        customer: [succeed(SYN_CASE.fixtures.customer)],
+        balance: [failure],
+      },
+      isWarm: true,
+      recover: succeed('unused'),
+    });
+    const phase = runScrapeAction(synShape);
+    const ctx = ctxOf(bus, SYN_CASE.name);
+    const result = await phase(ctx);
+    expect(result).toEqual(failure);
+    expect(recoverSession).not.toHaveBeenCalled();
   });
 
   it('SH-5 — warm + degraded + recover fails keeps degraded unmasked', async () => {
@@ -217,7 +236,7 @@ describe('ApiDirectScrape self-heal — gating + recovery failure (synthetic)', 
     expect(scr.value.balanceDegraded).toBe(true);
   });
 
-  it('SH-6 — warm + transient-shaped balance fallback still recovers', async () => {
+  it('SH-6 — warm + transient balance fallback does not recover', async () => {
     const transient = fail(ScraperErrorTypes.Generic, '503: service unavailable');
     const { bus, recoverSession } = makeSelfHealBus({
       router: {
@@ -236,10 +255,13 @@ describe('ApiDirectScrape self-heal — gating + recovery failure (synthetic)', 
     const ctx = ctxOf(bus, SYN_CASE.name);
     const result = await phase(ctx);
     assertOk(result);
-    expect(recoverSession).toHaveBeenCalledTimes(1);
+    const scr = result.value.scrape;
+    assertHas(scr);
+    expect(recoverSession).not.toHaveBeenCalled();
+    expect(scr.value.balanceDegraded).toBe(true);
   });
 
-  it('SH-7 — warm + empty-but-authenticated body recovers once and heals', async () => {
+  it('SH-7 — warm + empty-but-authenticated body does not recover', async () => {
     const emptyCustomer = succeed({ accts: [] });
     const { bus, recoverSession } = makeSelfHealBus({
       router: {
@@ -257,8 +279,27 @@ describe('ApiDirectScrape self-heal — gating + recovery failure (synthetic)', 
     assertOk(result);
     const scr = result.value.scrape;
     assertHas(scr);
-    expect(recoverSession).toHaveBeenCalledTimes(1);
-    expect(scr.value.accounts).toHaveLength(1);
+    expect(recoverSession).not.toHaveBeenCalled();
+    expect(scr.value.accounts).toHaveLength(0);
+  });
+
+  it('SH-9 — warm + rate-limited balance does not recover', async () => {
+    const rateLimited = fail(ScraperErrorTypes.WafBlocked, 'GET /balance 429: rate limited');
+    const { bus, recoverSession } = makeSelfHealBus({
+      router: {
+        customer: [succeed(SYN_CASE.fixtures.customer)],
+        balance: [rateLimited],
+        transactions: [succeed(SYN_CASE.fixtures.transactions)],
+      },
+      isWarm: true,
+      recover: succeed('unused'),
+    });
+    const shape = degradedShape(SYN_CASE);
+    const phase = runScrapeAction(shape);
+    const ctx = ctxOf(bus, SYN_CASE.name);
+    const result = await phase(ctx);
+    expect(result).toEqual(rateLimited);
+    expect(recoverSession).not.toHaveBeenCalled();
   });
 
   it('SH-8 — cold + empty-but-authenticated body does not recover', async () => {
@@ -482,7 +523,9 @@ describe.each([SYN_CASE, PEPPER_CASE, ONEZERO_CASE] as readonly AnyBankCase[])(
 
     it('SH-W4 — warm + failed accounts call + edge-refused recovery fails WAF_BLOCKED', async () => {
       const { bus, recoverSession } = makeSelfHealBus({
-        router: { customer: [fail(ScraperErrorTypes.Generic, 'accounts down')] },
+        router: {
+          customer: [fail(ScraperErrorTypes.Generic, 'accounts down', 401)],
+        },
         isWarm: true,
         recover: EDGE_REFUSED,
       });

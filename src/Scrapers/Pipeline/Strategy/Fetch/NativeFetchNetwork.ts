@@ -5,13 +5,13 @@
  * inside their file cap.
  */
 
-import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { Brand } from '../../Types/Brand.js';
 import { errorCauseCodeOf, toError } from '../../Types/ErrorUtils.js';
 import type { IProcedureFailure, Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { FetchInvoke, HttpVerb } from './FetchStrategy.js';
 import { safeUrlForLog, scrubUrlFromText } from './SafeUrlForLog.js';
+import transportErrorType from './TransportFailure.js';
 
 /** A URL that already carries its scheme and host. */
 type FullyQualifiedUrl = Brand<string, 'FullyQualifiedUrl'>;
@@ -50,7 +50,7 @@ function networkReason(rawReason: string, request: INativeFailure): string {
  * Wrap a thrown fetch error into a network-error Procedure.
  * @param error - The caught value, from any realm.
  * @param request - The native request that failed.
- * @returns Procedure failure annotated with the underlying reason.
+ * @returns Procedure failure annotated with the underlying reason and type.
  */
 function toNetworkFailure(error: unknown, request: INativeFailure): Procedure<Response> {
   const rawReason = toError(error).message;
@@ -58,7 +58,9 @@ function toNetworkFailure(error: unknown, request: INativeFailure): Procedure<Re
   const base = networkReason(rawReason, request);
   const reason = code === '' ? base : `${base} (${code})`;
   const safeUrl = safeUrlForLog(request.url, request.redactUrlValues);
-  return fail(ScraperErrorTypes.Generic, `${request.verb} ${safeUrl} network error: ${reason}`);
+  const message = `${request.verb} ${safeUrl} network error: ${reason}`;
+  const errorType = transportErrorType(error);
+  return fail(errorType, message);
 }
 
 /**

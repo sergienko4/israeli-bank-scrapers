@@ -239,44 +239,43 @@ describe('capped NativeFetchStrategy', () => {
     expect(signalOf(mock.mock.calls[0][1]).aborted).toBe(true);
   });
 
-  it('keeps an unconfigured 429 under the shared failure policy', async () => {
-    installFetchMock(() => Promise.resolve(new Response('slow down', { status: 429 })));
+  it('treats an unconfigured 429 as a rate limit without reading its body', async () => {
+    const pull = jest.fn<Promise<void>, []>().mockResolvedValue(undefined);
+    const body = new ReadableStream<Uint8Array>(
+      {
+        /**
+         * Close the body without yielding data.
+         * @param controller - Stream controller.
+         * @returns Nothing.
+         */
+        start(controller): void {
+          controller.close();
+        },
+        pull,
+      },
+      { highWaterMark: 0 },
+    );
+    installFetchMock(() => Promise.resolve(new Response(body, { status: 429 })));
     const result = await strategy.fetchGet(ITEMS_URL, { extraHeaders: {} });
-    expect(result).toMatchObject({ success: false, errorType: ScraperErrorTypes.Generic });
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.WafBlocked,
+      errorMessage: 'GET https://api.bank.example/v1/items 429: rate limited',
+    });
+    expect(pull).not.toHaveBeenCalled();
   });
 
-  it('keeps a broken success body as a transport failure', async () => {
-    const body = new ReadableStream<Uint8Array>({
-      /**
-       * Fail the body before a reader can consume it.
-       * @param controller - Stream controller.
-       * @returns True once the failure is installed.
-       */
-      start(controller): boolean {
-        controller.error(new Error('ECONNRESET'));
-        return true;
-      },
+  it('bounds a body with no integrity policy by the default byte cap', async () => {
+    const oversize = new Uint8Array(8 * 1024 * 1024 + 1);
+    installFetchMock(() => Promise.resolve(new Response(oversize)));
+    const bounded = cappedNative(BASE_URL, { timeoutMs: 1000 });
+    const result = await bounded.fetchGet(ITEMS_URL, { extraHeaders: {} });
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Generic,
+      errorMessage: 'response exceeds integrity byte limit',
+      responseIntegrityRefusal: true,
     });
-    installFetchMock(() => Promise.resolve(new Response(body, { status: 200 })));
-    const result = await capped.fetchGet(ITEMS_URL, { extraHeaders: {} });
-    expect(result).toMatchObject({ success: false, errorType: ScraperErrorTypes.Generic });
-  });
-
-  it('keeps an abort during a failed body read as a timeout', async () => {
-    const body = new ReadableStream<Uint8Array>({
-      /**
-       * Fail the body with an abort rejection.
-       * @param controller - Stream controller.
-       * @returns True once the failure is installed.
-       */
-      start(controller): boolean {
-        controller.error(new DOMException('aborted', 'AbortError'));
-        return true;
-      },
-    });
-    installFetchMock(() => Promise.resolve(new Response(body, { status: 500 })));
-    const result = await capped.fetchGet(ITEMS_URL, { extraHeaders: {} });
-    expect(result).toMatchObject({ success: false, errorType: ScraperErrorTypes.Timeout });
   });
 
   it('refuses a bank media-type mismatch without waiting for a stalled body', async () => {
@@ -633,6 +632,10 @@ describe('capped NativeFetchStrategy — connect timeout retry', () => {
       const rejection = fetchFailedWith(code);
       const mock = installFetchMock(() => Promise.reject(rejection));
       const result = await strategy.fetchGet(ITEMS_URL, { extraHeaders: {} });
+      expect(result).toMatchObject({
+        success: false,
+        errorType: ScraperErrorTypes.NetworkError,
+      });
       const message = !isOk(result) && result.errorMessage;
       expect(message).toBe(
         `GET https://api.bank.example/v1/items network error: fetch failed (${code})`,

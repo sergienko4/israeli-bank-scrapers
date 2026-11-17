@@ -96,10 +96,10 @@ function answerCallbackThrew<T>(name: string, error: unknown): Procedure<T> {
  * check or a response-session patch) under the redacting boundary.
  *
  * <p>The converted failure is a plain `Generic` one, so `shouldRecoverSession`
- * applies its ordinary rules to it: a warm per-request session recovers at most
- * once, a cold one never does, and whole-scrape recovery needs a 401 or 403. The
- * callback's own typed rejection, a WAF or integrity refusal included, is
- * returned untouched and keeps its own recovery behavior.
+ * does not treat it as auth-shaped: a warm per-request session does not re-login
+ * for it, and whole-scrape recovery needs a 401 or 403. The callback's own typed
+ * rejection is returned untouched; a 401/403 marker can still recover, while a
+ * WAF or integrity refusal never does.
  * @param name - Callback identity carried by any converted failure.
  * @param invoke - The callback invocation.
  * @returns The callback's procedure, or a typed `Generic` failure when it throws.

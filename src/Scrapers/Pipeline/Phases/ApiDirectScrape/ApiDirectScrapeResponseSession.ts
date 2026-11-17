@@ -97,7 +97,7 @@ function storePatch(
   bus: IApiMediator,
   name: string,
 ): Procedure<void> {
-  if (!isOk(patch)) return fail(patch.errorType, `${name} ${patch.errorMessage}`);
+  if (!isOk(patch)) return { ...patch, errorMessage: `${name} ${patch.errorMessage}` };
   const wasStored = mergeSessionContext(bus, patch.value);
   if (!wasStored) return fail(ScraperErrorTypes.Generic, `${name} session patch refused`);
   return succeed(undefined);

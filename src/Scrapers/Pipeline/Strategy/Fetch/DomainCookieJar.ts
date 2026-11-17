@@ -20,6 +20,9 @@ import { isSendableCookie } from './HeaderText.js';
 import type { IOriginCookieJar } from './OriginCookieJar.js';
 import parseSetCookie from './SetCookieScope.js';
 
+/** Most cookies one jar keeps; a new key evicts the oldest when full. */
+const MAX_COOKIES = 300;
+
 /** The domain jar: the origin jar's add/header plus the session operations. */
 interface IDomainCookieJar extends IOriginCookieJar {
   readonly cookieFor: (url: string, name: string) => Option<string>;
@@ -72,6 +75,51 @@ function keyOf(cookie: IStoredCookie): string {
 }
 
 /**
+ * Drop the oldest cookie when the store is full and a new key is entering.
+ * @param state - Jar state.
+ * @param key - Key about to be written.
+ * @returns True when a cookie was evicted.
+ */
+/**
+ * Remove every expired cookie so capacity belongs to live sessions.
+ * @param state - Jar state.
+ * @returns True when at least one cookie was removed.
+ */
+function purgeExpired(state: IJarState): boolean {
+  const nowS = nowEpochS();
+  const expired = [...state.store].filter(([, cookie]): boolean => isExpired(cookie, nowS));
+  for (const [key] of expired) state.store.delete(key);
+  return expired.length > 0;
+}
+
+/**
+ * Drop the oldest live cookie when the store is full and a new key is entering.
+ * @param state - Jar state.
+ * @param key - Key about to be written.
+ * @returns True when a cookie was evicted.
+ */
+function evictOldest(state: IJarState, key: string): boolean {
+  if (state.store.has(key)) return false;
+  purgeExpired(state);
+  if (state.store.size < MAX_COOKIES) return false;
+  const oldest = String(state.store.keys().next().value);
+  return state.store.delete(oldest);
+}
+
+/**
+ * Store a live cookie, making room first when the jar is at its cap.
+ * @param state - Jar state.
+ * @param key - Cookie key.
+ * @param cookie - Cookie to store.
+ * @returns True once stored.
+ */
+function storeLive(state: IJarState, key: string, cookie: IStoredCookie): boolean {
+  evictOldest(state, key);
+  state.store.set(key, { ...cookie });
+  return true;
+}
+
+/**
  * Store a cookie under its RFC key, or delete the key when it has expired;
  * a cookie the jar may not hold is ignored.
  * @param state - Jar state.
@@ -84,7 +132,7 @@ function upsert(state: IJarState, cookie: IStoredCookie): number {
   const nowS = nowEpochS();
   evictExpiredKey(state, key, nowS);
   if (isExpired(cookie, nowS)) state.store.delete(key);
-  if (!isExpired(cookie, nowS)) state.store.set(key, { ...cookie });
+  if (!isExpired(cookie, nowS)) storeLive(state, key, cookie);
   return state.store.size;
 }
 

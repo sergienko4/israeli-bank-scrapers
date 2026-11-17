@@ -373,3 +373,60 @@ describe('DomainCookieJar/session operations', () => {
     expect([size, header]).toEqual([0, '']);
   });
 });
+
+/**
+ * Build numbered cookies for cap tests.
+ * @param count - Number of cookies.
+ * @returns Cookies named `cookie-0` upward.
+ */
+function numberedCookies(count: number): readonly IStoredCookie[] {
+  return Array.from({ length: count }, (_value, index) => {
+    const name = `cookie-${String(index)}`;
+    return stored({ name });
+  });
+}
+
+describe('DomainCookieJar/size cap', () => {
+  it('keeps the newest 300 cookies and evicts the oldest', () => {
+    const jar = makeJar();
+    const cookies = numberedCookies(301);
+    const size = jar.importAll(cookies);
+    const names = jar.exportAll().map((cookie): string => cookie.name);
+    expect(size).toBe(300);
+    expect(names).toHaveLength(300);
+    expect(names).not.toContain('cookie-0');
+    const newest = names.at(-1);
+    expect(newest).toBe('cookie-300');
+  });
+
+  it('purges expired cookies before evicting a live one', () => {
+    jest.useFakeTimers({ now: new Date('2026-01-01T00:00:00Z') });
+    try {
+      const nowS = Math.floor(Date.now() / 1000);
+      const jar = makeJar();
+      const live = numberedCookies(300);
+      const expiring = { ...live[1], expiresEpochS: nowS + 1 };
+      jar.importAll([live[0], expiring, ...live.slice(2)]);
+      jest.advanceTimersByTime(2000);
+      const size = jar.set(WWW, { name: 'new', value: '1' });
+      const names = jar.exportAll().map((cookie): string => cookie.name);
+      expect(size).toBe(300);
+      expect(names).toContain('cookie-0');
+      expect(names).not.toContain('cookie-1');
+      expect(names).toContain('new');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('replaces an existing key at the cap without evicting another', () => {
+    const jar = makeJar();
+    const full = numberedCookies(300);
+    jar.importAll(full);
+    const size = jar.set(WWW, { name: 'cookie-0', value: 'new' });
+    const exported = jar.exportAll();
+    expect(size).toBe(300);
+    expect(exported).toHaveLength(300);
+    expect(exported[0]).toMatchObject({ name: 'cookie-0', value: 'new' });
+  });
+});

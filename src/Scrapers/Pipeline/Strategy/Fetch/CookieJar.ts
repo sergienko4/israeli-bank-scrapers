@@ -22,6 +22,9 @@ interface IParsedCookie {
 /** A `Max-Age` value the jar reads: an optionally negative integer. */
 const MAX_AGE_RE = /^-?\d+$/;
 
+/** Most cookies one simple jar keeps; a new name evicts the oldest when full. */
+const MAX_COOKIES = 300;
+
 /**
  * Read one attribute's value from a Set-Cookie line; names and values are
  * trimmed, names are case-insensitive, and the last occurrence wins.
@@ -70,6 +73,16 @@ function parseCookieLine(line: string): IParsedCookie | false {
 }
 
 /**
+ * Drop the oldest cookie when the jar is at capacity.
+ * @param jar - Backing map.
+ * @returns True when a cookie was removed.
+ */
+function evictOldest(jar: Map<string, string>): boolean {
+  const oldest = String(jar.keys().next().value);
+  return jar.delete(oldest);
+}
+
+/**
  * Store one parsed cookie, or drop it when the line deletes it.
  * @param jar - Backing map.
  * @param cookie - Parsed cookie.
@@ -77,6 +90,7 @@ function parseCookieLine(line: string): IParsedCookie | false {
  */
 function storeCookie(jar: Map<string, string>, cookie: IParsedCookie): boolean {
   if (cookie.isDeletion) return jar.delete(cookie.name);
+  if (!jar.has(cookie.name) && jar.size >= MAX_COOKIES) evictOldest(jar);
   jar.set(cookie.name, cookie.value);
   return true;
 }

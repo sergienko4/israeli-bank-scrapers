@@ -231,7 +231,10 @@ describe('MtlsTransport.mtlsInvoke — against the simulated mTLS gate', () => {
     });
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(false);
-    if (!isOk(result)) expect(result.errorMessage).toContain('mtls error');
+    if (!isOk(result)) {
+      expect(result.errorType).toBe(ScraperErrorTypes.NetworkError);
+      expect(result.errorMessage).toContain('mtls error');
+    }
   });
 
   it('names origin + path only — the query string never reaches the message', async () => {
@@ -376,7 +379,10 @@ describe('MtlsTransport.invoke — timeout + premature close', () => {
     );
     const didSucceed = isOk(result);
     expect(didSucceed).toBe(false);
-    if (!isOk(result)) expect(result.errorMessage).toContain('mtls error');
+    if (!isOk(result)) {
+      expect(result.errorType).toBe(ScraperErrorTypes.Timeout);
+      expect(result.errorMessage).toContain('mtls error');
+    }
   });
 
   it('keeps concurrent runs on their own timeout budgets', async () => {
@@ -390,6 +396,7 @@ describe('MtlsTransport.invoke — timeout + premature close', () => {
     const didSlowSucceed = isOk(slowResult);
     const didFastSucceed = isOk(fastResult);
     expect(didSlowSucceed).toBe(false);
+    if (!isOk(slowResult)) expect(slowResult.errorType).toBe(ScraperErrorTypes.Timeout);
     expect(didFastSucceed).toBe(true);
   });
 
@@ -403,7 +410,10 @@ describe('MtlsTransport.invoke — timeout + premature close', () => {
     });
     const didSucceed = isOk(result);
     expect(didSucceed).toBe(false);
-    if (!isOk(result)) expect(result.errorMessage).toContain('mtls error');
+    if (!isOk(result)) {
+      expect(result.errorType).toBe(ScraperErrorTypes.NetworkError);
+      expect(result.errorMessage).toContain('mtls error');
+    }
   });
 });
 

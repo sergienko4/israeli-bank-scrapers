@@ -247,7 +247,11 @@ describe('ring reply envelope check', () => {
     const result = CHECK_RING_BODY({ Header: { Status: status } });
     const isPassed = isOk(result);
     expect(isPassed).toBe(false);
-    expect(result).toMatchObject({ errorType: 'GENERIC', errorMessage: 'ring session expired' });
+    expect(result).toMatchObject({
+      errorType: 'GENERIC',
+      errorMessage: 'ring session expired',
+      authRejected: true,
+    });
   });
 
   it.each([[{ Header: { Status: '1' } }], [{ Header: { Status: 1 } }], [{ isSuccess: true }]])(
