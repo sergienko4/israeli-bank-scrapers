@@ -7,6 +7,7 @@
  * or the call did not carry one), and a hard failure that discards the run.
  */
 
+import { isAuthRejectedFailure } from '../../Mediator/Api/ApiMediator.authReject.js';
 import type { IProcedureFailure, Procedure } from '../../Types/Procedure.js';
 import { isOk, isTerminalFailure, succeed } from '../../Types/Procedure.js';
 import { dispatchStep } from './ApiDirectScrapeDispatch.js';
@@ -74,11 +75,12 @@ function extractedBalance<TAcct, TCursor>(
 /**
  * Answer a FAILED balance call from the shape's declared fallback.
  * @param fb - The shape's declared fallback.
+ * @param authRejected - Whether the failure was auth-shaped (401/403).
  * @returns Degraded outcome — valueless for {@link BALANCE_UNKNOWN}.
  */
-function balanceFallback(fb: number | BalanceUnknown): IBalanceOutcome {
-  if (fb === BALANCE_UNKNOWN) return { degraded: true };
-  return { value: fb, degraded: true };
+function balanceFallback(fb: number | BalanceUnknown, authRejected: boolean): IBalanceOutcome {
+  const value = fb === BALANCE_UNKNOWN ? {} : { value: fb };
+  return authRejected ? { ...value, degraded: true, authRejected } : { ...value, degraded: true };
 }
 
 /**
@@ -125,7 +127,8 @@ function failedBalance<TAcct, TCursor>(
 ): Procedure<IBalanceOutcome> {
   const fb = a.shape.balance.fallbackOnFail;
   if (fb === undefined || isTerminalFailure(resp)) return resp;
-  const degraded = balanceFallback(fb);
+  const isAuthRejected = isAuthRejectedFailure(resp);
+  const degraded = balanceFallback(fb, isAuthRejected);
   return succeed(degraded);
 }
 

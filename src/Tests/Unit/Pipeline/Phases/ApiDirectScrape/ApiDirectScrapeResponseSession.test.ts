@@ -490,10 +490,10 @@ describe('ApiDirectScrapeResponseSession/throwing patch', () => {
     expect(result).toEqual(REFUSED);
   });
 
-  it('[RST-5] recovers once on a warm session when the patch throws', async () => {
+  it('[RST-5] does not recover when the patch throws on a warm session', async () => {
     const patch = throwingPatch(PATCH_FAILURE);
     const { scrape, ctx, recover } = warmPhase(patch);
     await scrape(ctx);
-    expect(recover).toHaveBeenCalledTimes(1);
+    expect(recover).not.toHaveBeenCalled();
   });
 });

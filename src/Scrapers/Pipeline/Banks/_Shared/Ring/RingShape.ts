@@ -85,14 +85,17 @@ function verdictOf(body: unknown): RingVerdict {
 }
 
 /**
- * Fail a ring reply the bank did not confirm.
+ * Fail a ring reply the bank did not confirm. An expired session is marked
+ * auth-shaped so warm recovery still re-logs in even though the transport saw
+ * HTTP 200.
  * @param body - Successful response body.
  * @returns The body, or a Generic failure for an expired or refused call.
  */
 function checkRingBody(body: ApiBody): Procedure<ApiBody> {
   const verdict = verdictOf(body);
   if (verdict === 'ok') return succeed(body);
-  return fail(ScraperErrorTypes.Generic, REFUSAL_MESSAGE[verdict]);
+  const failure = fail(ScraperErrorTypes.Generic, REFUSAL_MESSAGE[verdict]);
+  return verdict === 'expired' ? { ...failure, authRejected: true } : failure;
 }
 
 /** One ring brand's binding of the shared family contract. */

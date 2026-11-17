@@ -91,6 +91,5 @@ factory; see [the Ring family](../phases/api-direct-scrape.md#the-ring-family-is
   never echoes the bank's code. An expired session (`Header.Status -2`) fails
   the same way, so a warm run re-logs in once.
 - A card with no payment day has no known next-debit month, so it publishes no
-  balance and the scrape is degraded. On a warm run that triggers the one
-  recovery re-login: the run logs in cold and scrapes again. The result is the
-  same; the run takes longer.
+  balance and the scrape is degraded. That degrade is not auth-shaped, so it
+  does not trigger a recovery re-login.

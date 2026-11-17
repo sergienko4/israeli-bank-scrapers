@@ -103,6 +103,18 @@ describe('applyStatusPolicy', () => {
     expect(decided.has).toBe(false);
   });
 
+  it('UT-ST-07 treats 429 as a rate limit with no bank policy', () => {
+    const answer = answerWith(429, 'json', {});
+    const decided = STATUS.statusActionFor(answer);
+    expect(decided).toEqual({ has: true, value: 'rate-limit' });
+  });
+
+  it('UT-ST-08 treats 429 as a rate limit even when the bank maps it to fail', () => {
+    const answer = answerWith(429, 'json', { 429: 'fail' });
+    const decided = STATUS.statusActionFor(answer);
+    expect(decided).toEqual({ has: true, value: 'rate-limit' });
+  });
+
   it.each([
     { status: 200, kind: 'json', action: 'empty', success: true },
     { status: 207, kind: 'json', action: 'fail', success: false },

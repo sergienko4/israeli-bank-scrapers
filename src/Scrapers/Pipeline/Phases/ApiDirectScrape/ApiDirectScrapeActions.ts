@@ -43,10 +43,12 @@ function summarizeScrape(results: readonly IAccountResult[]): IScrapeState {
  */
 function scrapeFlags(
   results: readonly IAccountResult[],
-): Pick<IScrapeState, 'balanceDegraded' | 'backfillExhausted'> {
+): Pick<IScrapeState, 'balanceDegraded' | 'backfillExhausted' | 'authRejected'> {
   const isBalanceDegraded = results.some(r => r.degraded);
   const isBackfillExhausted = results.some(r => r.backfillExhausted);
-  return { balanceDegraded: isBalanceDegraded, backfillExhausted: isBackfillExhausted };
+  const isAuthRejected = results.some(r => r.authRejected);
+  const flags = { balanceDegraded: isBalanceDegraded, backfillExhausted: isBackfillExhausted };
+  return { ...flags, authRejected: isAuthRejected };
 }
 
 /**
@@ -93,45 +95,16 @@ async function runScrape<TAcct, TCursor>(
 }
 
 /**
- * Recognize a degraded scrape SLOT: a balance fallback fired OR the
- * authenticated call returned zero accounts.
- *
- * An empty-but-authenticated body is a known server-degraded warm-session
- * shape — the cached token still authenticates yet the backend silently
- * returns nothing. On the warm direct-API path this must count as suspicious so
- * self-heal can fire. The rule is bounded: recovery is warm-gated (see
- * {@link shouldRecoverSession}) and recover-once, so a direct-API account that
- * legitimately holds zero accounts re-runs at most once and then surfaces the
- * same empty result unmasked.
- * @param state - The populated scrape slot.
- * @returns True when the slot is empty or balance-degraded.
- */
-function isDegradedScrapeState(state: IScrapeState): boolean {
-  // Strict `=== true`: balanceDegraded is a validated boolean — never coerce.
-  return state.accounts.length === 0 || state.balanceDegraded === true;
-}
-
-/**
- * Decide whether a scrape outcome warrants a session-recovery attempt: a hard
- * failure OR a degraded scrape slot (see {@link isDegradedScrapeState}).
- *
- * `balanceDegraded` is set by ANY balance fallback — including a transient 5xx
- * unrelated to the token — not only an auth-shaped rejection. This conflation
- * is DELIBERATE: a silently server-rejected warm token most reliably surfaces
- * as a balance fallback, and the blast radius is already bounded — recovery is
- * gated on a warm session (cold sessions never recover, see
- * {@link shouldRecoverSession}) and runs at most once (recover-once). Splitting
- * transient-vs-auth here would require threading the failure shape through
- * IBalanceOutcome, which the bank result guards consume with the current
- * any-fallback meaning. Worst case: one unnecessary OTP on a warm session that
- * hit a transient balance hiccup.
+ * Decide whether a scrape outcome is auth-shaped: a hard 401/403 failure, or a
+ * degraded slot whose balance fallback answered a 401/403. A transient 5xx, a
+ * rate limit, an empty body or another non-auth fallback is not.
  * @param first - The first scrape procedure.
- * @returns True when the scrape failed or reported a degraded slot.
+ * @returns True for an auth-shaped failure or degraded success.
  */
 function isScrapeSuspicious(first: Procedure<ApiDirectScrapeResult>): boolean {
-  if (!isOk(first)) return true;
+  if (!isOk(first)) return isAuthRejectedFailure(first);
   const { scrape } = first.value;
-  return isSome(scrape) && isDegradedScrapeState(scrape.value);
+  return isSome(scrape) && scrape.value.authRejected === true;
 }
 
 /**
@@ -148,12 +121,13 @@ function isSessionRejected(first: Procedure<ApiDirectScrapeResult>): boolean {
  * Decide whether to recover; the two modes are exclusive. Under whole-scrape
  * recovery only a rejected session recovers, warm or cold, at a
  * bootstrap or a data call: a 5xx, a bank status, an incomplete session or a
- * degraded success stands. Otherwise recovery needs BOTH a suspicious outcome
+ * degraded success stands. Otherwise recovery needs BOTH an auth-shaped outcome
  * AND a warm (cached-token) session: a cold session already ran the full login
- * flow, so recovering would only burn a second OTP, and a healthy warm session
- * needs no recovery. An edge (WAF) refusal never recovers: the bank never saw
- * the call, and a cold re-login could send an SMS OTP while the scrape host
- * stays blocked. Response-integrity refusals also stop recovery.
+ * flow, so recovering would only burn a second OTP; a healthy warm session
+ * needs no recovery, and a transient or rate-limited outcome must not cost one.
+ * An edge (WAF) refusal never recovers: the bank never saw the call, and a cold
+ * re-login could send an SMS OTP while the scrape host stays blocked.
+ * Response-integrity refusals also stop recovery.
  * @param first - The first scrape procedure.
  * @param bus - The bound ApiMediator.
  * @returns True when recovery should run.

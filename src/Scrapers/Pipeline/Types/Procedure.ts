@@ -23,6 +23,8 @@ interface IProcedureFailure {
   readonly responseIntegrityRefusal?: true;
   /** HTTP status the bank answered, when the failure came from a response. */
   readonly httpStatus?: number;
+  /** Set when a successful-looking response still rejected the session. */
+  readonly authRejected?: true;
 }
 
 /** Discriminated union — every pipeline step returns this. */

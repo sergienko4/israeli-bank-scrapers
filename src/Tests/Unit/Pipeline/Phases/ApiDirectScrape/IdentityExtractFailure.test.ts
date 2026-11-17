@@ -8,8 +8,8 @@
  * convert that throw into a failed `Procedure`: an escaping exception would
  * bypass `runScrapeWithRecovery`, so a warm session that served a degraded
  * identity body would abort the whole multi-account scrape instead of
- * re-logging in and retrying once. `isScrapeSuspicious` keys on a failed
- * Procedure, so the conversion is what keeps that recovery path reachable.
+ * reporting a typed failure. The converted failure is not auth-shaped, so it
+ * does not re-login; the conversion is what keeps it contained.
  *
  * <p>The boundary must also survive a non-`Error` throw. JavaScript allows
  * throwing any value, and a `Symbol` throws a second time the moment it is

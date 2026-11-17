@@ -369,6 +369,8 @@ export interface IApiDirectScrapeTxnsStep<TAcct, TCursor> extends IWindowRequest
 export interface IBalanceOutcome {
   readonly value?: number;
   readonly degraded: boolean;
+  /** The fallback answered an auth-shaped (401/403) balance failure. */
+  readonly authRejected?: boolean;
 }
 
 /**
