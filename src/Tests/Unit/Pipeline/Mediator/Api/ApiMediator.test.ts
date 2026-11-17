@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { jest } from '@jest/globals';
 
 import { CompanyTypes } from '../../../../../Definitions.js';
+import isAuthRejectedFailure from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.authReject.js';
 import {
   HMAC_KEY_SLOT,
   HMAC_SIGNER_SLOT,
@@ -477,6 +478,20 @@ describe('ApiMediator — query-string append + GraphQL envelope edges', () => {
     const mediator = buildMediator(recorder);
     await mediator.apiPost('identity.deviceToken', { foo: 'bar' });
     expect(recorder.postCalls[0].url).toBe('https://id.example/devices/token');
+  });
+
+  it('never treats a GraphQL error label as an auth rejection', async () => {
+    registerWkQuery('customer', HINT, 'query { me { id } }');
+    const recorder = makeRecorder();
+    recorder.queryResult = succeed({ errors: [{ message: 'upstream 401: expired' }] });
+    const mediator = buildMediator(recorder);
+    const result = await mediator.apiQuery('customer', {});
+    const isSuccess = isOk(result);
+    expect(isSuccess).toBe(false);
+    if (!isSuccess) {
+      const isAuthShaped = isAuthRejectedFailure(result);
+      expect(isAuthShaped).toBe(false);
+    }
   });
 
   it('GraphQL envelope with empty errors[] surfaces "<unknown>" message label', async () => {

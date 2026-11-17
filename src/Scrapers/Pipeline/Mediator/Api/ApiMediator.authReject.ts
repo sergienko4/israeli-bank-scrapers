@@ -62,12 +62,21 @@ function isAuthRejectionMessage(message: string): boolean {
 function isAuthRejectedFailure(failure: IProcedureFailure): boolean {
   if (isTerminalFailure(failure)) return false;
   if (failure.authRejected === true) return true;
-  if (failure.shapeGuardFailure === true) return false;
+  if (isNonAuthMessage(failure)) return false;
   if (failure.httpStatus !== undefined) return isAuthStatus(failure.httpStatus);
   return (
     isAuthRejectionMessage(failure.errorMessage) ||
     AUTH_REJECTED_SUFFIX_REGEX.test(failure.errorMessage)
   );
+}
+
+/**
+ * Whether the failure message is untrusted text that cannot prove auth.
+ * @param failure - Failure to inspect.
+ * @returns True for converted shape or GraphQL envelope failures.
+ */
+function isNonAuthMessage(failure: IProcedureFailure): boolean {
+  return failure.shapeGuardFailure === true || failure.messageOnlyFailure === true;
 }
 
 /**

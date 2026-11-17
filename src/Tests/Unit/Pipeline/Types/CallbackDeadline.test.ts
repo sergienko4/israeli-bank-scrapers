@@ -51,4 +51,29 @@ describe('withCallbackDeadline', () => {
     const pending = runWithBankContext('pepper', run, { signal: controller.signal });
     await expect(pending).rejects.toThrow('scrape aborted');
   });
+
+  it('observes a late rejection after the run abort wins', async (): Promise<void> => {
+    const controller = new AbortController();
+    /**
+     * Placeholder until the promise executor wires its reject.
+     * @returns True.
+     */
+    function ignoreReject(): boolean {
+      return true;
+    }
+    let rejectWork: (error: Error) => unknown = ignoreReject;
+    const work = new Promise<string>((_resolve, reject) => {
+      rejectWork = reject;
+    });
+    /**
+     * Wait for the callback under the aborted run.
+     * @returns The callback result.
+     */
+    const run = (): Promise<string> => withCallbackDeadline(work, 5000);
+    const pending = runWithBankContext('pepper', run, { signal: controller.signal });
+    controller.abort();
+    await expect(pending).rejects.toThrow('scrape aborted');
+    rejectWork(new Error('late callback rejection'));
+    await Promise.resolve();
+  });
 });

@@ -150,6 +150,18 @@ function disposeWaits(timeout: ITimeoutWait, abort: IAbortWait | false): boolean
 }
 
 /**
+ * Refuse an already-aborted run while observing the callback's rejection.
+ * @param signal - The run signal, or false when none exists.
+ * @param work - The callback promise.
+ * @returns Nothing when the run is live.
+ */
+function throwIfAborted(signal: AbortSignal | false, work: Promise<unknown>): boolean {
+  if (signal === false || !signal.aborted) return false;
+  work.catch(() => undefined);
+  throw new ScraperError(RUN_ABORT_MESSAGE);
+}
+
+/**
  * Race a callback against its budget and the run signal.
  * @param work - The callback's promise.
  * @param timeoutMs - Maximum wait; the default applies when absent.
@@ -158,7 +170,7 @@ function disposeWaits(timeout: ITimeoutWait, abort: IAbortWait | false): boolean
  */
 async function withCallbackDeadline<T>(work: Promise<T>, timeoutMs?: number): Promise<T> {
   const signal = currentAbortSignal();
-  if (signal !== false && signal.aborted) throw new ScraperError(RUN_ABORT_MESSAGE);
+  throwIfAborted(signal, work);
   const ms = callbackBudget(timeoutMs);
   const timeout = ownedTimeout(ms);
   const abort = runAbortWait();

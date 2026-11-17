@@ -321,6 +321,21 @@ describe('PipelineExecutor/cancellation', () => {
     expect(didPhaseRun).toBe(false);
   });
 
+  it('reports cancellation when a phase fails after the abort', async () => {
+    const controller = new AbortController();
+    const phase = new SimplePhase('api-direct-call', () => {
+      controller.abort();
+      const result = fail(ScraperErrorTypes.Generic, 'phase failed');
+      return Promise.resolve(result);
+    });
+    const options = { ...MOCK_OPTIONS, signal: controller.signal };
+    const result = await executePipeline({ options, phases: [phase] }, MOCK_CREDENTIALS);
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Timeout,
+    });
+  });
+
   it('reports cancellation even when the final phase returns success', async () => {
     const controller = new AbortController();
     const phase = new SimplePhase('api-direct-call', (_ctx, input) => {

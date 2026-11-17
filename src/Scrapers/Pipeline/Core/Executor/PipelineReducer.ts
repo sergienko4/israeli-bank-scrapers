@@ -141,13 +141,30 @@ async function reducePhases(
  * @param index - Current phase index.
  * @returns The final accumulated context or the first failure.
  */
+/**
+ * Prefer the abort verdict over a phase failure that raced it.
+ * @param result - The failed phase result.
+ * @returns The abort failure, or the phase result.
+ */
+function failedPhase(result: Procedure<IPipelineContext>): Procedure<IPipelineContext> {
+  const aborted = abortRefusal();
+  return aborted === false ? result : aborted;
+}
+
+/**
+ * Run the next phase unless the run has aborted, then continue reducing.
+ * @param tracker - Context tracker.
+ * @param ctx - Current context.
+ * @param index - Current phase index.
+ * @returns The final accumulated context or the first failure.
+ */
 async function runNextPhase(
   tracker: IContextTracker,
   ctx: IPipelineContext,
   index: number,
 ): Promise<Procedure<IPipelineContext>> {
   const result = await executeTracedPhase(tracker, ctx, index);
-  return isOk(result) ? reducePhases(tracker, result.value, index + 1) : result;
+  return isOk(result) ? reducePhases(tracker, result.value, index + 1) : failedPhase(result);
 }
 
 /**
