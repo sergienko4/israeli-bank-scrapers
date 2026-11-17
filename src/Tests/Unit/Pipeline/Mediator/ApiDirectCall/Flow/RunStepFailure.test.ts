@@ -16,6 +16,7 @@ import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js
 import type { IWafErrorDetails } from '../../../../../../Scrapers/Base/Interfaces/WafErrorDetails.js';
 import { runWithBankContext } from '../../../../../../Scrapers/Pipeline/Logging/BankContext.js';
 import { buildSilentOptions } from '../../../../../../Scrapers/Pipeline/Logging/RootLogger.js';
+import isAuthRejectedFailure from '../../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.authReject.js';
 import type ITokenStrategy from '../../../../../../Scrapers/Pipeline/Mediator/Api/ITokenStrategy.js';
 import type {
   IApiDirectCallConfig,
@@ -27,7 +28,7 @@ import type GraphQLFetchStrategy from '../../../../../../Scrapers/Pipeline/Strat
 import type { ITokenBus } from '../../../../../../Scrapers/Pipeline/Types/Domain/TokenBus.js';
 import type { IPipelineContext } from '../../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
-import { fail, succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { fail, succeed, toLegacy } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import {
   ENVELOPE_KEY_TEXT,
   ENVELOPE_SESSION_ID,
@@ -472,5 +473,16 @@ describe('sanitiseStepFailure — structured HTTP status', () => {
       errorType: ScraperErrorTypes.InvalidPassword,
       errorMessage: 'bind HTTP 401',
     });
+  });
+});
+
+describe('sanitiseStepFailure — legacy auth evidence', () => {
+  it('keeps the auth marker through legacy conversion', (): void => {
+    const failure = fail(ScraperErrorTypes.Generic, 'response body unreadable', 401);
+    const sanitised = sanitiseStepFailure({ name: 'customer' }, failure);
+    const legacy = toLegacy(sanitised);
+    const rebuilt = fail(ScraperErrorTypes.Generic, legacy.errorMessage ?? '');
+    const isRejected = isAuthRejectedFailure(rebuilt);
+    expect(isRejected).toBe(true);
   });
 });
