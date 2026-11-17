@@ -15,6 +15,7 @@ import { isSome, some } from '../../Types/Option.js';
 import type { IActionContext, IScrapeState } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, isTerminalFailure, preferTerminalFailure, succeed } from '../../Types/Procedure.js';
+import { isRunAborted } from '../../Types/RunScope.js';
 import type { IAccountResult } from './ApiDirectScrapeAccountWalk.js';
 import { iterateAccounts } from './ApiDirectScrapeAccountWalk.js';
 import runBootstrap from './ApiDirectScrapeBootstrap.js';
@@ -127,13 +128,14 @@ function isSessionRejected(first: Procedure<ApiDirectScrapeResult>): boolean {
  * needs no recovery, and a transient or rate-limited outcome must not cost one.
  * An edge (WAF) refusal never recovers: the bank never saw the call, and a cold
  * re-login could send an SMS OTP while the scrape host stays blocked.
- * Response-integrity refusals also stop recovery.
+ * Response-integrity refusals also stop recovery, and a cancelled run never
+ * starts one.
  * @param first - The first scrape procedure.
  * @param bus - The bound ApiMediator.
  * @returns True when recovery should run.
  */
 function shouldRecoverSession(first: Procedure<ApiDirectScrapeResult>, bus: IApiMediator): boolean {
-  if (isTerminalFailure(first)) return false;
+  if (isRunAborted() || isTerminalFailure(first)) return false;
   if (bus.recoversWholeScrape()) return isSessionRejected(first);
   return isScrapeSuspicious(first) && bus.wasSessionWarm();
 }

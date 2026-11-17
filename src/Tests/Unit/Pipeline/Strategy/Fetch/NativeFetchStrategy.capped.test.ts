@@ -239,14 +239,16 @@ describe('capped NativeFetchStrategy', () => {
     expect(signalOf(mock.mock.calls[0][1]).aborted).toBe(true);
   });
 
-  it('treats an unconfigured 429 as a rate limit without reading its body', async () => {
-    installFetchMock(() => Promise.resolve(new Response('slow down', { status: 429 })));
-    const result = await strategy.fetchGet(ITEMS_URL, { extraHeaders: {} });
+  it('treats an unconfigured 429 as a rate limit without reading its stalled body', async () => {
+    const bounded = cappedNative(BASE_URL, { timeoutMs: LOWERED_CAP_MS });
+    const mock = installFetchMock(hangOnRateLimit);
+    const result = await bounded.fetchGet(ITEMS_URL, { extraHeaders: {} });
     expect(result).toMatchObject({
       success: false,
       errorType: ScraperErrorTypes.WafBlocked,
       errorMessage: 'GET https://api.bank.example/v1/items 429: rate limited',
     });
+    expect(signalOf(mock.mock.calls[0][1]).aborted).toBe(true);
   });
 
   it('keeps a broken body on a successful response as a transport failure', async () => {

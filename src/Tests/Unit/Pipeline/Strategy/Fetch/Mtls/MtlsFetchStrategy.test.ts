@@ -44,25 +44,6 @@ class EmptyStatusMtlsFetchStrategy extends MtlsFetchStrategy {
 }
 
 const HEADER_TEST_TIMEOUT_MS = 1_000;
-const HEADERS_SETTLE_MS = 25;
-
-/**
- * Wait for headers to arrive without a manual timer.
- * @returns Resolves after the settle delay.
- */
-async function settleHeaders(): Promise<void> {
-  const signal = AbortSignal.timeout(HEADERS_SETTLE_MS);
-  await new Promise<void>(resolve => {
-    signal.addEventListener(
-      'abort',
-      (): boolean => {
-        resolve();
-        return true;
-      },
-      { once: true },
-    );
-  });
-}
 
 describe('MtlsFetchStrategy — REST over the mTLS gate', () => {
   let server: IGateServer;
@@ -155,7 +136,7 @@ describe('MtlsFetchStrategy — REST over the mTLS gate', () => {
     const work = (): ReturnType<typeof strategy.fetchGet> =>
       strategy.fetchGet(`${server.baseUrl}partial`, { extraHeaders: {} });
     const pending = runWithBankContext('onezero', work, { signal: controller.signal });
-    await settleHeaders();
+    await server.partialFlushed;
     controller.abort();
     const result = await pending;
     expect(result).toMatchObject({

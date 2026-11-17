@@ -3,8 +3,13 @@
  * outlives its budget rejects with a fixed error instead of holding the run.
  */
 
+import { jest } from '@jest/globals';
+
 import { runWithBankContext } from '../../../../Scrapers/Pipeline/Logging/BankContext.js';
 import withCallbackDeadline from '../../../../Scrapers/Pipeline/Types/CallbackDeadline.js';
+
+/** Default callback budget the implementation and docs name. */
+const DEFAULT_CALLBACK_TIMEOUT_MS = 30_000;
 
 describe('withCallbackDeadline', () => {
   it('returns the callback result when it settles in time', async (): Promise<void> => {
@@ -13,10 +18,23 @@ describe('withCallbackDeadline', () => {
     expect(result).toBe('stored');
   });
 
-  it.each([Number.NaN, -1])('falls back to the default for an unusable budget %s', async budget => {
-    const work = Promise.resolve('stored');
-    const result = await withCallbackDeadline(work, budget);
-    expect(result).toBe('stored');
+  it.each([Number.NaN, -1])('uses the default budget for an unusable budget %s', async budget => {
+    jest.useFakeTimers();
+    try {
+      const never = new Promise<string>(() => {
+        // Never resolves: only the default budget may settle it.
+      });
+      const bounded = withCallbackDeadline(never, budget);
+      const beforeDefault = await Promise.race([bounded, Promise.resolve('pending')]);
+      expect(beforeDefault).toBe('pending');
+      await jest.advanceTimersByTimeAsync(DEFAULT_CALLBACK_TIMEOUT_MS - 1);
+      const stillPending = await Promise.race([bounded, Promise.resolve('pending')]);
+      expect(stillPending).toBe('pending');
+      await jest.advanceTimersByTimeAsync(1);
+      await expect(bounded).rejects.toThrow('callback timed out');
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('rejects a callback that outlives its budget', async (): Promise<void> => {

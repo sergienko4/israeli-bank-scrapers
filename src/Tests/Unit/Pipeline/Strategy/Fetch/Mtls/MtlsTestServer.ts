@@ -28,10 +28,15 @@ interface IGateServer {
   readonly restUrl: string;
   readonly gqlUrl: string;
   readonly close: () => Promise<void>;
+  /** Resolves once the partial route flushed a body chunk the client drained. */
+  readonly partialFlushed: Promise<void>;
 }
 
 /** One mebibyte, the margin the over-cap route answers past the cap. */
 const MIB = 1024 * 1024;
+
+/** Partial-route body bytes; large enough that its flush waits for client reads. */
+const PARTIAL_BODY_BYTES = 4 * MIB;
 
 /** Set-Cookie lines the gate emits on a 200 so passthrough can be asserted. */
 const GATE_COOKIES: readonly string[] = ['MTLS_SESSION=1; Path=/; HttpOnly', 'MTLS_CSRF=2; Path=/'];
@@ -108,13 +113,18 @@ function sendHang(): boolean {
 }
 
 /**
- * Write headers and half a body, then leave the response open.
+ * Write headers and a large partial body, then leave the response open. The
+ * trailing chunk's write callback fires only after the client drains enough of
+ * it, so it is a receipt barrier for the body read rather than a fixed delay.
  * @param res - The response to start.
+ * @param onFlush - Releases the client-receipt barrier.
  * @returns True (the socket is intentionally left open).
  */
-function sendPartial(res: ServerResponse): boolean {
+function sendPartial(res: ServerResponse, onFlush: () => boolean): boolean {
   res.writeHead(200, { 'content-type': 'application/json' });
   res.write('{"ok":');
+  const filler = Buffer.alloc(PARTIAL_BODY_BYTES, 0x20);
+  res.write(filler, onFlush);
   return true;
 }
 
@@ -243,7 +253,6 @@ const GATE_ROUTES: readonly (readonly [string, GateHandler])[] = [
   ['wrong-media-headers', (_req, res): boolean => sendWrongMediaHeaders(res)],
   ['challenge', (_req, res): boolean => sendChallenge(res)],
   ['rate-limited', (_req, res): boolean => sendRateLimited(res)],
-  ['partial', (_req, res): boolean => sendPartial(res)],
   ['hang', sendHang],
   ['delayed', sendDelayedOk],
   ['premature', (_req, res): boolean => sendPremature(res)],
@@ -256,12 +265,18 @@ const GATE_ROUTES: readonly (readonly [string, GateHandler])[] = [
  * Route one request through the simulated mTLS gate.
  * @param req - The incoming request.
  * @param res - The response to write.
+ * @param onPartialFlush - Releases the partial route's client-receipt barrier.
  * @returns True once a response is written.
  */
-function handleGate(req: IncomingMessage, res: ServerResponse): boolean {
+function handleGate(
+  req: IncomingMessage,
+  res: ServerResponse,
+  onPartialFlush: () => boolean,
+): boolean {
   const isAuthed = hasClientCert(req);
   if (!isAuthed) return sendBlocked(res);
   const url = req.url ?? '/';
+  if (url.includes('partial')) return sendPartial(res, onPartialFlush);
   const route = GATE_ROUTES.find(([path]): boolean => url.includes(path));
   if (route === undefined) return sendOk(req, res);
   return route[1](req, res);
@@ -297,18 +312,52 @@ function makeClose(server: Server): () => Promise<void> {
   return close;
 }
 
+/** A one-shot barrier released when the partial route's body chunk is drained. */
+interface IPartialBarrier {
+  readonly flushed: Promise<void>;
+  readonly release: () => boolean;
+}
+
+/**
+ * No-op barrier release before the promise executor installs the real one.
+ * @returns True.
+ */
+function releaseNothing(): boolean {
+  return true;
+}
+
+/**
+ * Build the one-shot barrier the partial route releases.
+ * @returns The flush promise and its release callback.
+ */
+function makePartialBarrier(): IPartialBarrier {
+  let release: () => boolean = releaseNothing;
+  const flushed = new Promise<void>(resolve => {
+    /**
+     * Release the barrier.
+     * @returns True once released.
+     */
+    release = (): boolean => {
+      resolve();
+      return true;
+    };
+  });
+  return { flushed, release };
+}
+
 /**
  * Assemble the IGateServer descriptor from a bound server.
  * @param server - The listening HTTPS server.
+ * @param partial - The partial route's client-receipt barrier.
  * @returns URLs + teardown for the running gate.
  */
-function describeServer(server: Server): IGateServer {
+function describeServer(server: Server, partial: IPartialBarrier): IGateServer {
   const port = boundPort(server);
   const baseUrl = `https://127.0.0.1:${String(port)}/`;
   const restUrl = `${baseUrl}devices/token`;
   const gqlUrl = `${baseUrl}graphql`;
   const close = makeClose(server);
-  return { baseUrl, restUrl, gqlUrl, close };
+  return { baseUrl, restUrl, gqlUrl, close, partialFlushed: partial.flushed };
 }
 
 /**
@@ -327,10 +376,13 @@ function startGateServer(): Promise<IGateServer> {
     // relax server-cert validation — clients still verify via `ca` below.
     rejectUnauthorized: false,
   };
-  const server = createServer(options, handleGate);
+  const partial = makePartialBarrier();
+  const server = createServer(options, (req, res): boolean =>
+    handleGate(req, res, partial.release),
+  );
   return new Promise(resolve => {
     server.listen(0, '127.0.0.1', () => {
-      const descriptor = describeServer(server);
+      const descriptor = describeServer(server, partial);
       resolve(descriptor);
     });
   });

@@ -40,12 +40,13 @@ mTLS socket, so settlement leaves no open body or socket.
 
 ## Caller callbacks
 
-`withCallbackDeadline` races each callback against an `AbortSignal.timeout`
-deadline. A rejection from that deadline is a dedicated `CallbackTimeoutError`,
-so `raceTimeout` converts only that class to its sentinel and leaves unrelated
-rejections untouched. The timer is unref'd by Node, so it never keeps the process alive, and
-the deadline listener fires once. A callback that outlives its budget behaves
-like a throw:
+`withCallbackDeadline` races each callback against an owned
+`globalThis.setTimeout` deadline and the run signal. The timer stays ref'd until
+the race settles, so an outstanding callback budget can keep the process alive;
+the race's `finally` cleanup clears that timer and removes the abort listener. A
+rejection from the deadline is a dedicated `CallbackTimeoutError`, so
+`raceTimeout` converts only that class to its sentinel and leaves unrelated
+rejections untouched. A callback that outlives its budget behaves like a throw:
 
 - `onAuthFlowComplete` is logged by error name and the scrape stays successful.
 - `onPersistentAuthStateUpdate` fails authentication before the new bearer is
@@ -55,8 +56,7 @@ A timed-out callback is not cancelled: it may still complete after the scrape
 moves on. Implementations must therefore make storage writes idempotent and
 ignore a write that is older than the newest token they have already stored;
 otherwise a slow first write could overwrite a recovery token and force another
-login. The timer itself is owned and cleared when the race settles, and the run
-abort listener is removed at the same time.
+login.
 
 The OTP retriever keeps its own `otpTimeoutMs` budget; wrapping it again here
 would change the documented prompt window.

@@ -15,6 +15,7 @@
 import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
+import { runWithBankContext } from '../../../../../Scrapers/Pipeline/Logging/BankContext.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import type { IApiDirectScrapeShape } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import { checkResponseIntegrity } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/ResponseIntegrityCheck.js';
@@ -283,21 +284,29 @@ describe('ApiDirectScrape self-heal — gating + recovery failure (synthetic)', 
     expect(scr.value.accounts).toHaveLength(0);
   });
 
-  it('SH-10 — warm + aborted run does not recover', async () => {
-    const aborted = fail(ScraperErrorTypes.Timeout, 'scrape aborted');
+  it('SH-10 — warm + auth hard-fail under an aborted run does not recover', async () => {
+    const rejected = fail(ScraperErrorTypes.Generic, 'balance down', 401);
     const { bus, recoverSession } = makeSelfHealBus({
       router: {
         customer: [succeed(SYN_CASE.fixtures.customer)],
-        balance: [aborted],
-        transactions: [succeed(SYN_CASE.fixtures.transactions)],
+        balance: [rejected],
       },
       isWarm: true,
       recover: succeed('unused'),
     });
     const phase = runScrapeAction(synShape);
     const ctx = ctxOf(bus, SYN_CASE.name);
-    const result = await phase(ctx);
-    expect(result).toEqual(aborted);
+    const controller = new AbortController();
+    controller.abort();
+    /**
+     * Run the scrape inside the aborted scope.
+     * @returns The scrape result.
+     */
+    const work = (): ReturnType<typeof phase> => phase(ctx);
+    const result = await runWithBankContext(SYN_CASE.name, work, {
+      signal: controller.signal,
+    });
+    expect(result).toEqual(rejected);
     expect(recoverSession).not.toHaveBeenCalled();
   });
 

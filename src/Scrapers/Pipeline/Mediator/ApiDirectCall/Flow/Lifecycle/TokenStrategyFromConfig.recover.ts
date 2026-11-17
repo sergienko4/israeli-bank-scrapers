@@ -13,6 +13,7 @@
 import type { ITokenBus } from '../../../../Types/Domain/TokenBus.js';
 import type { Procedure } from '../../../../Types/Procedure.js';
 import { isOk, isTerminalFailure } from '../../../../Types/Procedure.js';
+import { isRunAborted } from '../../../../Types/RunScope.js';
 import type { IApiDirectCallConfig } from '../../ConfigContracts/index.js';
 import mayEscalateWarmFailureImpl from './TokenStrategyFromConfig.fallback.js';
 import { primeFreshImpl, runConfiguredFlow } from './TokenStrategyFromConfig.flow.js';
@@ -57,7 +58,8 @@ async function resumeSession(args: IPrimeArgs): Promise<Procedure<string>> {
 
 /**
  * Resume a carry-bundle session; escalate to one cold login only when the
- * config's `coldFallback` gate lets the resume's non-terminal failure through.
+ * config's `coldFallback` gate lets the resume's non-terminal failure through
+ * and the run is still live.
  * @param args - Prime args.
  * @returns The new header value, or the failure.
  */
@@ -65,7 +67,7 @@ async function resumeCarryBundle(args: IPrimeArgs): Promise<Procedure<string>> {
   const resumed = await resumeSession(args);
   args.slot.lastMintResumed = resumed.success;
   if (isOk(resumed)) return resumed;
-  if (isTerminalFailure(resumed)) return resumed;
+  if (isTerminalFailure(resumed) || isRunAborted()) return resumed;
   const canEscalate = mayEscalateWarmFailureImpl(args.config, resumed);
   if (!canEscalate) return resumed;
   return primeFreshImpl(args);

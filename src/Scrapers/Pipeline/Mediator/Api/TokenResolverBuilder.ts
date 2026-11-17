@@ -21,6 +21,7 @@ import type { ITokenBus } from '../../Types/Domain/TokenBus.js';
 import type { ITokenContext } from '../../Types/Domain/TokenContext.js';
 import type { IProcedureFailure, Procedure } from '../../Types/Procedure.js';
 import { isOk, isTerminalFailure } from '../../Types/Procedure.js';
+import { isRunAborted } from '../../Types/RunScope.js';
 import type { ITokenResolver } from './ITokenResolver.js';
 import type ITokenStrategy from './ITokenStrategy.js';
 
@@ -46,15 +47,16 @@ async function runFresh<TCreds>(deps: IBuilderDeps<TCreds>): Promise<Procedure<s
  * Whether a failed stored-token attempt may escalate to primeFresh.
  * A WAF block is terminal: the edge refused the request before the bank saw
  * it, so a cold login would hit the same edge and could spend an SMS OTP.
- * Integrity refusals also stop escalation. A strategy may narrow it further;
- * one without the hook escalates as before.
+ * Integrity refusals also stop escalation, and a cancelled run never starts a
+ * cold login. A strategy may narrow it further; one without the hook escalates
+ * as before.
  * @param first - The failed primeInitial outcome.
  * @param deps - Closure deps bag.
- * @returns True when warm state exists, the failure is not terminal and the
- *   strategy lets this failure escalate.
+ * @returns True when the run is live, warm state exists, the failure is not
+ *   terminal and the strategy lets this failure escalate.
  */
 function canEscalate<TCreds>(first: IProcedureFailure, deps: IBuilderDeps<TCreds>): boolean {
-  if (isTerminalFailure(first)) return false;
+  if (isRunAborted() || isTerminalFailure(first)) return false;
   if (!deps.strategy.hasWarmState(deps.creds)) return false;
   return deps.strategy.mayEscalateWarmFailure?.(first) ?? true;
 }
