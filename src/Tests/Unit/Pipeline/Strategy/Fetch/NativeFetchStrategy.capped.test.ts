@@ -245,6 +245,19 @@ describe('capped NativeFetchStrategy', () => {
     expect(result).toMatchObject({ success: false, errorType: ScraperErrorTypes.Generic });
   });
 
+  it('bounds a body with no integrity policy by the default byte cap', async () => {
+    const oversize = new Uint8Array(8 * 1024 * 1024 + 1);
+    installFetchMock(() => Promise.resolve(new Response(oversize)));
+    const bounded = cappedNative(BASE_URL, { timeoutMs: 1000 });
+    const result = await bounded.fetchGet(ITEMS_URL, { extraHeaders: {} });
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Generic,
+      errorMessage: 'response exceeds integrity byte limit',
+      responseIntegrityRefusal: true,
+    });
+  });
+
   it('refuses a bank media-type mismatch without waiting for a stalled body', async () => {
     const guarded = cappedNative(BASE_URL, {
       timeoutMs: LOWERED_CAP_MS,

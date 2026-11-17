@@ -9,6 +9,7 @@
 import type { IResponseIntegrity, IResponseReading } from '../../Types/Domain/FetchPolicy.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
+import { NETWORK_MAX_RESPONSE_BYTES } from './FetchConfig.js';
 import { hasCloudflareChallengeHeader } from './HttpFailureClassifier.js';
 import { isMediaTypeMismatch } from './MediaTypeCheck.js';
 import { isApiSuccess } from './NativeFetchDispatch.js';
@@ -103,16 +104,6 @@ function stopAfterHeaders(response: Response, controller: AbortController): Resp
 }
 
 /**
- * Buffers a response under the existing timeout when no byte policy is named.
- * @param response - Response whose headers have passed policy checks.
- * @returns The buffered response.
- */
-async function readUnbounded(response: Response): Promise<Procedure<Response>> {
-  await response.clone().arrayBuffer();
-  return succeed(response);
-}
-
-/**
  * The integrity policy a response is checked against: the full policy for an
  * answer body (2xx, or a 3xx kept by `accept`), byte cap only for a failure.
  * @param response - Response whose headers have passed policy checks.
@@ -147,7 +138,21 @@ async function checkBoundedBody(
 }
 
 /**
- * Buffers a required response under its optional integrity policy.
+ * The policy a required body is buffered under: the call's integrity policy,
+ * or the default byte cap when none is named.
+ * @param response - Response whose headers have passed policy checks.
+ * @param reading - The call's immutable reading policy.
+ * @returns The policy to enforce.
+ */
+function effectiveIntegrity(response: Response, reading: IResponseReading): IResponseIntegrity {
+  const policy = reading.responseIntegrity;
+  if (policy === undefined) return { maxBytes: NETWORK_MAX_RESPONSE_BYTES };
+  return appliedIntegrity(response, reading, policy);
+}
+
+/**
+ * Buffers a required response under its integrity policy, or the default byte
+ * cap when the call names none.
  * @param response - Response whose headers have passed policy checks.
  * @param controller - Request-local abort controller.
  * @param reading - The call's immutable reading policy.
@@ -158,10 +163,8 @@ async function readWithinCap(
   controller: AbortController,
   reading: IResponseReading,
 ): Promise<Procedure<Response>> {
-  const policy = reading.responseIntegrity;
-  if (policy === undefined) return readUnbounded(response);
-  const applied = appliedIntegrity(response, reading, policy);
-  return checkBoundedBody(response, controller, applied);
+  const policy = effectiveIntegrity(response, reading);
+  return checkBoundedBody(response, controller, policy);
 }
 
 /**

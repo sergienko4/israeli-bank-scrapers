@@ -373,3 +373,34 @@ describe('DomainCookieJar/session operations', () => {
     expect([size, header]).toEqual([0, '']);
   });
 });
+
+describe('DomainCookieJar/size cap', () => {
+  it('keeps the newest 300 cookies and evicts the oldest', () => {
+    const jar = makeJar();
+    const cookies = Array.from({ length: 301 }, (_value, index) => {
+      const name = `cookie-${String(index)}`;
+      return stored({ name });
+    });
+    const size = jar.importAll(cookies);
+    const names = jar.exportAll().map((cookie): string => cookie.name);
+    expect(size).toBe(300);
+    expect(names).toHaveLength(300);
+    expect(names).not.toContain('cookie-0');
+    const newest = names.at(-1);
+    expect(newest).toBe('cookie-300');
+  });
+
+  it('replaces an existing key at the cap without evicting another', () => {
+    const jar = makeJar();
+    const full = Array.from({ length: 300 }, (_value, index) => {
+      const name = `cookie-${String(index)}`;
+      return stored({ name });
+    });
+    jar.importAll(full);
+    const size = jar.set(WWW, { name: 'cookie-0', value: 'new' });
+    const exported = jar.exportAll();
+    expect(size).toBe(300);
+    expect(exported).toHaveLength(300);
+    expect(exported[0]).toMatchObject({ name: 'cookie-0', value: 'new' });
+  });
+});
