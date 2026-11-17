@@ -387,6 +387,19 @@ describe('NativeFetchStrategy — failure paths', () => {
     },
   );
 
+  it('types a coded connection failure as NETWORK_ERROR', async () => {
+    const cause = Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' });
+    const rejection = Object.assign(new Error('fetch failed'), { cause });
+    const impl = rejectWith(rejection);
+    installFetchMock(impl);
+    const strategy = new NativeFetchStrategy('https://api.example');
+    const result = await strategy.fetchGet('https://api.example/x', { extraHeaders: {} });
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.NetworkError,
+    });
+  });
+
   it('returns fail with "network error" when fetch throws', async () => {
     const networkError = new Error('connection refused');
     const impl = rejectWith(networkError);

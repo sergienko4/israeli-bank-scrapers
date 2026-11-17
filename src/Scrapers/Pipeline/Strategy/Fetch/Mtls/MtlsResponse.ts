@@ -13,6 +13,11 @@ import { NETWORK_MAX_RESPONSE_BYTES } from '../FetchConfig.js';
 /** Fixed reason a response past the cap fails with. */
 const RESPONSE_TOO_LARGE_REASON = 'response too large';
 
+/** Raised when the socket closes before the response body ends. */
+class PrematureCloseError extends Error {
+  public readonly code = 'ECONNRESET';
+}
+
 /** HTTP statuses whose Web Response must have a null body. */
 const NO_BODY_STATUSES: ReadonlySet<number> = new Set([204, 205, 304]);
 
@@ -73,7 +78,7 @@ function finishBody(state: IBodyState, resolve: (body: Buffer) => unknown): bool
  */
 function rejectPrematureClose(message: IncomingMessage, reject: BodyReject): boolean {
   if (message.readableEnded) return false;
-  reject(new Error('mtls response closed before end'));
+  reject(new PrematureCloseError('mtls response closed before end'));
   return true;
 }
 

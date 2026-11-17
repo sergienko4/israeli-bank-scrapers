@@ -17,21 +17,7 @@ import { NETWORK_CONNECT_RETRIES } from './FetchConfig.js';
 import type { FetchInvoke, IFetchInvokePolicy } from './FetchStrategy.js';
 import { toNetworkFailure } from './NativeFetchNetwork.js';
 import { safeUrlForLog } from './SafeUrlForLog.js';
-
-/** Error names a fetch rejects with once its abort signal fires. */
-const ABORT_ERROR_NAMES: ReadonlySet<unknown> = new Set(['TimeoutError', 'AbortError']);
-
-/**
- * Whether a rejection came from an aborted signal. Reads `name` instead of
- * using `instanceof DOMException`, which fails across realms.
- * @param error - The caught value.
- * @returns True for a `TimeoutError` / `AbortError`.
- */
-function isAbortRejection(error: unknown): boolean {
-  if (typeof error !== 'object' || error === null) return false;
-  const name: unknown = Reflect.get(error, 'name');
-  return ABORT_ERROR_NAMES.has(name);
-}
+import transportErrorType from './TransportFailure.js';
 
 /** Args of a rejected capped request: the error plus what the message needs. */
 interface ICappedFailureArgs {
@@ -50,7 +36,8 @@ function toCappedFailure(args: ICappedFailureArgs): Procedure<Response> {
   const { error, url, policy, reading } = args;
   const redactUrlValues = policy.redactUrlValues ?? reading.redactUrlValues;
   const request = { url, verb: policy.verb, redactUrlValues };
-  if (!isAbortRejection(error)) return toNetworkFailure(error, request);
+  const isTimeout = transportErrorType(error) === ScraperErrorTypes.Timeout;
+  if (!isTimeout) return toNetworkFailure(error, request);
   const safeUrl = safeUrlForLog(url, redactUrlValues);
   return fail(ScraperErrorTypes.Timeout, `${policy.verb} ${safeUrl} network error: timeout`);
 }
