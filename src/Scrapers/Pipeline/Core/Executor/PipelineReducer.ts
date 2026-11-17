@@ -128,8 +128,20 @@ async function reducePhases(
   ctx: IPipelineContext,
   index: number,
 ): Promise<Procedure<IPipelineContext>> {
+  const aborted = abortRefusal();
+  if (aborted !== false) return aborted;
   if (index >= tracker.phases.length) return succeed(ctx);
   return runNextPhase(tracker, ctx, index);
+}
+
+/**
+ * Prefer the abort verdict over a phase failure that raced it.
+ * @param result - The failed phase result.
+ * @returns The abort failure, or the phase result.
+ */
+function failedPhase(result: Procedure<IPipelineContext>): Procedure<IPipelineContext> {
+  const aborted = abortRefusal();
+  return aborted === false ? result : aborted;
 }
 
 /**
@@ -144,10 +156,8 @@ async function runNextPhase(
   ctx: IPipelineContext,
   index: number,
 ): Promise<Procedure<IPipelineContext>> {
-  const aborted = abortRefusal();
-  if (aborted !== false) return aborted;
   const result = await executeTracedPhase(tracker, ctx, index);
-  return isOk(result) ? reducePhases(tracker, result.value, index + 1) : result;
+  return isOk(result) ? reducePhases(tracker, result.value, index + 1) : failedPhase(result);
 }
 
 /**
@@ -160,4 +170,4 @@ function wrapError(error: Error): Procedure<IPipelineContext> {
   return fail(ScraperErrorTypes.Generic, message);
 }
 
-export { reducePhases, wrapError };
+export { failedPhase, reducePhases, wrapError };

@@ -10,6 +10,7 @@ import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { IResponseReading } from '../../Types/Domain/FetchPolicy.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail } from '../../Types/Procedure.js';
+import { isRunAborted } from '../../Types/RunScope.js';
 import type { ICappedRequest } from './CappedBody.js';
 import { fetchWithinCap } from './CappedBody.js';
 import retryOnConnectTimeout from './ConnectRetry.js';
@@ -36,7 +37,7 @@ function toCappedFailure(args: ICappedFailureArgs): Procedure<Response> {
   const { error, url, policy, reading } = args;
   const redactUrlValues = policy.redactUrlValues ?? reading.redactUrlValues;
   const request = { url, verb: policy.verb, redactUrlValues };
-  const isTimeout = transportErrorType(error) === ScraperErrorTypes.Timeout;
+  const isTimeout = isRunAborted() || transportErrorType(error) === ScraperErrorTypes.Timeout;
   if (!isTimeout) return toNetworkFailure(error, request);
   const safeUrl = safeUrlForLog(url, redactUrlValues);
   return fail(ScraperErrorTypes.Timeout, `${policy.verb} ${safeUrl} network error: timeout`);

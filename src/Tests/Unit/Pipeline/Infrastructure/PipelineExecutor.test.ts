@@ -303,6 +303,20 @@ async function afterDelay(ms: number): Promise<void> {
 }
 
 describe('PipelineExecutor/cancellation', () => {
+  it('reports cancellation when a phase throws after the abort', async () => {
+    const controller = new AbortController();
+    const phase = new SimplePhase('api-direct-call', () => {
+      controller.abort();
+      throw new ScraperError('phase exploded');
+    });
+    const options = { ...MOCK_OPTIONS, signal: controller.signal };
+    const result = await executePipeline({ options, phases: [phase] }, MOCK_CREDENTIALS);
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Timeout,
+    });
+  });
+
   it('stops before the first phase when the caller signal is already aborted', async () => {
     const controller = new AbortController();
     controller.abort();
@@ -319,6 +333,48 @@ describe('PipelineExecutor/cancellation', () => {
       errorType: ScraperErrorTypes.Timeout,
     });
     expect(didPhaseRun).toBe(false);
+  });
+
+  it('reports cancellation when a phase fails after the abort', async () => {
+    const controller = new AbortController();
+    const phase = new SimplePhase('api-direct-call', () => {
+      controller.abort();
+      const result = fail(ScraperErrorTypes.Generic, 'phase failed');
+      return Promise.resolve(result);
+    });
+    const options = { ...MOCK_OPTIONS, signal: controller.signal };
+    const result = await executePipeline({ options, phases: [phase] }, MOCK_CREDENTIALS);
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Timeout,
+    });
+  });
+
+  it('reports cancellation even when the final phase returns success', async () => {
+    const controller = new AbortController();
+    const phase = new SimplePhase('api-direct-call', (_ctx, input) => {
+      controller.abort();
+      const result = succeed(input);
+      return Promise.resolve(result);
+    });
+    const options = { ...MOCK_OPTIONS, signal: controller.signal };
+    const result = await executePipeline({ options, phases: [phase] }, MOCK_CREDENTIALS);
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Timeout,
+    });
+  });
+
+  it.each([-1, Number.NaN])('ignores an unusable deadline %s', async deadlineMs => {
+    const options = { ...MOCK_OPTIONS, deadlineMs };
+    const result = await executePipeline({ options, phases: [] }, MOCK_CREDENTIALS);
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts a fractional deadline without throwing', async () => {
+    const options = { ...MOCK_OPTIONS, deadlineMs: 1.5 };
+    const result = await executePipeline({ options, phases: [] }, MOCK_CREDENTIALS);
+    expect(result.success).toBe(true);
   });
 
   it('stops before the next phase once the run deadline passes', async () => {

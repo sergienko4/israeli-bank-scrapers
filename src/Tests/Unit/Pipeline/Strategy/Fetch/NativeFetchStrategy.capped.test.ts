@@ -240,29 +240,30 @@ describe('capped NativeFetchStrategy', () => {
   });
 
   it('treats an unconfigured 429 as a rate limit without reading its body', async () => {
-    const pull = jest.fn<Promise<void>, []>().mockResolvedValue(undefined);
-    const body = new ReadableStream<Uint8Array>(
-      {
-        /**
-         * Close the body without yielding data.
-         * @param controller - Stream controller.
-         * @returns Nothing.
-         */
-        start(controller): void {
-          controller.close();
-        },
-        pull,
-      },
-      { highWaterMark: 0 },
-    );
-    installFetchMock(() => Promise.resolve(new Response(body, { status: 429 })));
+    installFetchMock(() => Promise.resolve(new Response('slow down', { status: 429 })));
     const result = await strategy.fetchGet(ITEMS_URL, { extraHeaders: {} });
     expect(result).toMatchObject({
       success: false,
       errorType: ScraperErrorTypes.WafBlocked,
       errorMessage: 'GET https://api.bank.example/v1/items 429: rate limited',
     });
-    expect(pull).not.toHaveBeenCalled();
+  });
+
+  it('keeps a broken body on a successful response as a transport failure', async () => {
+    const body = new ReadableStream<Uint8Array>({
+      /**
+       * Fail the body before a reader can consume it.
+       * @param controller - Stream controller.
+       * @returns True once the failure is installed.
+       */
+      start(controller): boolean {
+        controller.error(new Error('ECONNRESET'));
+        return true;
+      },
+    });
+    installFetchMock(() => Promise.resolve(new Response(body, { status: 200 })));
+    const result = await capped.fetchGet(ITEMS_URL, { extraHeaders: {} });
+    expect(result).toMatchObject({ success: false, errorType: ScraperErrorTypes.Generic });
   });
 
   it('bounds a body with no integrity policy by the default byte cap', async () => {

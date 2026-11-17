@@ -13,6 +13,7 @@
 
 import { getDebug } from '../../Logging/Debug.js';
 import { errorCauseCodeOf } from '../../Types/ErrorUtils.js';
+import { isRunAborted } from '../../Types/RunScope.js';
 
 /** Module logger — name derived from source filename per project convention. */
 const LOG = getDebug(import.meta.url);
@@ -43,7 +44,9 @@ function isConnectTimeout(error: unknown): boolean {
  * @throws The original rejection when it is not a connect timeout or no repeats remain.
  */
 async function retryOrThrow<T>(failure: IConnectFailure<T>): Promise<T> {
-  if (failure.retries < 1 || !isConnectTimeout(failure.error)) throw failure.error;
+  if (failure.retries < 1 || isRunAborted() || !isConnectTimeout(failure.error)) {
+    throw failure.error;
+  }
   LOG.debug({ retriesLeft: failure.retries, message: '[fetch] CONNECT TIMEOUT retry' });
   return failure.again();
 }

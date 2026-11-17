@@ -27,6 +27,43 @@ describe('capped native transport — whole-run cancellation', () => {
     globalThis.fetch = originalFetch;
   });
 
+  it('normalizes a custom abort reason to TIMEOUT', async () => {
+    const controller = new AbortController();
+    /**
+     * Reject with the signal's custom reason.
+     * @param _url - Target URL.
+     * @param init - Request init.
+     * @returns A promise rejected by the abort.
+     */
+    const impl: typeof globalThis.fetch = (_url, init): Promise<Response> => {
+      const requestSignal = init?.signal;
+      if (!requestSignal) throw new TypeError('request carries no abort signal');
+      const signal = requestSignal;
+      return new Promise<Response>((_resolve, reject) => {
+        signal.addEventListener(
+          'abort',
+          (): boolean => {
+            reject(new Error(String(signal.reason)));
+            return true;
+          },
+          { once: true },
+        );
+      });
+    };
+    globalThis.fetch = impl;
+    const strategy = cappedNative(BASE_URL, { timeoutMs: 5000 });
+    const pending = runWithBankContext(
+      'pepper',
+      () => strategy.fetchGet(ITEMS_URL, { extraHeaders: {} }),
+      { signal: controller.signal },
+    );
+    controller.abort(new Error('cancelled by caller'));
+    const result = await pending;
+    expect(result).toMatchObject({ success: false, errorType: ScraperErrorTypes.Timeout });
+    const message = !result.success && result.errorMessage;
+    expect(message).not.toContain('cancelled by caller');
+  });
+
   it('aborts an in-flight request once and reports TIMEOUT', async () => {
     const controller = new AbortController();
     let calls = 0;
