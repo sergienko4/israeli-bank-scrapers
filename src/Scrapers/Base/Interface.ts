@@ -163,7 +163,10 @@ interface IScraperOptions {
    * Maximum time (ms) to wait for `onAuthFlowComplete` and
    * `onPersistentAuthStateUpdate`. A callback that exceeds it is treated as a
    * throw: the auth-flow callback is logged and swallowed, and a durable-state
-   * update fails authentication before its bearer is used.
+   * update fails authentication before its bearer is used. A timed-out
+   * callback is not cancelled: it may still complete, so implementations must
+   * make storage writes idempotent and ignore a write older than the newest
+   * token they have stored.
    * @default 30000 (30 seconds)
    */
   callbackTimeoutMs?: number;

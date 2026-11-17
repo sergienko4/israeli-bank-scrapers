@@ -20,7 +20,7 @@ import reportCleanupFailure from './CleanupDiagnostic.js';
 import { type IContextTracker, reducePhases, wrapError } from './PipelineReducer.js';
 
 /** Largest delay the platform timer accepts, in milliseconds. */
-const MAX_TIMER_MS = 4_294_967_295;
+const MAX_TIMER_MS = 2_147_483_647;
 
 /**
  * Awaits an optional dispose() callback. A failure never masks the already

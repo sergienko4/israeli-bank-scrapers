@@ -632,7 +632,7 @@ describe('SmsOtpFlow — pre-hook guards', () => {
     expect(run.captures).toHaveLength(1);
   });
 
-  it('stops a pending retriever as soon as the run is aborted', async () => {
+  it('aborts a retriever that is already in flight', async () => {
     const controller = new AbortController();
     const request = runWithBankContext(
       'onezero',
@@ -644,6 +644,7 @@ describe('SmsOtpFlow — pre-hook guards', () => {
         }),
       { signal: controller.signal },
     );
+    await Promise.resolve();
     controller.abort();
     const run = await request;
     expect(run.result).toMatchObject({
@@ -654,27 +655,51 @@ describe('SmsOtpFlow — pre-hook guards', () => {
     expect(run.captures).toHaveLength(1);
   });
 
-  it.each<[string, number | undefined, number]>([
-    ['configured', 10, 10],
-    ['default', undefined, DEFAULT_OTP_TIMEOUT_MS],
-  ])('times out a pending retriever with the %s OTP budget', async (_label, otpTimeoutMs, ms) => {
-    jest.useFakeTimers();
-    try {
-      const request = runGuarded({
-        hook: HOOK,
-        bind: FULL_BIND,
-        otpTimeoutMs,
-        retriever: pendingOtpCode,
+  describe('SmsOtpFlow — pre-hook cancellation', () => {
+    it('stops a pending retriever as soon as the run is aborted', async () => {
+      const controller = new AbortController();
+      const request = runWithBankContext(
+        'onezero',
+        () =>
+          runGuarded({
+            hook: HOOK,
+            bind: FULL_BIND,
+            retriever: pendingOtpCode,
+          }),
+        { signal: controller.signal },
+      );
+      controller.abort();
+      const run = await request;
+      expect(run.result).toMatchObject({
+        success: false,
+        errorType: ScraperErrorTypes.Timeout,
+        errorMessage: 'scrape aborted',
       });
-      await jest.advanceTimersByTimeAsync(ms);
-      const run = await Promise.race([request, Promise.resolve('still waiting')]);
-      expect(run).toMatchObject({
-        result: { success: false, errorType: ScraperErrorTypes.Timeout },
-        captures: [expect.anything()],
-        hints: ['050***1234'],
-      });
-    } finally {
-      jest.useRealTimers();
-    }
+      expect(run.captures).toHaveLength(1);
+    });
+
+    it.each<[string, number | undefined, number]>([
+      ['configured', 10, 10],
+      ['default', undefined, DEFAULT_OTP_TIMEOUT_MS],
+    ])('times out a pending retriever with the %s OTP budget', async (_label, otpTimeoutMs, ms) => {
+      jest.useFakeTimers();
+      try {
+        const request = runGuarded({
+          hook: HOOK,
+          bind: FULL_BIND,
+          otpTimeoutMs,
+          retriever: pendingOtpCode,
+        });
+        await jest.advanceTimersByTimeAsync(ms);
+        const run = await Promise.race([request, Promise.resolve('still waiting')]);
+        expect(run).toMatchObject({
+          result: { success: false, errorType: ScraperErrorTypes.Timeout },
+          captures: [expect.anything()],
+          hints: ['050***1234'],
+        });
+      } finally {
+        jest.useRealTimers();
+      }
+    });
   });
 });

@@ -3,12 +3,12 @@
 A scrape can be cancelled by the caller and bounded by a deadline. Both are
 additive public options on `ScraperOptions`; neither changes the result shape.
 
-| Option              | Meaning                                                                                         |
-| ------------------- | ----------------------------------------------------------------------------------------------- |
-| `signal`            | An `AbortSignal`. Once it fires, no further phase starts and in-flight requests are aborted.    |
-| `deadlineMs`        | Whole-run deadline in milliseconds from execution start. A positive finite value only.           |
-| `callbackTimeoutMs` | Maximum wait for `onAuthFlowComplete` and `onPersistentAuthStateUpdate` (default 30 seconds).   |
-| `otpTimeoutMs`      | Existing OTP prompt budget; unchanged and separate from the fields above.                       |
+| Option              | Meaning                                                                                       |
+| ------------------- | --------------------------------------------------------------------------------------------- |
+| `signal`            | An `AbortSignal`. Once it fires, no further phase starts and in-flight requests are aborted.  |
+| `deadlineMs`        | Whole-run deadline in milliseconds from execution start. A positive finite value only.        |
+| `callbackTimeoutMs` | Maximum wait for `onAuthFlowComplete` and `onPersistentAuthStateUpdate` (default 30 seconds). |
+| `otpTimeoutMs`      | Existing OTP prompt budget; unchanged and separate from the fields above.                     |
 
 ## One signal per run
 
@@ -46,6 +46,13 @@ like a throw:
 - `onAuthFlowComplete` is logged by error name and the scrape stays successful.
 - `onPersistentAuthStateUpdate` fails authentication before the new bearer is
   used.
+
+A timed-out callback is not cancelled: it may still complete after the scrape
+moves on. Implementations must therefore make storage writes idempotent and
+ignore a write that is older than the newest token they have already stored;
+otherwise a slow first write could overwrite a recovery token and force another
+login. The timer itself is owned and cleared when the race settles, and the run
+abort listener is removed at the same time.
 
 The OTP retriever keeps its own `otpTimeoutMs` budget; wrapping it again here
 would change the documented prompt window.

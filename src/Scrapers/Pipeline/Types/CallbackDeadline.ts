@@ -11,10 +11,17 @@ import { currentAbortSignal } from './RunScope.js';
 const DEFAULT_CALLBACK_TIMEOUT_MS = 30_000;
 
 /** Largest delay the platform timer accepts, in milliseconds. */
-const MAX_TIMER_MS = 4_294_967_295;
+const MAX_TIMER_MS = 2_147_483_647;
+const RUN_ABORT_MESSAGE = 'scrape aborted';
 
 /** A pending rejection plus its cleanup hook. */
 interface ITimeoutWait {
+  readonly promise: Promise<never>;
+  readonly dispose: () => boolean;
+}
+
+/** A pending run-abort rejection plus its listener cleanup. */
+interface IAbortWait {
   readonly promise: Promise<never>;
   readonly dispose: () => boolean;
 }
@@ -38,7 +45,7 @@ function timeoutRejection(reject: (error: unknown) => unknown): () => boolean {
  */
 function abortRejection(reject: (error: unknown) => unknown): () => boolean {
   return (): boolean => {
-    reject(new ScraperError('scrape aborted'));
+    reject(new ScraperError(RUN_ABORT_MESSAGE));
     return true;
   };
 }
@@ -81,17 +88,65 @@ function ownedTimeout(ms: number): ITimeoutWait {
 }
 
 /**
+ * Build the abort rejection for an active run signal.
+ * @param signal - The run signal.
+ * @returns The pending rejection and its listener cleanup.
+ */
+function abortWait(signal: AbortSignal): IAbortWait {
+  let removeListener = disposeNothing;
+  const promise = new Promise<never>((_resolve, reject) => {
+    const listener = abortRejection(reject);
+    signal.addEventListener('abort', listener, { once: true });
+    removeListener = makeDispose(signal, listener);
+  });
+  return { promise, dispose: removeListener };
+}
+
+/**
+ * A no-op cleanup used before a listener is installed.
+ * @returns True.
+ */
+function disposeNothing(): boolean {
+  return true;
+}
+
+/**
+ * Build the cleanup that removes one abort listener.
+ * @param signal - The run signal.
+ * @param listener - The installed listener.
+ * @returns The cleanup.
+ */
+function makeDispose(signal: AbortSignal, listener: () => boolean): () => boolean {
+  return (): boolean => {
+    signal.removeEventListener('abort', listener);
+    return true;
+  };
+}
+
+/**
  * Build the rejection that fires when the run aborts.
  * @returns The pending rejection, or false outside a cancellation run.
  */
-function runAbortWait(): Promise<never> | false {
+function runAbortWait(): IAbortWait | false {
   const signal = currentAbortSignal();
   if (signal === false) return false;
-  return new Promise<never>((_resolve, reject) => {
-    const listener = abortRejection(reject);
-    if (signal.aborted) listener();
-    else signal.addEventListener('abort', listener, { once: true });
-  });
+  if (signal.aborted) {
+    const rejected = Promise.reject(new ScraperError(RUN_ABORT_MESSAGE));
+    return { promise: rejected, dispose: disposeNothing };
+  }
+  return abortWait(signal);
+}
+
+/**
+ * Release the timer and abort listener after a callback race settles.
+ * @param timeout - The owned timer wait.
+ * @param abort - The run-abort wait, when one exists.
+ * @returns True once both are released.
+ */
+function disposeWaits(timeout: ITimeoutWait, abort: IAbortWait | false): boolean {
+  timeout.dispose();
+  if (abort !== false) abort.dispose();
+  return true;
 }
 
 /**
@@ -102,11 +157,14 @@ function runAbortWait(): Promise<never> | false {
  * @throws ScraperError when the deadline or the run signal wins.
  */
 async function withCallbackDeadline<T>(work: Promise<T>, timeoutMs?: number): Promise<T> {
+  const signal = currentAbortSignal();
+  if (signal !== false && signal.aborted) throw new ScraperError(RUN_ABORT_MESSAGE);
   const ms = callbackBudget(timeoutMs);
   const timeout = ownedTimeout(ms);
   const abort = runAbortWait();
-  const races = abort === false ? [work, timeout.promise] : [work, timeout.promise, abort];
-  return Promise.race(races).finally(timeout.dispose);
+  const races = abort === false ? [work, timeout.promise] : [work, timeout.promise, abort.promise];
+  const cleanup = disposeWaits.bind(null, timeout, abort);
+  return Promise.race(races).finally(cleanup);
 }
 
 export default withCallbackDeadline;

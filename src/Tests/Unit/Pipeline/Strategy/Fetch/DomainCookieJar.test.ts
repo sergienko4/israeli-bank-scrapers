@@ -400,19 +400,23 @@ describe('DomainCookieJar/size cap', () => {
   });
 
   it('purges expired cookies before evicting a live one', () => {
-    const jar = makeJar();
-    const base = capCookies(299);
-    const live = base.map((cookie, index) => ({
-      ...cookie,
-      name: `live-${String(index)}`,
-    }));
-    jar.importAll([stored({ name: 'expired', expiresEpochS: 1 }), ...live]);
-    const size = jar.set(WWW, { name: 'new', value: '1' });
-    const names = jar.exportAll().map((cookie): string => cookie.name);
-    expect(size).toBe(300);
-    expect(names).toContain('live-0');
-    expect(names).not.toContain('expired');
-    expect(names).toContain('new');
+    jest.useFakeTimers({ now: new Date('2026-01-01T00:00:00Z') });
+    try {
+      const nowS = Math.floor(Date.now() / 1000);
+      const jar = makeJar();
+      const live = capCookies(300);
+      const expiring = { ...live[0], expiresEpochS: nowS + 1 };
+      jar.importAll([expiring, ...live.slice(1)]);
+      jest.advanceTimersByTime(2000);
+      const size = jar.set(WWW, { name: 'new', value: '1' });
+      const names = jar.exportAll().map((cookie): string => cookie.name);
+      expect(size).toBe(300);
+      expect(names).toContain('cookie-1');
+      expect(names).not.toContain('cookie-0');
+      expect(names).toContain('new');
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('replaces an existing key at the cap without evicting another', () => {

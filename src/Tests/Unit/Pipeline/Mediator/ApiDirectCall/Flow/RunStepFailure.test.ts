@@ -21,6 +21,7 @@ import type {
   IApiDirectCallConfig,
   IStepConfig,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
+import sanitiseStepFailure from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.failure.js';
 import type { ITemplateScope } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/RefResolver.js';
 import type GraphQLFetchStrategy from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/GraphQLFetchStrategy.js';
 import type { ITokenBus } from '../../../../../../Scrapers/Pipeline/Types/Domain/TokenBus.js';
@@ -456,5 +457,20 @@ describe('login-step failure message through the native transport and the mediat
     });
     expect(fake.calls).toHaveLength(1);
     expect(JSON.stringify(result) + LOG_LINES.join('\n')).not.toContain('cf-error');
+  });
+});
+
+describe('sanitiseStepFailure — structured HTTP status', () => {
+  it('uses httpStatus when the message carries no status prefix', (): void => {
+    const failure = fail(ScraperErrorTypes.Generic, 'response body unreadable', 401);
+    const step = {
+      name: 'bind',
+      httpFailureMap: { '401': ScraperErrorTypes.InvalidPassword },
+    };
+    const sanitised = sanitiseStepFailure(step, failure);
+    expect(sanitised).toMatchObject({
+      errorType: ScraperErrorTypes.InvalidPassword,
+      errorMessage: 'bind HTTP 401',
+    });
   });
 });

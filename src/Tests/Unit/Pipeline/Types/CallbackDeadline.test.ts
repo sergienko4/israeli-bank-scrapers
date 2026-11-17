@@ -38,4 +38,17 @@ describe('withCallbackDeadline', () => {
     controller.abort();
     await expect(pending).rejects.toThrow('scrape aborted');
   });
+
+  it('rejects immediately when the run is already aborted', async (): Promise<void> => {
+    const controller = new AbortController();
+    controller.abort();
+    const work = Promise.resolve('stored');
+    /**
+     * Wait for the callback under the aborted run.
+     * @returns The callback result.
+     */
+    const run = (): Promise<string> => withCallbackDeadline(work, 5000);
+    const pending = runWithBankContext('pepper', run, { signal: controller.signal });
+    await expect(pending).rejects.toThrow('scrape aborted');
+  });
 });

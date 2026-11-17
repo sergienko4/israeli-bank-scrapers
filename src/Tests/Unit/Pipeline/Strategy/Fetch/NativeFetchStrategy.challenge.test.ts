@@ -4,6 +4,8 @@
  * must not abort it while the answer is still header-only.
  */
 
+import { jest } from '@jest/globals';
+
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import { cappedNative } from '../../../../Helpers/CappedTransport.js';
 import { CLOUDFLARE_CHALLENGE_HEADERS } from '../../../../Helpers/EdgeBlockPages.js';
@@ -110,6 +112,25 @@ describe('unbounded Cloudflare challenges', () => {
       errorType: ScraperErrorTypes.WafBlocked,
       errorMessage: 'GET https://api.bank.example/v1/items 429: rate limited',
     });
+  });
+
+  it('never pulls a header-only challenge body', async () => {
+    const pull = jest.fn<Promise<void>, []>().mockResolvedValue(undefined);
+    const body = new ReadableStream<Uint8Array>({ pull }, { highWaterMark: 0 });
+    const response = new Response(body, {
+      status: 403,
+      headers: CLOUDFLARE_CHALLENGE_HEADERS,
+    });
+    /**
+     * Answer with the header-only challenge.
+     * @returns The challenge response.
+     */
+    const impl = (): Promise<Response> => Promise.resolve(response);
+    globalThis.fetch = impl;
+    const strategy = cappedNative(BASE_URL, { timeoutMs: 1000 });
+    const result = await strategy.fetchGet(ITEMS_URL, { extraHeaders: {} });
+    expect(result).toMatchObject({ success: false, errorType: ScraperErrorTypes.WafBlocked });
+    expect(pull).not.toHaveBeenCalled();
   });
 
   it('classifies an oversized challenge from headers without reading it', async () => {

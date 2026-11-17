@@ -97,8 +97,7 @@ function evictOldest(state: IJarState, key: string): boolean {
   if (state.store.has(key)) return false;
   purgeExpired(state);
   if (state.store.size < MAX_COOKIES) return false;
-  const oldest = state.store.keys().next().value;
-  if (oldest === undefined) return false;
+  const oldest = String(state.store.keys().next().value);
   return state.store.delete(oldest);
 }
 

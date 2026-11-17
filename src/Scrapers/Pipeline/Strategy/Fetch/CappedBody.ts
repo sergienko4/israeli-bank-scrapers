@@ -10,7 +10,7 @@ import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { IResponseIntegrity, IResponseReading } from '../../Types/Domain/FetchPolicy.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
-import { currentAbortSignal } from '../../Types/RunScope.js';
+import { currentAbortSignal, isRunAborted } from '../../Types/RunScope.js';
 import { NETWORK_MAX_RESPONSE_BYTES } from './FetchConfig.js';
 import { hasCloudflareChallengeHeader } from './HttpFailureClassifier.js';
 import { isMediaTypeMismatch } from './MediaTypeCheck.js';
@@ -123,7 +123,7 @@ const UNREADABLE_BODY_REASON = 'response body unreadable';
  * @returns A typed failure, or false when the error must be rethrown.
  */
 function unreadableFailure(response: Response, error: unknown): Procedure<Response> | false {
-  if (isApiSuccess(response)) return false;
+  if (isApiSuccess(response) || isRunAborted()) return false;
   if (transportErrorType(error) === ScraperErrorTypes.Timeout) return false;
   return fail(ScraperErrorTypes.Generic, UNREADABLE_BODY_REASON, response.status);
 }
