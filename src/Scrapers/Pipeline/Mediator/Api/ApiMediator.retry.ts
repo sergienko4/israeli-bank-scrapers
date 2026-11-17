@@ -5,7 +5,7 @@
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { fail, isOk, isTerminalFailure, preferTerminalFailure } from '../../Types/Procedure.js';
+import { fail, isOk, preferTerminalFailure } from '../../Types/Procedure.js';
 import isAuthRejectedFailure from './ApiMediator.authReject.js';
 import { getSessionWarmOp, setRawAuthOp, setSessionWarmOp } from './ApiMediator.state.js';
 import type { IMediatorState } from './ApiMediator.types.js';
@@ -131,13 +131,13 @@ function applyRefreshedAuth(state: IMediatorState, refreshed: Procedure<string>)
  * `<sp>403:<sp>` marker a stale bearer does, but the edge rejected the request
  * BEFORE the API saw it — re-minting cannot help and only feeds an unbounded
  * retry storm. A `WafBlocked` failure is therefore terminal. An integrity
- * refusal is also terminal even if it resembles an auth rejection.
+ * refusal is also terminal even if it resembles an auth rejection; the
+ * classifier already excludes both, so this gate only asks the auth question.
  * @param first - First-attempt procedure.
  * @returns True iff the failure is a genuine auth rejection (never a WAF block).
  */
 function isUnauthorizedFailure<T>(first: Procedure<T>): boolean {
   if (first.success) return false;
-  if (isTerminalFailure(first)) return false;
   return isAuthRejectedFailure(first);
 }
 
