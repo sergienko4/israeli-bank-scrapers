@@ -23,6 +23,10 @@ interface IProcedureFailure {
   readonly responseIntegrityRefusal?: true;
   /** HTTP status the bank answered, when the failure came from a response. */
   readonly httpStatus?: number;
+  /** Set when a shape callback throw was converted into a failure. */
+  readonly shapeGuardFailure?: true;
+  /** Set when the message is bank text that must never drive auth recovery. */
+  readonly messageOnlyFailure?: true;
 }
 
 /** Discriminated union — every pipeline step returns this. */

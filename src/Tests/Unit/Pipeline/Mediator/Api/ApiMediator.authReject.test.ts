@@ -56,6 +56,15 @@ describe('isAuthRejectedFailure', () => {
     },
   );
 
+  it('refuses a shape-guard failure even when its message quotes an auth marker', (): void => {
+    const failure = {
+      ...fail(ScraperErrorTypes.Generic, 'shape extractPage threw: upstream 401: expired'),
+      shapeGuardFailure: true as const,
+    };
+    const isRejected = isAuthRejectedFailure(failure);
+    expect(isRejected).toBe(false);
+  });
+
   it('refuses a timeout', (): void => {
     const failure = fail(ScraperErrorTypes.Timeout, `token ${ScraperErrorTypes.Timeout}`);
     const isRejected = isAuthRejectedFailure(failure);

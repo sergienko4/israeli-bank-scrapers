@@ -112,6 +112,37 @@ describe('unbounded Cloudflare challenges', () => {
     });
   });
 
+  it('treats a non-object body error as an unreadable failure', async () => {
+    const body = new ReadableStream<Uint8Array>({
+      /**
+       * Reject with a non-object value.
+       * @param controller - Stream controller.
+       * @returns True once the failure is installed.
+       */
+      start(controller): boolean {
+        controller.error('ECONNRESET');
+        return true;
+      },
+    });
+    const response = new Response(body, { status: 500 });
+    /**
+     * Answer with the broken response.
+     * @returns The broken response.
+     */
+    const impl = (): Promise<Response> => Promise.resolve(response);
+    globalThis.fetch = impl;
+    const strategy = cappedNative(BASE_URL, { timeoutMs: 1000 });
+    const result = await strategy.fetchGet(ITEMS_URL, {
+      extraHeaders: {},
+      responseKind: 'text',
+    });
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Generic,
+      httpStatus: 500,
+    });
+  });
+
   it('classifies an unreadable challenge body as WAF-blocked', async () => {
     const response = brokenResponse({ status: 403, headers: CLOUDFLARE_CHALLENGE_HEADERS });
     /**
