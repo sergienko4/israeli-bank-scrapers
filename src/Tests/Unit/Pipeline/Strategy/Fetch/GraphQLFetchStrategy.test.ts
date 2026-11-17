@@ -223,6 +223,29 @@ describe('GraphQLFetchStrategy.query — transport behaviour', () => {
     expect(cancel).toHaveBeenCalledTimes(1);
   });
 
+  it('returns a typed failure when a 500 body stream errors', async () => {
+    const body = new ReadableStream<Uint8Array>({
+      /**
+       * Fail the stream before a reader can consume it.
+       * @param controller - Stream controller.
+       * @returns True once the failure is installed.
+       */
+      start(controller): boolean {
+        controller.error(new Error('ECONNRESET'));
+        return true;
+      },
+    });
+    const response = new Response(body, { status: 500 });
+    installFetchMock((): Promise<Response> => Promise.resolve(response));
+    const strategy = new GraphQLFetchStrategy('https://gql.example/graphql');
+    const result = await strategy.query('{ x }', {});
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Generic,
+    });
+    if (!result.success) expect(result.errorMessage).toContain('response body unreadable');
+  });
+
   it('propagates transport failure (fetch throws) as fail — not silently swallowed', async () => {
     const impl = rejectWith(new Error('socket hang up'));
     installFetchMock(impl);
