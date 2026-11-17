@@ -123,7 +123,7 @@ function preferTerminalFailure<T, TRepair>(
 const AUTH_STATUSES: ReadonlySet<number> = new Set([401, 403]);
 
 /** Matches either existing auth marker the legacy message may already carry. */
-const AUTH_MARKER = /\s(?:401|403):\s|\sHTTP (?:401|403)$/;
+const AUTH_MARKER = /\s(?:(?:401|403):\s|HTTP (?:401|403)$)/;
 
 /**
  * Preserve an auth status as a marker when the message has none.
