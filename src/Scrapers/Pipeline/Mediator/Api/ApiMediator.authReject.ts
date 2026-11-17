@@ -63,9 +63,9 @@ function isAuthRejectedFailure(failure: IProcedureFailure): boolean {
     return failure.httpStatus === 401 || failure.httpStatus === 403;
   }
   return (
-    AUTH_REJECT_REGEX.test(failure.errorMessage) ||
+    isAuthRejectionMessage(failure.errorMessage) ||
     AUTH_REJECTED_SUFFIX_REGEX.test(failure.errorMessage)
   );
 }
 
-export { isAuthRejectedFailure, isAuthRejectionMessage };
+export default isAuthRejectedFailure;

@@ -7,8 +7,6 @@
  * Rule #18: all credentials + data are synthetic; no real PII.
  */
 
-import { PassThrough } from 'node:stream';
-
 import { jest } from '@jest/globals';
 import pino, { type Logger, type LoggerOptions } from 'pino';
 
@@ -40,13 +38,20 @@ const LOG_LINES: string[] = [];
  * @returns Logger whose lines land in {@link LOG_LINES}.
  */
 function makeCapturingLogger(production: LoggerOptions): Logger {
-  const stream = new PassThrough();
-  stream.on('data', (chunk: Buffer): number => {
-    const line = chunk.toString();
-    return LOG_LINES.push(line);
-  });
+  const destination = {
+    /**
+     * Write synchronously so a completed run cannot leak a late line into the
+     * next test's buffer.
+     * @param chunk - Serialized line.
+     * @returns True once captured.
+     */
+    write(chunk: string): boolean {
+      LOG_LINES.push(chunk);
+      return true;
+    },
+  };
   const options = { ...production, level: 'trace', timestamp: false, base: undefined };
-  return pino(options, stream);
+  return pino(options, destination);
 }
 
 // The logger modules are imported statically, never inside this factory: the

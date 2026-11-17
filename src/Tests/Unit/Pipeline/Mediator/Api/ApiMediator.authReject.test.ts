@@ -6,7 +6,7 @@
  */
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
-import { isAuthRejectedFailure } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.authReject.js';
+import isAuthRejectedFailure from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.authReject.js';
 import { fail } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
 /** A transport failure prefix: verb, safe URL. */
