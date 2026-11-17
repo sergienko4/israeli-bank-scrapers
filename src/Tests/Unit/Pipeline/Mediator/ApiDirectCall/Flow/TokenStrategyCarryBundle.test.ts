@@ -18,6 +18,7 @@ import { jest } from '@jest/globals';
 import { CompanyTypes } from '../../../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js';
 import type { ScraperCredentials } from '../../../../../../Scrapers/Base/Interface.js';
+import { runWithBankContext } from '../../../../../../Scrapers/Pipeline/Logging/BankContext.js';
 import buildResolverFromStrategy from '../../../../../../Scrapers/Pipeline/Mediator/Api/TokenResolverBuilder.js';
 import type {
   CookieHandoff,
@@ -428,6 +429,22 @@ describe('carry-bundle coldFallback', () => {
     assertOk(proc);
     expect(run.captures).toHaveLength(WARM_STEPS + COLD_STEPS);
   });
+
+  it('any: a cancelled warm login does not escalate to a cold login', async (): Promise<void> => {
+    const warmFail = fail(ScraperErrorTypes.Timeout, `${WARM_CALL} timed out`);
+    const run = makeRun({ responses: [warmFail] });
+    const creds = credsWith(STORED);
+    const controller = new AbortController();
+    controller.abort();
+    /**
+     * Resolve inside the aborted scope.
+     * @returns The header value or the warm failure.
+     */
+    const work = (): Promise<Procedure<string>> => resolveVia(run, creds);
+    const proc = await runWithBankContext('onezero', work, { signal: controller.signal });
+    expect(proc).toMatchObject({ success: false, errorType: ScraperErrorTypes.Timeout });
+    expect(run.captures).toHaveLength(WARM_STEPS);
+  });
 });
 
 describe('carry-bundle cookie hand-off', () => {
@@ -509,6 +526,26 @@ describe('carry-bundle in-run recovery', () => {
       expect(run.captures).toHaveLength(COLD_STEPS + WARM_STEPS);
     },
   );
+
+  it('does not cold-login when the run is cancelled during the resume', async (): Promise<void> => {
+    const warmFail = fail(ScraperErrorTypes.Timeout, `${WARM_CALL} timed out`);
+    const responses = [TOKEN_OK, warmFail];
+    const run = makeRun({ responses, coldFallback: 'any' });
+    const warmCreds = credsWith(STORED);
+    const first = await run.strategy.primeInitial(run.bus, CTX, warmCreds);
+    assertOk(first);
+    const controller = new AbortController();
+    controller.abort();
+    /**
+     * Recover inside the aborted scope.
+     * @returns The re-grant result.
+     */
+    const work = (): Promise<Procedure<string>> =>
+      run.strategy.primeRecover(run.bus, CTX, warmCreds);
+    const proc = await runWithBankContext('onezero', work, { signal: controller.signal });
+    expect(proc).toMatchObject({ success: false, errorType: ScraperErrorTypes.Timeout });
+    expect(run.captures).toHaveLength(WARM_STEPS + WARM_STEPS);
+  });
 
   it('resumes from the stash and the private carry at fromStepIndex', async (): Promise<void> => {
     const responses = [REGISTER_OK, TOKEN_OK, TOKEN_OK];

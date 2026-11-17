@@ -9,6 +9,7 @@
 import type { Agent } from 'node:https';
 
 import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js';
+import { runWithBankContext } from '../../../../../../Scrapers/Pipeline/Logging/BankContext.js';
 import type { IFetchOpts } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js';
 import {
   type AgentSource,
@@ -125,11 +126,37 @@ describe('MtlsFetchStrategy — REST over the mTLS gate', () => {
     });
   });
 
-  it('reports TIMEOUT when the body stalls after headers', async () => {
-    const strategy = new MtlsFetchStrategy(server.baseUrl, certSource, { timeoutMs: 100 });
-    const result = await strategy.fetchGet(`${server.baseUrl}partial`, {
-      extraHeaders: {},
+  it('reports TIMEOUT when the run aborts after headers and a partial body', async () => {
+    const controller = new AbortController();
+    const strategy = new MtlsFetchStrategy(server.baseUrl, certSource, { timeoutMs: 5000 });
+    /**
+     * Read the partial response inside the caller's run scope.
+     * @returns The fetch result.
+     */
+    const work = (): ReturnType<typeof strategy.fetchGet> =>
+      strategy.fetchGet(`${server.baseUrl}partial`, { extraHeaders: {} });
+    const pending = runWithBankContext('onezero', work, { signal: controller.signal });
+    await server.partialFlushed;
+    controller.abort();
+    const result = await pending;
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Timeout,
     });
+  });
+
+  it('aborts an in-flight request when the whole-run signal fires', async () => {
+    const controller = new AbortController();
+    const strategy = new MtlsFetchStrategy(server.baseUrl, certSource, { timeoutMs: 5000 });
+    /**
+     * Send the hanging request inside the caller's run scope.
+     * @returns The fetch result.
+     */
+    const work = (): ReturnType<typeof strategy.fetchGet> =>
+      strategy.fetchGet(`${server.baseUrl}hang`, { extraHeaders: {} });
+    const pending = runWithBankContext('onezero', work, { signal: controller.signal });
+    controller.abort();
+    const result = await pending;
     expect(result).toMatchObject({
       success: false,
       errorType: ScraperErrorTypes.Timeout,

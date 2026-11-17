@@ -12,6 +12,7 @@ import { jest } from '@jest/globals';
 
 import { CompanyTypes } from '../../../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js';
+import { runWithBankContext } from '../../../../../../Scrapers/Pipeline/Logging/BankContext.js';
 import { createNativeApiMediator } from '../../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import type {
   IApiDirectCallConfig,
@@ -631,27 +632,124 @@ describe('SmsOtpFlow — pre-hook guards', () => {
     expect(run.captures).toHaveLength(1);
   });
 
-  it.each<[string, number | undefined, number]>([
-    ['configured', 10, 10],
-    ['default', undefined, DEFAULT_OTP_TIMEOUT_MS],
-  ])('times out a pending retriever with the %s OTP budget', async (_label, otpTimeoutMs, ms) => {
-    jest.useFakeTimers();
-    try {
-      const request = runGuarded({
-        hook: HOOK,
-        bind: FULL_BIND,
-        otpTimeoutMs,
-        retriever: pendingOtpCode,
-      });
-      await jest.advanceTimersByTimeAsync(ms);
-      const run = await Promise.race([request, Promise.resolve('still waiting')]);
-      expect(run).toMatchObject({
-        result: { success: false, errorType: ScraperErrorTypes.Timeout },
-        captures: [expect.anything()],
-        hints: ['050***1234'],
-      });
-    } finally {
-      jest.useRealTimers();
+  describe('SmsOtpFlow — pre-hook cancellation', () => {
+    /**
+     * Start the guarded hook inside a run scope the test can cancel.
+     * @param controller - The run's abort controller.
+     * @param retriever - The OTP retriever to invoke.
+     * @returns The pending guarded run.
+     */
+    function startGuardedRun(
+      controller: AbortController,
+      retriever: (hint: string) => Promise<string>,
+    ): Promise<IGuardRun> {
+      /**
+       * Run the guarded hook inside the controller's run scope.
+       * @returns The guarded run.
+       */
+      const work = (): Promise<IGuardRun> => runGuarded({ hook: HOOK, bind: FULL_BIND, retriever });
+      return runWithBankContext('onezero', work, { signal: controller.signal });
     }
+
+    /**
+     * Assert a guarded run ended in the fixed cancellation failure.
+     * @param run - The guarded run.
+     * @returns True after the assertions.
+     */
+    function expectAbortedRun(run: IGuardRun): boolean {
+      expect(run.result).toMatchObject({
+        success: false,
+        errorType: ScraperErrorTypes.Timeout,
+        errorMessage: 'scrape aborted',
+      });
+      return true;
+    }
+
+    /**
+     * No-op entry release before the barrier is wired.
+     * @returns True.
+     */
+    function releaseNothing(): boolean {
+      return true;
+    }
+
+    /** A retriever that signals entry, then never settles. */
+    interface IEnteredRetriever {
+      readonly retriever: (hint: string) => Promise<string>;
+      readonly entered: Promise<void>;
+    }
+
+    /**
+     * Build a retriever that releases its entry barrier, then stays pending.
+     * @returns The retriever and its entry barrier.
+     */
+    function enteredRetriever(): IEnteredRetriever {
+      let release: () => boolean = releaseNothing;
+      const entered = new Promise<void>(resolve => {
+        /**
+         * Release the entry barrier.
+         * @returns True once released.
+         */
+        release = (): boolean => {
+          resolve();
+          return true;
+        };
+      });
+      /**
+       * Signal entry, then wait forever.
+       * @param hint - Hint from the flow.
+       * @returns A pending retriever promise.
+       */
+      const retriever = (hint: string): Promise<string> => {
+        if (hint.length > 0) release();
+        return pendingOtpCode();
+      };
+      return { retriever, entered };
+    }
+
+    it('aborts before the retriever is requested when the run is already aborted', async () => {
+      const controller = new AbortController();
+      controller.abort();
+      const request = startGuardedRun(controller, pendingOtpCode);
+      const run = await request;
+      expectAbortedRun(run);
+      expect(run.captures).toHaveLength(1);
+      expect(run.hints).toEqual([]);
+    });
+
+    it('aborts an in-flight retriever once it has been entered', async () => {
+      const controller = new AbortController();
+      const barrier = enteredRetriever();
+      const request = startGuardedRun(controller, barrier.retriever);
+      await barrier.entered;
+      controller.abort();
+      const run = await request;
+      expectAbortedRun(run);
+      expect(run.captures).toHaveLength(1);
+    });
+
+    it.each<[string, number | undefined, number]>([
+      ['configured', 10, 10],
+      ['default', undefined, DEFAULT_OTP_TIMEOUT_MS],
+    ])('times out a pending retriever with the %s OTP budget', async (_label, otpTimeoutMs, ms) => {
+      jest.useFakeTimers();
+      try {
+        const request = runGuarded({
+          hook: HOOK,
+          bind: FULL_BIND,
+          otpTimeoutMs,
+          retriever: pendingOtpCode,
+        });
+        await jest.advanceTimersByTimeAsync(ms);
+        const run = await Promise.race([request, Promise.resolve('still waiting')]);
+        expect(run).toMatchObject({
+          result: { success: false, errorType: ScraperErrorTypes.Timeout },
+          captures: [expect.anything()],
+          hints: ['050***1234'],
+        });
+      } finally {
+        jest.useRealTimers();
+      }
+    });
   });
 });

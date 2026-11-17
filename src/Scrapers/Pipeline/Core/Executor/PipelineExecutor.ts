@@ -1,6 +1,10 @@
 /** Pipeline executor — reduces over phases; short-circuits on failure. */
 
-import type { IScraperScrapingResult, ScraperCredentials } from '../../../Base/Interface.js';
+import type {
+  IScraperScrapingResult,
+  ScraperCredentials,
+  ScraperOptions,
+} from '../../../Base/Interface.js';
 import type { LifecyclePromise } from '../../../Base/Interfaces/CallbackTypes.js';
 import ScraperError from '../../../Base/ScraperError.js';
 import { runWithBankContext } from '../../Logging/Debug.js';
@@ -13,7 +17,10 @@ import buildInitialContext from '../PipelineContextFactory.js';
 import type { IPipelineDescriptor } from '../PipelineDescriptor.js';
 import toResult from '../PipelineResult.js';
 import reportCleanupFailure from './CleanupDiagnostic.js';
-import { type IContextTracker, reducePhases, wrapError } from './PipelineReducer.js';
+import { failedPhase, type IContextTracker, reducePhases, wrapError } from './PipelineReducer.js';
+
+/** Largest delay the platform timer accepts, in milliseconds. */
+const MAX_TIMER_MS = 2_147_483_647;
 
 /**
  * Awaits an optional dispose() callback. A failure never masks the already
@@ -47,6 +54,16 @@ async function disposeApiMediatorSafe(ctx: IPipelineContext): LifecyclePromise {
 }
 
 /**
+ * Convert a phase throw, preferring the abort verdict when the run was cancelled.
+ * @param error - The caught value.
+ * @returns The abort failure or the wrapped error.
+ */
+function caughtPhaseFailure(error: unknown): Procedure<IPipelineContext> {
+  const failure = wrapError(error as Error);
+  return failedPhase(failure);
+}
+
+/**
  * Run phase reduction and convert any unexpected throw into a Procedure failure.
  * @param tracker - Context tracker.
  * @param initialCtx - Initial pipeline context.
@@ -59,7 +76,7 @@ async function runGuardedPhases(
   try {
     return await reducePhases(tracker, initialCtx, 0);
   } catch (error) {
-    return wrapError(error as Error);
+    return caughtPhaseFailure(error);
   }
 }
 
@@ -143,6 +160,31 @@ function runInsideScope(
 }
 
 /**
+ * The deadline signal, when the caller named a usable positive deadline.
+ * @param deadlineMs - Whole-run deadline in milliseconds.
+ * @returns One signal to combine, or none for an absent or unusable value.
+ */
+function deadlineSignals(deadlineMs?: number): AbortSignal[] {
+  if (deadlineMs === undefined) return [];
+  if (!Number.isFinite(deadlineMs) || deadlineMs <= 0) return [];
+  const wholeMs = Math.floor(deadlineMs);
+  const ms = Math.min(wholeMs, MAX_TIMER_MS);
+  return [AbortSignal.timeout(ms)];
+}
+
+/**
+ * Combine the caller's signal with the run deadline into one run signal.
+ * @param options - Public scraper options.
+ * @returns The combined signal, or false when the caller named neither.
+ */
+function runAbortSignal(options: ScraperOptions): AbortSignal | false {
+  const signals = [...deadlineSignals(options.deadlineMs)];
+  if (options.signal !== undefined) signals.push(options.signal);
+  if (signals.length === 0) return false;
+  return AbortSignal.any(signals);
+}
+
+/**
  * Run phase reduction + cleanup inside the bank's async-local log context.
  * The context is built inside the scope so environment-dependent construction
  * (logger, PII policy, client certificate) sees this execution's snapshot.
@@ -161,7 +203,8 @@ function runInBankContext(
    * @returns Pipeline result Procedure.
    */
   const run = (): Promise<Procedure<IPipelineContext>> => runInsideScope(descriptor, credentials);
-  return runWithBankContext(descriptor.options.companyId, run, env);
+  const signal = runAbortSignal(descriptor.options);
+  return runWithBankContext(descriptor.options.companyId, run, { env, signal });
 }
 
 /**

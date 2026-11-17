@@ -49,18 +49,56 @@ export function getBankMixin(): Record<string, string> {
   return fields;
 }
 
+/** Environment snapshot plus optional run cancellation for a scope. */
+interface IRunScopeSetup {
+  readonly env?: IEnvironment;
+  readonly signal?: AbortSignal | false;
+}
+
+/** A runWithBankContext third argument: an environment or a setup bundle. */
+type TRunScopeSetup = IEnvironment | IRunScopeSetup;
+
+/**
+ * Whether the third argument carries the complete environment shape.
+ * @param setup - Environment snapshot or setup bundle.
+ * @returns True for an environment snapshot.
+ */
+function isEnvironment(setup: TRunScopeSetup): setup is IEnvironment {
+  return 'forensicTrace' in setup && 'runsRoot' in setup;
+}
+
+/**
+ * Whether the third argument is a setup bundle rather than an environment.
+ * @param setup - Environment snapshot or setup bundle.
+ * @returns True for the setup bundle.
+ */
+function isScopeSetup(setup: TRunScopeSetup): setup is IRunScopeSetup {
+  return !isEnvironment(setup);
+}
+
+/**
+ * Resolve the environment and signal a caller supplied.
+ * @param setup - Environment snapshot or setup bundle.
+ * @returns The environment and signal to open the scope with.
+ */
+function resolveSetup(setup: TRunScopeSetup): Required<IRunScopeSetup> {
+  if (isScopeSetup(setup)) return { env: setup.env ?? ENVIRONMENT, signal: setup.signal ?? false };
+  return { env: setup, signal: false };
+}
+
 /**
  * Run a function inside a fresh run scope: its own bank, phase, stage and run
  * identity, injected into every pino log line the function emits.
  * @param bank - The bank identifier (companyId).
  * @param fn - The function to execute within the scope.
- * @param env - Environment snapshot for this execution.
+ * @param setup - Environment snapshot or setup bundle with the run signal.
  * @returns The result of the function.
  */
 export function runWithBankContext<T>(
   bank: string,
   fn: () => T,
-  env: IEnvironment = ENVIRONMENT,
+  setup: TRunScopeSetup = ENVIRONMENT,
 ): T {
-  return openRunScope(bank, env, fn);
+  const resolved = resolveSetup(setup);
+  return openRunScope({ bank, env: resolved.env, signal: resolved.signal }, fn);
 }

@@ -10,6 +10,7 @@ import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { IResponseIntegrity, IResponseReading } from '../../Types/Domain/FetchPolicy.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
+import { currentAbortSignal, isRunAborted } from '../../Types/RunScope.js';
 import { NETWORK_MAX_RESPONSE_BYTES } from './FetchConfig.js';
 import { hasCloudflareChallengeHeader } from './HttpFailureClassifier.js';
 import { isMediaTypeMismatch } from './MediaTypeCheck.js';
@@ -17,6 +18,7 @@ import { isApiSuccess } from './NativeFetchDispatch.js';
 import { isRedirectStatus } from './RedirectShared.js';
 import verifyResponseIntegrity from './ResponseIntegrityReader.js';
 import { statusActionFor } from './StatusPolicy.js';
+import transportErrorType from './TransportFailure.js';
 
 /** Request-local cap and reading policy; concurrent calls never share mutable state. */
 interface ICappedRequest {
@@ -38,16 +40,6 @@ function isChallenge(response: Response): boolean {
 }
 
 /**
- * Whether an integrity-bounded answer is a header-only challenge.
- * @param response - Received response.
- * @param reading - Response-reading policy.
- * @returns True when the challenge body is not needed.
- */
-function isBoundedChallenge(response: Response, reading: IResponseReading): boolean {
-  return reading.responseIntegrity !== undefined && isChallenge(response);
-}
-
-/**
  * Whether a manual 3xx body can be released unread: no policy keeps it.
  * @param response - Received headers and status.
  * @param request - This call's wire redirect mode and response-reading policy.
@@ -59,18 +51,17 @@ function releasesRedirectBody(response: Response, request: ICappedRequest): bool
 }
 
 /**
- * Whether a non-challenge answer or an unbounded challenge needs its body.
+ * Whether a non-challenge answer needs its body.
  * @param response - Received response.
  * @param reading - Response-reading policy.
  * @param action - The effective status action.
- * @returns True when the WAF classifier or reader needs the body.
+ * @returns True when the reader needs the body.
  */
 function needsBodyAfterChallenge(
   response: Response,
   reading: IResponseReading,
   action: ReturnType<typeof statusActionFor>,
 ): boolean {
-  if (isChallenge(response)) return true;
   if (action.has) return false;
   if (!isApiSuccess(response)) return true;
   return !isMediaTypeMismatch(response, reading.mediaType);
@@ -85,7 +76,7 @@ function needsBodyAfterChallenge(
 function needsBody(response: Response, request: ICappedRequest): boolean {
   const { reading } = request;
   if (releasesRedirectBody(response, request)) return false;
-  if (isBoundedChallenge(response, reading)) return false;
+  if (isChallenge(response)) return false;
   const action = statusActionFor({ response, reading });
   if (action.has && action.value === 'rate-limit') return false;
   return needsBodyAfterChallenge(response, reading, action);
@@ -104,53 +95,6 @@ function stopAfterHeaders(response: Response, controller: AbortController): Resp
   return response;
 }
 
-/** Fixed reason when a failure body stream cannot be read. */
-const UNREADABLE_BODY_REASON = 'response body unreadable';
-
-/** Fixed reason when the edge challenged an unreadable body. */
-const CHALLENGE_REASON = 'challenged by Cloudflare edge (WAF) before reaching the API';
-
-/** Error names a request rejects with once its abort signal fires. */
-const ABORT_ERROR_NAMES: ReadonlySet<unknown> = new Set(['TimeoutError', 'AbortError']);
-
-/**
- * Whether a rejection came from an aborted request.
- * @param error - The caught value.
- * @returns True for a timeout or abort rejection.
- */
-function isAbortRejection(error: unknown): boolean {
-  if (typeof error !== 'object' || error === null) return false;
-  const name: unknown = Reflect.get(error, 'name');
-  return ABORT_ERROR_NAMES.has(name);
-}
-
-/**
- * Keep a non-2xx response's status when its failure body cannot be read.
- * @param response - Response whose body failed.
- * @param error - The stream failure.
- * @returns A typed failure, or false when the error must be rethrown.
- */
-function unreadableFailure(response: Response, error: unknown): Procedure<Response> | false {
-  if (isApiSuccess(response) || isAbortRejection(error)) return false;
-  const headers = Object.fromEntries(response.headers);
-  if (hasCloudflareChallengeHeader(headers)) {
-    return fail(ScraperErrorTypes.WafBlocked, CHALLENGE_REASON, response.status);
-  }
-  return fail(ScraperErrorTypes.Generic, UNREADABLE_BODY_REASON, response.status);
-}
-
-/**
- * Convert a failed body read, or rethrow when it must stay a transport error.
- * @param response - Response whose body failed.
- * @param error - The stream failure.
- * @returns The typed failure for a non-2xx read.
- */
-function handleReadFailure(response: Response, error: unknown): Procedure<Response> {
-  const failure = unreadableFailure(response, error);
-  if (failure === false) throw error;
-  return failure;
-}
-
 /**
  * The integrity policy a response is checked against: the full policy for an
  * answer body (2xx, or a 3xx kept by `accept`), byte cap only for a failure.
@@ -167,6 +111,21 @@ function appliedIntegrity(
   if (isApiSuccess(response)) return policy;
   const isKept = reading.keepRedirectBody === true && isRedirectStatus(response.status);
   return isKept ? policy : { maxBytes: policy.maxBytes };
+}
+
+/** Fixed reason when a failure body stream cannot be read. */
+const UNREADABLE_BODY_REASON = 'response body unreadable';
+
+/**
+ * Classify a failed body read, keeping the response's status for a non-2xx.
+ * @param response - Response whose body failed.
+ * @param error - The stream failure.
+ * @returns A typed failure, or false when the error must be rethrown.
+ */
+function unreadableFailure(response: Response, error: unknown): Procedure<Response> | false {
+  if (isApiSuccess(response) || isRunAborted()) return false;
+  if (transportErrorType(error) === ScraperErrorTypes.Timeout) return false;
+  return fail(ScraperErrorTypes.Generic, UNREADABLE_BODY_REASON, response.status);
 }
 
 /**
@@ -194,6 +153,18 @@ async function verifyOrRefuse(read: IBoundedRead): Promise<Procedure<Response>> 
 }
 
 /**
+ * Convert one body-read failure, or rethrow when it must stay a transport error.
+ * @param read - Response, controller and effective policy.
+ * @param error - The stream failure.
+ * @returns The typed failure for a non-2xx read.
+ */
+function handleReadFailure(read: IBoundedRead, error: unknown): Procedure<Response> {
+  const failure = unreadableFailure(read.response, error);
+  if (failure === false) throw error;
+  return failure;
+}
+
+/**
  * Verifies successful bytes and bounds failures for their normal classification.
  * @param read - Response, controller and effective policy.
  * @returns The buffered response or a fixed integrity refusal.
@@ -202,7 +173,7 @@ async function checkBoundedBody(read: IBoundedRead): Promise<Procedure<Response>
   try {
     return await verifyOrRefuse(read);
   } catch (error) {
-    return handleReadFailure(read.response, error);
+    return handleReadFailure(read, error);
   }
 }
 
@@ -237,6 +208,19 @@ async function readWithinCap(
 }
 
 /**
+ * Combine this request's controller, its timeout and the whole-run signal.
+ * @param controller - Request-local abort controller.
+ * @param timeoutMs - Per-attempt timeout ceiling.
+ * @returns The signal handed to fetch.
+ */
+function requestSignal(controller: AbortController, timeoutMs: number): AbortSignal {
+  const signals = [controller.signal, AbortSignal.timeout(timeoutMs)];
+  const runSignal = currentAbortSignal();
+  if (runSignal !== false) signals.push(runSignal);
+  return AbortSignal.any(signals);
+}
+
+/**
  * Cap connect and required-body reads; leave header-only outcomes unbuffered.
  * The clone preserves the original body for the inherited response reader.
  * @param request - Request, reading policy and timeout ceiling.
@@ -244,7 +228,7 @@ async function readWithinCap(
  */
 async function fetchWithinCap(request: ICappedRequest): Promise<Procedure<Response>> {
   const controller = new AbortController();
-  const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(request.timeoutMs)]);
+  const signal = requestSignal(controller, request.timeoutMs);
   const response = await globalThis.fetch(request.url, { ...request.init, signal });
   if (needsBody(response, request)) return readWithinCap(response, controller, request.reading);
   const stopped = stopAfterHeaders(response, controller);

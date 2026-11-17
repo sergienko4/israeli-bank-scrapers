@@ -641,3 +641,8 @@ NETWORK_MAX_RESPONSE_BYTES
 # Reason: internal classifier shared by native fetch and mTLS so both
 # transports map aborts and socket failures to the same public error type.
 transportErrorType
+
+# --- Durable auth types (Phase 9g) ---
+# Reason: internal token-strategy type shared between the persistent-auth
+# branch and its type module; not a consumer-facing contract.
+ISettledFlow

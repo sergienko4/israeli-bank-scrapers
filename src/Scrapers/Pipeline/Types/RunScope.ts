@@ -31,6 +31,7 @@ interface IRunTrace {
 interface IRunScope {
   readonly bank: string;
   readonly env: IEnvironment;
+  readonly signal: AbortSignal | false;
   phase: string;
   stage: string;
   readonly trace: IRunTrace;
@@ -77,18 +78,52 @@ function currentRunScope(): IRunScope | false {
   return RUN_SCOPE.getStore() ?? false;
 }
 
+/** Inputs for one fresh run scope. */
+interface IRunScopeArgs {
+  readonly bank: string;
+  readonly env: IEnvironment;
+  readonly signal?: AbortSignal | false;
+}
+
 /**
- * Run a function inside a fresh scope for `bank`. Phase and stage start at the
- * same values the process-global fallback starts with.
- * @param bank - The bank identifier (companyId).
- * @param env - The environment snapshot this execution uses.
+ * Build the scope one run starts with.
+ * @param args - Bank, environment and optional cancellation signal.
+ * @returns A fresh scope at the initial phase and stage.
+ */
+function makeScope(args: IRunScopeArgs): IRunScope {
+  const identity = { bank: args.bank, env: args.env, signal: args.signal ?? false };
+  return { ...identity, phase: 'init', stage: 'PRE', trace: makeRunTrace() };
+}
+
+/**
+ * Run a function inside a fresh scope. Phase and stage start at the same
+ * values the process-global fallback starts with.
+ * @param args - Bank, environment and optional cancellation signal.
  * @param fn - The function to run inside the scope.
  * @returns Whatever `fn` returns.
  */
-function openRunScope<T>(bank: string, env: IEnvironment, fn: () => T): T {
-  const scope: IRunScope = { bank, env, phase: 'init', stage: 'PRE', trace: makeRunTrace() };
+function openRunScope<T>(args: IRunScopeArgs, fn: () => T): T {
+  const scope = makeScope(args);
   return RUN_SCOPE.run(scope, fn);
 }
 
+/**
+ * The whole-run cancellation signal, when this execution has one.
+ * @returns The signal, or false outside a run or when none was supplied.
+ */
+function currentAbortSignal(): AbortSignal | false {
+  const scope = currentRunScope();
+  return scope ? scope.signal : false;
+}
+
+/**
+ * Whether the current run has been cancelled.
+ * @returns True inside an aborted run, false otherwise.
+ */
+function isRunAborted(): boolean {
+  const signal = currentAbortSignal();
+  return signal !== false && signal.aborted;
+}
+
 export type { IRunTrace };
-export { currentRunScope, noteRunLogFile, openRunScope };
+export { currentAbortSignal, currentRunScope, isRunAborted, noteRunLogFile, openRunScope };
