@@ -8,6 +8,7 @@
 import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
+import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { cappedNative } from '../../../../Helpers/CappedTransport.js';
 import { CLOUDFLARE_CHALLENGE_HEADERS } from '../../../../Helpers/EdgeBlockPages.js';
 
@@ -91,6 +92,22 @@ function fetchBrokenChallenge(): Promise<Response> {
   return Promise.resolve(response);
 }
 
+/**
+ * Send one challenge answer through the capped transport.
+ * @param response - The challenge response to answer with.
+ * @returns The transport result.
+ */
+async function fetchChallenge(response: Response): Promise<Procedure<unknown>> {
+  /**
+   * Answer with the supplied challenge.
+   * @returns The challenge response.
+   */
+  const impl = (): Promise<Response> => Promise.resolve(response);
+  globalThis.fetch = impl;
+  const strategy = cappedNative(BASE_URL, { timeoutMs: 1000 });
+  return strategy.fetchGet(ITEMS_URL, { extraHeaders: {} });
+}
+
 describe('unbounded Cloudflare challenges', () => {
   const originalFetch = globalThis.fetch;
 
@@ -166,20 +183,13 @@ describe('unbounded Cloudflare challenges', () => {
   });
 
   it('never pulls a header-only challenge body', async () => {
-    const pull = jest.fn<Promise<void>, []>().mockResolvedValue(undefined);
+    const pull = jest.fn((): Promise<void> => Promise.resolve(undefined));
     const body = new ReadableStream<Uint8Array>({ pull }, { highWaterMark: 0 });
     const response = new Response(body, {
       status: 403,
       headers: CLOUDFLARE_CHALLENGE_HEADERS,
     });
-    /**
-     * Answer with the header-only challenge.
-     * @returns The challenge response.
-     */
-    const impl = (): Promise<Response> => Promise.resolve(response);
-    globalThis.fetch = impl;
-    const strategy = cappedNative(BASE_URL, { timeoutMs: 1000 });
-    const result = await strategy.fetchGet(ITEMS_URL, { extraHeaders: {} });
+    const result = await fetchChallenge(response);
     expect(result).toMatchObject({
       success: false,
       errorType: ScraperErrorTypes.WafBlocked,
@@ -194,14 +204,7 @@ describe('unbounded Cloudflare challenges', () => {
       status: 403,
       headers: CLOUDFLARE_CHALLENGE_HEADERS,
     });
-    /**
-     * Answer with the oversized challenge.
-     * @returns The challenge response.
-     */
-    const impl = (): Promise<Response> => Promise.resolve(response);
-    globalThis.fetch = impl;
-    const strategy = cappedNative(BASE_URL, { timeoutMs: 1000 });
-    const result = await strategy.fetchGet(ITEMS_URL, { extraHeaders: {} });
+    const result = await fetchChallenge(response);
     expect(result).toMatchObject({
       success: false,
       errorType: ScraperErrorTypes.WafBlocked,
