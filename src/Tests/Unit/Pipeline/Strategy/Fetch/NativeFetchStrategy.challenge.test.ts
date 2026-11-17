@@ -185,6 +185,7 @@ describe('unbounded Cloudflare challenges', () => {
       errorType: ScraperErrorTypes.WafBlocked,
     });
     expect(pull).not.toHaveBeenCalled();
+    expect(response.bodyUsed).toBe(true);
   });
 
   it('classifies an oversized challenge from headers without reading it', async () => {
