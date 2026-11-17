@@ -28,13 +28,13 @@ Run identity is **per execution**: every `executePipeline` call opens its own ru
 | Overlapping runs of the same bank   | The same, because identity no longer depends on the bank; each has its own `runId` and folder               |
 | `FORENSIC_TRACE` off                | No artefact is created, whatever the overlap                                                                |
 | A run that has finished             | Its trace is closed, so a late callback cannot reopen its folder or its log file                            |
-| Code outside every execution        | Falls back to process-global state: log lines before a run starts, or a test driving a phase directly       |
+| Code outside every execution        | No trace identity: `getLogFile()` returns `''` and `getRootLogger()` uses terminal-only logging              |
 
-`Types/RunScope.ts` holds the scope: `openRunScope(bank, fn)` runs `fn` inside a fresh `IRunScope`, `currentRunScope()` reads the running one (or reports that none is), and each scope owns an `IRunTrace` (built by `makeRunTrace`) with its `runId`, run folder, network directory, sub-step folders and the log file its logger was bound to (`noteRunLogFile` records the first one, so a later change to capture cannot make the run forget it). `Types/BankSlugs.ts` is the pure, stateless half of the old trace module: `KNOWN_BANK_SLUGS`, `detectBankFromArgv`, `isKnownBankSlug` (the executor's check that a run has a known bank, which registers nothing) and the `BankSlugLower` and `IsKnownBank` types. `closeActiveRunTrace` in `Types/TraceConfig.ts` marks the running execution's trace finished.
+`Types/RunScope.ts` holds the scope: `openRunScope(bank, fn)` runs `fn` inside a fresh `IRunScope`, `currentRunScope()` reads the running one (or reports that none is), and each scope owns an `IRunTrace` with its `runId`, run folder and the log file its logger was bound to (`noteRunLogFile` records the first one, so a later change to capture cannot make the run forget it). `Types/BankSlugs.ts` is the pure, stateless half of the old trace module: `detectBankFromArgv`, `isKnownBankSlug` (the executor's check that a run has a known bank, which registers nothing) and the `BankSlugLower` and `IsKnownBank` types. `closeActiveRunTrace` in `Types/TraceConfig.ts` marks the running execution's trace finished.
 
 **Construction and cleanup.** The scope opens before the first phase and the `runId` is minted on first use inside it. When the run ends, `PipelineExecutor` disposes the mediator, then retires only the log destination that run owned. The terminal-only destination (no trace file) is shared and is never retired by a run.
 
-**Compatibility.** Two things differ from the previous same-bank behavior. A repeated run of the same bank in one process now gets a new `runId` and folder, where it used to reuse the previous run's. And `executePipeline` no longer calls `setActiveBank`, so it no longer sets the process-global bank; code that read the global bank after a run (rather than during it) now sees the fallback. Sequential isolation, the off-forensic behavior and every public message are unchanged.
+**Compatibility.** Two things differ from the previous same-bank behavior. A repeated run of the same bank in one process now gets a new `runId` and folder, where it used to reuse the previous run's. And the pipeline keeps no process-global bank at all: each run carries its bank in its run scope, so code that runs after the scrape has no ambient bank. Sequential isolation, the off-forensic behavior and every public message are unchanged.
 
 ### Phase-stage records
 
@@ -124,11 +124,8 @@ hand-maintained string constants:
 
 - `getDebug(import.meta.url)` — the default form, used by every Pipeline
   module. The basename of the URL is kebab-cased into the logger name.
-- `getDebugByName(name)` — the explicit-name escape hatch for cases
-  where the logger name has to be dynamic at construction time
-  (for example keying a logger by `companyId`).
 
-Both helpers route through the same lazy-resolved root logger, so
+The helper routes through the same lazy-resolved root logger, so
 `PiiRedactor` always intercepts before any transport writes — see
 [PII redaction](redaction.md) for the censor pipeline.
 
@@ -139,19 +136,16 @@ The pipeline's logger primitives live in `src/Scrapers/Pipeline/Logging/`
 file became a re-export shim and has since been deleted). Each file owns
 one concern so the moving parts are independently testable:
 
-- `Logging/Debug.ts` — public facade. Exports `getDebug`,
-  `getDebugByName`, and the `ScraperLogger` type alias used as the
-  return-type shorthand for pino's `Logger` across the pipeline.
+- `Logging/Debug.ts` — public facade. Exports `getDebug` and the
+  `ScraperLogger` type alias used as the return-type shorthand for pino's
+  `Logger` across the pipeline.
 - `Logging/LoggerNaming.ts` — pure `deriveLogName(import.meta.url)`
   transform that strips the URL down to a kebab-cased module name; the
   return type is branded as `LoggerNameKebab` so consumers can't pass a
   raw string back into a slot that expects an already-derived name.
 - `Logging/BankContext.ts` — `runWithBankContext(bank, fn)` opens the
   execution's run scope; `getBankMixin` is the pino `mixin` callback that
-  merges that scope's bank / phase / stage / runId onto every
-  log line; `getActiveLogContext` is a read-only accessor over the same
-  record so tests can assert the mixin contract directly without
-  depending on transport-flush timing.
+  merges that scope's bank / phase / stage / runId onto every log line.
 - `Logging/RootLogger.ts` — `getRootLogger` returns the pino root for the
   caller's resolved log destination, building it the first time any child
   logger is read. `retireRunLogger` ends a run's logging and retires only the
@@ -162,15 +156,12 @@ one concern so the moving parts are independently testable:
 - `Logging/LoggerSlots.ts` — the registry behind it: one slot per log file,
   so overlapping executions each own a logger bound to their own
   `pipeline.log`. A slot is retired by its owning run, never because another
-  run asked for a different destination. Outside every execution the ambient
-  destination keeps the old behavior: moving to a new run folder retires the
-  previous ambient one, handing its worker transport (`ThreadStream`) and file
-  lease (`getActiveRootFileLeaseForTest` in tests) to `RetireTransport` so
-  alternating-bank runs never accumulate workers or open file descriptors.
+  run asked for a different destination. Outside every execution
+  `getLogFile()` returns `''`, so `getRootLogger()` builds the shared
+  terminal-only logger and no ambient file destination is retained.
 - `Logging/LoggerSlots.ts` also exports the pieces `RootLogger` builds on:
   `slotFor` (the `ILoggerSlot` serving a destination, built on first use from an
-  `ISlotRequest` and its `SlotBuilder`), `generationFor`, `leaseFor` and
-  `retireRunSlot`.
+  `ISlotRequest` and its `SlotBuilder`), `generationFor` and `retireRunSlot`.
 - `Core/Executor/CleanupDiagnostic.ts` — the failed-disposal warning:
   `buildCleanupWarning` builds the allowlisted `ICleanupWarning` fields and
   `reportCleanupFailure` emits them through the execution's logger without ever
@@ -194,15 +185,15 @@ one concern so the moving parts are independently testable:
   `process.emitWarning`, while stale post-close writes and the terminating
   worker's expected exit stay silent.
 - `Logging/RetireTransport.ts` — non-blocking worker retirement
-  (`IPinoStreamCandidate`, `DidRetireLogger`, `scheduleStreamClose`, and
-  `retireSupersededLogger`) that waits for queued records to reach the worker,
+  (`retireSupersededLogger` and its internal stream drain) that waits for
+  queued records to reach the worker,
   asks it to end every destination via `RetireWorkerEnd`, and settles on the
   stream `'close'` event. `worker.terminate()` remains the bounded watchdog
   fallback when the handshake is unavailable or a destination never closes;
   synchronous `ThreadStream.end()` is never called on the main event loop.
 - `Logging/ChildLoggerProxy.ts` — `buildDeferredLogger(name)` returns
-  the lazy-resolve `Proxy` that backs both `getDebug` and
-  `getDebugByName` (and intercepts `.child(...)` and `.setBindings(...)`
+  the lazy-resolve `Proxy` that backs `getDebug` (and intercepts
+  `.child(...)` and `.setBindings(...)`
   so retained sub-loggers likewise re-resolve against the current root
   generation). The internal `IProxyHandler` type documents the exact
   `get`/`set`-trap shape so the cluster's unit tests can assert

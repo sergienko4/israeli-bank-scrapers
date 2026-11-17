@@ -12,13 +12,9 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 import { getDebug } from '../../../../Scrapers/Pipeline/Logging/Debug.js';
-import type { IFileLease } from '../../../../Scrapers/Pipeline/Logging/FileLease.js';
-import {
-  getActiveRootFileLeaseForTest,
-  getRootLogger,
-} from '../../../../Scrapers/Pipeline/Logging/RootLogger.js';
+import { getRootLogger } from '../../../../Scrapers/Pipeline/Logging/RootLogger.js';
 import { succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
-import { resetTraceConfigCache } from '../../../../Scrapers/Pipeline/Types/TraceConfig.js';
+import { type IPinoStream, readPinoStream } from '../../../Helpers/PinoStream.js';
 import type { DisposeFn, ExecFn } from './CleanupFixtures.js';
 import {
   mediatorPhase,
@@ -28,7 +24,7 @@ import {
   run,
   SECRET,
 } from './CleanupFixtures.js';
-import { awaitLeaseClosed } from './LogDrain.js';
+import { awaitCondition } from './LogDrain.js';
 import { SimplePhase } from './SimplePhase.js';
 
 const FLUSH_DEADLINE_MS = 8000;
@@ -47,22 +43,23 @@ interface IRetainedLine {
 }
 
 /**
- * A phase that logs one line and keeps its run's descriptor lease, so the test
+ * A phase that logs one line and keeps its run's log transport, so the test
  * can tell when the run's file is complete.
- * @param held - Where the run's lease is kept.
+ * @param held - Where the run's logger stream is kept.
  * @returns The phase.
  */
-function leaseKeepingPhase(held: IFileLease[]): SimplePhase {
+function streamKeepingPhase(held: IPinoStream[]): SimplePhase {
   /**
-   * Log a sentinel line and keep the lease of the file it went to.
+   * Log a sentinel line and keep the stream of the logger it went to.
    * @param _ctx - Unused.
    * @param input - The context to pass through.
    * @returns The context, unchanged.
    */
   const keep: ExecFn = (_ctx, input) => {
     LOG.info(SENTINEL);
-    const lease = getActiveRootFileLeaseForTest();
-    if (lease !== false) held.push(lease);
+    const logger = getRootLogger();
+    const stream = readPinoStream(logger);
+    held.push(stream);
     const next = succeed(input);
     return Promise.resolve(next);
   };
@@ -91,13 +88,13 @@ function readRetainedLines(root: string): IRetainedLine[] {
  * @returns The lines the run wrote.
  */
 async function runAndReadLog(root: string, dispose: DisposeFn): Promise<IRetainedLine[]> {
-  const held: IFileLease[] = [];
-  const phases = [leaseKeepingPhase(held), mediatorPhase(dispose), passThroughPhase()];
+  const held: IPinoStream[] = [];
+  const phases = [streamKeepingPhase(held), mediatorPhase(dispose), passThroughPhase()];
   const result = await run(phases);
   expect(result.success).toBe(true);
   expect(held).toHaveLength(1);
   const deadline = Date.now() + FLUSH_DEADLINE_MS;
-  const isClosed = await awaitLeaseClosed(held[0], deadline);
+  const isClosed = await awaitCondition((): boolean => held[0].closed === true, deadline);
   expect(isClosed).toBe(true);
   return readRetainedLines(root);
 }
@@ -110,7 +107,6 @@ describe('PipelineExecutor — the cleanup warning reaches the execution’s own
     current.root = fs.mkdtempSync(ROOT_PREFIX);
     process.env.FORENSIC_TRACE = 'true';
     process.env.RUNS_ROOT = current.root;
-    resetTraceConfigCache();
   });
 
   afterEach(() => {
@@ -118,7 +114,6 @@ describe('PipelineExecutor — the cleanup warning reaches the execution’s own
     else process.env.FORENSIC_TRACE = saved.forensic;
     if (saved.root === undefined) delete process.env.RUNS_ROOT;
     else process.env.RUNS_ROOT = saved.root;
-    resetTraceConfigCache();
     getRootLogger();
     fs.rmSync(current.root, { recursive: true, force: true });
   });

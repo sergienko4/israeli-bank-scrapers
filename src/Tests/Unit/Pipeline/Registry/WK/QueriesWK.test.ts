@@ -7,46 +7,50 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve as resolvePath } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { jest } from '@jest/globals';
+
 import { CompanyTypes } from '../../../../../Definitions.js';
-import {
-  registerWkQuery,
-  resetWkRegistryForTest,
-  resolveWkQuery,
-  type WKQueryOperation,
-} from '../../../../../Scrapers/Pipeline/Registry/WK/QueriesWK.js';
+import type * as QueriesWKModule from '../../../../../Scrapers/Pipeline/Registry/WK/QueriesWK.js';
+import type { WKQueryOperation } from '../../../../../Scrapers/Pipeline/Registry/WK/QueriesWK.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
+type QueriesModule = typeof QueriesWKModule;
+
+const MODULE_PATH = '../../../../../Scrapers/Pipeline/Registry/WK/QueriesWK.js';
 const HINT = CompanyTypes.OneZero;
 
-beforeEach(() => {
-  resetWkRegistryForTest();
+let wk: QueriesModule;
+
+beforeEach(async () => {
+  jest.resetModules();
+  wk = (await import(MODULE_PATH)) as QueriesModule;
 });
 
 describe('QueriesWK/registration', () => {
   it('register then resolve round-trips the query string', () => {
     const queryText = 'query GetCustomer { me { id } }';
-    const didStore = registerWkQuery('customer', HINT, queryText);
+    const didStore = wk.registerWkQuery('customer', HINT, queryText);
     expect(didStore).toBe(true);
-    const result = resolveWkQuery('customer', HINT);
+    const result = wk.resolveWkQuery('customer', HINT);
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(true);
     if (isOk(result)) expect(result.value).toBe(queryText);
   });
 
   it('supports multiple operations independently', () => {
-    registerWkQuery('customer', HINT, 'Q1');
-    registerWkQuery('transactions', HINT, 'Q2');
-    const customerResult = resolveWkQuery('customer', HINT);
-    const txResult = resolveWkQuery('transactions', HINT);
+    wk.registerWkQuery('customer', HINT, 'Q1');
+    wk.registerWkQuery('transactions', HINT, 'Q2');
+    const customerResult = wk.resolveWkQuery('customer', HINT);
+    const txResult = wk.resolveWkQuery('transactions', HINT);
     if (isOk(customerResult)) expect(customerResult.value).toBe('Q1');
     if (isOk(txResult)) expect(txResult.value).toBe('Q2');
   });
 
   it('supports multiple bank hints independently per operation', () => {
-    registerWkQuery('balance', HINT, 'BalQuery');
-    registerWkQuery('balance', CompanyTypes.Hapoalim, 'BalHapoalim');
-    const oneZero = resolveWkQuery('balance', HINT);
-    const hapoalim = resolveWkQuery('balance', CompanyTypes.Hapoalim);
+    wk.registerWkQuery('balance', HINT, 'BalQuery');
+    wk.registerWkQuery('balance', CompanyTypes.Hapoalim, 'BalHapoalim');
+    const oneZero = wk.resolveWkQuery('balance', HINT);
+    const hapoalim = wk.resolveWkQuery('balance', CompanyTypes.Hapoalim);
     if (isOk(oneZero)) expect(oneZero.value).toBe('BalQuery');
     if (isOk(hapoalim)) expect(hapoalim.value).toBe('BalHapoalim');
   });
@@ -54,15 +58,15 @@ describe('QueriesWK/registration', () => {
 
 describe('QueriesWK/resolveFailure', () => {
   it('unknown operation returns fail with diagnostic message', () => {
-    const result = resolveWkQuery('customer', HINT);
+    const result = wk.resolveWkQuery('customer', HINT);
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(false);
     if (!isOk(result)) expect(result.errorMessage).toContain('unknown WK query');
   });
 
   it('known operation but unknown bank hint returns fail', () => {
-    registerWkQuery('customer' satisfies WKQueryOperation, HINT, 'Q');
-    const result = resolveWkQuery('customer', CompanyTypes.Hapoalim);
+    wk.registerWkQuery('customer' satisfies WKQueryOperation, HINT, 'Q');
+    const result = wk.resolveWkQuery('customer', CompanyTypes.Hapoalim);
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(false);
   });
@@ -91,18 +95,19 @@ describe('QueriesWK/sourceContract', () => {
 
 describe('QueriesWK/freezeOnFirstRead', () => {
   it('fails closed when registerWkQuery is called after resolveWkQuery', () => {
-    registerWkQuery('customer', HINT, 'query Customer { me { id } }');
-    resolveWkQuery('customer', HINT);
+    wk.registerWkQuery('customer', HINT, 'query Customer { me { id } }');
+    wk.resolveWkQuery('customer', HINT);
     expect(() => {
-      registerWkQuery('balance', HINT, 'query Balance { balance }');
+      wk.registerWkQuery('balance', HINT, 'query Balance { balance }');
     }).toThrow(/WK query registry is frozen/);
   });
 
-  it('allows registration again after resetWkRegistryForTest', () => {
-    resolveWkQuery('customer', HINT);
-    resetWkRegistryForTest();
-    registerWkQuery('customer', HINT, 'query Reset { me { id } }');
-    const result = resolveWkQuery('customer', HINT);
+  it('starts unfrozen in a fresh module instance', async () => {
+    wk.resolveWkQuery('customer', HINT);
+    jest.resetModules();
+    const fresh = (await import(MODULE_PATH)) as QueriesModule;
+    fresh.registerWkQuery('customer', HINT, 'query Reset { me { id } }');
+    const result = fresh.resolveWkQuery('customer', HINT);
     expect(result).toEqual({ success: true, value: 'query Reset { me { id } }' });
   });
 });

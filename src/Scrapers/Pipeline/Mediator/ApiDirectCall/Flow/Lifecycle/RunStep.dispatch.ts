@@ -12,7 +12,7 @@ import type { ITemplateScope } from '../../Template/RefResolver.js';
 import { openGuardedAnswer } from '../Signing/RunStep.codec.js';
 import answerSlots from '../Steps/RunStep.answerSlots.js';
 import deriveStepCarry from '../Steps/RunStep.derive.js';
-import { ruleStepCarry } from '../Steps/RunStep.extractRules.js';
+import ruleStepCarry from '../Steps/RunStep.extractRules.js';
 import sanitiseStepFailure from '../Steps/RunStep.failure.js';
 import fireStep from '../Steps/RunStep.fire.js';
 import judgeAnswer from '../Steps/RunStep.judge.js';

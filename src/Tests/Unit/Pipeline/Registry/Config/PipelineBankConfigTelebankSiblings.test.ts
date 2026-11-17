@@ -113,12 +113,11 @@ describe('Mercantile api-direct login config (Telebank group)', () => {
       'PipelineBankConfigMercantile.js',
       'MERCANTILE_TRANSPORT',
     );
-    const registry = (await import(`${CONFIG_DIR}PipelineBankConfig.js`)) as Record<
-      string,
-      unknown
-    >;
-    const entries = registry.PIPELINE_BANK_CONFIG as Record<string, unknown>;
+    const registry = (await import(`${CONFIG_DIR}PipelineBankConfig.js`)) as {
+      readonly resolvePipelineBankConfig: (companyId: CompanyTypes) => unknown;
+    };
     const expected = { urls: { base: 'https://www.mercantile.co.il' }, transport: transportConfig };
-    expect(entries[CompanyTypes.Mercantile]).toEqual(expected);
+    const actual = registry.resolvePipelineBankConfig(CompanyTypes.Mercantile);
+    expect(actual).toEqual(expected);
   });
 });

@@ -5,14 +5,8 @@
 
 import { CompanyTypes } from '../../../../../Definitions.js';
 import { createNativeApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
-import {
-  registerWkQuery,
-  resetWkRegistryForTest as resetWkQueriesForTest,
-} from '../../../../../Scrapers/Pipeline/Registry/WK/QueriesWK.js';
-import {
-  registerWkUrl,
-  resetWkRegistryForTest as resetWkUrlsForTest,
-} from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
+import { registerWkQuery } from '../../../../../Scrapers/Pipeline/Registry/WK/QueriesWK.js';
+import { registerWkUrl } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
 const HINT = CompanyTypes.OneZero;
@@ -28,9 +22,7 @@ function answerPlain(): Promise<Response> {
 describe('ApiMediator — bank media types (N61)', () => {
   const originalFetch = globalThis.fetch;
 
-  beforeEach((): void => {
-    resetWkUrlsForTest();
-    resetWkQueriesForTest();
+  beforeAll((): void => {
     registerWkUrl('identity.deviceToken', HINT, 'https://id.example/devices/token');
     registerWkQuery('customer', HINT, 'query Customer { me { id } }');
   });

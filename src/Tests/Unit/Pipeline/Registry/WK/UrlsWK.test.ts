@@ -7,19 +7,26 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve as resolvePath } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { jest } from '@jest/globals';
+
 import { CompanyTypes } from '../../../../../Definitions.js';
 import type { IApiDirectRuleInput } from '../../../../../Scrapers/Pipeline/Core/Builder/Validation/ApiDirectConfigRules.js';
-import {
-  literalUrl,
-  registerWkUrl,
-  resetWkRegistryForTest,
-  resolveWkUrl,
-  type WKUrlGroup,
-} from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
+import type * as UrlsWKModule from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
+import type { WKUrlGroup } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
+type UrlsModule = typeof UrlsWKModule;
+
+const MODULE_PATH = '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 const HINT = CompanyTypes.OneZero;
 const PEPPER = CompanyTypes.Pepper;
+
+let wk: UrlsModule;
+
+beforeEach(async () => {
+  jest.resetModules();
+  wk = (await import(MODULE_PATH)) as UrlsModule;
+});
 
 /** Every `auth.*` group tag in `WKUrlGroup`, used to audit per-bank auth ownership. */
 const ALL_AUTH_GROUPS: readonly WKUrlGroup[] = [
@@ -40,35 +47,31 @@ const ALL_AUTH_GROUPS: readonly WKUrlGroup[] = [
   'auth.otpVerify',
 ];
 
-beforeEach(() => {
-  resetWkRegistryForTest();
-});
-
 describe('UrlsWK/registration', () => {
   it('register then resolve round-trips the URL string', () => {
     const urlText = 'https://identity.example/devices/token';
-    const didStore = registerWkUrl('identity.deviceToken', HINT, urlText);
+    const didStore = wk.registerWkUrl('identity.deviceToken', HINT, urlText);
     expect(didStore).toBe(true);
-    const result = resolveWkUrl('identity.deviceToken', HINT);
+    const result = wk.resolveWkUrl('identity.deviceToken', HINT);
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(true);
     if (isOk(result)) expect(result.value).toBe(urlText);
   });
 
   it('supports multiple URL groups for the same hint', () => {
-    registerWkUrl('identityBase', HINT, 'https://id.example');
-    registerWkUrl('graphql', HINT, 'https://mobile.example/graphql');
-    const baseResult = resolveWkUrl('identityBase', HINT);
-    const gqlResult = resolveWkUrl('graphql', HINT);
+    wk.registerWkUrl('identityBase', HINT, 'https://id.example');
+    wk.registerWkUrl('graphql', HINT, 'https://mobile.example/graphql');
+    const baseResult = wk.resolveWkUrl('identityBase', HINT);
+    const gqlResult = wk.resolveWkUrl('graphql', HINT);
     if (isOk(baseResult)) expect(baseResult.value).toBe('https://id.example');
     if (isOk(gqlResult)) expect(gqlResult.value).toBe('https://mobile.example/graphql');
   });
 
   it('supports multiple bank hints independently per group', () => {
-    registerWkUrl('identity.otpPrepare', HINT, 'https://a.example/prepare');
-    registerWkUrl('identity.otpPrepare', CompanyTypes.Hapoalim, 'https://b.example/prepare');
-    const oneZero = resolveWkUrl('identity.otpPrepare', HINT);
-    const hapoalim = resolveWkUrl('identity.otpPrepare', CompanyTypes.Hapoalim);
+    wk.registerWkUrl('identity.otpPrepare', HINT, 'https://a.example/prepare');
+    wk.registerWkUrl('identity.otpPrepare', CompanyTypes.Hapoalim, 'https://b.example/prepare');
+    const oneZero = wk.resolveWkUrl('identity.otpPrepare', HINT);
+    const hapoalim = wk.resolveWkUrl('identity.otpPrepare', CompanyTypes.Hapoalim);
     if (isOk(oneZero)) expect(oneZero.value).toBe('https://a.example/prepare');
     if (isOk(hapoalim)) expect(hapoalim.value).toBe('https://b.example/prepare');
   });
@@ -76,15 +79,15 @@ describe('UrlsWK/registration', () => {
 
 describe('UrlsWK/resolveFailure', () => {
   it('unknown URL group returns fail with diagnostic message', () => {
-    const result = resolveWkUrl('identity.otpVerify', HINT);
+    const result = wk.resolveWkUrl('identity.otpVerify', HINT);
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(false);
     if (!isOk(result)) expect(result.errorMessage).toContain('unknown WK url');
   });
 
   it('known URL group but unknown bank hint returns fail', () => {
-    registerWkUrl('identity.getIdToken' satisfies WKUrlGroup, HINT, 'https://x.example');
-    const result = resolveWkUrl('identity.getIdToken', CompanyTypes.Hapoalim);
+    wk.registerWkUrl('identity.getIdToken' satisfies WKUrlGroup, HINT, 'https://x.example');
+    const result = wk.resolveWkUrl('identity.getIdToken', CompanyTypes.Hapoalim);
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(false);
   });
@@ -93,8 +96,8 @@ describe('UrlsWK/resolveFailure', () => {
 describe('UrlsWK/literalUrl', () => {
   it('resolves a literal URL by passthrough with an empty registry', () => {
     const urlText = 'https://api.example/accounts';
-    const tag = literalUrl(urlText);
-    const result = resolveWkUrl(tag, HINT);
+    const tag = wk.literalUrl(urlText);
+    const result = wk.resolveWkUrl(tag, HINT);
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(true);
     if (isOk(result)) expect(result.value).toBe(urlText);
@@ -128,22 +131,19 @@ const MAX_AUTH_URLS = [
 ] as const;
 
 /**
- * Re-seed the registry from the real bank config after `beforeEach` cleared it.
- * Dynamic import dodges the DI rule banning static Registry/Config imports.
+ * Load the real bank config, whose module-load seeder fills this test's fresh
+ * WK registry. Dynamic import dodges the DI rule banning static
+ * Registry/Config imports.
  * @returns Resolves once the registry is seeded.
  */
 async function seedFromBankConfig(): Promise<void> {
-  const registry =
-    await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
-  const seeder =
-    await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigSeeder.js');
-  seeder.default(registry.PIPELINE_BANK_CONFIG);
+  await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
 }
 
 describe('UrlsWK/pepperAuthUrls', () => {
   it.each(PEPPER_AUTH_URLS)('resolves $label to its exact full URL', async ({ $label, url }) => {
     await seedFromBankConfig();
-    const result = resolveWkUrl($label, CompanyTypes.Pepper);
+    const result = wk.resolveWkUrl($label, CompanyTypes.Pepper);
     expect(result).toEqual({ success: true, value: url });
   });
 
@@ -151,7 +151,7 @@ describe('UrlsWK/pepperAuthUrls', () => {
     await seedFromBankConfig();
     const ownerHints = new Set(
       Object.values(CompanyTypes).filter((bank): boolean => {
-        const outcome = resolveWkUrl('auth.login', bank);
+        const outcome = wk.resolveWkUrl('auth.login', bank);
         return isOk(outcome);
       }),
     );
@@ -171,10 +171,10 @@ describe('UrlsWK/pepperAuthUrls', () => {
 
   it('registers every Pepper auth.* URL as a single-slash full URL on the identity origin', async () => {
     await seedFromBankConfig();
-    const base = resolveWkUrl('identityBase', CompanyTypes.Pepper);
+    const base = wk.resolveWkUrl('identityBase', CompanyTypes.Pepper);
     const origin = isOk(base) ? new URL(base.value).origin : 'missing';
     const authUrls = ALL_AUTH_GROUPS.flatMap((group): string[] => {
-      const resolved = resolveWkUrl(group, PEPPER);
+      const resolved = wk.resolveWkUrl(group, PEPPER);
       return isOk(resolved) ? [resolved.value] : [];
     });
     expect(authUrls).toHaveLength(PEPPER_AUTH_URLS.length);
@@ -197,7 +197,7 @@ describe('UrlsWK/ringAuthUrls', () => {
     'resolves $bank auth.service to its exact ring URL',
     async ({ bank, url }) => {
       await seedFromBankConfig();
-      const result = resolveWkUrl('auth.service', bank);
+      const result = wk.resolveWkUrl('auth.service', bank);
       expect(result).toEqual({ success: true, value: url });
     },
   );
@@ -206,7 +206,7 @@ describe('UrlsWK/ringAuthUrls', () => {
 describe('UrlsWK/calAuthUrls', () => {
   it.each(CAL_AUTH_URLS)('resolves $label to its exact full URL', async ({ $label, url }) => {
     await seedFromBankConfig();
-    const result = resolveWkUrl($label, CompanyTypes.VisaCal);
+    const result = wk.resolveWkUrl($label, CompanyTypes.VisaCal);
     expect(result).toEqual({ success: true, value: url });
   });
 });
@@ -214,7 +214,7 @@ describe('UrlsWK/calAuthUrls', () => {
 describe('UrlsWK/maxAuthUrls', () => {
   it.each(MAX_AUTH_URLS)('resolves $label to its exact full URL', async ({ $label, url }) => {
     await seedFromBankConfig();
-    const result = resolveWkUrl($label, CompanyTypes.Max);
+    const result = wk.resolveWkUrl($label, CompanyTypes.Max);
     expect(result).toEqual({ success: true, value: url });
   });
 });
@@ -286,7 +286,7 @@ async function seedSessionBank(): Promise<void> {
 describe('UrlsWK/sessionAuthTags', () => {
   it.each(SESSION_TAGS)('seeds $label from a headless block', async ({ $label, url }) => {
     await seedSessionBank();
-    const result = resolveWkUrl($label, HINT);
+    const result = wk.resolveWkUrl($label, HINT);
     expect(result).toEqual({ success: true, value: url });
   });
 });
@@ -305,26 +305,27 @@ describe('UrlsWK/sourceContract', () => {
 
 describe('UrlsWK/freezeOnFirstRead', () => {
   it('fails closed when registerWkUrl is called after resolveWkUrl', () => {
-    registerWkUrl('identityBase', HINT, 'https://id.example');
-    resolveWkUrl('identityBase', HINT);
+    wk.registerWkUrl('identityBase', HINT, 'https://id.example');
+    wk.resolveWkUrl('identityBase', HINT);
     expect(() => {
-      registerWkUrl('graphql', HINT, 'https://gql.example');
+      wk.registerWkUrl('graphql', HINT, 'https://gql.example');
     }).toThrow(/WK URL registry is frozen/);
   });
 
   it('freezes even when the first resolveWkUrl uses a literalUrl passthrough', () => {
-    const inlineTag = literalUrl('https://api.example/direct');
-    resolveWkUrl(inlineTag, HINT);
+    const inlineTag = wk.literalUrl('https://api.example/direct');
+    wk.resolveWkUrl(inlineTag, HINT);
     expect(() => {
-      registerWkUrl('identityBase', HINT, 'https://id.example');
+      wk.registerWkUrl('identityBase', HINT, 'https://id.example');
     }).toThrow(/WK URL registry is frozen/);
   });
 
-  it('allows registration again after resetWkRegistryForTest', () => {
-    resolveWkUrl('identityBase', HINT);
-    resetWkRegistryForTest();
-    registerWkUrl('identityBase', HINT, 'https://id-reset.example');
-    const result = resolveWkUrl('identityBase', HINT);
+  it('starts unfrozen in a fresh module instance', async () => {
+    wk.resolveWkUrl('identityBase', HINT);
+    jest.resetModules();
+    const fresh = (await import(MODULE_PATH)) as UrlsModule;
+    fresh.registerWkUrl('identityBase', HINT, 'https://id-reset.example');
+    const result = fresh.resolveWkUrl('identityBase', HINT);
     expect(result).toEqual({ success: true, value: 'https://id-reset.example' });
   });
 });

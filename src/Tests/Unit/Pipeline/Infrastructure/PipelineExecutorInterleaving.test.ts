@@ -24,7 +24,6 @@ import type {
 } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
-import { resetTraceConfigCache } from '../../../../Scrapers/Pipeline/Types/TraceConfig.js';
 import { SimplePhase } from './SimplePhase.js';
 
 const CREDENTIALS = { username: 'user', password: 'pass' };
@@ -289,7 +288,6 @@ const DISCOUNT_CALL: IRunSpec = { bank: CompanyTypes.Discount, phase: 'api-direc
 async function withForensicOff<T>(body: () => Promise<T>): Promise<T> {
   const original = process.env.FORENSIC_TRACE;
   process.env.FORENSIC_TRACE = 'false';
-  resetTraceConfigCache();
   try {
     return await body();
   } finally {
@@ -300,7 +298,6 @@ async function withForensicOff<T>(body: () => Promise<T>): Promise<T> {
 
 describe('PipelineExecutor — ownership of the log context under overlap', () => {
   afterEach(() => {
-    resetTraceConfigCache();
     getRootLogger();
   });
 

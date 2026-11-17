@@ -14,11 +14,16 @@ import type {
   IStepConfig,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { runSmsOtpFlow } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/SmsOtpFlow.js';
-import { applyExtractRules } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.extractRules.js';
+import ruleStepCarry from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.extractRules.js';
+import type { CarryMap } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.types.js';
 import type { ITemplateScope } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/RefResolver.js';
-import { registerWkUrl } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
+import {
+  literalUrl,
+  registerWkUrl,
+} from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import type { JsonValue } from '../../../../../../Scrapers/Pipeline/Types/JsonValue.js';
 import { succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import makeDispatchBundle from '../../../../../Helpers/DispatchBundle.js';
 import { issueTestCert } from '../../../../../Helpers/TestCertificate.js';
 import { makeStubMediator } from './StubMediator.js';
 import { WARM_STEP_TAG } from './WarmStartFixtures.js';
@@ -40,6 +45,9 @@ const NOT_YET_VALID = issueTestCert({
   notAfter: '2049-12-31T00:00:00.000Z',
 });
 const GARBAGE_BLOCK = '-----BEGIN CERTIFICATE-----\nbm90IGEgY2VydA==\n-----END CERTIFICATE-----\n';
+const RULE_BUS = makeStubMediator({ responses: [], captures: [] });
+
+registerWkUrl(WARM_STEP_TAG, HINT, STEP_URL);
 
 /** Expected failure for a refused certificate. */
 const INVALID = {
@@ -72,11 +80,13 @@ function ruleCert(text: JsonValue, keyPem: string | false): unknown {
   const carried: Record<string, JsonValue> = keyPem === false ? {} : { certKeyPem: keyPem };
   const scope: ITemplateScope = { carry: carried, creds: {}, config: BARE_CONFIG };
   const step = registerStep();
-  const carry = { certPem: text };
-  return applyExtractRules({ step, resp: {}, carry, stepUrl: STEP_URL, scope });
+  const url = literalUrl(STEP_URL);
+  const bundle = makeDispatchBundle({ step, scope, companyId: HINT, url, bus: RULE_BUS });
+  const carry: CarryMap = { certPem: text };
+  return ruleStepCarry(bundle, {}, carry);
 }
 
-describe('applyExtractRules — pemCertificate', () => {
+describe('ruleStepCarry — pemCertificate', () => {
   it('keeps a current certificate of the carried key', () => {
     const ruled = ruleCert(ISSUED.certPem, ISSUED.keyPem);
     expect(ruled).toEqual({ success: true, value: { certPem: ISSUED.certPem } });
@@ -116,10 +126,6 @@ describe('SmsOtpFlow with a pemCertificate rule', () => {
     envelope: {},
     steps: [keyStep, certStep],
   };
-
-  beforeAll((): void => {
-    registerWkUrl(WARM_STEP_TAG, HINT, STEP_URL);
-  });
 
   /**
    * Run the flow: the first step carries the key, the second the certificate.

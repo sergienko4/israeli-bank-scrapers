@@ -24,11 +24,7 @@ import type {
 } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
-import {
-  getActiveRunId,
-  getLogFile,
-  resetTraceConfigCache,
-} from '../../../../Scrapers/Pipeline/Types/TraceConfig.js';
+import { getActiveRunId, getLogFile } from '../../../../Scrapers/Pipeline/Types/TraceConfig.js';
 import { SimplePhase } from './SimplePhase.js';
 
 /** Minimal synthetic credentials. */
@@ -162,7 +158,6 @@ function passthroughAction(
 
 describe('PipelineExecutor — ambient bank context & forensic trace isolation', () => {
   afterEach(() => {
-    resetTraceConfigCache();
     getRootLogger();
   });
 
@@ -210,7 +205,6 @@ describe('PipelineExecutor — ambient bank context & forensic trace isolation',
     fs.rmSync(TWO_BANK_RUNS_ROOT, { recursive: true, force: true });
     process.env.FORENSIC_TRACE = 'true';
     process.env.RUNS_ROOT = TWO_BANK_RUNS_ROOT;
-    resetTraceConfigCache();
     try {
       const first = await captureBankRunSnapshot(CompanyTypes.Beinleumi);
       const second = await captureBankRunSnapshot(CompanyTypes.Discount);
@@ -229,7 +223,6 @@ describe('PipelineExecutor — ambient bank context & forensic trace isolation',
       else process.env.FORENSIC_TRACE = originalForensic;
       if (originalRunsRoot === undefined) delete process.env.RUNS_ROOT;
       else process.env.RUNS_ROOT = originalRunsRoot;
-      resetTraceConfigCache();
       getRootLogger();
     }
   });

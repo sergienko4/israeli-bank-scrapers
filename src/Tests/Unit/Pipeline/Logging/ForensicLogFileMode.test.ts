@@ -12,7 +12,7 @@ import * as path from 'node:path';
 import pino from 'pino';
 
 import { instantiateLeasedFileLogger } from '../../../../Scrapers/Pipeline/Logging/FileLease.js';
-import { retireSupersededLogger } from '../../../../Scrapers/Pipeline/Logging/RetireTransport.js';
+import retireSupersededLogger from '../../../../Scrapers/Pipeline/Logging/RetireTransport.js';
 import { buildSilentOptions } from '../../../../Scrapers/Pipeline/Logging/RootLogger.js';
 import { buildFdOptions } from '../../../../Scrapers/Pipeline/Logging/RootLoggerOptions.js';
 

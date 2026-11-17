@@ -9,14 +9,8 @@ import type { IPipelineDescriptor } from '../../../../../Scrapers/Pipeline/Core/
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import type { IStepConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { runStep } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/RunStep.js';
-import {
-  registerWkQuery,
-  resetWkRegistryForTest as resetWkQueriesForTest,
-} from '../../../../../Scrapers/Pipeline/Registry/WK/QueriesWK.js';
-import {
-  registerWkUrl,
-  resetWkRegistryForTest as resetWkUrlsForTest,
-} from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
+import { registerWkQuery } from '../../../../../Scrapers/Pipeline/Registry/WK/QueriesWK.js';
+import { registerWkUrl } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import { isSome, none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import { fakeFetch } from '../../../../Helpers/FakeFetch.js';
 import runScrapeAction from '../../../../Helpers/ScrapeAction.js';
@@ -47,9 +41,9 @@ function mediator(): IApiMediator {
 
 describe('response integrity routing', () => {
   const originalFetch = globalThis.fetch;
-  beforeEach(() => {
-    resetWkUrlsForTest();
-    resetWkQueriesForTest();
+  beforeAll(() => {
+    registerWkUrl('auth.bootstrap', CompanyTypes.Leumi, `${ORIGIN}/bootstrap`);
+    registerWkQuery('customer', CompanyTypes.Leumi, 'query Customer { me { id } }');
   });
   afterEach(() => {
     globalThis.fetch = originalFetch;
@@ -75,7 +69,6 @@ describe('response integrity routing', () => {
   });
 
   it('lets a login step choose a tighter limit than the bank default', async () => {
-    registerWkUrl('auth.bootstrap', CompanyTypes.Leumi, `${ORIGIN}/bootstrap`);
     const fake = fakeFetch(() => new Response('123456789'));
     globalThis.fetch = fake.fetchImpl as typeof globalThis.fetch;
     const config = { flow: 'sms-otp', envelope: {}, steps: [] } as const;
@@ -95,7 +88,6 @@ describe('response integrity routing', () => {
   });
 
   it('enforces the same default on GraphQL calls', async () => {
-    registerWkQuery('customer', CompanyTypes.Leumi, 'query Customer { me { id } }');
     const fake = fakeFetch(() => Response.json({ data: { id: OVER_LEUMI_LIMIT } }));
     globalThis.fetch = fake.fetchImpl as typeof globalThis.fetch;
     const result = await mediator().apiQuery('customer', {});

@@ -4,14 +4,7 @@
   "unusedExports": [
     "src/Definitions.ts#PASSWORD_FIELD",
     "src/Scrapers/Base/Interfaces/ErrorResult.ts#IErrorResult",
-    "src/Scrapers/Pipeline/Logging/RetireTransport.ts#scheduleStreamClose",
-    "src/Scrapers/Pipeline/Logging/RootLogger.ts#getActiveRootFileLeaseForTest",
-    "src/Scrapers/Pipeline/Logging/RootLogger.ts#instantiateLogger",
     "src/Scrapers/Pipeline/Mediator/ApiDirectCall/Envelope/JsonPointer.ts#JsonPrimitive",
-    "src/Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.extractRules.ts#applyExtractRules",
-    "src/Scrapers/Pipeline/Registry/Config/PipelineBankConfig.ts#PIPELINE_BANK_CONFIG",
-    "src/Scrapers/Pipeline/Registry/WK/QueriesWK.ts#resetWkRegistryForTest",
-    "src/Scrapers/Pipeline/Registry/WK/UrlsWK.ts#resetWkRegistryForTest",
     "src/Scrapers/Pipeline/Types/PiiRedactor/Account.ts#CATEGORY",
     "src/Scrapers/Pipeline/Types/PiiRedactor/Account.ts#redact",
     "src/Scrapers/Pipeline/Types/PiiRedactor/Amount.ts#CATEGORY",
@@ -47,9 +40,6 @@
     "src/Scrapers/Pipeline/Types/PiiRedactor/Url.ts#PII_QUERY_KEYS",
     "src/Scrapers/Pipeline/Types/PiiRedactor/Url.ts#URL_CATEGORY",
     "src/Scrapers/Pipeline/Types/PiiRedactor/Url.ts#redactUrl",
-    "src/Scrapers/Pipeline/Types/TraceConfig.ts#resetTraceConfigCache",
-    "src/Scrapers/Pipeline/Types/TraceConfig.ts#setActiveBank",
-    "src/Scrapers/Pipeline/Types/TraceStamp.ts#formatRunStamp",
     "src/Transactions.ts#ITransactionInstallments"
   ]
 }

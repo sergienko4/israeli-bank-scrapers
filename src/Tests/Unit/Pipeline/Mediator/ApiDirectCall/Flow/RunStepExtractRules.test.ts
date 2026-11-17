@@ -18,10 +18,17 @@ import type {
   IStepConfig,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { runSmsOtpFlow } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/SmsOtpFlow.js';
-import { applyExtractRules } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.extractRules.js';
+import ruleStepCarry from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.extractRules.js';
 import { extractOptional } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.optional.js';
+import type {
+  CarryMap,
+  IDispatchBundle,
+} from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.types.js';
 import type { ITemplateScope } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/RefResolver.js';
-import { registerWkUrl } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
+import {
+  literalUrl,
+  registerWkUrl,
+} from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import type { JsonValue } from '../../../../../../Scrapers/Pipeline/Types/JsonValue.js';
 import { succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { type IApiPostCapture, makeStubMediator } from './StubMediator.js';
@@ -37,6 +44,44 @@ const RULE_SCOPE: ITemplateScope = {
   creds: {},
   config: { flow: 'sms-otp', envelope: {}, steps: [] },
 };
+const RULE_BUS = makeStubMediator({ responses: [], captures: [] });
+
+registerWkUrl(WARM_STEP_TAG, HINT, STEP_URL);
+
+/**
+ * Build the dispatch bundle the rules run under: the step, its prepared scope
+ * and its company. The step's URL is inline so no registry is involved.
+ * @param step - Step config.
+ * @param scope - Prepared template scope.
+ * @param stepUrl - The step's base URL.
+ * @returns Dispatch bundle for `ruleStepCarry`.
+ */
+function bundleOf(step: IStepConfig, scope: ITemplateScope, stepUrl: string): IDispatchBundle {
+  const url = literalUrl(stepUrl);
+  return {
+    fireArgs: { body: {}, query: {}, extraHeaders: {} },
+    fireScope: { step: { ...step, urlTag: url }, bus: RULE_BUS, scope, companyId: HINT },
+    baseCtx: { stepName: step.name, urlTag: step.urlTag, bodyKeyCount: 0, extractKeys: [] },
+    preparedScope: scope,
+    target: url,
+  };
+}
+
+/**
+ * Run a step's extract rules through the public carry path.
+ * @param step - Step config.
+ * @param resp - Successful response JSON.
+ * @param carry - The step's carry.
+ * @returns The ruled carry, or the refusal.
+ */
+function ruleStep(
+  step: IStepConfig,
+  resp: JsonValue,
+  carry: CarryMap,
+): ReturnType<typeof ruleStepCarry> {
+  const bundle = bundleOf(step, RULE_SCOPE, STEP_URL);
+  return ruleStepCarry(bundle, resp, carry);
+}
 
 /**
  * A step reading `slot` as a required extract, ruled by `rule`.
@@ -93,13 +138,7 @@ function headerStep(rule: IExtractRule): IStepConfig {
  */
 function ruleRequired(rule: IExtractRule, value: JsonValue): unknown {
   const step = requiredStep(rule);
-  return applyExtractRules({
-    step,
-    resp: { slot: value },
-    carry: { slot: value },
-    stepUrl: STEP_URL,
-    scope: RULE_SCOPE,
-  });
+  return ruleStep(step, { slot: value }, { slot: value });
 }
 
 /** One value a rule keeps, and the value the slot then holds. */
@@ -120,7 +159,7 @@ const INVALID = {
 /** Expected failure for the flow's refused state. */
 const INVALID_STATE = { ...INVALID, errorMessage: 'bind extract state invalid' };
 
-describe('applyExtractRules — required slots', () => {
+describe('ruleStepCarry — required slots', () => {
   const absolute = 'https://bank.example/Portal/Home';
   it.each<IKeepCase>([
     { label: 'a string of type string', rule: { type: 'string' }, value: 'x', kept: 'x' },
@@ -179,26 +218,14 @@ describe('applyExtractRules — required slots', () => {
       extractsToCarry: { slot: '/slot' },
     };
     const carry = { slot: 7, other: 'x' };
-    const ruled = applyExtractRules({
-      step: plain,
-      resp: {},
-      carry,
-      stepUrl: STEP_URL,
-      scope: RULE_SCOPE,
-    });
+    const ruled = ruleStep(plain, {}, carry);
     expect(ruled).toEqual({ success: true, value: carry });
   });
 
   it('keeps the unruled slots beside a ruled one', () => {
     const step = requiredStep(LOWER_STATE);
     const carry = { slot: 'LogonOTP', other: 'Kept' };
-    const ruled = applyExtractRules({
-      step,
-      resp: {},
-      carry,
-      stepUrl: STEP_URL,
-      scope: RULE_SCOPE,
-    });
+    const ruled = ruleStep(step, {}, carry);
     expect(ruled).toEqual({ success: true, value: { slot: 'logonotp', other: 'Kept' } });
   });
 });
@@ -220,10 +247,11 @@ const MISMATCH = { ...INVALID, errorMessage: 'bind extract slot mismatch' };
 function ruleBound(rule: IExtractRule, value: JsonValue): unknown {
   const step = requiredStep(rule);
   const carry = { slot: value };
-  return applyExtractRules({ step, resp: carry, carry, stepUrl: STEP_URL, scope: BOUND_SCOPE });
+  const bundle = bundleOf(step, BOUND_SCOPE, STEP_URL);
+  return ruleStepCarry(bundle, carry, carry);
 }
 
-describe('applyExtractRules — equalsRef', () => {
+describe('ruleStepCarry — equalsRef', () => {
   const upper = BOUND.toUpperCase();
   const lowerBound: IExtractRule = { ...EQUALS_BOUND, transform: 'lower' };
   it.each<IKeepCase>([
@@ -262,7 +290,7 @@ describe('applyExtractRules — equalsRef', () => {
   });
 });
 
-describe('applyExtractRules — optional slots', () => {
+describe('ruleStepCarry — optional slots', () => {
   it.each<[string, JsonValue]>([
     ['an absent field', {}],
     ['a null field', { slot: null }],
@@ -270,13 +298,7 @@ describe('applyExtractRules — optional slots', () => {
   ])('skips the rule for %s', (_label, resp) => {
     const step = optionalStep(LOWER_STATE);
     const carry = extractOptional(resp, step, RULE_SCOPE.carry);
-    const ruled = applyExtractRules({
-      step,
-      resp,
-      carry,
-      stepUrl: STEP_URL,
-      scope: RULE_SCOPE,
-    });
+    const ruled = ruleStep(step, resp, carry);
     expect(ruled).toEqual({ success: true, value: {} });
   });
 
@@ -286,13 +308,7 @@ describe('applyExtractRules — optional slots', () => {
     ['false', false],
   ])('fails a present %s under a string rule', (_label, value) => {
     const step = optionalStep(LOWER_STATE);
-    const ruled = applyExtractRules({
-      step,
-      resp: { slot: value },
-      carry: { slot: value },
-      stepUrl: STEP_URL,
-      scope: RULE_SCOPE,
-    });
+    const ruled = ruleStep(step, { slot: value }, { slot: value });
     expect(ruled).toMatchObject(INVALID);
   });
 
@@ -300,30 +316,18 @@ describe('applyExtractRules — optional slots', () => {
     const step = optionalStep(LOWER_STATE);
     const resp = { slot: 'LOGONOTP' };
     const carry = extractOptional(resp, step, RULE_SCOPE.carry);
-    const ruled = applyExtractRules({
-      step,
-      resp,
-      carry,
-      stepUrl: STEP_URL,
-      scope: RULE_SCOPE,
-    });
+    const ruled = ruleStep(step, resp, carry);
     expect(ruled).toEqual({ success: true, value: { slot: 'logonotp' } });
   });
 });
 
-describe('applyExtractRules — header slots', () => {
+describe('ruleStepCarry — header slots', () => {
   const activated: IExtractRule = { oneOf: ['activated'] };
 
   it('fails a header slot outside oneOf, naming no value', () => {
     const step = headerStep(activated);
     const carry = { slot: SECRET };
-    const ruled = applyExtractRules({
-      step,
-      resp: {},
-      carry,
-      stepUrl: STEP_URL,
-      scope: RULE_SCOPE,
-    });
+    const ruled = ruleStep(step, {}, carry);
     expect(ruled).toMatchObject(INVALID);
     const text = JSON.stringify(ruled);
     expect(text).not.toContain(SECRET);
@@ -332,13 +336,7 @@ describe('applyExtractRules — header slots', () => {
   it('keeps the transformed value of a header slot its rule allows', () => {
     const step = headerStep({ transform: 'lower', oneOf: ['activated'] });
     const carry = { slot: 'Activated' };
-    const ruled = applyExtractRules({
-      step,
-      resp: {},
-      carry,
-      stepUrl: STEP_URL,
-      scope: RULE_SCOPE,
-    });
+    const ruled = ruleStep(step, {}, carry);
     expect(ruled).toEqual({ success: true, value: { slot: 'activated' } });
   });
 });
@@ -364,10 +362,6 @@ describe('SmsOtpFlow with extract rules', () => {
     envelope: {},
     steps: [bindStep, loginStep],
   };
-
-  beforeAll((): void => {
-    registerWkUrl(WARM_STEP_TAG, HINT, STEP_URL);
-  });
 
   /**
    * Run the two-step flow with a counting OTP retriever.

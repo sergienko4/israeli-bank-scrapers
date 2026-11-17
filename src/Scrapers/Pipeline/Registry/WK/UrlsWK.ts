@@ -109,15 +109,4 @@ export function resolveWkUrl(group: string, bankHint: CompanyTypes): Procedure<s
   return succeed(hit);
 }
 
-/**
- * Clear all registered URLs and lift the freeze flag for isolated unit tests.
- * @internal
- * @returns True after reset.
- */
-export function resetWkRegistryForTest(): true {
-  WK_URLS.clear();
-  isFrozen = false;
-  return true;
-}
-
 export type { LiteralUrl, WKUrlGroup, WKUrlOrLiteral } from '../../Types/Domain/WKUrl.js';

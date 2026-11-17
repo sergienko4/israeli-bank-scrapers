@@ -50,7 +50,7 @@ The former legacy layer (the base scrapers, per-bank classes and their `src/Comm
 Layer 4's well-known URL and GraphQL query registries (`src/Scrapers/Pipeline/Registry/WK/UrlsWK.ts` and `QueriesWK.ts`) keep their backing maps module-private and follow a two-phase lifecycle:
 
 1. **Module-load seeding:** `PipelineBankConfig.ts` seeds every bank's transport URLs via `seedWkFromPipelineConfig` (calling `@internal` `registerWkUrl`), and the GraphQL banks (`OneZeroQueries.ts`, `PepperQueries.ts`, statically imported through `PipelineRegistry.ts` and `src/Scrapers/Registry/Factory.ts`) register their operations via `@internal` `registerWkQuery` before any scrape begins.
-2. **Freeze on first read:** the first `resolveWkUrl` or `resolveWkQuery` call marks its registry frozen (`ensureFrozen()`); any subsequent `registerWkUrl` or `registerWkQuery` call fails closed with a `ScraperError`. Unit tests that construct isolated fixtures explicitly clear the backing map and lift the freeze flag via `resetWkRegistryForTest`.
+2. **Freeze on first read:** the first `resolveWkUrl` or `resolveWkQuery` call marks its registry frozen (`ensureFrozen()`); any subsequent `registerWkUrl` or `registerWkQuery` call fails closed with a `ScraperError`. Unit tests that construct isolated fixtures load a fresh module instance with `jest.resetModules()`, so the registry starts unfrozen.
 
 ## Import direction enforcement
 

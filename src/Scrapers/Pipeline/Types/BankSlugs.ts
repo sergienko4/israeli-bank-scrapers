@@ -19,8 +19,8 @@ type IsKnownBank = Brand<boolean, 'IsKnownBank'>;
  * Bank slugs the trace layer recognises. Derived from the public enum so a
  * new bank cannot be forgotten. Lowercase, single token.
  */
-const KNOWN_BANK_SLUGS: readonly string[] = Object.values(CompanyTypes).map(bank =>
-  bank.toLowerCase(),
+const KNOWN_BANK_SLUGS: ReadonlySet<string> = new Set(
+  Object.values(CompanyTypes).map(bank => bank.toLowerCase()),
 );
 
 /**
@@ -31,9 +31,8 @@ const KNOWN_BANK_SLUGS: readonly string[] = Object.values(CompanyTypes).map(bank
  */
 export function isKnownBankSlug(slug: string): IsKnownBank {
   const normalised = slug.trim().toLowerCase();
-  const isKnown = normalised.length > 0 && KNOWN_BANK_SLUGS.includes(normalised);
+  const isKnown = normalised.length > 0 && KNOWN_BANK_SLUGS.has(normalised);
   return isKnown as IsKnownBank;
 }
 
 export type { BankSlugLower };
-export { KNOWN_BANK_SLUGS };

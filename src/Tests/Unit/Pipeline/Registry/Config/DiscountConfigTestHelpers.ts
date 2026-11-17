@@ -5,6 +5,7 @@
  * its answer checks.
  */
 
+import { CompanyTypes } from '../../../../../Definitions.js';
 import type { IApiDirectRuleInput } from '../../../../../Scrapers/Pipeline/Core/Builder/Validation/ApiDirectConfigRules.js';
 import type {
   IApiDirectCallConfig,
@@ -13,12 +14,15 @@ import type {
 } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { JsonValue } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Envelope/JsonPointer.js';
 import { cookieRefOf } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.clientCookies.js';
-import { applyExtractRules } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.extractRules.js';
+import ruleStepCarry from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.extractRules.js';
+import type { IDispatchBundle } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.types.js';
 import hydrate from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/GenericBodyTemplate.js';
 import { resolveRefText } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/RefResolver.js';
+import { literalUrl } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { callOfModule } from '../../../../Helpers/BankConfigModule.js';
+import { makeStubMediator } from '../../Mediator/ApiDirectCall/Flow/StubMediator.js';
 
 const CONFIG_MODULE =
   '../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigDiscount.js';
@@ -46,6 +50,7 @@ const UID = '00001123456789';
 const UID_MD5 = 'cf2a090bba654295a35131427b3b067b';
 
 const CARRY = { uid: UID, uidMd5: UID_MD5, rsaKey: 'syn-key', mi6: UID_MD5 } as const;
+const RULE_BUS = makeStubMediator({ responses: [], captures: [] });
 
 /**
  * Load the Discount config module.
@@ -117,8 +122,20 @@ function verdictOf(proc: Procedure<unknown>): unknown {
  */
 function ruled(step: IStepConfig, call: IApiDirectCallConfig, carry: CarrySlots): unknown {
   const scope = { carry, creds: CREDS, config: call };
-  const input = { step, resp: {}, carry, stepUrl: LOGIN_PAGE, scope };
-  const result = applyExtractRules(input);
+  const url = literalUrl(LOGIN_PAGE);
+  const bundle: IDispatchBundle = {
+    fireArgs: { body: {}, query: {}, extraHeaders: {} },
+    fireScope: {
+      step: { ...step, urlTag: url },
+      bus: RULE_BUS,
+      scope,
+      companyId: CompanyTypes.Discount,
+    },
+    baseCtx: { stepName: step.name, urlTag: step.urlTag, bodyKeyCount: 0, extractKeys: [] },
+    preparedScope: scope,
+    target: url,
+  };
+  const result = ruleStepCarry(bundle, {}, carry);
   return verdictOf(result);
 }
 

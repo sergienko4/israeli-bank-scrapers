@@ -1,32 +1,52 @@
 /**
- * Unit tests for TraceConfig — single per-process artefact folder driven by
- * FORENSIC_TRACE=true. Covers the off-forensic empty-string contract and the
- * lazy-creation behaviour for the run, network and sub-step network directories.
+ * Unit tests for TraceConfig — per-execution artefact folder driven by
+ * FORENSIC_TRACE=true and the run scope's bank. Covers the off-forensic
+ * empty-string contract, lazy creation, and per-scope isolation of the run
+ * folder and runId.
  */
 
 import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 
 import { jest } from '@jest/globals';
 
+import type * as BankContextModuleType from '../../../../Scrapers/Pipeline/Logging/BankContext.js';
+import type * as EnvironmentModuleType from '../../../../Scrapers/Pipeline/Types/Environment.js';
 import type * as TraceConfigModuleType from '../../../../Scrapers/Pipeline/Types/TraceConfig.js';
-import { detectBankFromArgv } from '../../../Helpers/DetectBankFromArgv.js';
+import detectBankFromArgv from '../../../Helpers/DetectBankFromArgv.js';
 
 type TraceConfigModule = typeof TraceConfigModuleType;
+type EnvironmentModule = typeof EnvironmentModuleType;
+type BankContextModule = typeof BankContextModuleType;
 
-const TEMP_BASE = process.env.TEMP ?? 'C:/tmp';
+/** The module graph one test loads after `jest.resetModules()`. */
+interface ITraceRuntime {
+  readonly mod: TraceConfigModule;
+  readonly runWithBankContext: BankContextModule['runWithBankContext'];
+  readonly readEnvironment: EnvironmentModule['readEnvironment'];
+}
+
+const TEMP_BASE = os.tmpdir();
 const MODULE_PATH = '../../../../Scrapers/Pipeline/Types/TraceConfig.js';
 
 /** Format of the per-run identifier — `DD-MM-YYYY_HHMMSScc`. */
 const RUN_ID_FORMAT_RE = /^\d{2}-\d{2}-\d{4}_\d{8}$/;
 
 /**
- * Dynamically import the TraceConfig module under test with full typing,
- * avoiding the implicit `any` that bare `await import(...)` returns.
+ * Load a fresh TraceConfig and its run-scope helpers from one module registry.
  * @returns The typed module exports.
  */
-async function loadTraceConfig(): Promise<TraceConfigModule> {
-  return (await import(MODULE_PATH)) as TraceConfigModule;
+async function loadTraceRuntime(): Promise<ITraceRuntime> {
+  jest.resetModules();
+  const mod = (await import(MODULE_PATH)) as TraceConfigModule;
+  const environment = await import('../../../../Scrapers/Pipeline/Types/Environment.js');
+  const bankContext = await import('../../../../Scrapers/Pipeline/Logging/BankContext.js');
+  return {
+    mod,
+    runWithBankContext: bankContext.runWithBankContext,
+    readEnvironment: environment.readEnvironment,
+  };
 }
 
 /**
@@ -41,8 +61,6 @@ function runFolderOf(mod: TraceConfigModule): string {
 
 /**
  * Build a unique tmp directory path under TEMP_BASE for a single test.
- * Avoids inlining `String(Date.now())` (a forbidden nested call) at every
- * site.
  * @param prefix - Folder-name prefix.
  * @returns Absolute path to the tmp directory (not yet created).
  */
@@ -53,17 +71,14 @@ function makeTmpRoot(prefix: string): string {
 }
 
 /**
- * Probe a single FORENSIC_TRACE value against `isForensicTrace()`. Extracted
- * so the batch test below doesn't rely on `await` inside a loop.
- * @param value - Value to set for `process.env.FORENSIC_TRACE`.
+ * Probe a single FORENSIC_TRACE value against the log-path gate.
+ * @param value - Value to set for `FORENSIC_TRACE`.
  * @returns True iff the module reports forensic-trace mode.
  */
 async function probeIsForensicTrace(value: string): Promise<boolean> {
-  process.env.FORENSIC_TRACE = value;
-  jest.resetModules();
-  const mod = await loadTraceConfig();
-  mod.setActiveBank('beinleumi');
-  return mod.getLogFile() !== '';
+  const runtime = await loadTraceRuntime();
+  const env = runtime.readEnvironment({ FORENSIC_TRACE: value });
+  return runtime.runWithBankContext('beinleumi', () => runtime.mod.getLogFile() !== '', env);
 }
 
 /**
@@ -82,8 +97,8 @@ async function appendProbeResult(
 }
 
 /**
- * Probe FORENSIC_TRACE values sequentially because each probe mutates
- * process-global environment and Jest module state.
+ * Probe FORENSIC_TRACE values sequentially because each probe loads a fresh
+ * process-global environment snapshot.
  * @param values - Values to probe in order.
  * @returns Probe results in the same order.
  */
@@ -93,23 +108,18 @@ function probeValuesSequentially(values: readonly string[]): Promise<readonly bo
 }
 
 describe('TraceConfig — FORENSIC_TRACE=true gates artefact emission', () => {
-  const originalForensic = process.env.FORENSIC_TRACE;
-  const originalRunsRoot = process.env.RUNS_ROOT;
-
   afterEach(() => {
-    if (originalForensic === undefined) delete process.env.FORENSIC_TRACE;
-    else process.env.FORENSIC_TRACE = originalForensic;
-    if (originalRunsRoot === undefined) delete process.env.RUNS_ROOT;
-    else process.env.RUNS_ROOT = originalRunsRoot;
     jest.resetModules();
   });
 
   it('isForensicTrace is false when FORENSIC_TRACE is unset', async () => {
-    delete process.env.FORENSIC_TRACE;
-    jest.resetModules();
-    const mod = await loadTraceConfig();
-    mod.setActiveBank('beinleumi');
-    const isMode = mod.getLogFile() !== '';
+    const runtime = await loadTraceRuntime();
+    const env = runtime.readEnvironment({});
+    const isMode = runtime.runWithBankContext(
+      'beinleumi',
+      () => runtime.mod.getLogFile() !== '',
+      env,
+    );
     expect(isMode).toBe(false);
   });
 
@@ -121,32 +131,41 @@ describe('TraceConfig — FORENSIC_TRACE=true gates artefact emission', () => {
   });
 
   it('isForensicTrace is true when FORENSIC_TRACE=true (case/space-insensitive)', async () => {
-    process.env.FORENSIC_TRACE = '  TRUE  ';
-    jest.resetModules();
-    const mod = await loadTraceConfig();
-    mod.setActiveBank('beinleumi');
-    const isMode = mod.getLogFile() !== '';
+    const tmpRoot = makeTmpRoot('traceconfig-true');
+    const runtime = await loadTraceRuntime();
+    const env = runtime.readEnvironment({
+      FORENSIC_TRACE: '  TRUE  ',
+      RUNS_ROOT: tmpRoot,
+    });
+    const isMode = runtime.runWithBankContext(
+      'beinleumi',
+      () => runtime.mod.getLogFile() !== '',
+      env,
+    );
     expect(isMode).toBe(true);
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
   });
 
   it('off-trace: log artifact paths are empty', async () => {
-    delete process.env.FORENSIC_TRACE;
-    jest.resetModules();
-    const mod = await loadTraceConfig();
-    const runFolder = runFolderOf(mod);
-    const logFile = mod.getLogFile();
-    expect(runFolder).toBe('');
-    expect(logFile).toBe('');
+    const runtime = await loadTraceRuntime();
+    const env = runtime.readEnvironment({});
+    const observed = runtime.runWithBankContext(
+      'beinleumi',
+      () => ({ runFolder: runFolderOf(runtime.mod), logFile: runtime.mod.getLogFile() }),
+      env,
+    );
+    expect(observed.runFolder).toBe('');
+    expect(observed.logFile).toBe('');
   });
 
   it('on-trace: derives folder under RUNS_ROOT, creates it lazily', async () => {
     const tmpRoot = makeTmpRoot('traceconfig-test');
-    process.env.FORENSIC_TRACE = 'true';
-    process.env.RUNS_ROOT = tmpRoot;
-    jest.resetModules();
-    const mod = await loadTraceConfig();
-    mod.setActiveBank('beinleumi');
-    const folder = runFolderOf(mod);
+    const runtime = await loadTraceRuntime();
+    const env = runtime.readEnvironment({
+      FORENSIC_TRACE: 'true',
+      RUNS_ROOT: tmpRoot,
+    });
+    const folder = runtime.runWithBankContext('beinleumi', () => runFolderOf(runtime.mod), env);
     const realRoot = fs.realpathSync(tmpRoot);
     const isUnderRoot = folder.startsWith(realRoot);
     const didCreate = fs.existsSync(folder);
@@ -162,40 +181,45 @@ describe('TraceConfig — FORENSIC_TRACE=true gates artefact emission', () => {
 
   it('on-trace to off-trace: every warm artefact cache stops returning disk paths', async () => {
     const tmpRoot = makeTmpRoot('traceconfig-flip');
-    process.env.FORENSIC_TRACE = 'true';
-    process.env.RUNS_ROOT = tmpRoot;
-    jest.resetModules();
-    const mod = await loadTraceConfig();
-    mod.setActiveBank('beinleumi');
-    const warmed = [runFolderOf(mod), mod.getLogFile()];
+    const runtime = await loadTraceRuntime();
+    const onEnv = runtime.readEnvironment({
+      FORENSIC_TRACE: 'true',
+      RUNS_ROOT: tmpRoot,
+    });
+    const offEnv = runtime.readEnvironment({
+      FORENSIC_TRACE: 'false',
+      RUNS_ROOT: tmpRoot,
+    });
+    const warmed = runtime.runWithBankContext(
+      'beinleumi',
+      () => [runFolderOf(runtime.mod), runtime.mod.getLogFile()],
+      onEnv,
+    );
     const hasEmptyWarmed = warmed.some((value): boolean => value === '');
     expect(hasEmptyWarmed).toBe(false);
-    process.env.FORENSIC_TRACE = 'false';
-    jest.resetModules();
-    const offMod = await loadTraceConfig();
-    offMod.setActiveBank('beinleumi');
-    const afterFalse = [runFolderOf(offMod), offMod.getLogFile()];
-    delete process.env.FORENSIC_TRACE;
-    jest.resetModules();
-    const unsetMod = await loadTraceConfig();
-    unsetMod.setActiveBank('beinleumi');
-    const afterUnset = [runFolderOf(unsetMod), unsetMod.getLogFile()];
+    const afterFalse = runtime.runWithBankContext(
+      'beinleumi',
+      () => [runFolderOf(runtime.mod), runtime.mod.getLogFile()],
+      offEnv,
+    );
     expect(afterFalse).toEqual(['', '']);
-    expect(afterUnset).toEqual(['', '']);
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   });
 
   it('on-trace: log file lives under the run folder', async () => {
     const tmpRoot = makeTmpRoot('traceconfig-shared');
-    process.env.FORENSIC_TRACE = 'true';
-    process.env.RUNS_ROOT = tmpRoot;
-    jest.resetModules();
-    const mod = await loadTraceConfig();
-    mod.setActiveBank('beinleumi');
-    const root = runFolderOf(mod);
-    const logFile = mod.getLogFile();
-    const isLogUnder = logFile.startsWith(root);
-    const logBase = path.basename(logFile);
+    const runtime = await loadTraceRuntime();
+    const env = runtime.readEnvironment({
+      FORENSIC_TRACE: 'true',
+      RUNS_ROOT: tmpRoot,
+    });
+    const observed = runtime.runWithBankContext(
+      'beinleumi',
+      () => ({ folder: runFolderOf(runtime.mod), logFile: runtime.mod.getLogFile() }),
+      env,
+    );
+    const isLogUnder = observed.logFile.startsWith(observed.folder);
+    const logBase = path.basename(observed.logFile);
     expect(isLogUnder).toBe(true);
     expect(logBase).toBe('pipeline.log');
     fs.rmSync(tmpRoot, { recursive: true, force: true });
@@ -203,12 +227,12 @@ describe('TraceConfig — FORENSIC_TRACE=true gates artefact emission', () => {
 
   it('on-trace: run folder name uses DDMMYY-HHMMSScc format under <bank>/', async () => {
     const tmpRoot = makeTmpRoot('traceconfig-fmt');
-    process.env.FORENSIC_TRACE = 'true';
-    process.env.RUNS_ROOT = tmpRoot;
-    jest.resetModules();
-    const mod = await loadTraceConfig();
-    mod.setActiveBank('beinleumi');
-    const folder = runFolderOf(mod);
+    const runtime = await loadTraceRuntime();
+    const env = runtime.readEnvironment({
+      FORENSIC_TRACE: 'true',
+      RUNS_ROOT: tmpRoot,
+    });
+    const folder = runtime.runWithBankContext('beinleumi', () => runFolderOf(runtime.mod), env);
     const expectedPipelineSeg = `${path.sep}pipeline${path.sep}`;
     const expectedBankSeg = `${path.sep}beinleumi${path.sep}`;
     const stampShape = /\d{2}-\d{2}-\d{4}_\d{8}$/;
@@ -219,112 +243,87 @@ describe('TraceConfig — FORENSIC_TRACE=true gates artefact emission', () => {
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   });
 
-  it('formatRunStamp produces DDMMYY-HHMMSScc for a known Date', async () => {
-    delete process.env.FORENSIC_TRACE;
-    jest.resetModules();
-    const mod = await loadTraceConfig();
-    const date = new Date(2026, 3, 28, 18, 45, 30, 250);
-    const stamp = mod.formatRunStamp(date);
-    expect(stamp).toBe('28-04-2026_18453025');
-  });
-
   it('detectBankFromArgv returns "" when no bank test pattern is in argv', () => {
     const detected = detectBankFromArgv(['node', 'jest', 'src/Tests/Unit/Pipeline']);
     expect(detected).toBe('');
   });
 
-  it('resetTraceConfigCache clears cached folders so a new call re-derives', async () => {
-    const tmpRoot = makeTmpRoot('traceconfig-reset');
-    process.env.FORENSIC_TRACE = 'true';
-    process.env.RUNS_ROOT = tmpRoot;
-    jest.resetModules();
-    const mod = await loadTraceConfig();
-    mod.setActiveBank('beinleumi');
-    const folder1 = runFolderOf(mod);
-    const wasReset = mod.resetTraceConfigCache();
-    delete process.env.FORENSIC_TRACE;
-    const folder2 = runFolderOf(mod);
-    expect(folder1).not.toBe('');
-    expect(wasReset).toBe(true);
-    expect(folder2).toBe('');
-    fs.rmSync(tmpRoot, { recursive: true, force: true });
-  });
-
   it('getRunFolder is cached — calling twice returns the same path', async () => {
     const tmpRoot = makeTmpRoot('traceconfig-cache');
-    process.env.FORENSIC_TRACE = 'true';
-    process.env.RUNS_ROOT = tmpRoot;
-    jest.resetModules();
-    const mod = await loadTraceConfig();
-    mod.setActiveBank('beinleumi');
-    const a = runFolderOf(mod);
-    const b = runFolderOf(mod);
-    expect(a).toBe(b);
-    expect(a).not.toBe('');
+    const runtime = await loadTraceRuntime();
+    const env = runtime.readEnvironment({
+      FORENSIC_TRACE: 'true',
+      RUNS_ROOT: tmpRoot,
+    });
+    const observed = runtime.runWithBankContext(
+      'beinleumi',
+      () => ({ a: runFolderOf(runtime.mod), b: runFolderOf(runtime.mod) }),
+      env,
+    );
+    expect(observed.a).toBe(observed.b);
+    expect(observed.a).not.toBe('');
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   });
 
-  it('getActiveRunId returns "" when no bank has been registered', async () => {
-    delete process.env.FORENSIC_TRACE;
-    jest.resetModules();
-    const mod = await loadTraceConfig();
-    const runId = mod.getActiveRunId();
+  it('getActiveRunId returns "" outside every run scope', async () => {
+    const runtime = await loadTraceRuntime();
+    const runId = runtime.mod.getActiveRunId();
     expect(runId).toBe('');
   });
 
-  it('getActiveRunId is stable across calls within one process', async () => {
-    delete process.env.FORENSIC_TRACE;
-    jest.resetModules();
-    const mod = await loadTraceConfig();
-    mod.setActiveBank('discount');
-    const a = mod.getActiveRunId();
-    const b = mod.getActiveRunId();
-    expect(a).not.toBe('');
-    expect(a).toBe(b);
+  it('getActiveRunId is stable across calls within one run scope', async () => {
+    const runtime = await loadTraceRuntime();
+    const env = runtime.readEnvironment({});
+    const observed = runtime.runWithBankContext(
+      'discount',
+      () => ({ a: runtime.mod.getActiveRunId(), b: runtime.mod.getActiveRunId() }),
+      env,
+    );
+    expect(observed.a).not.toBe('');
+    expect(observed.a).toBe(observed.b);
   });
 
   it('getActiveRunId matches the on-disk run-folder leaf name (trace mode)', async () => {
     const tmpRoot = makeTmpRoot('traceconfig-runid');
-    process.env.FORENSIC_TRACE = 'true';
-    process.env.RUNS_ROOT = tmpRoot;
-    jest.resetModules();
-    const mod = await loadTraceConfig();
-    mod.setActiveBank('discount');
-    const runId = mod.getActiveRunId();
-    const folder = runFolderOf(mod);
-    const leaf = path.basename(folder);
-    expect(runId).toBe(leaf);
+    const runtime = await loadTraceRuntime();
+    const env = runtime.readEnvironment({
+      FORENSIC_TRACE: 'true',
+      RUNS_ROOT: tmpRoot,
+    });
+    const observed = runtime.runWithBankContext(
+      'discount',
+      () => ({ runId: runtime.mod.getActiveRunId(), folder: runFolderOf(runtime.mod) }),
+      env,
+    );
+    const leaf = path.basename(observed.folder);
+    expect(observed.runId).toBe(leaf);
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   });
 
   it('getActiveRunId is available off-trace (no folder created)', async () => {
-    delete process.env.FORENSIC_TRACE;
-    jest.resetModules();
-    const mod = await loadTraceConfig();
-    mod.setActiveBank('hapoalim');
-    const runId = mod.getActiveRunId();
-    const folder = runFolderOf(mod);
-    const isWellFormed = RUN_ID_FORMAT_RE.test(runId);
-    expect(runId).not.toBe('');
+    const runtime = await loadTraceRuntime();
+    const env = runtime.readEnvironment({});
+    const observed = runtime.runWithBankContext(
+      'hapoalim',
+      () => ({ runId: runtime.mod.getActiveRunId(), folder: runFolderOf(runtime.mod) }),
+      env,
+    );
+    const isWellFormed = RUN_ID_FORMAT_RE.test(observed.runId);
+    expect(observed.runId).not.toBe('');
     expect(isWellFormed).toBe(true);
-    expect(folder).toBe('');
+    expect(observed.folder).toBe('');
   });
 
-  it('resetTraceConfigCache clears the runId so a new call re-derives', async () => {
-    delete process.env.FORENSIC_TRACE;
-    jest.resetModules();
-    const mod = await loadTraceConfig();
-    mod.setActiveBank('hapoalim');
-    const before = mod.getActiveRunId();
-    mod.resetTraceConfigCache();
-    mod.setActiveBank('hapoalim');
-    const after = mod.getActiveRunId();
-    const isAfterWellFormed = RUN_ID_FORMAT_RE.test(after);
-    expect(before).not.toBe('');
-    expect(after).not.toBe('');
-    // Both are well-formed; equality is timing-dependent so we only
-    // assert format stability.
-    expect(isAfterWellFormed).toBe(true);
+  it('each run scope gets a new runId even for the same bank', async () => {
+    const runtime = await loadTraceRuntime();
+    const env = runtime.readEnvironment({});
+    const first = runtime.runWithBankContext('hapoalim', () => runtime.mod.getActiveRunId(), env);
+    const second = runtime.runWithBankContext('hapoalim', () => runtime.mod.getActiveRunId(), env);
+    const isSecondWellFormed = RUN_ID_FORMAT_RE.test(second);
+    expect(first).not.toBe('');
+    expect(second).not.toBe('');
+    expect(isSecondWellFormed).toBe(true);
+    expect(second).not.toBe(first);
   });
 
   it.each([
@@ -358,155 +357,121 @@ describe('TraceConfig — FORENSIC_TRACE=true gates artefact emission', () => {
     ]);
     expect(detected).toBe('');
   });
-
-  it('formatRunStamp pads single-digit day/month/hour/minute/second/centisecond', async () => {
-    delete process.env.FORENSIC_TRACE;
-    jest.resetModules();
-    const mod = await loadTraceConfig();
-    const date = new Date(2026, 0, 2, 3, 4, 5, 60);
-    const stamp = mod.formatRunStamp(date);
-    expect(stamp).toBe('02-01-2026_03040506');
-  });
-
-  it('setActiveBank rejects empty string and unknown slugs', async () => {
-    delete process.env.FORENSIC_TRACE;
-    jest.resetModules();
-    const mod = await loadTraceConfig();
-    const acceptedEmpty = mod.setActiveBank('');
-    const acceptedUnknown = mod.setActiveBank('not-a-real-bank');
-    const acceptedWhitespace = mod.setActiveBank('   ');
-    expect(acceptedEmpty).toBe(false);
-    expect(acceptedUnknown).toBe(false);
-    expect(acceptedWhitespace).toBe(false);
-  });
-
-  it('setActiveBank accepts a known slug case-insensitively', async () => {
-    delete process.env.FORENSIC_TRACE;
-    jest.resetModules();
-    const mod = await loadTraceConfig();
-    const accepted = mod.setActiveBank(' Beinleumi ');
-    expect(accepted).toBe(true);
-  });
-
-  it('on-trace: the registered bank slug shows up in the folder path', async () => {
-    const tmpRoot = makeTmpRoot('traceconfig-bank');
-    process.env.FORENSIC_TRACE = 'true';
-    process.env.RUNS_ROOT = tmpRoot;
-    jest.resetModules();
-    const mod = await loadTraceConfig();
-    mod.setActiveBank('beinleumi');
-    const folder = runFolderOf(mod);
-    const expectedSeg = `${path.sep}beinleumi${path.sep}`;
-    expect(folder).toContain(expectedSeg);
-    fs.rmSync(tmpRoot, { recursive: true, force: true });
-  });
 });
 
-describe('TraceConfig — setActiveBank bank-switch cache isolation', () => {
-  const originalForensic = process.env.FORENSIC_TRACE;
-  const originalRunsRoot = process.env.RUNS_ROOT;
-
+describe('TraceConfig — run-scope bank and cache isolation', () => {
   afterEach(() => {
-    if (originalForensic === undefined) delete process.env.FORENSIC_TRACE;
-    else process.env.FORENSIC_TRACE = originalForensic;
-    if (originalRunsRoot === undefined) delete process.env.RUNS_ROOT;
-    else process.env.RUNS_ROOT = originalRunsRoot;
     jest.resetModules();
   });
 
-  it('setActiveBank clears runFolder, networkDir, subStepDir, and runId caches when switching banks', async () => {
+  it('two run scopes for different banks get distinct folders and runIds', async () => {
     const tmpRoot = makeTmpRoot('traceconfig-switch');
-    process.env.FORENSIC_TRACE = 'true';
-    process.env.RUNS_ROOT = tmpRoot;
-    jest.resetModules();
-    const mod = await loadTraceConfig();
-    mod.setActiveBank('beinleumi');
-    const folder1 = runFolderOf(mod);
-    const runId1 = mod.getActiveRunId();
-    mod.setActiveBank('discount');
-    const folder2 = runFolderOf(mod);
-    const runId2 = mod.getActiveRunId();
-    expect(folder1).toContain(`${path.sep}beinleumi${path.sep}`);
-    expect(folder2).toContain(`${path.sep}discount${path.sep}`);
-    expect(folder2).not.toBe(folder1);
-    expect(runId2).not.toBe(runId1);
+    const runtime = await loadTraceRuntime();
+    const env = runtime.readEnvironment({
+      FORENSIC_TRACE: 'true',
+      RUNS_ROOT: tmpRoot,
+    });
+    const first = runtime.runWithBankContext(
+      'beinleumi',
+      () => ({ folder: runFolderOf(runtime.mod), runId: runtime.mod.getActiveRunId() }),
+      env,
+    );
+    const second = runtime.runWithBankContext(
+      'discount',
+      () => ({ folder: runFolderOf(runtime.mod), runId: runtime.mod.getActiveRunId() }),
+      env,
+    );
+    expect(first.folder).toContain(`${path.sep}beinleumi${path.sep}`);
+    expect(second.folder).toContain(`${path.sep}discount${path.sep}`);
+    expect(second.folder).not.toBe(first.folder);
+    expect(second.runId).not.toBe(first.runId);
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   });
 
-  it('setActiveBank inside a run scope still switches the process-global bank and clears its caches', async () => {
-    const tmpRoot = makeTmpRoot('traceconfig-scoped-switch');
-    process.env.FORENSIC_TRACE = 'true';
-    process.env.RUNS_ROOT = tmpRoot;
-    jest.resetModules();
-    const mod = await loadTraceConfig();
-    const scopes = await import('../../../../Scrapers/Pipeline/Types/RunScope.js');
-    const environment = await import('../../../../Scrapers/Pipeline/Types/Environment.js');
-    mod.setActiveBank('beinleumi');
-    const folderBefore = runFolderOf(mod);
-    const runIdBefore = mod.getActiveRunId();
-    scopes.openRunScope('discount', environment.ENVIRONMENT, () => mod.setActiveBank('discount'));
-    const folderAfter = runFolderOf(mod);
-    expect(folderBefore).toContain(`${path.sep}beinleumi${path.sep}`);
-    expect(folderAfter).toContain(`${path.sep}discount${path.sep}`);
-    const runIdAfter = mod.getActiveRunId();
-    expect(runIdAfter).not.toBe(runIdBefore);
+  it('overlapping async scopes each keep their own bank and folder', async () => {
+    const tmpRoot = makeTmpRoot('traceconfig-overlap');
+    const runtime = await loadTraceRuntime();
+    const env = runtime.readEnvironment({
+      FORENSIC_TRACE: 'true',
+      RUNS_ROOT: tmpRoot,
+    });
+    /**
+     * Observe the active bank's folder after yielding to the other scope.
+     * @returns The log path and folder the scope resolves.
+     */
+    const observe = async (): Promise<{ bank: string; folder: string }> => {
+      await Promise.resolve();
+      return { bank: runtime.mod.getLogFile(), folder: runFolderOf(runtime.mod) };
+    };
+    const [first, second] = await Promise.all([
+      runtime.runWithBankContext('beinleumi', observe, env),
+      runtime.runWithBankContext('discount', observe, env),
+    ]);
+    expect(first.bank).toContain(`${path.sep}beinleumi${path.sep}`);
+    expect(second.bank).toContain(`${path.sep}discount${path.sep}`);
+    expect(first.folder).not.toBe(second.folder);
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   });
 
-  it('setActiveBank preserves cached folders and runId when called again with the same bank', async () => {
-    const tmpRoot = makeTmpRoot('traceconfig-idempotent');
-    process.env.FORENSIC_TRACE = 'true';
-    process.env.RUNS_ROOT = tmpRoot;
-    jest.resetModules();
-    const mod = await loadTraceConfig();
-    mod.setActiveBank('beinleumi');
-    const folder1 = runFolderOf(mod);
-    const runId1 = mod.getActiveRunId();
-    mod.setActiveBank(' Beinleumi ');
-    const folder2 = runFolderOf(mod);
-    const runId2 = mod.getActiveRunId();
-    expect(folder2).toBe(folder1);
-    expect(runId2).toBe(runId1);
+  it('the run-scope bank is trimmed and lowercased in the folder path', async () => {
+    const tmpRoot = makeTmpRoot('traceconfig-normalise');
+    const runtime = await loadTraceRuntime();
+    const env = runtime.readEnvironment({
+      FORENSIC_TRACE: 'true',
+      RUNS_ROOT: tmpRoot,
+    });
+    const folder = runtime.runWithBankContext(' Beinleumi ', () => runFolderOf(runtime.mod), env);
+    expect(folder).toContain(`${path.sep}beinleumi${path.sep}`);
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   });
 
-  it('setActiveBank leaves existing bank caches intact when given an unknown slug', async () => {
-    const tmpRoot = makeTmpRoot('traceconfig-unknown-keep');
-    process.env.FORENSIC_TRACE = 'true';
-    process.env.RUNS_ROOT = tmpRoot;
-    jest.resetModules();
-    const mod = await loadTraceConfig();
-    mod.setActiveBank('beinleumi');
-    const folder1 = runFolderOf(mod);
-    const runId1 = mod.getActiveRunId();
-    const accepted = mod.setActiveBank('not-a-real-bank');
-    const folder2 = runFolderOf(mod);
-    const runId2 = mod.getActiveRunId();
-    expect(accepted).toBe(false);
-    expect(folder2).toBe(folder1);
-    expect(runId2).toBe(runId1);
-    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  it('a blank bank produces no artefacts', async () => {
+    const tmpRoot = makeTmpRoot('traceconfig-blank');
+    const runtime = await loadTraceRuntime();
+    const env = runtime.readEnvironment({
+      FORENSIC_TRACE: 'true',
+      RUNS_ROOT: tmpRoot,
+    });
+    const observed = runtime.runWithBankContext(
+      '   ',
+      () => ({ folder: runFolderOf(runtime.mod), runId: runtime.mod.getActiveRunId() }),
+      env,
+    );
+    expect(observed).toEqual({ folder: '', runId: '' });
+    const didCreateRoot = fs.existsSync(tmpRoot);
+    expect(didCreateRoot).toBe(false);
   });
 
   it('mints distinct stamps across same-tick, clock-rollback, and DST-fold local collisions', async () => {
-    delete process.env.FORENSIC_TRACE;
+    const runtime = await loadTraceRuntime();
+    const env = runtime.readEnvironment({});
     jest.useFakeTimers();
     try {
       jest.setSystemTime(new Date(2026, 10, 1, 1, 30, 0, 0));
-      jest.resetModules();
-      const mod = await loadTraceConfig();
-      mod.setActiveBank('beinleumi');
-      const runIdSameTick1 = mod.getActiveRunId();
-      mod.setActiveBank('discount');
-      const runIdSameTick2 = mod.getActiveRunId();
+      const runIdSameTick1 = runtime.runWithBankContext(
+        'beinleumi',
+        () => runtime.mod.getActiveRunId(),
+        env,
+      );
+      const runIdSameTick2 = runtime.runWithBankContext(
+        'discount',
+        () => runtime.mod.getActiveRunId(),
+        env,
+      );
       jest.setSystemTime(new Date(2026, 10, 1, 1, 29, 50, 0));
-      mod.setActiveBank('hapoalim');
-      const runIdRollback = mod.getActiveRunId();
+      const runIdRollback = runtime.runWithBankContext(
+        'hapoalim',
+        () => runtime.mod.getActiveRunId(),
+        env,
+      );
       const hoursSpy = jest.spyOn(Date.prototype, 'getHours').mockReturnValue(1);
       try {
         jest.setSystemTime(new Date(2026, 10, 1, 2, 30, 0, 0));
-        mod.setActiveBank('beinleumi');
-        const runIdDstFold = mod.getActiveRunId();
+        const runIdDstFold = runtime.runWithBankContext(
+          'beinleumi',
+          () => runtime.mod.getActiveRunId(),
+          env,
+        );
         const seen = new Set([runIdSameTick1, runIdSameTick2, runIdRollback, runIdDstFold]);
         expect(seen.size).toBe(4);
       } finally {

@@ -21,10 +21,7 @@ import {
   runSmsOtpFlow,
 } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/SmsOtpFlow.js';
 import projectSessionCarry from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/SessionCarryProjection.js';
-import {
-  registerWkUrl,
-  resetWkRegistryForTest,
-} from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
+import { registerWkUrl } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import type { JsonUnknownRecord } from '../../../../../Scrapers/Pipeline/Types/JsonValue.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import createScraper from '../../../../../Scrapers/Registry/Factory.js';
@@ -50,8 +47,6 @@ import {
 
 const MODULE =
   '../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigLeumiTransmit.js';
-const PORTAL_MODULE =
-  '../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigLeumiPortal.js';
 const CONFIG_MODULE = '../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigLeumi.js';
 const ORIGIN = 'https://hb2.bankleumi.co.il';
 const SERVICE = 'https://sa.bankleumi.co.il/api/v2/auth';
@@ -74,19 +69,6 @@ const SESSION_HEADERS = [
 interface ITransmitModule {
   readonly LEUMI_TRANSMIT_SEEDS: readonly ISeedCarrySource[];
   readonly LEUMI_TRANSMIT_STEPS: readonly IPostStep[];
-  readonly LEUMI_TRANSMIT_PATHS: {
-    readonly 'auth.encryptionKey': string;
-    readonly 'auth.login': string;
-    readonly 'auth.assert': string;
-  };
-}
-
-interface IPortalModule {
-  readonly LEUMI_PORTAL_PATHS: {
-    readonly 'auth.identify': string;
-    readonly 'auth.logon': string;
-    readonly 'identity.sessionToken': string;
-  };
 }
 
 interface ILeumiModule {
@@ -255,20 +237,6 @@ function makePeer(
 }
 
 /**
- * Reset and register the synthetic transmit routes for one test run.
- * @param paths - Transmit path URLs from the candidate module.
- * @returns True after registration.
- */
-function seedTransmitRoutes(paths: ITransmitModule['LEUMI_TRANSMIT_PATHS']): true {
-  resetWkRegistryForTest();
-  registerWkUrl('auth.encryptionKey', HINT, paths['auth.encryptionKey']);
-  registerWkUrl('auth.login', HINT, paths['auth.login']);
-  registerWkUrl('auth.assert', HINT, paths['auth.assert']);
-  registerWkUrl('auth.logon', HINT, `${ORIGIN}/sentinel`);
-  return true;
-}
-
-/**
  * Runs the configured steps through the real native mediator and peer.
  * @param peer - Offline peer.
  * @param creds - Synthetic credentials and optional injected flow ID.
@@ -279,7 +247,6 @@ async function run(
   creds: typeof CREDS & { readonly flowId?: string } = CREDS,
 ): Promise<Procedure<IFlowResult>> {
   const module = (await import(MODULE)) as ITransmitModule;
-  seedTransmitRoutes(module.LEUMI_TRANSMIT_PATHS);
   const config: IApiDirectCallConfig = {
     flow: 'sms-otp',
     envelope: {},
@@ -288,7 +255,7 @@ async function run(
     fingerprint: { shape: { $literal: { metadata: { app: 'synthetic' } } } },
     steps: [
       ...module.LEUMI_TRANSMIT_STEPS,
-      { name: 'logon', urlTag: 'auth.logon', method: 'GET', extractsToCarry: {} },
+      { name: 'logon', urlTag: 'synthetic.sentinel', method: 'GET', extractsToCarry: {} },
     ],
   };
   globalThis.fetch = peer.fetch as typeof globalThis.fetch;
@@ -346,14 +313,7 @@ async function portalSetup(): Promise<{
   config: IApiDirectCallConfig;
   transportConfig: ILeumiModule['LEUMI_TRANSPORT'];
 }> {
-  const transmit = (await import(MODULE)) as ITransmitModule;
-  const portal = (await import(PORTAL_MODULE)) as IPortalModule;
   const assembled = (await import(CONFIG_MODULE)) as ILeumiModule;
-  const paths = { ...transmit.LEUMI_TRANSMIT_PATHS, ...portal.LEUMI_PORTAL_PATHS };
-  resetWkRegistryForTest();
-  for (const [tag, url] of Object.entries(paths)) {
-    registerWkUrl(tag, HINT, url);
-  }
   const { LEUMI_API_DIRECT_CALL: config, LEUMI_TRANSPORT: transportConfig } = assembled;
   const valid = validateApiDirectConfig({ call: config, transport: transportConfig });
   if (!valid.success) throw new TypeError(valid.errorMessage);
@@ -362,6 +322,13 @@ async function portalSetup(): Promise<{
 
 describe('Leumi encrypted flow with a synthetic peer', () => {
   const originalFetch = globalThis.fetch;
+
+  beforeAll(async () => {
+    // The active config seeds every candidate route; add the sentinel stop.
+    await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
+    registerWkUrl('synthetic.sentinel', HINT, `${ORIGIN}/sentinel`);
+  });
+
   afterEach(() => {
     globalThis.fetch = originalFetch;
   });

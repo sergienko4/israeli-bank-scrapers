@@ -11,9 +11,9 @@
  *     pipeline.log
  *     network/<NNNN>-<METHOD>-<safe-url>.json
  *
- * `<bank>` comes from the execution's run scope. Outside a scope, tests may
- * register one explicitly with `setActiveBank(slug)`; there is no look at
- * `process.argv`. Throws when no bank can be resolved — there is no run
+ * `<bank>` comes from the execution's run scope. There is no process-global
+ * bank: outside a scope no artefact paths are produced. A run is only started
+ * after `PipelineExecutor` has validated the company id — there is no run
  * without a bank.
  * `cc` is centiseconds (1/100 s) for sub-second uniqueness across parallel
  * jest invocations.
@@ -25,24 +25,21 @@
  * no longer decides whether artefacts land on disk.
  *
  * The root comes from the environment boundary (`RUNS_ROOT`). Folder paths
- * and `runId` are cached within one bank run and reset automatically when
- * `setActiveBank` switches to a different bank slug.
+ * and `runId` are allocated once per run scope, so two overlapping runs never
+ * share either.
  */
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-import { type BankSlugLower, KNOWN_BANK_SLUGS } from './BankSlugs.js';
+import type { BankSlugLower } from './BankSlugs.js';
 import type { Brand } from './Brand.js';
 import { activeEnvironment } from './Environment.js';
-import { currentRunScope, type IRunTrace, makeRunTrace } from './RunScope.js';
+import { currentRunScope, type IRunTrace } from './RunScope.js';
 import ensurePrivateRunRoot from './SecureRunRoot.js';
 import type { RunStampStr } from './TraceStamp.js';
-import { nextRunStamp, resetRunStampState } from './TraceStamp.js';
+import { nextRunStamp } from './TraceStamp.js';
 
-/** Lowercase bank slug (or empty). */
-/** setActiveBank acceptance outcome. */
-type DidAcceptBank = Brand<boolean, 'DidAcceptBank'>;
 /** Forensic-trace active flag. */
 type IsForensicTraceActive = Brand<boolean, 'IsForensicTraceActive'>;
 /** Absolute run folder path (or empty when off-trace). */
@@ -56,71 +53,23 @@ const PIPELINE_LOG_FILE = 'pipeline.log';
 const PIPELINE_SEGMENT = 'pipeline';
 
 /**
- * Run identity and artefact folders for code running outside every
- * `executePipeline` scope (pre-run log lines, tests driving a phase directly).
- * Inside a scope the scope owns its own copy, so nothing here is shared.
+ * The run identity the caller belongs to.
+ * @returns The running execution's trace, or false outside every execution.
  */
-const GLOBAL_TRACE: IRunTrace = makeRunTrace();
-/** Active bank for this process — set dynamically by the pipeline orchestrator. */
-let activeBankCache: string | false = false;
-/**
- * Clear per-run folder, network-dump, sub-step, and runId caches when the
- * active bank changes or during explicit test resets.
- * @returns True after clearing.
- */
-function clearRunCaches(): true {
-  GLOBAL_TRACE.folder = false;
-  GLOBAL_TRACE.runId = false;
-  return true;
-}
-
-/**
- * Register the active bank for this process. Called by the pipeline runner
- * at startup so `resolveBankSlug()` returns the active slug regardless of how
- * Jest/the test orchestrator was invoked. Idempotent for repeated calls with
- * the same bank; clears run caches when switching to a different bank slug. The
- * switch is judged against the process-global bank, never a running scope's bank,
- * because the caches it clears are the process-global ones.
- * @param slug - Lowercase bank slug (must be in KNOWN_BANK_SLUGS).
- * @returns True when accepted, false when the slug is unknown.
- */
-export function setActiveBank(slug: string): DidAcceptBank {
-  const normalised = slug.trim().toLowerCase();
-  if (!normalised || !KNOWN_BANK_SLUGS.includes(normalised)) return false as DidAcceptBank;
-  if (globalBankSlug() !== normalised) clearRunCaches();
-  activeBankCache = normalised;
-  return true as DidAcceptBank;
-}
-
-/**
- * The run identity the caller belongs to: the running execution's own, or the
- * process-global fallback outside every execution.
- * @returns The trace whose caches the accessors below read and fill.
- */
-function traceOwner(): IRunTrace {
+function traceOwner(): IRunTrace | false {
   const scope = currentRunScope();
-  return scope ? scope.trace : GLOBAL_TRACE;
+  return scope ? scope.trace : false;
 }
 
 /**
- * The process-global bank: the slug tests or pre-run callers registered.
- * @returns Bank slug, or empty string when not yet known.
- */
-function globalBankSlug(): BankSlugLower {
-  return (activeBankCache || '') as BankSlugLower;
-}
-
-/**
- * Resolve the bank slug for this process. Tries the dynamically-registered
- * slug first (via `setActiveBank`), then falls through to argv detection.
- * Returns `''` when neither yields a known slug; the caller decides how to
- * handle the missing slug (see `getRunFolder` for the trace-mode behaviour).
- * @returns Bank slug, or empty string when not yet known.
+ * Resolve the bank slug of the running execution. Reads only the current run
+ * scope, so two overlapping executions cannot observe each other's bank.
+ * @returns Bank slug, or empty string outside every execution.
  */
 function resolveBankSlug(): BankSlugLower {
   const scope = currentRunScope();
-  if (scope) return scope.bank.trim().toLowerCase() as BankSlugLower;
-  return globalBankSlug();
+  if (!scope) return '' as BankSlugLower;
+  return scope.bank.trim().toLowerCase() as BankSlugLower;
 }
 
 /**
@@ -137,19 +86,19 @@ function isForensicTrace(): IsForensicTraceActive {
 }
 
 /**
- * Per-bank-run unique identifier — `DD-MM-YYYY_HHMMSScc` stamp cached for the
- * active bank and reset when {@link setActiveBank} switches banks. Used as
- * the `runId` field auto-injected on every log line via the pino mixin in
- * `BankContext.ts`, and as the leaf folder name when trace-mode artefacts are
- * written. Returns `''` only when no bank slug has been resolved yet —
- * pre-`setActiveBank` log lines simply omit the field.
+ * Per-run unique identifier — `DD-MM-YYYY_HHMMSScc` stamp allocated once per
+ * run scope. Used as the `runId` field auto-injected on every log line via the
+ * pino mixin in `BankContext.ts`, and as the leaf folder name when trace-mode
+ * artefacts are written. Returns `''` outside a run scope, so pre-run log
+ * lines simply omit the field.
  *
- * @returns The run-stamp string, or empty when bank is not yet known.
+ * @returns The run-stamp string, or empty outside a run scope.
  */
 export function getActiveRunId(): RunStampStr {
   const bank = resolveBankSlug();
   if (bank.length === 0) return '' as RunStampStr;
   const trace = traceOwner();
+  if (trace === false) return '' as RunStampStr;
   if (trace.runId) return trace.runId as RunStampStr;
   trace.runId = nextRunStamp();
   return trace.runId as RunStampStr;
@@ -188,15 +137,14 @@ function makeRunFolder(seed: IRunSeed): string {
 }
 
 /**
- * Lazily resolve the per-process run folder
+ * Lazily resolve the running execution's run folder
  * `<RUNS_ROOT>/pipeline/<bank>/<DDMMYY-HHMMSScc>/`. Path format is the same
  * for every log level. Returns `''` when forensic capture is disabled
- * (`FORENSIC_TRACE` not `true`) OR when no bank has been registered yet —
+ * (`FORENSIC_TRACE` not `true`) OR when the caller is outside every run scope —
  * letting module-init code (e.g. Debug.ts's pino transport setup at import
- * time) safely fall back to console-only without forcing a bank registration
- * before imports resolve. The "no run without
- * bank" rule is enforced at pipeline start by `PipelineExecutor` calling
- * `setActiveBank(companyId)` and failing if the slug isn't recognised.
+ * time) safely fall back to console-only before a run starts. The "no run
+ * without bank" rule is enforced at pipeline start by `PipelineExecutor`
+ * checking the company id before it opens the run scope.
  * Reuses {@link getActiveRunId}'s cached stamp so the on-disk folder
  * leaf and the in-log `runId` field always match. The opt-in flag is
  * re-checked on every call ahead of the cache, so clearing `FORENSIC_TRACE`
@@ -205,7 +153,7 @@ function makeRunFolder(seed: IRunSeed): string {
  */
 function getRunFolder(): RunFolderPath {
   const trace = traceOwner();
-  if (!isForensicTrace() || trace.isClosed) return '' as RunFolderPath;
+  if (trace === false || !isForensicTrace() || trace.isClosed) return '' as RunFolderPath;
   if (trace.folder) return trace.folder as RunFolderPath;
   const seed = runSeed();
   if (seed === false) return '' as RunFolderPath;
@@ -215,8 +163,8 @@ function getRunFolder(): RunFolderPath {
 
 /**
  * Pipeline-log destination inside the run folder. Empty string when off
- * trace (so Pino transport falls back to terminal-only without a bank
- * needing to register).
+ * trace or outside a run scope (so Pino transport falls back to
+ * terminal-only before a run starts).
  * @returns Absolute log file path, or empty string off-trace.
  */
 export function getLogFile(): LogFilePath {
@@ -228,7 +176,7 @@ export function getLogFile(): LogFilePath {
 /**
  * Mark the running execution's trace finished, so a late async callback cannot
  * allocate a new folder or reopen its log file. Outside an execution this does
- * nothing: the process-global fallback stays open for the next ambient run.
+ * nothing.
  * @returns True after closing.
  */
 export function closeActiveRunTrace(): true {
@@ -237,18 +185,4 @@ export function closeActiveRunTrace(): true {
   return true;
 }
 
-/**
- * Reset cached folders. Test-only — production callers should never need
- * this. Used by Jest's jest.resetModules path; exported so unit tests can
- * exercise different env-var combinations cleanly.
- * @returns True after reset.
- */
-export function resetTraceConfigCache(): true {
-  clearRunCaches();
-  activeBankCache = false;
-  resetRunStampState();
-  return true;
-}
-
 export { isKnownBankSlug } from './BankSlugs.js';
-export { formatRunStamp } from './TraceStamp.js';

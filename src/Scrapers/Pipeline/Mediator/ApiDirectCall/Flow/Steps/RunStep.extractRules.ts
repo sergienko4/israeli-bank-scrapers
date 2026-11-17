@@ -298,4 +298,4 @@ function ruleStepCarry(
   return applyExtractRules({ step: fireScope.step, resp, carry, stepUrl: urlProc.value, scope });
 }
 
-export { applyExtractRules, ruleStepCarry };
+export default ruleStepCarry;

@@ -106,7 +106,7 @@ check its body, header and text-capture slots before they reach carry.
 `headerExtractsToCarry` or `textCaptures` to an `IExtractRule`. Once the
 step's carry is read,
 `ruleStepCarry` (in `Flow/Steps/RunStep.extractRules.ts`) resolves the step's URL
-and `applyExtractRules` checks each ruled slot:
+and `ruleStepCarry` checks each ruled slot:
 
 ```ts
 optionalExtractsToCarry: { state: { pointer: '/state' } },

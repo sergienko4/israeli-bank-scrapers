@@ -11,36 +11,15 @@ import { jest } from '@jest/globals';
 import type pino from 'pino';
 
 import ScraperError from '../../../../Scrapers/Base/ScraperError.js';
+import retireSupersededLogger from '../../../../Scrapers/Pipeline/Logging/RetireTransport.js';
 import {
   buildPinoOptions,
   buildSilentOptions,
   getRootLogger,
   getRootLoggerGeneration,
 } from '../../../../Scrapers/Pipeline/Logging/RootLogger.js';
+import { type IPinoStream, loggerWithStream, readPinoStream } from '../../../Helpers/PinoStream.js';
 
-/**
- * Read Pino's internal `Symbol(pino.stream)` property off `logger` across
- * `jest.resetModules()` boundaries (where each VM realm creates its own Symbol).
- * @param logger - Pino logger instance.
- * @returns Underlying transport stream object.
- */
-function readPinoStream(logger: object): {
-  fd?: number;
-  closed?: boolean;
-  destroyed?: boolean;
-  emit?: (event: 'error', err: Error) => boolean;
-} {
-  const sym = Object.getOwnPropertySymbols(logger).find(
-    (candidate): boolean => candidate.description === 'pino.stream',
-  );
-  if (!sym) return {};
-  return Reflect.get(logger, sym) as {
-    fd?: number;
-    closed?: boolean;
-    destroyed?: boolean;
-    emit?: (event: 'error', err: Error) => boolean;
-  };
-}
 /** Portable RUNS_ROOT so Linux CI never creates a `C:\` directory. */
 const UPGRADE_TMP_ROOT = os.tmpdir();
 const UPGRADE_RUNS_ROOT = path.join(UPGRADE_TMP_ROOT, 'test-runs-rootlogger-upgrade');
@@ -52,23 +31,27 @@ interface ISwitchedRun {
   readonly tag: string;
   readonly logFile: string;
   readonly logger: pino.Logger;
-  readonly lease: { readonly fd: number; readonly isClosed: boolean } | false;
-  readonly stream: {
-    closed?: boolean;
-    destroyed?: boolean;
-    emit?: (event: 'error', err: Error) => boolean;
-  };
+  readonly stream: IPinoStream;
+  readonly wasOpenBeforeRetire: boolean;
 }
 
 interface ITraceHarness {
-  readonly setActiveBank: (slug: string) => boolean;
   readonly getLogFile: () => string;
 }
 
 interface IRootHarness {
   readonly getRootLogger: () => pino.Logger;
-  readonly getActiveRootFileLeaseForTest: () =>
-    { readonly fd: number; readonly isClosed: boolean } | false;
+  readonly retireRunLogger: () => boolean;
+}
+
+/** Opens a bank scope and restores the previous async context afterwards. */
+type RunWithBankContext = <T>(bank: string, fn: () => T) => T;
+
+/** The loaded modules a sequential run capture drives. */
+interface IRunModules {
+  readonly runWithBankContext: RunWithBankContext;
+  readonly trace: ITraceHarness;
+  readonly root: IRootHarness;
 }
 
 /**
@@ -90,29 +73,29 @@ async function waitUntil(
 }
 
 /**
- * Run a sequence of alternating bank switches, emitting one tagged record per
- * switch and capturing the destination, logger, and underlying Pino stream.
- * @param trace - Loaded TraceConfig module.
- * @param root - Loaded RootLogger module.
+ * Run a sequence of alternating banks, each in its own run scope, emitting one
+ * tagged record per run and retiring that run's destination at run end.
+ * @param modules - Loaded TraceConfig, RootLogger, and bank-context entry point.
  * @param banks - Ordered bank slugs to activate.
- * @returns Captured per-switch run entries.
+ * @returns Captured per-run entries.
  */
 function captureAlternatingSwitches(
-  trace: ITraceHarness,
-  root: IRootHarness,
+  modules: IRunModules,
   banks: readonly string[],
 ): ISwitchedRun[] {
   return banks.map((bank, idx): ISwitchedRun => {
     const tag = `switch-record-${String(idx)}`;
-    trace.setActiveBank(bank);
-    const logFile = trace.getLogFile();
-    const logger = root.getRootLogger();
-    const lease = root.getActiveRootFileLeaseForTest();
-    for (let lineIdx = 0; lineIdx < BURST_RECORDS_PER_SWITCH; lineIdx += 1) {
-      logger.info({ msg: `${tag}-line-${String(lineIdx)}` });
-    }
-    const stream = readPinoStream(logger);
-    return { tag, logFile, logger, lease, stream };
+    return modules.runWithBankContext(bank, (): ISwitchedRun => {
+      const logFile = modules.trace.getLogFile();
+      const logger = modules.root.getRootLogger();
+      const stream = readPinoStream(logger);
+      const wasOpenBeforeRetire = stream.closed !== true;
+      for (let lineIdx = 0; lineIdx < BURST_RECORDS_PER_SWITCH; lineIdx += 1) {
+        logger.info({ msg: `${tag}-line-${String(lineIdx)}` });
+      }
+      modules.root.retireRunLogger();
+      return { tag, logFile, logger, stream, wasOpenBeforeRetire };
+    });
   });
 }
 
@@ -125,7 +108,6 @@ function assertSupersededRunsFlushedAndClosed(superseded: readonly ISwitchedRun[
   for (const entry of superseded) {
     expect(entry.stream.closed).toBe(true);
     expect(entry.stream.destroyed).toBe(true);
-    expect(entry.lease !== false && entry.lease.isClosed).toBe(true);
     const content = fs.readFileSync(entry.logFile, 'utf8');
     for (let lineIdx = 0; lineIdx < BURST_RECORDS_PER_SWITCH; lineIdx += 1) {
       expect(content).toContain(`${entry.tag}-line-${String(lineIdx)}`);
@@ -221,74 +203,79 @@ describe('Feature — root logger rebuilds exactly once on destination upgrade',
     jest.resetModules();
   });
 
-  it('holds the pre-bank logger, then swaps once when setActiveBank lands', async () => {
+  it('holds the pre-bank logger, then swaps once when a bank scope opens', async () => {
     process.env.FORENSIC_TRACE = 'true';
     process.env.RUNS_ROOT = UPGRADE_RUNS_ROOT;
     jest.resetModules();
     const trace = await import('../../../../Scrapers/Pipeline/Types/TraceConfig.js');
     const root = await import('../../../../Scrapers/Pipeline/Logging/RootLogger.js');
-    trace.resetTraceConfigCache();
+    const bankContext = await import('../../../../Scrapers/Pipeline/Logging/BankContext.js');
     const preBankFile = trace.getLogFile();
     expect(preBankFile).toBe('');
     const preBank = root.getRootLogger();
     const preBankAgain = root.getRootLogger();
     expect(preBankAgain).toBe(preBank);
     const generationBeforeBank = root.getRootLoggerGeneration();
-    trace.setActiveBank('pepper');
-    const postBankFile = trace.getLogFile();
-    expect(postBankFile.length).toBeGreaterThan(0);
-    const postBank = root.getRootLogger();
-    expect(postBank).not.toBe(preBank);
-    const generationAfterBank = root.getRootLoggerGeneration();
-    expect(generationAfterBank).toBe(generationBeforeBank + 1);
-    const postBankAgain = root.getRootLogger();
-    expect(postBankAgain).toBe(postBank);
-    const generationSettled = root.getRootLoggerGeneration();
-    expect(generationSettled).toBe(generationAfterBank);
+    const observed = bankContext.runWithBankContext('pepper', () => {
+      const postBankFile = trace.getLogFile();
+      const postBank = root.getRootLogger();
+      const generationAfterBank = root.getRootLoggerGeneration();
+      const postBankAgain = root.getRootLogger();
+      const generationSettled = root.getRootLoggerGeneration();
+      root.retireRunLogger();
+      return {
+        postBankFile,
+        postBank,
+        generationAfterBank,
+        postBankAgain,
+        generationSettled,
+      };
+    });
+    expect(observed.postBankFile.length).toBeGreaterThan(0);
+    expect(observed.postBank).not.toBe(preBank);
+    expect(observed.generationAfterBank).toBe(generationBeforeBank + 1);
+    expect(observed.postBankAgain).toBe(observed.postBank);
+    expect(observed.generationSettled).toBe(observed.generationAfterBank);
   });
 
-  it('drains and closes superseded file-transport workers across repeated alternating bank switches', async () => {
+  it('drains and closes each run’s file-transport worker across repeated alternating banks', async () => {
     fs.rmSync(SWITCH_RUNS_ROOT, { recursive: true, force: true });
     process.env.FORENSIC_TRACE = 'true';
     process.env.RUNS_ROOT = SWITCH_RUNS_ROOT;
     jest.resetModules();
     const trace = await import('../../../../Scrapers/Pipeline/Types/TraceConfig.js');
     const root = await import('../../../../Scrapers/Pipeline/Logging/RootLogger.js');
-    trace.resetTraceConfigCache();
+    const bankContext = await import('../../../../Scrapers/Pipeline/Logging/BankContext.js');
     const preBank = root.getRootLogger();
     const stdoutStream = readPinoStream(preBank);
     const banks = ['pepper', 'hapoalim', 'pepper', 'hapoalim'] as const;
-    const runs = captureAlternatingSwitches(trace, root, banks);
-    const superseded = runs.slice(0, 3);
-    const active = runs[3];
+    const modules: IRunModules = {
+      runWithBankContext: bankContext.runWithBankContext,
+      trace,
+      root,
+    };
+    const runs = captureAlternatingSwitches(modules, banks);
     /**
-     * Check whether all superseded streams closed and the active file flushed.
+     * Check whether every run's stream closed and its file holds the last line.
      * @returns True once settled.
      */
     const isSettled = (): boolean => {
-      const isEveryClosed = superseded.every(
-        entry => entry.stream.closed === true && entry.lease !== false && entry.lease.isClosed,
-      );
-      if (!isEveryClosed || !fs.existsSync(active.logFile)) return false;
-      const activeText = fs.readFileSync(active.logFile, 'utf8');
-      return activeText.includes(`${active.tag}-line-${String(BURST_RECORDS_PER_SWITCH - 1)}`);
+      const isEveryClosed = runs.every(entry => entry.stream.closed === true);
+      if (!isEveryClosed) return false;
+      return runs.every(entry => {
+        if (!fs.existsSync(entry.logFile)) return false;
+        const text = fs.readFileSync(entry.logFile, 'utf8');
+        return text.includes(`${entry.tag}-line-${String(BURST_RECORDS_PER_SWITCH - 1)}`);
+      });
     };
-    active.logger.flush();
     const didSettle = await waitUntil(isSettled);
     expect(didSettle).toBe(true);
     expect(stdoutStream.fd).toBe(1);
     expect(stdoutStream.closed).not.toBe(true);
-    assertSupersededRunsFlushedAndClosed(superseded);
-    expect(active.stream.closed).not.toBe(true);
-    expect(active.lease !== false && active.lease.isClosed).toBe(false);
-    await assertRetiredStreamErrorRouting(superseded[0]);
-    trace.resetTraceConfigCache();
-    root.getRootLogger();
-    const didRetireActive = await waitUntil(
-      (): boolean =>
-        active.stream.closed === true && active.lease !== false && active.lease.isClosed,
-    );
-    expect(didRetireActive).toBe(true);
+    const didEveryRunStartOpen = runs.every(entry => entry.wasOpenBeforeRetire);
+    expect(didEveryRunStartOpen).toBe(true);
+    assertSupersededRunsFlushedAndClosed(runs);
+    await assertRetiredStreamErrorRouting(runs[0]);
   });
 
   it('never invokes blocking end() and keeps the event loop responsive when a retired worker stalls', async () => {
@@ -334,8 +321,8 @@ describe('Feature — root logger rebuilds exactly once on destination upgrade',
       worker: { terminate: terminateSpy },
     };
     try {
-      const retire = await import('../../../../Scrapers/Pipeline/Logging/RetireTransport.js');
-      retire.scheduleStreamClose(stalledStream, 40);
+      const stalledLogger = loggerWithStream(stalledStream);
+      retireSupersededLogger(stalledLogger, false, 40);
       const tickStart = performance.now();
       await new Promise<true>(resolve => {
         setTimeout(resolve, 10, true);

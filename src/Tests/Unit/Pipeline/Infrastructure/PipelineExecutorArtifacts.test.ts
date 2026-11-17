@@ -19,19 +19,13 @@ import type { ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
 import executePipeline from '../../../../Scrapers/Pipeline/Core/Executor/PipelineExecutor.js';
 import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
 import { getDebug } from '../../../../Scrapers/Pipeline/Logging/Debug.js';
-import type { IFileLease } from '../../../../Scrapers/Pipeline/Logging/FileLease.js';
-import {
-  getActiveRootFileLeaseForTest,
-  getRootLogger,
-} from '../../../../Scrapers/Pipeline/Logging/RootLogger.js';
+import { getRootLogger } from '../../../../Scrapers/Pipeline/Logging/RootLogger.js';
 import type { IActionContext } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
-import {
-  getLogFile,
-  resetTraceConfigCache,
-} from '../../../../Scrapers/Pipeline/Types/TraceConfig.js';
-import { awaitLeaseClosed, pause } from './LogDrain.js';
+import { getLogFile } from '../../../../Scrapers/Pipeline/Types/TraceConfig.js';
+import { hasPinoStream, type IPinoStream, readPinoStream } from '../../../Helpers/PinoStream.js';
+import { awaitCondition, pause } from './LogDrain.js';
 import { SimplePhase } from './SimplePhase.js';
 
 const TMP_BASE = os.tmpdir();
@@ -43,7 +37,7 @@ const ROOT_PREFIX = path.join(TMP_BASE, 'test-runs-executor-artifacts-');
  */
 const ROOTS: string[] = [];
 const CURRENT = { root: '' };
-const OPENED_LEASES: IFileLease[] = [];
+const OPENED_STREAMS: IPinoStream[] = [];
 const CREDENTIALS = { username: 'user', password: 'pass' };
 const LINES_PER_HALF = 5;
 const LINES_PER_RUN = LINES_PER_HALF * 2;
@@ -75,8 +69,8 @@ interface IRunGates {
 interface IStartedRun {
   readonly gates: IRunGates;
   readonly result: ReturnType<typeof executePipeline>;
-  /** Whether this run's own file descriptor was still open at each check, in order. */
-  readonly isLeaseOpen: boolean[];
+  /** Whether this run's own logger transport was still open at each check, in order. */
+  readonly isLoggerOpen: boolean[];
 }
 
 /** The retained logs, keyed by the absolute path of each `pipeline.log`. */
@@ -131,23 +125,26 @@ function logHalf(label: string, half: string): true {
 }
 
 /**
- * Whether the running execution's own file descriptor is still open.
- * @returns True while the lease exists and has not been closed.
+ * Whether the running execution's own log transport is still open.
+ * @returns True while its worker stream has not closed or been destroyed.
  */
-function isOwnLeaseOpen(): boolean {
-  const lease = getActiveRootFileLeaseForTest();
-  if (lease !== false) OPENED_LEASES.push(lease);
-  return lease !== false && !lease.isClosed;
+function isOwnLoggerOpen(): boolean {
+  const logger = getRootLogger();
+  const hasStream = hasPinoStream(logger);
+  expect(hasStream).toBe(true);
+  const stream = readPinoStream(logger);
+  OPENED_STREAMS.push(stream);
+  return stream.closed !== true && stream.destroyed !== true;
 }
 
 /**
  * The action one run executes: log, park, log again.
  * @param label - The run's tag.
  * @param gates - The run's barriers.
- * @param isLeaseOpen - Where the run records whether its own descriptor is still open.
+ * @param isLoggerOpen - Where the run records whether its own logger is still open.
  * @returns The action.
  */
-function loggingAction(label: string, gates: IRunGates, isLeaseOpen: boolean[]): ActionFn {
+function loggingAction(label: string, gates: IRunGates, isLoggerOpen: boolean[]): ActionFn {
   /**
    * Log the first half, park, then log the second half.
    * @param _ctx - Unused.
@@ -158,8 +155,8 @@ function loggingAction(label: string, gates: IRunGates, isLeaseOpen: boolean[]):
     logHalf(label, 'first');
     gates.halfWritten.open();
     await gates.resume.wait();
-    const isOpen = isOwnLeaseOpen();
-    isLeaseOpen.push(isOpen);
+    const isOpen = isOwnLoggerOpen();
+    isLoggerOpen.push(isOpen);
     logHalf(label, 'second');
     return succeed(input);
   };
@@ -174,14 +171,14 @@ function loggingAction(label: string, gates: IRunGates, isLeaseOpen: boolean[]):
  */
 async function startRun(companyId: CompanyTypes, label: string): Promise<IStartedRun> {
   const gates: IRunGates = { halfWritten: makeGate(), resume: makeGate() };
-  const isLeaseOpen: boolean[] = [];
+  const isLoggerOpen: boolean[] = [];
   const options = { companyId, startDate: new Date('2024-01-01') } as unknown as ScraperOptions;
-  const action = loggingAction(label, gates, isLeaseOpen);
+  const action = loggingAction(label, gates, isLoggerOpen);
   const phase = new SimplePhase('api-direct-call', action);
   const descriptor: IPipelineDescriptor = { options, phases: [phase] };
   const result = executePipeline(descriptor, CREDENTIALS);
   await gates.halfWritten.wait();
-  return { gates, result, isLeaseOpen };
+  return { gates, result, isLoggerOpen };
 }
 
 /**
@@ -319,24 +316,24 @@ function runAction(companyId: CompanyTypes, action: ActionFn): ReturnType<typeof
 }
 
 /**
- * An action that logs, remembers its own file descriptor, then switches capture off.
- * @param held - Where the run's descriptor lease is kept.
+ * An action that logs, remembers its own log transport, then switches capture off.
+ * @param held - Where the run's logger stream is kept.
  * @returns The action.
  */
-function switchOffMidRunAction(held: IFileLease[]): ActionFn {
+function switchOffMidRunAction(held: IPinoStream[]): ActionFn {
   /**
-   * Log, keep the lease, clear `FORENSIC_TRACE`.
+   * Log, keep the stream, clear `FORENSIC_TRACE`.
    * @param _ctx - Unused.
    * @param input - The context to pass through.
    * @returns The context, unchanged.
    */
   const act: ActionFn = (_ctx, input) => {
     logHalf('run-a', 'first');
-    const lease = getActiveRootFileLeaseForTest();
-    if (lease !== false) held.push(lease);
-    if (lease !== false) OPENED_LEASES.push(lease);
+    const logger = getRootLogger();
+    const stream = readPinoStream(logger);
+    held.push(stream);
+    OPENED_STREAMS.push(stream);
     process.env.FORENSIC_TRACE = 'false';
-    resetTraceConfigCache();
     const done = succeed(input);
     return Promise.resolve(done);
   };
@@ -360,7 +357,7 @@ function silentAction(
 /** What a callback that outlived its run found when it touched the run's artefacts. */
 interface ILateFindings {
   logFile: string;
-  hasLease: boolean;
+  isFileBacked: boolean;
 }
 
 /**
@@ -397,8 +394,7 @@ async function touchAfterRelease(release: IGate, found: ILateFindings): Promise<
   await release.wait();
   getRootLogger();
   found.logFile = getLogFile();
-  const lease = getActiveRootFileLeaseForTest();
-  found.hasLease = lease !== false;
+  found.isFileBacked = found.logFile.length > 0;
   return true;
 }
 
@@ -410,12 +406,13 @@ describe('PipelineExecutor — retained artefacts under overlap (forensic on)', 
     ROOTS.push(CURRENT.root);
     process.env.FORENSIC_TRACE = 'true';
     process.env.RUNS_ROOT = CURRENT.root;
-    resetTraceConfigCache();
   });
 
   afterAll(async () => {
     const deadline = Date.now() + FLUSH_DEADLINE_MS;
-    const closing = OPENED_LEASES.map(lease => awaitLeaseClosed(lease, deadline));
+    const closing = OPENED_STREAMS.map(stream =>
+      awaitCondition((): boolean => stream.closed === true, deadline),
+    );
     await Promise.all(closing);
     for (const root of ROOTS) fs.rmSync(root, { recursive: true, force: true });
   });
@@ -425,7 +422,6 @@ describe('PipelineExecutor — retained artefacts under overlap (forensic on)', 
     else process.env.FORENSIC_TRACE = saved.forensic;
     if (saved.root === undefined) delete process.env.RUNS_ROOT;
     else process.env.RUNS_ROOT = saved.root;
-    resetTraceConfigCache();
     getRootLogger();
   });
 
@@ -469,13 +465,13 @@ describe('PipelineExecutor — retained artefacts under overlap (forensic on)', 
   });
 
   it('[ART-5] a run still retires its own destination when capture is switched off mid-run', async () => {
-    const held: IFileLease[] = [];
+    const held: IPinoStream[] = [];
     const action = switchOffMidRunAction(held);
     const result = await runAction(CompanyTypes.Beinleumi, action);
     expect(result.success).toBe(true);
     expect(held).toHaveLength(1);
     const deadline = Date.now() + FLUSH_DEADLINE_MS;
-    const isClosed = await awaitLeaseClosed(held[0], deadline);
+    const isClosed = await awaitCondition((): boolean => held[0].closed === true, deadline);
     expect(isClosed).toBe(true);
   });
 
@@ -485,7 +481,6 @@ describe('PipelineExecutor — retained artefacts under overlap (forensic on)', 
     const blocker = path.join(privateDir, 'not-a-directory');
     fs.writeFileSync(blocker, 'a file where the runs root should be');
     process.env.RUNS_ROOT = blocker;
-    resetTraceConfigCache();
     try {
       const result = await runAction(CompanyTypes.Beinleumi, silentAction);
       expect(result.success).toBe(false);
@@ -496,14 +491,14 @@ describe('PipelineExecutor — retained artefacts under overlap (forensic on)', 
 
   it('[ART-7] a callback that outlives its run cannot reopen the run’s destination', async () => {
     const release = makeGate();
-    const found: ILateFindings = { logFile: 'unset', hasLease: true };
+    const found: ILateFindings = { logFile: 'unset', isFileBacked: true };
     const late: Promise<true>[] = [];
     const action = lateCallbackAction(release, found, late);
     const result = await runAction(CompanyTypes.Beinleumi, action);
     expect(result.success).toBe(true);
     release.open();
     await Promise.all(late);
-    expect(found).toEqual({ logFile: '', hasLease: false });
+    expect(found).toEqual({ logFile: '', isFileBacked: false });
   });
 
   it('[ART-4] a run that finishes first does not close the descriptor of one still running', async () => {
@@ -513,7 +508,7 @@ describe('PipelineExecutor — retained artefacts under overlap (forensic on)', 
     await a.result;
     b.gates.resume.open();
     await b.result;
-    expect(b.isLeaseOpen).toEqual([true]);
-    expect(a.isLeaseOpen).toEqual([true]);
+    expect(b.isLoggerOpen).toEqual([true]);
+    expect(a.isLoggerOpen).toEqual([true]);
   });
 });

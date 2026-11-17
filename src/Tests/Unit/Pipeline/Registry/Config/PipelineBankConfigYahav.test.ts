@@ -9,6 +9,7 @@
  * (Pipeline tests don't statically import from Registry/Config).
  */
 
+import { CompanyTypes } from '../../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import {
   type IApiDirectRuleInput,
@@ -21,10 +22,13 @@ import type {
 } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { JsonValue } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Envelope/JsonPointer.js';
 import checkRequiredCreds from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RequiredCreds.js';
-import { applyExtractRules } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.extractRules.js';
+import ruleStepCarry from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.extractRules.js';
 import hydrate from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/GenericBodyTemplate.js';
+import { literalUrl } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { callOfModule } from '../../../../Helpers/BankConfigModule.js';
+import makeDispatchBundle from '../../../../Helpers/DispatchBundle.js';
+import { makeStubMediator } from '../../Mediator/ApiDirectCall/Flow/StubMediator.js';
 
 const CONFIG_MODULE = '../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigYahav.js';
 
@@ -54,6 +58,7 @@ const CARRY = {
 /** base64 of `CARRY.deviceId`'s text. */
 const DEVICE_ID_B64 =
   'YWJhYmFiYWJhYmFiYWJhYmFiYWJhYmFiYWJhYmFiYWJhYmFiYWJhYmFiYWJhYmFiYWJhYmFiYWJhYmFiYWJhYg==';
+const RULE_BUS = makeStubMediator({ responses: [], captures: [] });
 
 /** What the protocol trace sent at each step, for the values above. */
 const EXPECTED_HEADERS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
@@ -143,8 +148,15 @@ function isAccepted(
   carry: Record<string, JsonValue>,
 ): boolean {
   const scope = { carry, creds: CREDS, config: call };
-  const input = { step, resp: {}, carry, stepUrl: ORIGIN, scope };
-  return applyExtractRules(input).success;
+  const url = literalUrl(ORIGIN);
+  const bundle = makeDispatchBundle({
+    step,
+    scope,
+    companyId: CompanyTypes.Yahav,
+    url,
+    bus: RULE_BUS,
+  });
+  return ruleStepCarry(bundle, {}, carry).success;
 }
 
 describe('Yahav native login config — wiring', () => {

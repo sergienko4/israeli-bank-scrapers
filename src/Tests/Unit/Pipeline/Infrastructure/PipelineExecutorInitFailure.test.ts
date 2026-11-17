@@ -15,10 +15,11 @@ import { jest } from '@jest/globals';
 import { CompanyTypes } from '../../../../Definitions.js';
 import type { ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
 import ScraperError from '../../../../Scrapers/Base/ScraperError.js';
-import { leaseFor } from '../../../../Scrapers/Pipeline/Logging/LoggerSlots.js';
 import { getRootLogger } from '../../../../Scrapers/Pipeline/Logging/RootLogger.js';
 import { readEnvironment } from '../../../../Scrapers/Pipeline/Types/Environment.js';
 import { getLogFile } from '../../../../Scrapers/Pipeline/Types/TraceConfig.js';
+import { type IPinoStream, readPinoStream } from '../../../Helpers/PinoStream.js';
+import { awaitCondition } from './LogDrain.js';
 
 /** Platform temp root, read once. */
 const TEMP_ROOT = os.tmpdir();
@@ -29,8 +30,11 @@ const RUNS_ROOT = path.join(TEMP_ROOT, 'test-runs-executor-init-failure');
 /** Folder the mocked factory opened before throwing. */
 let openedFolder = '';
 
-/** Lease the mocked factory observed after opening the run logger. */
-let openedLease: ReturnType<typeof leaseFor> = false;
+/** Stream behind the logger the mocked factory opened before throwing. */
+let openedStream: IPinoStream | false = false;
+
+/** Close deadline for the retired logger's worker. */
+const CLOSE_DEADLINE_MS = 5_000;
 
 jest.unstable_mockModule('../../../../Scrapers/Pipeline/Core/PipelineContextFactory.js', () => ({
   /**
@@ -41,8 +45,8 @@ jest.unstable_mockModule('../../../../Scrapers/Pipeline/Core/PipelineContextFact
   default: (): never => {
     const logFile = getLogFile();
     openedFolder = path.dirname(logFile);
-    getRootLogger();
-    openedLease = leaseFor(logFile);
+    const logger = getRootLogger();
+    openedStream = readPinoStream(logger);
     throw new ScraperError('init failed after opening the run logger');
   },
 }));
@@ -60,7 +64,7 @@ describe('PipelineExecutor — synchronous init failure cleanup', () => {
   afterEach(() => {
     fs.rmSync(RUNS_ROOT, { recursive: true, force: true });
     openedFolder = '';
-    openedLease = false;
+    openedStream = false;
   });
 
   it('retires the run logger when context construction throws', async () => {
@@ -70,9 +74,13 @@ describe('PipelineExecutor — synchronous init failure cleanup', () => {
     const execution = EXECUTE_PIPELINE(descriptor, credentials, env);
     await expect(execution).rejects.toThrow('init failed after opening the run logger');
     expect(openedFolder).not.toBe('');
-    expect(openedLease).not.toBe(false);
-    const logFile = path.join(openedFolder, 'pipeline.log');
-    const lease = leaseFor(logFile);
-    expect(lease).toBe(false);
+    expect(openedStream).not.toBe(false);
+    if (openedStream === false) throw new ScraperError('mock did not open the run logger');
+    const stream = openedStream;
+    const didClose = await awaitCondition(
+      (): boolean => stream.closed === true,
+      Date.now() + CLOSE_DEADLINE_MS,
+    );
+    expect(didClose).toBe(true);
   });
 });

@@ -1,10 +1,15 @@
 /**
  * Test-harness bank detection. Production no longer reads `process.argv`; the
- * Jest setup calls this once per test file so trace artefacts and tests that
- * inspect the active bank keep the `<Bank>.e2e-real.test.ts` convention.
+ * test runner passes the bank from the execution scope, so this helper only
+ * keeps the `<Bank>.e2e-real.test.ts` file-name convention observable.
  */
 
-import { KNOWN_BANK_SLUGS } from '../../Scrapers/Pipeline/Types/BankSlugs.js';
+import { CompanyTypes } from '../../Definitions.js';
+
+/** Lowercase slugs of every public bank, matching the production run-scope slug. */
+const KNOWN_BANK_SLUGS: readonly string[] = Object.values(CompanyTypes).map(bank =>
+  bank.toLowerCase(),
+);
 
 /**
  * Build the regex that matches a bank slug in the canonical test-file name
@@ -28,6 +33,4 @@ function detectBankFromArgv(argv: readonly string[] = process.argv): string {
   return match ?? '';
 }
 
-export { detectBankFromArgv };
-
-export { KNOWN_BANK_SLUGS } from '../../Scrapers/Pipeline/Types/BankSlugs.js';
+export default detectBankFromArgv;

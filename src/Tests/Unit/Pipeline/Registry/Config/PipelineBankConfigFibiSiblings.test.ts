@@ -174,12 +174,11 @@ describe.each(SIBLINGS)('$companyId api-direct login config (Beinleumi group)', 
 
   it('registers its website as an api-direct account bank on that block', async () => {
     const { transportConfig } = await loadConfig(sibling);
-    const registry = (await import(`${CONFIG_DIR}PipelineBankConfig.js`)) as Record<
-      string,
-      unknown
-    >;
-    const entries = registry.PIPELINE_BANK_CONFIG as Record<string, unknown>;
+    const registry = (await import(`${CONFIG_DIR}PipelineBankConfig.js`)) as {
+      readonly resolvePipelineBankConfig: (companyId: CompanyTypes) => unknown;
+    };
     const expected = { urls: { base: sibling.site }, transport: transportConfig };
-    expect(entries[sibling.companyId]).toEqual(expected);
+    const actual = registry.resolvePipelineBankConfig(sibling.companyId);
+    expect(actual).toEqual(expected);
   });
 });

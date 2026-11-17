@@ -65,9 +65,7 @@ function resolveMocked(companyId: CompanyTypes): object | false {
 jest.unstable_mockModule(
   '../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js',
   () => ({
-    default: resolveMocked,
     resolvePipelineBankConfig: resolveMocked,
-    PIPELINE_BANK_CONFIG: {},
   }),
 );
 

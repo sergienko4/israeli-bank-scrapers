@@ -24,7 +24,7 @@ import {
   type IFileLease,
   instantiateLeasedFileLogger,
 } from '../../../../Scrapers/Pipeline/Logging/FileLease.js';
-import { retireSupersededLogger } from '../../../../Scrapers/Pipeline/Logging/RetireTransport.js';
+import retireSupersededLogger from '../../../../Scrapers/Pipeline/Logging/RetireTransport.js';
 import requestWorkerEnd from '../../../../Scrapers/Pipeline/Logging/RetireWorkerEnd.js';
 
 type ILeasedLoggerHooks = Parameters<typeof instantiateLeasedFileLogger>[0];

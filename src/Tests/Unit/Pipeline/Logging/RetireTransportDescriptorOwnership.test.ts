@@ -22,9 +22,8 @@ import { jest } from '@jest/globals';
 
 import ScraperError from '../../../../Scrapers/Base/ScraperError.js';
 import type { IFileLease } from '../../../../Scrapers/Pipeline/Logging/FileLease.js';
-import { scheduleStreamClose } from '../../../../Scrapers/Pipeline/Logging/RetireTransport.js';
-
-type IPinoStreamCandidate = Parameters<typeof scheduleStreamClose>[0];
+import retireSupersededLogger from '../../../../Scrapers/Pipeline/Logging/RetireTransport.js';
+import { type IPinoStream, loggerWithStream } from '../../../Helpers/PinoStream.js';
 import { awaitCondition } from '../Infrastructure/LogDrain.js';
 
 const STATE_WORDS = 32;
@@ -45,7 +44,7 @@ const INERT = { unref: unrefStub } as const;
 
 /** A fake worker stream plus the hooks a test drives it with. */
 interface IFakeWorker {
-  readonly stream: IPinoStreamCandidate;
+  readonly stream: IPinoStream;
   readonly hasListener: () => boolean;
   readonly close: () => boolean;
   readonly emitError: (message: string) => boolean;
@@ -83,7 +82,7 @@ interface IListenerLog {
  * @param log - Where registered listeners are kept.
  * @returns A `ThreadStream`-shaped candidate.
  */
-function makeIdleStream(log: IListenerLog): IPinoStreamCandidate {
+function makeIdleStream(log: IListenerLog): IPinoStream {
   const state = new Int32Array(STATE_WORDS);
   const idle = { state, ending: false, flushing: false, buf: '' };
   /**
@@ -111,7 +110,7 @@ function makeIdleStream(log: IListenerLog): IPinoStreamCandidate {
    * @returns Exit code 0.
    */
   const terminate = (): Promise<number> => Promise.resolve(0);
-  const stream: IPinoStreamCandidate = { closed: false, destroyed: false, once, on, ...INERT };
+  const stream: IPinoStream = { closed: false, destroyed: false, once, on, ...INERT };
   const withWorker = { ...stream, worker: { terminate } };
   const implSymbol = Symbol('kImpl');
   Object.defineProperty(withWorker, implSymbol, { value: idle });
@@ -172,12 +171,25 @@ function silentWarning(): true {
   return true;
 }
 
-describe('scheduleStreamClose — who closes the shared descriptor', () => {
+/**
+ * Retire a fake worker through the production entry point.
+ * @param worker - Fake worker to retire.
+ * @param lease - Owned lease on its log file.
+ * @param timeoutMs - Bounded drain window before termination.
+ * @returns Always true once retirement is scheduled.
+ */
+function retireWorker(worker: IFakeWorker, lease: IFileLease, timeoutMs: number): true {
+  const logger = loggerWithStream(worker.stream);
+  retireSupersededLogger(logger, lease, timeoutMs);
+  return true;
+}
+
+describe('retireSupersededLogger — who closes the shared descriptor', () => {
   it('[DSC-1] records the lease closed without closing the number after a graceful end', async () => {
     const { dir, lease } = openOwnedLease();
     const worker = makeFakeWorker();
     try {
-      scheduleStreamClose(worker.stream, WAIT_MS, lease);
+      retireWorker(worker, lease, WAIT_MS);
       const isListening = await awaitCondition(worker.hasListener, Date.now() + WAIT_MS);
       expect(isListening).toBe(true);
       worker.close();
@@ -196,7 +208,7 @@ describe('scheduleStreamClose — who closes the shared descriptor', () => {
     const worker = makeFakeWorker();
     const warn = jest.spyOn(process, 'emitWarning').mockImplementation(silentWarning);
     try {
-      scheduleStreamClose(worker.stream, SHORT_WATCHDOG_MS, lease);
+      retireWorker(worker, lease, SHORT_WATCHDOG_MS);
       const isReleased = await awaitCondition((): boolean => lease.isClosed, Date.now() + WAIT_MS);
       expect(isReleased).toBe(true);
       const isOpen = isFdOpen(lease.fd);
@@ -212,7 +224,7 @@ describe('scheduleStreamClose — who closes the shared descriptor', () => {
     const worker = makeFakeWorker();
     const warn = jest.spyOn(process, 'emitWarning').mockImplementation(silentWarning);
     try {
-      scheduleStreamClose(worker.stream, WAIT_MS, lease);
+      retireWorker(worker, lease, WAIT_MS);
       const isListening = await awaitCondition(worker.hasListener, Date.now() + WAIT_MS);
       expect(isListening).toBe(true);
       worker.emitError('disk full');
@@ -231,7 +243,7 @@ describe('scheduleStreamClose — who closes the shared descriptor', () => {
     const { dir, lease } = openOwnedLease();
     const worker = makeFakeWorker();
     try {
-      scheduleStreamClose(worker.stream, WAIT_MS, lease);
+      retireWorker(worker, lease, WAIT_MS);
       const isListening = await awaitCondition(worker.hasListener, Date.now() + WAIT_MS);
       expect(isListening).toBe(true);
       worker.emitError('the worker is ending');
