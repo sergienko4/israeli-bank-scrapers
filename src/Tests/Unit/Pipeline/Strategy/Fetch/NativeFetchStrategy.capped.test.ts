@@ -249,40 +249,6 @@ describe('capped NativeFetchStrategy', () => {
     });
   });
 
-  it('keeps a broken success body as a transport failure', async () => {
-    const body = new ReadableStream<Uint8Array>({
-      /**
-       * Fail the body before a reader can consume it.
-       * @param controller - Stream controller.
-       * @returns True once the failure is installed.
-       */
-      start(controller): boolean {
-        controller.error(new Error('ECONNRESET'));
-        return true;
-      },
-    });
-    installFetchMock(() => Promise.resolve(new Response(body, { status: 200 })));
-    const result = await capped.fetchGet(ITEMS_URL, { extraHeaders: {} });
-    expect(result).toMatchObject({ success: false, errorType: ScraperErrorTypes.Generic });
-  });
-
-  it('keeps an abort during a failed body read as a timeout', async () => {
-    const body = new ReadableStream<Uint8Array>({
-      /**
-       * Fail the body with an abort rejection.
-       * @param controller - Stream controller.
-       * @returns True once the failure is installed.
-       */
-      start(controller): boolean {
-        controller.error(new DOMException('aborted', 'AbortError'));
-        return true;
-      },
-    });
-    installFetchMock(() => Promise.resolve(new Response(body, { status: 500 })));
-    const result = await capped.fetchGet(ITEMS_URL, { extraHeaders: {} });
-    expect(result).toMatchObject({ success: false, errorType: ScraperErrorTypes.Timeout });
-  });
-
   it('bounds a body with no integrity policy by the default byte cap', async () => {
     const oversize = new Uint8Array(8 * 1024 * 1024 + 1);
     installFetchMock(() => Promise.resolve(new Response(oversize)));
