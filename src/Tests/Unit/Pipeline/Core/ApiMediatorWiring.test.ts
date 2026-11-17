@@ -11,13 +11,69 @@ import { jest } from '@jest/globals';
 
 import { CompanyTypes } from '../../../../Definitions.js';
 import type { ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
-import { resolveApiMediator } from '../../../../Scrapers/Pipeline/Core/ApiMediatorWiring.js';
 import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
 import { isSome } from '../../../../Scrapers/Pipeline/Types/Option.js';
+
+/** One bank's pipeline config, as the resolver returns it. */
+interface IBankConfig {
+  readonly urls: { readonly base: string };
+  readonly transport?: {
+    readonly identityBase: string;
+    readonly graphql: string;
+    readonly paths: Readonly<Record<string, string>>;
+    readonly nativeFetch?: boolean;
+    readonly clientCert?: { readonly mode: 'dynamic'; readonly origin: string };
+    readonly redirectPolicy?: 'reject';
+  };
+}
 
 const PHONE_VALIDATE_URL = 'https://apipin.payboxapp.com/api/2.0/phoneValidate';
 const PHONE_VALIDATE_BODY = { phoneNum: '+972-50-0000000', isVoiceCall: false };
 const PHONE_VALIDATE_REPLY = { code: 0, content: { access_token: 'synthetic-access-token' } };
+
+/** Synthetic wiring configs: only the transport block matters here. */
+const CONFIGS: Partial<Record<CompanyTypes, IBankConfig>> = {
+  [CompanyTypes.Leumi]: { urls: { base: 'https://www.leumi.co.il' } },
+  [CompanyTypes.OneZero]: {
+    urls: { base: 'https://www.onezerobank.com' },
+    transport: {
+      identityBase: 'https://identity.onezero.example',
+      graphql: 'https://graphql.onezero.example',
+      paths: {},
+      clientCert: { mode: 'dynamic', origin: 'https://identity.onezero.example' },
+    },
+  },
+  [CompanyTypes.PayBox]: {
+    urls: { base: 'https://www.payboxapp.com/' },
+    transport: {
+      identityBase: 'https://apipin.payboxapp.com/api/2.0/',
+      graphql: 'https://apipin.payboxapp.com/api/2.0/',
+      paths: { 'identity.phoneValidate': PHONE_VALIDATE_URL },
+      nativeFetch: true,
+      redirectPolicy: 'reject',
+    },
+  },
+};
+
+/**
+ * Resolve from the synthetic table above; Leumi deliberately has no transport.
+ * @param companyId - Bank named in the descriptor.
+ * @returns Its config, or false when unregistered.
+ */
+function resolveMocked(companyId: CompanyTypes): IBankConfig | false {
+  return CONFIGS[companyId] ?? false;
+}
+
+jest.unstable_mockModule(
+  '../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js',
+  () => ({ resolvePipelineBankConfig: resolveMocked }),
+);
+
+const SEEDER =
+  await import('../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigSeeder.js');
+SEEDER.default(CONFIGS);
+const API_MEDIATOR_WIRING = await import('../../../../Scrapers/Pipeline/Core/ApiMediatorWiring.js');
+const RESOLVE_API_MEDIATOR = API_MEDIATOR_WIRING.resolveApiMediator;
 
 /**
  * Build a minimal descriptor for a bank.
@@ -30,30 +86,18 @@ function makeDescriptor(companyId: CompanyTypes): IPipelineDescriptor {
 }
 
 describe('resolveApiMediator — none() cases', () => {
-  it('returns none() when a bank has no headless config block', async () => {
-    const registry =
-      await import('../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
-    const bank = CompanyTypes.Leumi;
-    const original = registry.PIPELINE_BANK_CONFIG[bank];
-    if (original === undefined) throw new TypeError('missing bank configuration');
-    const { transport: transportConfig, ...withoutTransport } = original;
-    expect(transportConfig).toBeDefined();
-    registry.PIPELINE_BANK_CONFIG[bank] = withoutTransport;
-    try {
-      const descriptor = makeDescriptor(bank);
-      const option = resolveApiMediator(descriptor);
-      const isPresent = isSome(option);
-      expect(isPresent).toBe(false);
-    } finally {
-      registry.PIPELINE_BANK_CONFIG[bank] = original;
-    }
+  it('returns none() when a bank has no headless config block', () => {
+    const descriptor = makeDescriptor(CompanyTypes.Leumi);
+    const option = RESOLVE_API_MEDIATOR(descriptor);
+    const isPresent = isSome(option);
+    expect(isPresent).toBe(false);
   });
 });
 
 describe('resolveApiMediator — some(mediator) cases', () => {
-  it('wires a mTLS mediator for OneZero (requiresClientCert)', () => {
+  it('wires a mTLS mediator for OneZero (dynamic client certificate)', () => {
     const descriptor = makeDescriptor(CompanyTypes.OneZero);
-    const option = resolveApiMediator(descriptor);
+    const option = RESOLVE_API_MEDIATOR(descriptor);
     const isPresent = isSome(option);
     expect(isPresent).toBe(true);
     if (isSome(option)) {
@@ -64,7 +108,7 @@ describe('resolveApiMediator — some(mediator) cases', () => {
 
   it('wires a Node-fetch mediator for PayBox (nativeFetch)', () => {
     const descriptor = makeDescriptor(CompanyTypes.PayBox);
-    const option = resolveApiMediator(descriptor);
+    const option = RESOLVE_API_MEDIATOR(descriptor);
     const isPresent = isSome(option);
     expect(isPresent).toBe(true);
     if (isSome(option)) {
@@ -83,7 +127,7 @@ describe('resolveApiMediator — PayBox native transport', () => {
     const answer = new Response(JSON.stringify(PHONE_VALIDATE_REPLY), { status: 200, headers });
     const fetch = jest.spyOn(globalThis, 'fetch').mockResolvedValue(answer);
     const descriptor = makeDescriptor(CompanyTypes.PayBox);
-    const option = resolveApiMediator(descriptor);
+    const option = RESOLVE_API_MEDIATOR(descriptor);
     if (!isSome(option)) throw new TypeError('PayBox resolved no mediator');
     const result = await option.value.apiPost('identity.phoneValidate', PHONE_VALIDATE_BODY);
     expect(result).toEqual({ success: true, value: PHONE_VALIDATE_REPLY });

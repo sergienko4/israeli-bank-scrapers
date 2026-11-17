@@ -251,13 +251,12 @@ function createRetirementCtx(
  * Drain a retired `ThreadStream`, end every destination, and terminate the
  * worker only when the graceful end exceeds `timeoutMs` — never calling the
  * synchronous `Atomics.wait`-backed `end()` on the main event loop.
- * @internal
  * @param stream - Owned `ThreadStream` from the superseded root logger.
  * @param timeoutMs - Bounded drain window before forcing worker termination.
  * @param lease - Optional owned file-descriptor lease closed after worker exit.
  * @returns True after scheduling non-blocking retirement.
  */
-export function scheduleStreamClose(
+function scheduleStreamClose(
   stream: IPinoStreamCandidate,
   timeoutMs: number = RETIRED_FLUSH_TIMEOUT_MS,
   lease: IFileLease | false = false,
@@ -287,15 +286,16 @@ function extractRetirableStream(previous: Logger | false): IPinoStreamCandidate 
  * bounded termination fallback), and `fs.close`.
  * @param previous - Superseded root logger (or `false` on first build).
  * @param lease - Owned file-descriptor lease paired with `previous` (or `false`).
+ * @param timeoutMs - Bounded drain window before forcing worker termination.
  * @returns Branded boolean true when a worker transport was scheduled for retirement.
  */
-export function retireSupersededLogger(
+export default function retireSupersededLogger(
   previous: Logger | false,
   lease: IFileLease | false,
+  timeoutMs: number = RETIRED_FLUSH_TIMEOUT_MS,
 ): DidRetireLogger {
   const stream = extractRetirableStream(previous);
-  if (stream)
-    return scheduleStreamClose(stream, RETIRED_FLUSH_TIMEOUT_MS, lease) as DidRetireLogger;
+  if (stream) return scheduleStreamClose(stream, timeoutMs, lease) as DidRetireLogger;
   closeFileLeaseAsync(lease, emitRetiredDrainWarning);
   return false as DidRetireLogger;
 }

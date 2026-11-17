@@ -2,27 +2,31 @@
  * Stress and allocation baseline for the run-stamp generator (`TraceStamp.ts`):
  * measure before optimizing.
  *
- * Drives only the public API (`nextRunStamp` with injected `nowMs`, plus
- * `resetRunStampState`) with 10,000 and 100,000 synthetic stamps under five
- * clock shapes, asserts the invariants exactly (format, uniqueness, the exact
- * slot sequence), records time / heap numerics as one greppable
- * `TRACE_STAMP_BASELINE {json}` line, and asserts budgets with >= 5x headroom.
- * No disk writes and no real clock waits: every instant is injected.
+ * Drives only the production surface (`nextRunStamp` with injected `nowMs`)
+ * with 10,000 and 100,000 synthetic stamps under five clock shapes, asserts the
+ * invariants exactly (format, uniqueness, the exact slot sequence), records time
+ * / heap numerics as one greppable `TRACE_STAMP_BASELINE {json}` line, and
+ * asserts budgets with >= 5x headroom. Each isolated pass loads a fresh module
+ * (`jest.resetModules()`), because monotonic state is intentionally
+ * module-scoped. No disk writes and no real clock waits: every instant is
+ * injected.
  */
 
 import * as os from 'node:os';
 
-import ScraperError from '../../../../Scrapers/Base/ScraperError.js';
-import type { RunStampStr } from '../../../../Scrapers/Pipeline/Types/TraceStamp.js';
-import {
-  formatRunStamp,
-  nextRunStamp,
-  resetRunStampState,
-} from '../../../../Scrapers/Pipeline/Types/TraceStamp.js';
+import { jest } from '@jest/globals';
 
+import ScraperError from '../../../../Scrapers/Base/ScraperError.js';
+import type * as TraceStampModuleType from '../../../../Scrapers/Pipeline/Types/TraceStamp.js';
+import type { RunStampStr } from '../../../../Scrapers/Pipeline/Types/TraceStamp.js';
+import formatRunStamp from '../../../Helpers/RunStampFormat.js';
+
+type TraceStampModule = typeof TraceStampModuleType;
 type ScenarioName =
   'same-instant' | 'monotonic' | 'clock-rollback' | 'dst-fold-sweep' | 'dst-fold-chain';
 type InstantFn = (index: number, size: number) => number;
+
+const MODULE_PATH = '../../../../Scrapers/Pipeline/Types/TraceStamp.js';
 
 /** One (scenario, size) cell of the matrix. */
 interface ICase {
@@ -134,6 +138,26 @@ const HEAP_GROWTH_FLOOR_MB = 0.5;
 const BASELINE = new Map<string, ICaseResult>();
 const CURVES: ICurvePoint[] = [];
 let collectMs = 0;
+/** Module instance currently driving the timed loop. */
+let stampModule: TraceStampModule | undefined;
+
+/**
+ * Load a fresh TraceStamp module so monotonic stamp state starts empty.
+ * @returns The typed module exports.
+ */
+async function freshTraceStamp(): Promise<TraceStampModule> {
+  jest.resetModules();
+  return (await import(MODULE_PATH)) as TraceStampModule;
+}
+
+/**
+ * The module driving the current measured or verified pass.
+ * @returns The loaded TraceStamp module.
+ */
+function stampApi(): TraceStampModule {
+  if (stampModule === undefined) throw new ScraperError('TraceStamp module not loaded');
+  return stampModule;
+}
 
 /**
  * Stable map key for a matrix cell.
@@ -353,8 +377,9 @@ function heapUsedAfterGc(): number {
  */
 function timeBatch(instants: Float64Array, start: number): number {
   const end = Math.min(start + BATCH_SIZE, instants.length);
+  const nextStamp = stampApi().nextRunStamp;
   const t0 = process.hrtime.bigint();
-  for (let index = start; index < end; index++) nextRunStamp(instants[index]);
+  for (let index = start; index < end; index++) nextStamp(instants[index]);
   const t1 = process.hrtime.bigint();
   return Number(t1 - t0) / (end - start);
 }
@@ -406,9 +431,9 @@ function timeRun(instants: Float64Array, batchNs: number[]): ITimedRun {
  * @param instants - Injected instants.
  * @returns Timing and heap numerics.
  */
-function measurePass(instants: Float64Array): IMeasured {
+async function measurePass(instants: Float64Array): Promise<IMeasured> {
   const batchNs: number[] = [];
-  resetRunStampState();
+  stampModule = await freshTraceStamp();
   const heapBefore = heapUsedAfterGc();
   const { thrown, wallMs } = timeRun(instants, batchNs);
   const heapAfter = heapUsedAfterGc();
@@ -425,8 +450,9 @@ function measurePass(instants: Float64Array): IMeasured {
  * @returns True once all instants were issued.
  */
 function issueInto(instants: Float64Array, stamps: RunStampStr[]): boolean {
+  const nextStamp = stampApi().nextRunStamp;
   for (const nowMs of instants) {
-    const stamp = nextRunStamp(nowMs);
+    const stamp = nextStamp(nowMs);
     stamps.push(stamp);
   }
   return true;
@@ -468,9 +494,9 @@ function isMalformed(stamp: string): boolean {
  * @param test - The (scenario, size) cell.
  * @returns Invariant counters.
  */
-function verifyPass(instants: Float64Array, test: ICase): IInvariants {
+async function verifyPass(instants: Float64Array, test: ICase): Promise<IInvariants> {
   const stamps: RunStampStr[] = [];
-  resetRunStampState();
+  stampModule = await freshTraceStamp();
   const thrown = guardedIssue(instants, stamps);
   const mismatches = countMismatches(stamps, test.scenario, test.size);
   const malformed = stamps.filter(isMalformed).length;
@@ -494,15 +520,14 @@ function guardedIssue(instants: Float64Array, stamps: RunStampStr[]): string {
 }
 
 /**
- * Measure and verify one cell, resetting stamp state around each pass.
+ * Measure and verify one cell, reloading the module between the two passes.
  * @param test - The (scenario, size) cell.
  * @returns Full result for the cell.
  */
-function runCase(test: ICase): ICaseResult {
+async function runCase(test: ICase): Promise<ICaseResult> {
   const instants = buildInstants(CLOCKS[test.scenario], test.size);
-  const measured = measurePass(instants);
-  const invariants = verifyPass(instants, test);
-  resetRunStampState();
+  const measured = await measurePass(instants);
+  const invariants = await verifyPass(instants, test);
   const bytesPerStamp = (measured.heapMb * BYTES_PER_MB) / Math.max(invariants.issued, 1);
   return { ...test, measured, invariants, bytesPerStamp };
 }
@@ -511,10 +536,11 @@ function runCase(test: ICase): ICaseResult {
  * Throwaway warm-up so JIT compilation is not billed to the first cell.
  * @returns True once warm-up finished.
  */
-function warmUp(): boolean {
-  resetRunStampState();
-  for (let index = 0; index < WARM_UP_STAMPS; index++) nextRunStamp(SUMMER_START_MS);
-  return resetRunStampState();
+async function warmUp(): Promise<true> {
+  stampModule = await freshTraceStamp();
+  const nextStamp = stampModule.nextRunStamp;
+  for (let index = 0; index < WARM_UP_STAMPS; index++) nextStamp(SUMMER_START_MS);
+  return true;
 }
 
 /**
@@ -522,13 +548,12 @@ function warmUp(): boolean {
  * @param test - The (scenario, size) cell.
  * @returns Timing and heap for the cell.
  */
-function curvePoint(test: ICase): ICurvePoint {
+async function curvePoint(test: ICase): Promise<ICurvePoint> {
   const key = cellKey(test);
   const known = BASELINE.get(key);
   if (known !== undefined) return { ...test, measured: known.measured };
   const instants = buildInstants(CLOCKS[test.scenario], test.size);
-  const measured = measurePass(instants);
-  resetRunStampState();
+  const measured = await measurePass(instants);
   return { ...test, measured };
 }
 
@@ -620,40 +645,61 @@ function buildCurveCells(): ICase[] {
 }
 
 /**
- * Verify and measure every matrix cell.
- * @returns True once the matrix is populated.
+ * Measure and record one matrix cell.
+ * @param cell - The (scenario, size) cell.
+ * @returns True once recorded.
  */
-function runMatrix(): boolean {
-  for (const cell of buildMatrix()) {
-    const result = runCase(cell);
-    const key = cellKey(cell);
-    BASELINE.set(key, result);
-  }
+async function recordCase(cell: ICase): Promise<true> {
+  const result = await runCase(cell);
+  const key = cellKey(cell);
+  BASELINE.set(key, result);
   return true;
 }
 
 /**
- * Measure the growth-curve cells, reusing matrix cells where they coincide.
+ * Verify and measure every matrix cell sequentially.
+ * @returns True once the matrix is populated.
+ */
+function runMatrix(): Promise<true> {
+  const seed: Promise<true> = Promise.resolve<true>(true);
+  return buildMatrix().reduce<Promise<true>>(
+    (previous, cell) => previous.then(() => recordCase(cell)),
+    seed,
+  );
+}
+
+/**
+ * Measure and record one growth-curve cell.
+ * @param cell - The (scenario, size) cell.
+ * @returns True once recorded.
+ */
+async function recordCurve(cell: ICase): Promise<true> {
+  const point = await curvePoint(cell);
+  CURVES.push(point);
+  return true;
+}
+
+/**
+ * Measure the growth-curve cells sequentially, reusing matrix cells where they coincide.
  * @returns True once the curves are populated.
  */
-function runCurves(): boolean {
-  for (const cell of buildCurveCells()) {
-    const point = curvePoint(cell);
-    CURVES.push(point);
-  }
-  return true;
+function runCurves(): Promise<true> {
+  const seed: Promise<true> = Promise.resolve<true>(true);
+  return buildCurveCells().reduce<Promise<true>>(
+    (previous, cell) => previous.then(() => recordCurve(cell)),
+    seed,
+  );
 }
 
 /**
  * Run the matrix and the curves.
  * @returns True once the baseline is populated.
  */
-function collectBaseline(): boolean {
+async function collectBaseline(): Promise<true> {
   const startedAt = process.hrtime.bigint();
-  warmUp();
-  runMatrix();
-  runCurves();
-  resetRunStampState();
+  await warmUp();
+  await runMatrix();
+  await runCurves();
   const endedAt = process.hrtime.bigint();
   collectMs = Number(endedAt - startedAt) / NS_PER_MS;
   return true;
@@ -695,22 +741,23 @@ function sizeBounds(scenario: ScenarioName): readonly [ICaseResult, ICaseResult]
  * @param depth - Colliding run length to seed.
  * @returns True once seeded.
  */
-function seedFoldStamps(depth: number): boolean {
-  resetRunStampState();
-  for (let index = 0; index < depth; index++) nextRunStamp(FOLD_FIRST_PASS_MS);
+async function seedFoldStamps(depth: number): Promise<true> {
+  stampModule = await freshTraceStamp();
+  const nextStamp = stampModule.nextRunStamp;
+  for (let index = 0; index < depth; index++) nextStamp(FOLD_FIRST_PASS_MS);
   return true;
 }
 
 const MATRIX = buildMatrix();
 
 describe('TraceStamp stress baseline', () => {
-  beforeAll(() => {
-    collectBaseline();
+  beforeAll(async () => {
+    await collectBaseline();
     writeSummary();
   });
 
   afterAll(() => {
-    resetRunStampState();
+    stampModule = undefined;
   });
 
   it('[TSS-0] the host zone really folds local 01:xx twice (precondition)', () => {
@@ -765,12 +812,11 @@ describe('TraceStamp stress baseline', () => {
     expect(growth).toBeLessThan(HEAP_GROWTH_BUDGET);
   });
 
-  it('[TSS-9] a repeat-hour request after a chain far deeper than the old ceiling gets the exact next slot', () => {
-    seedFoldStamps(CHAIN_DEPTH);
-    const stamp = nextRunStamp(FOLD_SECOND_PASS_MS);
+  it('[TSS-9] a repeat-hour request after a chain far deeper than the old ceiling gets the exact next slot', async () => {
+    await seedFoldStamps(CHAIN_DEPTH);
+    const stamp = stampApi().nextRunStamp(FOLD_SECOND_PASS_MS);
     const nextFreeAt = new Date(FOLD_SECOND_PASS_MS + CHAIN_DEPTH * CENTISECOND_MS);
     const expected = formatRunStamp(nextFreeAt);
-    resetRunStampState();
     expect(stamp).toBe(expected);
   });
 });

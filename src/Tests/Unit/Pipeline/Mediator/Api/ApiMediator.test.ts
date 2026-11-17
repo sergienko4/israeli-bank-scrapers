@@ -15,19 +15,10 @@ import {
   HMAC_KEY_SLOT,
   HMAC_SIGNER_SLOT,
 } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.hmacHeaders.js';
-import {
-  createApiMediator,
-  createNativeApiMediator,
-  type IApiMediator,
-} from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
-import {
-  registerWkQuery,
-  resetWkRegistryForTest as resetWkQueriesForTest,
-} from '../../../../../Scrapers/Pipeline/Registry/WK/QueriesWK.js';
-import {
-  registerWkUrl,
-  resetWkRegistryForTest as resetWkUrlsForTest,
-} from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
+import type * as ApiMediatorModule from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
+import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
+import type * as QueriesWKModule from '../../../../../Scrapers/Pipeline/Registry/WK/QueriesWK.js';
+import type * as UrlsWKModule from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import type {
   IFetchOpts,
   IFetchStrategy,
@@ -151,14 +142,41 @@ class FakeGraphQLStrategy extends GraphQLFetchStrategy {
 /** The bank hint used for ApiMediator tests. */
 const HINT = CompanyTypes.OneZero;
 
+type ApiModule = typeof ApiMediatorModule;
+type QueriesModule = typeof QueriesWKModule;
+type UrlsModule = typeof UrlsWKModule;
+
+const API_MODULE = '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
+const QUERIES_MODULE = '../../../../../Scrapers/Pipeline/Registry/WK/QueriesWK.js';
+const URLS_MODULE = '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
+
+let api: ApiModule;
+let queries: QueriesModule;
+let urls: UrlsModule;
+
+beforeEach(async () => {
+  jest.resetModules();
+  urls = (await import(URLS_MODULE)) as UrlsModule;
+  queries = (await import(QUERIES_MODULE)) as QueriesModule;
+  api = (await import(API_MODULE)) as ApiModule;
+});
+
 /**
- * Wipe registered WK queries + URLs before each test.
- * @returns True once cleared.
+ * Register a URL in this test's fresh WK module instance.
+ * @param args - `registerWkUrl` arguments.
+ * @returns True once stored.
  */
-function resetRegistries(): boolean {
-  resetWkQueriesForTest();
-  resetWkUrlsForTest();
-  return true;
+function registerWkUrl(...args: Parameters<UrlsModule['registerWkUrl']>): true {
+  return urls.registerWkUrl(...args);
+}
+
+/**
+ * Register a query in this test's fresh WK module instance.
+ * @param args - `registerWkQuery` arguments.
+ * @returns True once stored.
+ */
+function registerWkQuery(...args: Parameters<QueriesModule['registerWkQuery']>): true {
+  return queries.registerWkQuery(...args);
 }
 
 /**
@@ -169,7 +187,7 @@ function resetRegistries(): boolean {
 function buildMediator(recorder: IRecorder): IApiMediator {
   const fetchStrategy = makeFetchStrategy(recorder);
   const graphqlStrategy = new FakeGraphQLStrategy(recorder);
-  return createApiMediator(HINT, fetchStrategy, graphqlStrategy);
+  return api.createApiMediator(HINT, fetchStrategy, graphqlStrategy);
 }
 
 /**
@@ -179,10 +197,6 @@ function buildMediator(recorder: IRecorder): IApiMediator {
 function keepNoCookies(): number {
   return 0;
 }
-
-beforeEach(() => {
-  resetRegistries();
-});
 
 describe('ApiMediator/apiPost', () => {
   it('resolves URL via WK and fires fetchPost with no auth header when bearer unset', async () => {
@@ -507,7 +521,7 @@ describe('ApiMediator/reuseContract', () => {
 
 describe('ApiMediator/createNativeApiMediator', () => {
   it('OZ-AM-03 — native createNativeApiMediator leaves dispose undefined', () => {
-    const mediator = createNativeApiMediator({
+    const mediator = api.createNativeApiMediator({
       bankHint: HINT,
       identityBaseUrl: 'https://id.example/v1/',
       graphqlUrl: 'https://gql.example/graphql',
@@ -519,7 +533,7 @@ describe('ApiMediator/createNativeApiMediator', () => {
     ['without cookie domains', { sessionCookies: true }, false],
     ['with cookie domains', { sessionCookies: true, cookieDomains: ['id.example'] }, true],
   ])('UT-CS-06 — native mediator cookie session %s', (_label, flags, isExposed) => {
-    const mediator = createNativeApiMediator({
+    const mediator = api.createNativeApiMediator({
       bankHint: HINT,
       identityBaseUrl: 'https://id.example/v1/',
       graphqlUrl: 'https://gql.example/graphql',
@@ -575,7 +589,7 @@ const POLICY_CALLS = [
  * @returns The mediator under test.
  */
 function buildPolicyMediator(options: INativeFetchOptions = {}): IApiMediator {
-  return createNativeApiMediator({
+  return api.createNativeApiMediator({
     bankHint: HINT,
     identityBaseUrl: 'https://id.example/v1/',
     graphqlUrl: 'https://gql.example/graphql',
@@ -662,7 +676,7 @@ describe('ApiMediator — redirect policy', () => {
       return Promise.resolve(redirect);
     }
     globalThis.fetch = answerRedirect;
-    const mediator = createNativeApiMediator({
+    const mediator = api.createNativeApiMediator({
       bankHint: HINT,
       identityBaseUrl: 'https://id.example/v1/',
       graphqlUrl: 'https://gql.example/graphql',
@@ -683,7 +697,7 @@ describe('ApiMediator — redirect policy', () => {
       return Promise.resolve(partial);
     }
     globalThis.fetch = answerPartial;
-    const mediator = createNativeApiMediator({
+    const mediator = api.createNativeApiMediator({
       bankHint: HINT,
       identityBaseUrl: 'https://id.example/v1/',
       graphqlUrl: 'https://gql.example/graphql',
@@ -708,7 +722,7 @@ describe('ApiMediator — redirect policy', () => {
     async ({ call }) => {
       const response = new Response(null, { status: 204 });
       jest.spyOn(globalThis, 'fetch').mockResolvedValue(response);
-      const mediator = createNativeApiMediator({
+      const mediator = api.createNativeApiMediator({
         bankHint: HINT,
         identityBaseUrl: 'https://id.example/v1/',
         graphqlUrl: 'https://gql.example/graphql',
@@ -727,7 +741,7 @@ describe('ApiMediator — redirect policy', () => {
       .mockRejectedValue(new Error('unexpected fetch'))
       .mockResolvedValueOnce(empty)
       .mockResolvedValueOnce(malformed);
-    const mediator = createNativeApiMediator({
+    const mediator = api.createNativeApiMediator({
       bankHint: HINT,
       identityBaseUrl: 'https://id.example/v1/',
       graphqlUrl: 'https://gql.example/graphql',

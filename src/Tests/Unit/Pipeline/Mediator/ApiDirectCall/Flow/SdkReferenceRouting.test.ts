@@ -10,10 +10,7 @@ import type {
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { runStep } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/RunStep.js';
 import { carriedUrlRulesOf } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.carriedUrlRules.js';
-import {
-  registerWkUrl,
-  resetWkRegistryForTest,
-} from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
+import { registerWkUrl } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import { fakeFetch } from '../../../../../Helpers/FakeFetch.js';
 import { makeNativeMediator } from '../../../../../Helpers/NativeStepHarness.js';
 
@@ -39,15 +36,17 @@ const CONFIG: IApiDirectCallConfig = { flow: 'sms-otp', envelope: {}, steps: [ST
 
 describe('SDK reference routing', () => {
   const originalFetch = globalThis.fetch;
-  beforeEach(() => {
-    resetWkRegistryForTest();
+
+  beforeAll(() => {
+    registerWkUrl('auth.bind', CompanyTypes.OneZero, `${ORIGIN}/gate/index`);
+    registerWkUrl('auth.bind', CompanyTypes.Hapoalim, `${ORIGIN}/start`);
   });
+
   afterEach(() => {
     globalThis.fetch = originalFetch;
   });
 
   it('passes a captured, allowlisted SDK URL to a later GET', async () => {
-    registerWkUrl('auth.bind', CompanyTypes.OneZero, `${ORIGIN}/gate/index`);
     const fake = fakeFetch(() => new Response('<script src="sdk.js"></script>'));
     globalThis.fetch = fake.fetchImpl as typeof globalThis.fetch;
     const bus = makeNativeMediator(CompanyTypes.OneZero, ORIGIN);
@@ -181,7 +180,6 @@ describe('SDK reference routing', () => {
   });
 
   it('resolves a relative script against the final redirect answer', async () => {
-    registerWkUrl('auth.bind', CompanyTypes.OneZero, `${ORIGIN}/start`);
     const fake = fakeFetch(url => {
       if (url.endsWith('/start')) {
         return new Response('', { status: 302, headers: { location: `${ORIGIN}/gate/index` } });
@@ -191,9 +189,9 @@ describe('SDK reference routing', () => {
     globalThis.fetch = fake.fetchImpl as typeof globalThis.fetch;
     const redirect = { maxHops: 1, allow: [{ origin: ORIGIN, paths: ['/gate/index'] }] };
     const step: IGetStep = { ...STEP, redirect };
-    const bus = makeNativeMediator(CompanyTypes.OneZero, ORIGIN);
+    const bus = makeNativeMediator(CompanyTypes.Hapoalim, ORIGIN);
     const scope = { carry: {}, creds: {}, config: CONFIG, keypair: undefined };
-    const result = await runStep({ step, scope, bus, companyId: CompanyTypes.OneZero });
+    const result = await runStep({ step, scope, bus, companyId: CompanyTypes.Hapoalim });
     expect(result).toMatchObject({
       success: true,
       value: { carry: { sdkUrl: `${ORIGIN}/gate/sdk.js` } },

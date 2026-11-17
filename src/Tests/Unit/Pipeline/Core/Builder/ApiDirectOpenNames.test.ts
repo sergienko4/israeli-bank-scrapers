@@ -5,17 +5,14 @@
  * letter, and URL groups are dot-separated name segments.
  */
 
+import { jest } from '@jest/globals';
+
 import { CompanyTypes } from '../../../../../Definitions.js';
 import {
   type IApiDirectRuleInput,
   validateApiDirectConfig,
 } from '../../../../../Scrapers/Pipeline/Core/Builder/Validation/ApiDirectConfigRules.js';
 import type { IStepConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
-import {
-  registerWkUrl,
-  resetWkRegistryForTest,
-  resolveWkUrl,
-} from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 
 const BAD_NAME = 'steps.name: must be 1-64 letters or digits, starting with a letter';
 const BAD_URL = 'steps.urlTag: must be dot-separated letters or digits';
@@ -40,10 +37,6 @@ function runOf(steps: readonly IStepConfig[]): IApiDirectRuleInput {
 }
 
 describe('validateApiDirectConfig — open step and URL names', () => {
-  afterEach(() => {
-    resetWkRegistryForTest();
-  });
-
   it('accepts a synthetic step and URL group without editing a shared union', () => {
     const step = stepOf('syntheticStep', 'synthetic.group');
     const input = runOf([step]);
@@ -51,7 +44,7 @@ describe('validateApiDirectConfig — open step and URL names', () => {
     expect(result).toEqual({ success: true, value: true });
   });
 
-  it('seeds and resolves a new typed transport group whose name starts with http', () => {
+  it('seeds and resolves a new typed transport group whose name starts with http', async () => {
     const group = 'http.login';
     const url = 'https://bank.example/login';
     const transport = {
@@ -67,14 +60,18 @@ describe('validateApiDirectConfig — open step and URL names', () => {
     const result = validateApiDirectConfig(input);
     expect(result).toEqual({ success: true, value: true });
 
-    registerWkUrl(group, CompanyTypes.OneZero, url);
-    const resolved = resolveWkUrl(group, CompanyTypes.OneZero);
+    jest.resetModules();
+    const wk = await import('../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js');
+    wk.registerWkUrl(group, CompanyTypes.OneZero, url);
+    const resolved = wk.resolveWkUrl(group, CompanyTypes.OneZero);
     expect(resolved).toEqual({ success: true, value: url });
   });
 
-  it('rejects a malformed transport-only group before registering', () => {
+  it('rejects a malformed transport-only group before registering', async () => {
+    jest.resetModules();
+    const wk = await import('../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js');
     expect(() => {
-      registerWkUrl('bad group', CompanyTypes.OneZero, 'https://bank.example/login');
+      wk.registerWkUrl('bad group', CompanyTypes.OneZero, 'https://bank.example/login');
     }).toThrow(/invalid WK url group/);
   });
 

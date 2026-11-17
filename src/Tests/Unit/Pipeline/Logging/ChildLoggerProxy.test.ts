@@ -250,7 +250,7 @@ describe('Feature — deferred proxy resolves its child once (worker-leak regres
 /**
  * Memoising the child is only safe if it is ALSO invalidated. These cases pin
  * the other half of the contract: a proxy that resolved a child against the
- * pre-`setActiveBank` root must pick up the upgraded root on its next access.
+ * pre-run-scope root must pick up the upgraded root on its next access.
  *
  * The observable is the logger's own `level`. Without the `PRETTY_LOGS`
  * opt-in the pre-bank root is transportless (`level: 'silent'`) and the
@@ -282,24 +282,22 @@ describe('Feature — deferred proxy invalidates its child on root upgrade', () 
     jest.resetModules();
   });
 
-  it('re-resolves the child when setActiveBank upgrades the destination', async () => {
+  it('re-resolves the child when a bank scope upgrades the destination', async () => {
     process.env.CI = 'true';
     process.env.FORENSIC_TRACE = 'true';
     process.env.RUNS_ROOT = UPGRADE_RUNS_ROOT;
     delete process.env.LOG_LEVEL;
     jest.resetModules();
-    const trace = await import('../../../../Scrapers/Pipeline/Types/TraceConfig.js');
+    const bankContext = await import('../../../../Scrapers/Pipeline/Logging/BankContext.js');
     const proxy = await import('../../../../Scrapers/Pipeline/Logging/ChildLoggerProxy.js');
-    trace.resetTraceConfigCache();
     const log = proxy.default('proxy-upgrade');
     const preBankLevel = log.level;
     expect(preBankLevel).toBe('silent');
-    trace.setActiveBank('pepper');
-    const postBankLevel = log.level;
+    const postBankLevel = bankContext.runWithBankContext('pepper', () => log.level);
     expect(postBankLevel).toBe('info');
   });
 
-  it('re-resolves retained .child() sub-loggers across bank switches after prior transports close', async () => {
+  it('re-resolves retained .child() sub-loggers across bank scopes after prior transports close', async () => {
     fs.rmSync(SUBCHILD_SWITCH_ROOT, { recursive: true, force: true });
     process.env.CI = 'true';
     process.env.FORENSIC_TRACE = 'true';
@@ -309,26 +307,35 @@ describe('Feature — deferred proxy invalidates its child on root upgrade', () 
     const trace = await import('../../../../Scrapers/Pipeline/Types/TraceConfig.js');
     const root = await import('../../../../Scrapers/Pipeline/Logging/RootLogger.js');
     const proxy = await import('../../../../Scrapers/Pipeline/Logging/ChildLoggerProxy.js');
-    trace.resetTraceConfigCache();
+    const bankContext = await import('../../../../Scrapers/Pipeline/Logging/BankContext.js');
     const log = proxy.default('proxy-sub');
     const sub = log.child({ correlationId: 'corr-1' });
     const nested = sub.child({ step: 'step-1' });
     expect(nested.level).toBe('silent');
-    trace.setActiveBank('pepper');
-    sub.info({ msg: 'pepper-line' });
-    const pepperRoot = root.getRootLogger();
-    const pepperStream = readPinoStream(pepperRoot);
-    trace.setActiveBank('hapoalim');
-    const hapoalimLogFile = trace.getLogFile();
-    expect(log.level).toBe('info');
+    const pepperStream = bankContext.runWithBankContext('pepper', () => {
+      sub.info({ msg: 'pepper-line' });
+      const pepperRoot = root.getRootLogger();
+      const stream = readPinoStream(pepperRoot);
+      root.retireRunLogger();
+      return stream;
+    });
     const isClosed = await waitUntil((): boolean => pepperStream.closed === true);
     expect(isClosed).toBe(true);
     expect(pepperStream.closed).toBe(true);
-    nested.info({ msg: 'hapoalim-after-pepper-closed' });
-    const hapoalimContent = await flushAndReadLogOnceContains(
-      root,
-      hapoalimLogFile,
-      'hapoalim-after-pepper-closed',
+    const hapoalimContent = await bankContext.runWithBankContext(
+      'hapoalim',
+      async (): Promise<string> => {
+        const hapoalimLogFile = trace.getLogFile();
+        expect(log.level).toBe('info');
+        nested.info({ msg: 'hapoalim-after-pepper-closed' });
+        const content = await flushAndReadLogOnceContains(
+          root,
+          hapoalimLogFile,
+          'hapoalim-after-pepper-closed',
+        );
+        root.retireRunLogger();
+        return content;
+      },
     );
     expect(hapoalimContent).toContain('hapoalim-after-pepper-closed');
     expect(hapoalimContent).toContain('"module":"proxy-sub"');
@@ -336,7 +343,7 @@ describe('Feature — deferred proxy invalidates its child on root upgrade', () 
     expect(hapoalimContent).toContain('"step":"step-1"');
   });
 
-  it('preserves mutable level overrides and setBindings() across bank switches', async () => {
+  it('preserves mutable level overrides and setBindings() across bank scopes', async () => {
     fs.rmSync(SUBCHILD_SWITCH_ROOT, { recursive: true, force: true });
     process.env.CI = 'true';
     process.env.FORENSIC_TRACE = 'true';
@@ -346,22 +353,27 @@ describe('Feature — deferred proxy invalidates its child on root upgrade', () 
     const trace = await import('../../../../Scrapers/Pipeline/Types/TraceConfig.js');
     const root = await import('../../../../Scrapers/Pipeline/Logging/RootLogger.js');
     const proxy = await import('../../../../Scrapers/Pipeline/Logging/ChildLoggerProxy.js');
-    trace.resetTraceConfigCache();
+    const bankContext = await import('../../../../Scrapers/Pipeline/Logging/BankContext.js');
     const log = proxy.default('proxy-mutable');
     const sub = createMutatedChild(log);
-    trace.setActiveBank('pepper');
-    applyMutatedBindingsAndLevel(sub);
-    expect(sub.level).toBe('debug');
-    trace.setActiveBank('hapoalim');
-    const hapoalimLogFile = trace.getLogFile();
-    expect(sub.level).toBe('debug');
-    sub.setBindings({ afterSwitch: 'also-yes' });
-    sub.debug({ msg: 'debug-with-replayed-bindings' });
-    const content = await flushAndReadLogOnceContains(
-      root,
-      hapoalimLogFile,
-      'debug-with-replayed-bindings',
-    );
+    bankContext.runWithBankContext('pepper', () => {
+      applyMutatedBindingsAndLevel(sub);
+      expect(sub.level).toBe('debug');
+      root.retireRunLogger();
+    });
+    const content = await bankContext.runWithBankContext('hapoalim', async (): Promise<string> => {
+      const hapoalimLogFile = trace.getLogFile();
+      expect(sub.level).toBe('debug');
+      sub.setBindings({ afterSwitch: 'also-yes' });
+      sub.debug({ msg: 'debug-with-replayed-bindings' });
+      const read = await flushAndReadLogOnceContains(
+        root,
+        hapoalimLogFile,
+        'debug-with-replayed-bindings',
+      );
+      root.retireRunLogger();
+      return read;
+    });
     expect(content).toContain('"beforeSwitch":"yes"');
     expect(content).toContain('"tag":"orig-upd"');
     expect(content).toContain('"stageTag":"orig-init"');
@@ -372,7 +384,7 @@ describe('Feature — deferred proxy invalidates its child on root upgrade', () 
     expect(content).toContain('"correlationId":"corr-m"');
   });
 
-  it('reconstructs sub-loggers with formatters.bindings requiring initial fields across bank switches', async () => {
+  it('reconstructs sub-loggers with formatters.bindings requiring initial fields across bank scopes', async () => {
     fs.rmSync(SUBCHILD_SWITCH_ROOT, { recursive: true, force: true });
     process.env.CI = 'true';
     process.env.FORENSIC_TRACE = 'true';
@@ -382,54 +394,60 @@ describe('Feature — deferred proxy invalidates its child on root upgrade', () 
     const trace = await import('../../../../Scrapers/Pipeline/Types/TraceConfig.js');
     const root = await import('../../../../Scrapers/Pipeline/Logging/RootLogger.js');
     const proxy = await import('../../../../Scrapers/Pipeline/Logging/ChildLoggerProxy.js');
-    trace.resetTraceConfigCache();
+    const bankContext = await import('../../../../Scrapers/Pipeline/Logging/BankContext.js');
     const log = proxy.default('proxy-fmt');
-    trace.setActiveBank('pepper');
-    const sub = log.child(
-      { tenant: 'bank-a' },
-      {
-        formatters: {
-          /**
-           * Formatter that throws if invoked without a string `tenant` field.
-           * @param bindings - Incoming bindings object.
-           * @returns Uppercased tenant binding.
-           */
-          bindings: (bindings: pino.Bindings): pino.Bindings => ({
-            ...bindings,
-            tenant: (bindings.tenant as string).toUpperCase(),
-          }),
+    const retained = bankContext.runWithBankContext('pepper', () => {
+      const sub = log.child(
+        { tenant: 'bank-a' },
+        {
+          formatters: {
+            /**
+             * Formatter that throws if invoked without a string `tenant` field.
+             * @param bindings - Incoming bindings object.
+             * @returns Uppercased tenant binding.
+             */
+            bindings: (bindings: pino.Bindings): pino.Bindings => ({
+              ...bindings,
+              tenant: (bindings.tenant as string).toUpperCase(),
+            }),
+          },
         },
-      },
-    );
-    const nestedPlain = sub.child({ step: 'nested-plain' });
-    const nestedFormatted = sub.child(
-      { tenant: 'bank-nested' },
-      {
-        formatters: {
-          /**
-           * Nested tenant-requiring formatter verifying deep child reconstruction.
-           * @param bindings - Incoming bindings object.
-           * @returns Uppercased tenant binding.
-           */
-          bindings: (bindings: pino.Bindings): pino.Bindings => ({
-            ...bindings,
-            tenant: (bindings.tenant as string).toUpperCase(),
-          }),
+      );
+      const nestedPlain = sub.child({ step: 'nested-plain' });
+      const nestedFormatted = sub.child(
+        { tenant: 'bank-nested' },
+        {
+          formatters: {
+            /**
+             * Nested tenant-requiring formatter verifying deep child reconstruction.
+             * @param bindings - Incoming bindings object.
+             * @returns Uppercased tenant binding.
+             */
+            bindings: (bindings: pino.Bindings): pino.Bindings => ({
+              ...bindings,
+              tenant: (bindings.tenant as string).toUpperCase(),
+            }),
+          },
         },
-      },
-    );
-    trace.setActiveBank('hapoalim');
-    const hapoalimLogFile = trace.getLogFile();
-    sub.info({ msg: 'after-switch-formatted' });
-    nestedPlain.info({ msg: 'nested-plain-after-switch' });
-    nestedFormatted.info({ msg: 'nested-formatted-after-switch' });
-    sub.setBindings({ tenant: 'bank-b' });
-    sub.info({ msg: 'after-setbindings-formatted' });
-    const content = await flushAndReadLogOnceContains(
-      root,
-      hapoalimLogFile,
-      'after-setbindings-formatted',
-    );
+      );
+      root.retireRunLogger();
+      return { sub, nestedPlain, nestedFormatted };
+    });
+    const content = await bankContext.runWithBankContext('hapoalim', async (): Promise<string> => {
+      const hapoalimLogFile = trace.getLogFile();
+      retained.sub.info({ msg: 'after-switch-formatted' });
+      retained.nestedPlain.info({ msg: 'nested-plain-after-switch' });
+      retained.nestedFormatted.info({ msg: 'nested-formatted-after-switch' });
+      retained.sub.setBindings({ tenant: 'bank-b' });
+      retained.sub.info({ msg: 'after-setbindings-formatted' });
+      const read = await flushAndReadLogOnceContains(
+        root,
+        hapoalimLogFile,
+        'after-setbindings-formatted',
+      );
+      root.retireRunLogger();
+      return read;
+    });
     expect(content).toContain('"tenant":"BANK-A"');
     expect(content).toContain('"step":"nested-plain"');
     expect(content).toContain('"tenant":"BANK-NESTED"');

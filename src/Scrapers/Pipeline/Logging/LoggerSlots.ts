@@ -18,7 +18,7 @@
 import type { Logger } from 'pino';
 
 import type { IFileLease, ILeasedLoggerResult } from './FileLease.js';
-import { retireSupersededLogger } from './RetireTransport.js';
+import retireSupersededLogger from './RetireTransport.js';
 
 /** One destination's logger, its descriptor lease and when it was built. */
 interface ILoggerSlot {
@@ -103,15 +103,6 @@ function generationFor(logFile: string): number {
 }
 
 /**
- * The descriptor lease of a destination, for unit-test cleanup assertions.
- * @param logFile - The destination.
- * @returns Its lease, or `false` when it has none.
- */
-function leaseFor(logFile: string): IFileLease | false {
-  return SLOTS.get(logFile)?.lease ?? false;
-}
-
-/**
  * Retire the destination a finished run owned. A terminal-only destination is
  * shared by every run and is left alone.
  * @param logFile - The finished run's recorded destination, or `false` when it had none.
@@ -121,4 +112,4 @@ function retireRunSlot(logFile: string | false): boolean {
   return logFile !== false && logFile.length > 0 && retireSlot(logFile);
 }
 
-export { generationFor, leaseFor, retireRunSlot, slotFor };
+export { generationFor, retireRunSlot, slotFor };

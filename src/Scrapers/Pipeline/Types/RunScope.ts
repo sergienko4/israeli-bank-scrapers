@@ -91,4 +91,4 @@ function openRunScope<T>(bank: string, env: IEnvironment, fn: () => T): T {
 }
 
 export type { IRunTrace };
-export { currentRunScope, makeRunTrace, noteRunLogFile, openRunScope };
+export { currentRunScope, noteRunLogFile, openRunScope };

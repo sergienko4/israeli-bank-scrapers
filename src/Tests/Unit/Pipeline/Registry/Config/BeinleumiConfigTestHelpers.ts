@@ -5,6 +5,7 @@
  * run its answer checks.
  */
 
+import { CompanyTypes } from '../../../../../Definitions.js';
 import type { IApiDirectRuleInput } from '../../../../../Scrapers/Pipeline/Core/Builder/Validation/ApiDirectConfigRules.js';
 import type {
   IApiDirectCallConfig,
@@ -13,10 +14,13 @@ import type {
 } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { JsonValue } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Envelope/JsonPointer.js';
 import classifyAnswer from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.classify.js';
-import { applyExtractRules } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.extractRules.js';
+import ruleStepCarry from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.extractRules.js';
 import hydrate from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/GenericBodyTemplate.js';
+import { literalUrl } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { callOfModule } from '../../../../Helpers/BankConfigModule.js';
+import makeDispatchBundle from '../../../../Helpers/DispatchBundle.js';
+import { makeStubMediator } from '../../Mediator/ApiDirectCall/Flow/StubMediator.js';
 
 const CONFIG_MODULE =
   '../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigBeinleumi.js';
@@ -69,6 +73,7 @@ const TRANSMIT_HEADERS = {
   origin: ORIGIN,
   referer: ENTRY,
 } as const;
+const RULE_BUS = makeStubMediator({ responses: [], captures: [] });
 
 /** The flow and user headers every Transmit envelope opens with. */
 const ENVELOPE_HEADERS = [
@@ -146,8 +151,15 @@ interface IAnswerRead {
 function isAccepted(step: IStepConfig, call: IApiDirectCallConfig, read: IAnswerRead): boolean {
   const { carry, priorCarry = {}, resp = {} } = read;
   const scope = { carry: priorCarry, creds: CREDS, config: call };
-  const input = { step, resp, carry, stepUrl: ENTRY, scope };
-  return applyExtractRules(input).success;
+  const url = literalUrl(ENTRY);
+  const bundle = makeDispatchBundle({
+    step,
+    scope,
+    companyId: CompanyTypes.Beinleumi,
+    url,
+    bus: RULE_BUS,
+  });
+  return ruleStepCarry(bundle, resp, carry).success;
 }
 
 /**

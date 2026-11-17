@@ -1,15 +1,78 @@
 /**
  * Unit tests for PipelineContextFactory's HTTP-mediator wiring —
- * covers the branches driven off PIPELINE_BANK_CONFIG.
+ * covers the branches driven off the resolved bank config.
  */
+
+import { jest } from '@jest/globals';
 
 import { CompanyTypes } from '../../../../Definitions.js';
 import type { ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
-import buildInitialContext from '../../../../Scrapers/Pipeline/Core/PipelineContextFactory.js';
 import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
+
+/** One bank's pipeline config, as the resolver returns it. */
+interface IBankConfig {
+  readonly urls: { readonly base: string };
+  readonly transport?: {
+    readonly identityBase: string;
+    readonly graphql: string;
+    readonly paths: Readonly<Record<string, string>>;
+    readonly nativeFetch?: boolean;
+    readonly clientCert?: { readonly mode: 'dynamic'; readonly origin: string };
+  };
+}
 
 /** Synthetic, unregistered bank — exercises the "no config" branch. */
 const UNREGISTERED_BANK = 'synthetic-unregistered' as unknown as CompanyTypes;
+
+/** Synthetic wiring configs: only the transport block matters here. */
+const CONFIGS: Partial<Record<CompanyTypes, IBankConfig>> = {
+  [CompanyTypes.OneZero]: {
+    urls: { base: 'https://www.onezerobank.com' },
+    transport: {
+      identityBase: 'https://identity.onezero.example',
+      graphql: 'https://graphql.onezero.example',
+      paths: {},
+      clientCert: { mode: 'dynamic', origin: 'https://identity.onezero.example' },
+    },
+  },
+  [CompanyTypes.Pepper]: {
+    urls: { base: 'https://www.pepper.co.il' },
+    transport: {
+      identityBase: 'https://identity.pepper.example',
+      graphql: 'https://graphql.pepper.example',
+      paths: {},
+      nativeFetch: true,
+    },
+  },
+  [CompanyTypes.PayBox]: {
+    urls: { base: 'https://www.payboxapp.com/' },
+    transport: {
+      identityBase: 'https://apipin.payboxapp.com/api/2.0/',
+      graphql: 'https://apipin.payboxapp.com/api/2.0/',
+      paths: {},
+      nativeFetch: true,
+    },
+  },
+  [CompanyTypes.Leumi]: { urls: { base: 'https://www.leumi.co.il' } },
+};
+
+/**
+ * Resolve from the synthetic table above; Leumi deliberately has no transport.
+ * @param companyId - Bank named in the descriptor.
+ * @returns Its config, or false when unregistered.
+ */
+function resolveMocked(companyId: CompanyTypes): IBankConfig | false {
+  return CONFIGS[companyId] ?? false;
+}
+
+jest.unstable_mockModule(
+  '../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js',
+  () => ({ resolvePipelineBankConfig: resolveMocked }),
+);
+
+const PIPELINE_CONTEXT_FACTORY =
+  await import('../../../../Scrapers/Pipeline/Core/PipelineContextFactory.js');
+const BUILD_INITIAL_CONTEXT = PIPELINE_CONTEXT_FACTORY.default;
 
 /**
  * Build a minimal descriptor for a bank.
@@ -40,42 +103,30 @@ describe('PipelineContextFactory — headless mediator wiring', () => {
       hasMediator: false,
     },
     {
-      name: 'Leumi config: apiMediator populated',
-      companyId: CompanyTypes.Leumi,
+      name: 'Pepper config: apiMediator populated',
+      companyId: CompanyTypes.Pepper,
       hasMediator: true,
     },
   ] as const;
 
   it.each(apiMediatorCases)('$name', ({ companyId, hasMediator }) => {
     const descriptor = makeDescriptor(companyId);
-    const ctx = buildInitialContext(
+    const ctx = BUILD_INITIAL_CONTEXT(
       descriptor,
-      {} as unknown as Parameters<typeof buildInitialContext>[1],
+      {} as unknown as Parameters<typeof BUILD_INITIAL_CONTEXT>[1],
     );
     expect(ctx.apiMediator.has).toBe(hasMediator);
   });
 
-  it('leaves the mediator empty when a registered bank has no headless block', async () => {
-    const registry =
-      await import('../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
-    const bank = CompanyTypes.Leumi;
-    const original = registry.PIPELINE_BANK_CONFIG[bank];
-    if (original === undefined) throw new TypeError('missing bank configuration');
-    const { transport: transportConfig, ...withoutTransport } = original;
-    expect(transportConfig).toBeDefined();
-    registry.PIPELINE_BANK_CONFIG[bank] = withoutTransport;
-    try {
-      const descriptor = makeDescriptor(bank);
-      const ctx = buildInitialContext(descriptor, { id: 'syn', password: 'syn' });
-      expect(ctx.apiMediator.has).toBe(false);
-    } finally {
-      registry.PIPELINE_BANK_CONFIG[bank] = original;
-    }
+  it('leaves the mediator empty when a registered bank has no headless block', () => {
+    const descriptor = makeDescriptor(CompanyTypes.Leumi);
+    const ctx = BUILD_INITIAL_CONTEXT(descriptor, { id: 'syn', password: 'syn' });
+    expect(ctx.apiMediator.has).toBe(false);
   });
 
-  it('buildInitialContext returns a well-formed context for an unregistered bank', () => {
+  it('BUILD_INITIAL_CONTEXT returns a well-formed context for an unregistered bank', () => {
     const descriptor = makeDescriptor(UNREGISTERED_BANK);
-    const ctx = buildInitialContext(descriptor, { id: 'syn', password: 'syn' });
+    const ctx = BUILD_INITIAL_CONTEXT(descriptor, { id: 'syn', password: 'syn' });
     expect(ctx.options.companyId).toBe(UNREGISTERED_BANK);
     expect(ctx.apiMediator.has).toBe(false);
     expect(ctx.windowEnd.has).toBe(false);
@@ -96,9 +147,9 @@ describe('PipelineContextFactory — headless mediator wiring', () => {
   nativeNoDisposeCases.forEach(({ testId, bankName, companyId }) => {
     it(`${testId} — ${bankName} (nativeFetch=true): mediator exposes no dispose hook`, () => {
       const descriptor = makeDescriptor(companyId);
-      const ctx = buildInitialContext(
+      const ctx = BUILD_INITIAL_CONTEXT(
         descriptor,
-        {} as unknown as Parameters<typeof buildInitialContext>[1],
+        {} as unknown as Parameters<typeof BUILD_INITIAL_CONTEXT>[1],
       );
       expect(ctx.apiMediator.has).toBe(true);
       if (ctx.apiMediator.has) {
@@ -107,11 +158,11 @@ describe('PipelineContextFactory — headless mediator wiring', () => {
     });
   });
 
-  it('OZ-PCF-01 — OneZero (requiresClientCert=true): mTLS mediator exposes no dispose hook', () => {
+  it('OZ-PCF-01 — OneZero (dynamic client certificate): mTLS mediator exposes no dispose hook', () => {
     const descriptor = makeDescriptor(CompanyTypes.OneZero);
-    const ctx = buildInitialContext(
+    const ctx = BUILD_INITIAL_CONTEXT(
       descriptor,
-      {} as unknown as Parameters<typeof buildInitialContext>[1],
+      {} as unknown as Parameters<typeof BUILD_INITIAL_CONTEXT>[1],
     );
     expect(ctx.apiMediator.has).toBe(true);
     if (ctx.apiMediator.has) {

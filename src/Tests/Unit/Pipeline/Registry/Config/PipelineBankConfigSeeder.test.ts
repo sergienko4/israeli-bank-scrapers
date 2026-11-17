@@ -1,5 +1,5 @@
 /**
- * WK seeding contract for PIPELINE_BANK_CONFIG.
+ * WK seeding contract for the pipeline bank config.
  *
  * Loading the bank-config module seeds every transport URL into the WK
  * registry. The seeder walks the CompanyTypes enum, so these tests pin that
@@ -7,9 +7,10 @@
  * stay unregistered.
  */
 
+import { jest } from '@jest/globals';
+
 import { CompanyTypes } from '../../../../../Definitions.js';
 import {
-  resetWkRegistryForTest,
   resolveWkUrl,
   type WKUrlGroup,
 } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
@@ -18,16 +19,14 @@ import { isOk, type Procedure } from '../../../../../Scrapers/Pipeline/Types/Pro
 // Dynamic import dodges the no-restricted-imports DI rule that bans static
 // imports of Registry/Config/** in Pipeline tests (precedent:
 // PipelineBankConfigPepperWaf.test.ts).
-const { PIPELINE_BANK_CONFIG } =
+const REGISTRY =
   await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
-const SEEDER =
-  await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigSeeder.js');
 
-/** One bank's entry in PIPELINE_BANK_CONFIG. */
-type BankConfig = (typeof PIPELINE_BANK_CONFIG)[CompanyTypes];
+/** One registered bank's pipeline config. */
+type BankConfig = Exclude<ReturnType<typeof REGISTRY.resolvePipelineBankConfig>, false>;
 
 /** One bank's transport `paths` map. */
-type TransportPaths = NonNullable<NonNullable<BankConfig>['transport']>['paths'];
+type TransportPaths = NonNullable<BankConfig['transport']>['paths'];
 
 /** One URL the seeder must register: [group, bank, url]. */
 type SeededUrl = readonly [WKUrlGroup, CompanyTypes, string];
@@ -51,7 +50,7 @@ function expectedPathUrls(bankId: CompanyTypes, paths: TransportPaths): SeededUr
  * @returns The URLs the seeder must register for the bank.
  */
 function expectedUrlsFor(bankId: CompanyTypes, config: BankConfig): SeededUrl[] {
-  const transportConfig = config?.transport;
+  const transportConfig = config.transport;
   if (!transportConfig) return [];
   const pathUrls = expectedPathUrls(bankId, transportConfig.paths);
   const identity: SeededUrl = ['identityBase', bankId, transportConfig.identityBase];
@@ -69,8 +68,11 @@ function resolvedUrl(result: Procedure<string>): string {
 }
 
 const ALL_BANKS = Object.values(CompanyTypes);
-const EXPECTED_URLS = ALL_BANKS.flatMap(bankId =>
-  expectedUrlsFor(bankId, PIPELINE_BANK_CONFIG[bankId]),
+const BANK_CONFIGS = ALL_BANKS.map(
+  bankId => [bankId, REGISTRY.resolvePipelineBankConfig(bankId)] as const,
+);
+const EXPECTED_URLS = BANK_CONFIGS.flatMap(([bankId, config]) =>
+  config === false ? [] : expectedUrlsFor(bankId, config),
 );
 
 describe('PipelineBankConfigSeeder', () => {
@@ -79,9 +81,9 @@ describe('PipelineBankConfigSeeder', () => {
   });
 
   it('declares a headless block for every registered pipeline bank', () => {
-    const missing = Object.entries(PIPELINE_BANK_CONFIG)
-      .filter(([, config]) => config.transport === undefined)
-      .map(([companyId]) => companyId);
+    const missing = BANK_CONFIGS.filter(
+      ([, config]) => config === false || config.transport === undefined,
+    ).map(([companyId]) => companyId);
     expect(missing).toEqual([]);
   });
 
@@ -91,21 +93,22 @@ describe('PipelineBankConfigSeeder', () => {
     expect(resolved).toBe(url);
   });
 
-  it('leaves a bank without a headless block without a WK identityBase', () => {
+  it('leaves a bank without a headless block without a WK identityBase', async () => {
     const bank = CompanyTypes.Leumi;
-    const config = PIPELINE_BANK_CONFIG[bank];
-    if (config === undefined) throw new TypeError('missing registry');
+    const config = REGISTRY.resolvePipelineBankConfig(bank);
+    if (config === false) throw new TypeError('missing registry');
     const { transport: transportConfig, ...withoutTransport } = config;
     expect(transportConfig).toBeDefined();
-    resetWkRegistryForTest();
-    try {
-      SEEDER.default({ ...PIPELINE_BANK_CONFIG, [bank]: withoutTransport });
-      const result = resolveWkUrl('identityBase', bank);
-      const isResolved = isOk(result);
-      expect(isResolved).toBe(false);
-    } finally {
-      resetWkRegistryForTest();
-      SEEDER.default(PIPELINE_BANK_CONFIG);
-    }
+
+    // A fresh module instance keeps this negative case off the seeded registry.
+    jest.resetModules();
+    const urls = await import('../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js');
+    const seeder =
+      await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigSeeder.js');
+    seeder.default({ [bank]: withoutTransport });
+
+    const result = urls.resolveWkUrl('identityBase', bank);
+    const isResolved = isOk(result);
+    expect(isResolved).toBe(false);
   });
 });

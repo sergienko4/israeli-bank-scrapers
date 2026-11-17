@@ -18,12 +18,8 @@ import { activeEnvironment, type IEnvironment } from '../Types/Environment.js';
 import { isErrorLike, toError } from '../Types/ErrorUtils.js';
 import { currentRunScope, noteRunLogFile } from '../Types/RunScope.js';
 import { closeActiveRunTrace, getLogFile } from '../Types/TraceConfig.js';
-import {
-  type IFileLease,
-  type ILeasedLoggerResult,
-  instantiateLeasedFileLogger,
-} from './FileLease.js';
-import { generationFor, leaseFor, retireRunSlot, slotFor } from './LoggerSlots.js';
+import { type ILeasedLoggerResult, instantiateLeasedFileLogger } from './FileLease.js';
+import { generationFor, retireRunSlot, slotFor } from './LoggerSlots.js';
 import {
   buildFdOptions,
   buildPinoOptions,
@@ -130,14 +126,12 @@ function degradeLogger(logFile: string, env: IEnvironment): Logger {
  * for the obvious reason: the logger is what just failed. Consumers can
  * observe it via `process.on('warning')` or silence it like any other.
  *
- * <p>Exported only so the unit test can pin the degradation contract by
- * handing it a transport that cannot resolve.
  * @param logFile - Resolved log file path, used to choose the fallback.
  * @param options - Preferred options, produced by {@link buildPinoOptions}.
  * @param env - Environment snapshot; defaults to the process boundary.
  * @returns A usable logger — the preferred one, or a degraded one.
  */
-export function instantiateLogger(
+function instantiateLogger(
   logFile: string,
   options: pino.LoggerOptions,
   env: IEnvironment = activeEnvironment(),
@@ -186,16 +180,6 @@ function buildRootInstance(logFile: string): ILeasedLoggerResult {
     onTransportFailure: (error: Error): boolean => warnTransportFailure(error, logFile),
     buildSilentFallback: silentLogger,
   });
-}
-
-/**
- * Expose the active destination's file-descriptor lease for unit-test cleanup assertions.
- * @internal
- * @returns Active file lease when file-backed, else `false`.
- */
-export function getActiveRootFileLeaseForTest(): IFileLease | false {
-  const logFile = getLogFile();
-  return leaseFor(logFile);
 }
 
 /**

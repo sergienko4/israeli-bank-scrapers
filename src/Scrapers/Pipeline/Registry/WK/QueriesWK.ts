@@ -90,14 +90,3 @@ export function resolveWkQuery(
   if (!hit) return fail(ScraperErrorTypes.Generic, `unknown WK query: ${operation}/${bankHint}`);
   return succeed(hit);
 }
-
-/**
- * Clear all registered queries and lift the freeze flag for isolated unit tests.
- * @internal
- * @returns True after reset.
- */
-export function resetWkRegistryForTest(): true {
-  WK_QUERIES.clear();
-  isFrozen = false;
-  return true;
-}

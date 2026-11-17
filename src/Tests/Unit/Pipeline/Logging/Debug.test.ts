@@ -2,6 +2,7 @@
  * Unit tests for Logging/Debug — child logger factory and runWithBankContext.
  */
 
+import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
@@ -15,6 +16,24 @@ const DEBUG_TEST_TMP_ROOT = os.tmpdir();
 const DEBUG_TEST_RUNS_ROOT_DEV = path.join(DEBUG_TEST_TMP_ROOT, 'test-runs-dev');
 const DEBUG_TEST_RUNS_ROOT_CI = path.join(DEBUG_TEST_TMP_ROOT, 'test-runs-ci');
 const DEBUG_TEST_RUNS_ROOT_CACHE = path.join(DEBUG_TEST_TMP_ROOT, 'test-runs-cache-invalidation');
+
+/**
+ * Yield until `predicate()` holds or the deadline passes.
+ * @param predicate - Condition being awaited.
+ * @param deadlineMs - Epoch-ms wall-clock deadline.
+ * @returns True when the predicate held before the deadline.
+ */
+async function waitUntil(
+  predicate: () => boolean,
+  deadlineMs: number = Date.now() + 5_000,
+): Promise<boolean> {
+  if (predicate()) return true;
+  if (Date.now() >= deadlineMs) return false;
+  await new Promise<true>(resolve => {
+    setTimeout(resolve, 10, true);
+  });
+  return waitUntil(predicate, deadlineMs);
+}
 
 describe('getDebug', () => {
   it('returns a logger with info/debug/warn/error methods', () => {
@@ -162,13 +181,14 @@ describe('Debug buildTransport — env-permutation branches', () => {
     process.env.FORENSIC_TRACE = 'true';
     process.env.RUNS_ROOT = DEBUG_TEST_RUNS_ROOT_DEV;
     jest.resetModules();
-    const tc = await import('../../../../Scrapers/Pipeline/Types/TraceConfig.js');
-    tc.setActiveBank('beinleumi');
+    const bankContext = await import('../../../../Scrapers/Pipeline/Logging/BankContext.js');
     const mod = await import('../../../../Scrapers/Pipeline/Logging/Debug.js');
     const log = mod.getDebug(import.meta.url);
-    expect(() => {
-      log.info({ msg: 'hello' });
-    }).not.toThrow();
+    bankContext.runWithBankContext('beinleumi', () => {
+      expect(() => {
+        log.info({ msg: 'hello' });
+      }).not.toThrow();
+    });
   });
 
   it('FORENSIC_TRACE without PRETTY_LOGS builds file-only transport', async () => {
@@ -179,13 +199,14 @@ describe('Debug buildTransport — env-permutation branches', () => {
     process.env.FORENSIC_TRACE = 'true';
     process.env.RUNS_ROOT = DEBUG_TEST_RUNS_ROOT_CI;
     jest.resetModules();
-    const tc = await import('../../../../Scrapers/Pipeline/Types/TraceConfig.js');
-    tc.setActiveBank('beinleumi');
+    const bankContext = await import('../../../../Scrapers/Pipeline/Logging/BankContext.js');
     const mod = await import('../../../../Scrapers/Pipeline/Logging/Debug.js');
     const log = mod.getDebug(import.meta.url);
-    expect(() => {
-      log.info({ msg: 'hi' });
-    }).not.toThrow();
+    bankContext.runWithBankContext('beinleumi', () => {
+      expect(() => {
+        log.info({ msg: 'hi' });
+      }).not.toThrow();
+    });
   });
 
   it('non-trace without PRETTY_LOGS → transport=false (no output)', async () => {
@@ -226,32 +247,31 @@ describe('Debug buildTransport — env-permutation branches', () => {
     }).not.toThrow();
   });
 
-  it('mixin auto-injects runId after setActiveBank — no per-call wiring', async () => {
+  it('mixin auto-injects runId inside a run scope — no per-call wiring', async () => {
     delete process.env.LOG_LEVEL;
     jest.resetModules();
     const tc = await import('../../../../Scrapers/Pipeline/Types/TraceConfig.js');
-    tc.setActiveBank('beinleumi');
     const bank = await import('../../../../Scrapers/Pipeline/Logging/BankContext.js');
-    const fields = bank.getBankMixin();
-    const expectedRunId = tc.getActiveRunId();
-    expect(expectedRunId).not.toBe('');
-    expect(fields.runId).toBe(expectedRunId);
+    const observed = bank.runWithBankContext('beinleumi', () => ({
+      fields: bank.getBankMixin(),
+      expectedRunId: tc.getActiveRunId(),
+    }));
+    expect(observed.expectedRunId).not.toBe('');
+    expect(observed.fields.runId).toBe(observed.expectedRunId);
     // Same mixin still emits phase / stage so no field is dropped.
-    expect(fields.phase).toBeDefined();
-    expect(fields.stage).toBeDefined();
+    expect(observed.fields.phase).toBeDefined();
+    expect(observed.fields.stage).toBeDefined();
   });
 
   it('mixin omits runId when bank not yet registered', async () => {
     delete process.env.LOG_LEVEL;
     jest.resetModules();
-    const tc = await import('../../../../Scrapers/Pipeline/Types/TraceConfig.js');
-    tc.resetTraceConfigCache();
     const bank = await import('../../../../Scrapers/Pipeline/Logging/BankContext.js');
     const fields = bank.getBankMixin();
     expect(fields.runId).toBeUndefined();
   });
 
-  it('LOG fired before setActiveBank does NOT lock cache — first post-bank LOG picks up file path', async () => {
+  it('LOG fired before a run scope does NOT lock cache — first in-scope LOG picks up file path', async () => {
     delete process.env.CI;
     process.env.NODE_ENV = 'development';
     process.env.LOG_LEVEL = 'trace';
@@ -259,6 +279,8 @@ describe('Debug buildTransport — env-permutation branches', () => {
     process.env.RUNS_ROOT = DEBUG_TEST_RUNS_ROOT_CACHE;
     jest.resetModules();
     const tc = await import('../../../../Scrapers/Pipeline/Types/TraceConfig.js');
+    const bank = await import('../../../../Scrapers/Pipeline/Logging/BankContext.js');
+    const root = await import('../../../../Scrapers/Pipeline/Logging/RootLogger.js');
     const dbg = await import('../../../../Scrapers/Pipeline/Logging/Debug.js');
     const log = dbg.getDebug(import.meta.url);
     const preFile = tc.getLogFile();
@@ -268,12 +290,20 @@ describe('Debug buildTransport — env-permutation branches', () => {
     }).not.toThrow();
     const stillEmpty = tc.getLogFile();
     expect(stillEmpty).toBe('');
-    tc.setActiveBank('pepper');
-    const fileAfterBank = tc.getLogFile();
-    expect(fileAfterBank.length).toBeGreaterThan(0);
-    expect(fileAfterBank).toMatch(/[\\/]pepper[\\/]/);
-    expect(() => {
+    const observed = await bank.runWithBankContext('pepper', async () => {
+      const fileAfterBank = tc.getLogFile();
+      expect(fileAfterBank.length).toBeGreaterThan(0);
+      expect(fileAfterBank).toMatch(/[\\/]pepper[\\/]/);
       log.info({ msg: 'post-bank — should write to file' });
-    }).not.toThrow();
+      root.getRootLogger().flush();
+      const didContain = await waitUntil(
+        (): boolean =>
+          fs.existsSync(fileAfterBank) &&
+          fs.readFileSync(fileAfterBank, 'utf8').includes('post-bank'),
+      );
+      root.retireRunLogger();
+      return { fileAfterBank, didContain };
+    });
+    expect(observed.didContain).toBe(true);
   });
 });

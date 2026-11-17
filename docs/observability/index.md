@@ -66,10 +66,10 @@ case-insensitive) enables it. `PRETTY_LOGS=1` does not.
 
 Two pieces of `RootLogger.ts` implement this:
 
-| Export              | Responsibility                                                                                                                                                                                                      |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `buildTransport`    | Chooses the transport for a given log file — the pretty target only when `PRETTY_LOGS=true`, the `pino/file` target only when `FORENSIC_TRACE` produced a path, both when both apply, and `false` when neither does |
-| `instantiateLogger` | Builds the logger, and if the chosen transport cannot be constructed emits a `process.emitWarning` and degrades one step rather than throwing                                                                       |
+| Export           | Responsibility                                                                                                                                                                                                      |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `buildTransport` | Chooses the transport for a given log file — the pretty target only when `PRETTY_LOGS=true`, the `pino/file` target only when `FORENSIC_TRACE` produced a path, both when both apply, and `false` when neither does |
+| `getRootLogger`  | Builds the logger on first use; if the chosen transport cannot be constructed it emits a `process.emitWarning` and degrades one step rather than throwing                                                           |
 
 The failure checks use `isErrorLike` from `Types/ErrorUtils.ts`, so a
 cross-realm Error takes the degradation path instead of being returned as a

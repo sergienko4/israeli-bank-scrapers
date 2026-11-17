@@ -14,10 +14,7 @@ import type {
   IStepConfig,
 } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { runSmsOtpFlow } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/SmsOtpFlow.js';
-import {
-  registerWkUrl,
-  resetWkRegistryForTest,
-} from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
+import { registerWkUrl } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import type { StatusPolicy } from '../../../../../Scrapers/Pipeline/Types/Domain/FetchPolicy.js';
 import { fakeFetch, type IFetchFake } from '../../../../Helpers/FakeFetch.js';
 import { makeJwtExpiringInWithClaims } from '../../../../Helpers/Jwt.js';
@@ -182,15 +179,6 @@ function preparePortal(module: IPortalModule, config: IApiDirectCallConfig): IAp
   };
   const validation = validateApiDirectConfig({ call: config, transport: transportConfig });
   if (!validation.success) throw new TypeError(validation.errorMessage);
-  resetWkRegistryForTest();
-  registerWkUrl('auth.verify', CompanyTypes.Leumi, `${ORIGIN}/synthetic-token`);
-  registerWkUrl('auth.identify', CompanyTypes.Leumi, module.LEUMI_PORTAL_PATHS['auth.identify']);
-  registerWkUrl('auth.logon', CompanyTypes.Leumi, module.LEUMI_PORTAL_PATHS['auth.logon']);
-  registerWkUrl(
-    'identity.sessionToken',
-    CompanyTypes.Leumi,
-    module.LEUMI_PORTAL_PATHS['identity.sessionToken'],
-  );
   return config;
 }
 
@@ -293,6 +281,13 @@ function checkSso(fake: IFetchFake, token: string): boolean {
 
 describe('Leumi portal handoff', () => {
   const originalFetch = globalThis.fetch;
+
+  beforeAll(async () => {
+    // The real config seeds every portal route; add only the synthetic token.
+    await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
+    registerWkUrl('auth.verify', CompanyTypes.Leumi, `${ORIGIN}/synthetic-token`);
+  });
+
   afterEach(() => {
     globalThis.fetch = originalFetch;
   });

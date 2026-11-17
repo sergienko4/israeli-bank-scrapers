@@ -67,9 +67,13 @@ async function loadHosts(): Promise<ExtraHostsByBank> {
  * @returns a lookup of company id to the configured `urls.base`.
  */
 async function loadBaseUrls(): Promise<Map<string, string>> {
-  const { PIPELINE_BANK_CONFIG: bankConfigMap } =
+  const { resolvePipelineBankConfig } =
     await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
-  return new Map(Object.entries(bankConfigMap).map(([id, cfg]) => [id, cfg.urls.base]));
+  const entries = Object.values(CompanyTypes).flatMap((companyId): [string, string][] => {
+    const config = resolvePipelineBankConfig(companyId);
+    return config === false ? [] : [[companyId, config.urls.base]];
+  });
+  return new Map(entries);
 }
 
 /**

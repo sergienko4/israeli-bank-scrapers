@@ -78,6 +78,9 @@ function stampCentiseconds(d: Date): string {
 
 /**
  * Build a `DD-MM-YYYY_HHMMSScc` timestamp for the given Date instance.
+ * Private: the only production caller is {@link nextRunStamp}; tests use their
+ * own oracle (`Tests/Helpers/RunStampFormat.ts`) so a formatter change cannot
+ * silently rewrite both sides of the assertion.
  * @param d - Date to format.
  * @returns Timestamp string.
  */
@@ -142,15 +145,5 @@ function nextRunStamp(nowMs: number = Date.now()): RunStampStr {
   return claimUniqueStamp(startSlotMs);
 }
 
-/**
- * Reset monotonic run-stamp state for isolated unit tests.
- * @returns True after reset.
- */
-function resetRunStampState(): true {
-  lastStampSlotMs = 0;
-  ISSUED_STAMPS.clear();
-  return true;
-}
-
 export type { RunStampStr };
-export { formatRunStamp, nextRunStamp, resetRunStampState };
+export { nextRunStamp };

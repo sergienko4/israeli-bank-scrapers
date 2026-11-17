@@ -11,11 +11,12 @@ import { CompanyTypes, SCRAPERS } from '../../../../Definitions.js';
 
 const { default: PIPELINE_REGISTRY } =
   await import('../../../../Scrapers/Pipeline/Banks/PipelineRegistry.js');
-const { PIPELINE_BANK_CONFIG } =
+const REGISTRY =
   await import('../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
 const { BANK_EXTRA_DNS_HOSTS } =
   await import('../../../../Scrapers/Pipeline/Registry/Config/PipelineBankHosts.js');
-const { KNOWN_BANK_SLUGS } = await import('../../../../Scrapers/Pipeline/Types/BankSlugs.js');
+const { isKnownBankSlug: IS_KNOWN_BANK_SLUG } =
+  await import('../../../../Scrapers/Pipeline/Types/BankSlugs.js');
 
 /** Every member of the public bank enum. */
 const BANKS: readonly CompanyTypes[] = Object.values(CompanyTypes);
@@ -42,15 +43,16 @@ describe('pipeline bank registry completeness', () => {
     expect(missing).toStrictEqual([]);
   });
 
-  it('registers every bank in PIPELINE_BANK_CONFIG', () => {
-    const missing = missingFrom(PIPELINE_BANK_CONFIG);
+  it('resolves a pipeline bank config for every bank', () => {
+    const missing = BANKS.filter(
+      (bank): boolean => REGISTRY.resolvePipelineBankConfig(bank) === false,
+    ).sort();
     expect(missing).toStrictEqual([]);
   });
 
   it('knows every lowercase bank slug', () => {
-    const known = new Set(KNOWN_BANK_SLUGS);
     const missing = BANKS.map((bank): string => bank.toLowerCase()).filter(
-      (slug): boolean => !known.has(slug),
+      (slug): boolean => !IS_KNOWN_BANK_SLUG(slug),
     );
     expect(missing).toStrictEqual([]);
   });

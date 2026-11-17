@@ -9,10 +9,7 @@ import { CompanyTypes } from '../../../../../Definitions.js';
 import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import { createMtlsApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import type { INodeTlsMediatorArgs } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.transport.types.js';
-import {
-  registerWkQuery,
-  resetWkRegistryForTest as resetWkQueriesForTest,
-} from '../../../../../Scrapers/Pipeline/Registry/WK/QueriesWK.js';
+import { registerWkQuery } from '../../../../../Scrapers/Pipeline/Registry/WK/QueriesWK.js';
 import { literalUrl } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import type { ICertBundle } from '../../../../../Scrapers/Pipeline/Types/Domain/CertBundle.js';
 import type { IClientCertPair } from '../../../../../Scrapers/Pipeline/Types/Domain/ClientCertControl.js';
@@ -40,10 +37,6 @@ const DEVICE_PAIR: IClientCertPair = { key: DEVICE.keyPem, cert: DEVICE.certPem 
 const INSTALLED = succeed(true);
 
 describe('createMtlsApiMediator — dynamic client certificate', () => {
-  afterEach(() => {
-    resetWkQueriesForTest();
-  });
-
   it('exposes no certificate port when none is declared', () => {
     const mediator = createMtlsApiMediator(BASE_ARGS);
     expect(mediator.clientCert).toBeUndefined();
@@ -75,10 +68,6 @@ describe('createMtlsApiMediator — dynamic client certificate', () => {
 });
 
 describe('createMtlsApiMediator — static client certificate', () => {
-  afterEach(() => {
-    resetWkQueriesForTest();
-  });
-
   it('fails fast when a certificate is required without a resolver', () => {
     const { presented } = recordPresented();
     /**
