@@ -478,42 +478,28 @@ describe('issuesFromCode — Rule PII-Log T09 template-literal patterns', () => 
     const pii = issues.filter((i): boolean => i.rule === 'PII-Log');
     expect(pii.length).toBeGreaterThanOrEqual(1);
   });
-  it('does NOT flag a bare num that is not a credential', () => {
-    const code = 'const num = jobs.length; LOG.info(`jobs: ' + '$' + '{num}`);';
+  it.each([
+    [
+      'a bare num that is not a credential',
+      'const num = jobs.length; LOG.info(`jobs: ' + '$' + '{num}`);',
+    ],
+    ['an escape-heavy template without PII', 'LOG.info(`' + '\\n'.repeat(28) + ' no match`);'],
+    [
+      'a credential in a separate template',
+      'LOG.info(`ready`); const x = `' + '$' + '{credentials.username}`;',
+    ],
+    ['a scalar identifier in a template literal', 'LOG.info(`' + '$' + '{count} txns scraped`);'],
+    ['a PII identifier outside LOG.*', 'console.log(`x: ' + '$' + '{accountId}`);'],
+  ])('does NOT flag %s', (_label, code) => {
     const issues = issuesFromCode(SYNTHETIC_OTHER, code, new Map());
     const pii = issues.filter((i): boolean => i.rule === 'PII-Log');
-    expect(pii.length).toBe(0);
+    expect(pii).toHaveLength(0);
   });
   it('flags a credential after an escaped backtick in the same template', () => {
     const code = 'LOG.info(`escaped \\` tick: ' + '$' + '{credentials.password}`);';
     const issues = issuesFromCode(SYNTHETIC_OTHER, code, new Map());
     const pii = issues.filter((i): boolean => i.rule === 'PII-Log');
     expect(pii.length).toBeGreaterThanOrEqual(1);
-  });
-  it('does NOT backtrack on an escape-heavy template without PII', () => {
-    const escapes = '\\n'.repeat(28);
-    const code = 'LOG.info(`' + escapes + ' no match`);';
-    const issues = issuesFromCode(SYNTHETIC_OTHER, code, new Map());
-    const pii = issues.filter((i): boolean => i.rule === 'PII-Log');
-    expect(pii.length).toBe(0);
-  });
-  it('does NOT cross the LOG template backtick', () => {
-    const code = 'LOG.info(`ready`); const x = `' + '$' + '{credentials.username}`;';
-    const issues = issuesFromCode(SYNTHETIC_OTHER, code, new Map());
-    const pii = issues.filter((i): boolean => i.rule === 'PII-Log');
-    expect(pii.length).toBe(0);
-  });
-  it('does NOT flag a scalar identifier in template literal', () => {
-    const code = 'LOG.info(`' + '$' + '{count} txns scraped`);';
-    const issues = issuesFromCode(SYNTHETIC_OTHER, code, new Map());
-    const pii = issues.filter((i): boolean => i.rule === 'PII-Log');
-    expect(pii.length).toBe(0);
-  });
-  it('does NOT flag PII identifier outside LOG.*', () => {
-    const code = 'console.log(`x: ' + '$' + '{accountId}`);';
-    const issues = issuesFromCode(SYNTHETIC_OTHER, code, new Map());
-    const pii = issues.filter((i): boolean => i.rule === 'PII-Log');
-    expect(pii.length).toBe(0);
   });
 });
 
