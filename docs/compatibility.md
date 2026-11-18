@@ -19,7 +19,7 @@ Raised from `>= 22.14.0` in 9.0.0. Enforced by the `engines` field, so npm warns
 
 Failed api-direct calls, login extracts and native HTTP failures now omit the bank's response text by default. The message names the call and its HTTP status, or the error type when no status arrived; local dispatch and hydration errors keep their diagnostic text. WAF and integrity refusals keep their fixed reasons.
 
-**What to do:** Read `errorType` and `errorMessage`; if a bank reply text is needed for diagnostics, set `omitBankText: false` on its API-direct config or transport block. No result field was removed.
+**What to do:** Read `errorType` and `errorMessage`. To restore bank text in a native HTTP scrape failure, set both the API-direct `omitBankText: false` and `transport.omitBankText: false`; login-extraction messages need only the API-direct flag. No result field was removed.
 
 ### 10.1.0 - Hapoalim stores the device seed in `otpLongTermToken` and re-enrolls once
 
@@ -48,7 +48,12 @@ Starting with 10.0.0, this fork is distributed under the PolyForm Noncommercial 
 Before:
 
 ```js
-createScraper({ companyId, startDate, shouldCombineInstallments: false, includeRawTransaction: true });
+createScraper({
+  companyId,
+  startDate,
+  shouldCombineInstallments: false,
+  includeRawTransaction: true,
+});
 ```
 
 After:

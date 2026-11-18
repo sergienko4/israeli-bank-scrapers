@@ -125,7 +125,9 @@ Bank response text is omitted by default. The scrape shape carries that policy
 to `omitBankResponseText`, which replaces failed customer (including secondary
 identity), balance, and transaction call messages with the call name and HTTP
 status, or error type when no status is available. A bank whose replies never
-quote the customer may opt in with `omitBankText: false`. Local dispatch and
+quote the customer may opt in with `omitBankText: false`. A native HTTP scrape
+failure also needs the transport's `omitBankText: false`; the API-direct flag
+alone controls the scrape-layer sanitiser and login extracts. Local dispatch and
 hydration failures keep their diagnostic message. The failure type remains
 available for recovery; successful calls are unchanged.
 
