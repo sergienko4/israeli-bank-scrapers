@@ -8,7 +8,10 @@ import type { ScraperCredentials, ScraperOptions } from '../../Base/Interface.js
 import { checkCredentialRules } from '../Mediator/ApiDirectCall/Flow/RequiredCreds.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { fail, succeed } from '../Types/Procedure.js';
-import type { ICredentialPolicy } from './PipelineDescriptor.js';
+import type { IPipelineDescriptor } from './PipelineDescriptor.js';
+
+/** The descriptor's credential-policy slice. */
+type CredentialPolicy = NonNullable<IPipelineDescriptor['credentialPolicy']>;
 
 /** Highest accepted future-months window. */
 const MAX_FUTURE_MONTHS = 24;
@@ -133,7 +136,7 @@ function optionFailure(options: ScraperOptions): Procedure<true> | false {
  */
 function requiredFailure(
   credentials: ScraperCredentials,
-  policy?: ICredentialPolicy,
+  policy?: CredentialPolicy,
 ): Procedure<true> | false {
   if (!isCredentialBag(credentials)) {
     return fail(ScraperErrorTypes.Generic, 'credentials must be an object');
@@ -150,7 +153,7 @@ function requiredFailure(
  */
 function credentialFailure(
   credentials: ScraperCredentials,
-  policy?: ICredentialPolicy,
+  policy?: CredentialPolicy,
 ): Procedure<true> | false {
   const required = requiredFailure(credentials, policy);
   if (required !== false) return required;
@@ -168,7 +171,7 @@ function credentialFailure(
 function validateBoundary(
   options: ScraperOptions,
   credentials: ScraperCredentials,
-  policy?: ICredentialPolicy,
+  policy?: CredentialPolicy,
 ): Procedure<true> {
   const option = optionFailure(options);
   if (option !== false) return option;

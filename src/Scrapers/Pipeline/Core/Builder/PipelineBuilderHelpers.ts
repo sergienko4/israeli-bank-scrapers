@@ -6,7 +6,7 @@
 import type { ScraperOptions } from '../../../Base/Interface.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
-import type { ICredentialPolicy, IPipelineDescriptor } from '../PipelineDescriptor.js';
+import type { IPipelineDescriptor } from '../PipelineDescriptor.js';
 import { assemblePhases } from './PipelineAssembly.js';
 import {
   type IBuilderFields,
@@ -14,12 +14,15 @@ import {
   validateBuilderFields,
 } from './PipelineBuilderValidation.js';
 
+/** The descriptor's credential-policy slice. */
+type CredentialPolicy = NonNullable<IPipelineDescriptor['credentialPolicy']>;
+
 /**
  * The bank's required-credential policy, when it declares one.
  * @param fields - Validated builder fields.
  * @returns The policy, or false when the bank has no call config.
  */
-function credentialPolicyOf(fields: IBuilderFields): ICredentialPolicy | false {
+function credentialPolicyOf(fields: IBuilderFields): CredentialPolicy | false {
   if (fields.apiDirectConfig === false) return false;
   return { requiredCreds: fields.apiDirectConfig.requiredCreds };
 }

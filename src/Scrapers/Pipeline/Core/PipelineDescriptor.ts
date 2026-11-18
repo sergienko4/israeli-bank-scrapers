@@ -44,4 +44,4 @@ interface IPipelineDescriptor {
  */
 type PipelineFactory = (options: ScraperOptions) => Procedure<IPipelineDescriptor>;
 
-export type { ICredentialPolicy, IPipelineDescriptor, PipelineFactory };
+export type { IPipelineDescriptor, PipelineFactory };
