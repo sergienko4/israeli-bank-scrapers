@@ -27,13 +27,13 @@
                       "Txn": [
                         {
                           "fullPurchaseDate": "2026-04-15",
-                          "dealSum": -200.0,
+                          "dealSum": 0,
                           "merchantName": "FAKE-AIRLINES",
                           "moed": "1"
                         },
                         {
                           "fullPurchaseDate": "2026-04-16",
-                          "dealSum": -75.0,
+                          "dealSum": 0,
                           "merchantName": "FAKE-HOTEL",
                           "moed": "1"
                         }

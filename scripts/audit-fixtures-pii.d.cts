@@ -18,6 +18,13 @@ export interface AuditHit {
 }
 
 /**
+ * Every auditable fixture under every configured root.
+ *
+ * @returns Absolute paths of the integration and unit fixture files.
+ */
+export function fixtureFiles(): string[];
+
+/**
  * Audit one fixture's text against every `fixtures-pii` rule.
  *
  * @param raw - Fixture contents.

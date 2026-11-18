@@ -22,7 +22,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..');
-const FIXTURES = path.join(ROOT, 'src', 'Tests', 'Integration', 'fixtures', 'banks');
+const FIXTURE_ROOTS = [
+  path.join(ROOT, 'src', 'Tests', 'Integration', 'fixtures', 'banks'),
+  path.join(ROOT, 'src', 'Tests', 'Unit'),
+];
 
 /** Escape a literal so it can be embedded in a RegExp source. */
 function escapeRegexLiteral(s) {
@@ -486,10 +489,15 @@ function printFileReport(file) {
   for (const line of renderFileReport(path.relative(ROOT, file), raw, selection)) console.log(line);
   return selection;
 }
+/** List every auditable fixture under every configured root. */
+function fixtureFiles() {
+  return FIXTURE_ROOTS.flatMap(walkDir);
+}
+
 /** Audit every committed fixture; exit 2 when any CRITICAL or HIGH hit fires. */
 function main() {
-  const files = walkDir(FIXTURES);
-  console.log(`Scanning ${files.length} fixture files under ${path.relative(ROOT, FIXTURES)}`);
+  const files = fixtureFiles();
+  console.log(`Scanning ${files.length} fixture files under src/Tests`);
   const summary = summarizeReports(files.map(file => printFileReport(file)));
   for (const line of renderSummary(files.length, summary)) console.log(line);
   if (summary.failed) process.exit(2);
@@ -497,6 +505,7 @@ function main() {
 
 module.exports = {
   auditText,
+  fixtureFiles,
   formatHit,
   selectFileHits,
   renderFileReport,

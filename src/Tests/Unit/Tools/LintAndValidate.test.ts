@@ -450,6 +450,11 @@ describe('issuesFromCode — Rule PII-Log T09 template-literal patterns', () => 
     'idToken',
     'userName',
     'UserName',
+    'username',
+    'userCode',
+    'nationalID',
+    'card6Digits',
+    'num',
     'email',
     'cookie',
     'setCookie',
@@ -462,6 +467,18 @@ describe('issuesFromCode — Rule PII-Log T09 template-literal patterns', () => 
       expect(pii.length).toBeGreaterThanOrEqual(1);
     });
   }
+  it.each([
+    'credentials.password',
+    'ctx.credentials.password',
+    'creds.nationalID',
+    "credentials['password']",
+    'ctx.credentials["userCode"]',
+  ])('flags the credential reference %s in a LOG template', reference => {
+    const code = 'LOG.info(`value: ' + '$' + '{' + reference + '}`);';
+    const issues = issuesFromCode(SYNTHETIC_OTHER, code, new Map());
+    const pii = issues.filter((i): boolean => i.rule === 'PII-Log');
+    expect(pii.length).toBeGreaterThanOrEqual(1);
+  });
   it('does NOT flag a scalar identifier in template literal', () => {
     const code = 'LOG.info(`' + '$' + '{count} txns scraped`);';
     const issues = issuesFromCode(SYNTHETIC_OTHER, code, new Map());

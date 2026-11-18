@@ -28,7 +28,7 @@
                   "date": "2025-11-02T00:00:00",
                   "fromPurchaseDate": "2025-10-02T00:00:00",
                   "toPurchaseDate": "2025-11-01T00:00:00",
-                  "choiceHHKDebit": 5512.9,
+                  "choiceHHKDebit": 0,
                   "debitReason": "FAKE TEXT",
                   "totalBasketAmount": 0,
                   "basketAmountComment": null,

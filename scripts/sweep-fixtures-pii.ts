@@ -20,7 +20,10 @@ import { redactPii } from '../src/Tests/Integration/Tools/PiiRedactor.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '..');
-const FIXTURES = join(ROOT, 'src', 'Tests', 'Integration', 'fixtures', 'banks');
+const FIXTURE_ROOTS = [
+  join(ROOT, 'src', 'Tests', 'Integration', 'fixtures', 'banks'),
+  join(ROOT, 'src', 'Tests', 'Unit'),
+];
 const SCRUBBABLE = /\.(html|json|ndjson)$/i;
 
 function walk(dir: string): string[] {
@@ -42,7 +45,7 @@ function sweepOne(file: string): { changed: boolean; bytesBefore: number; bytesA
 }
 
 function main(): void {
-  const files = walk(FIXTURES);
+  const files = FIXTURE_ROOTS.flatMap(walk);
   console.log(`Sweeping ${files.length} fixture files...`);
   let changed = 0;
   for (const f of files) {

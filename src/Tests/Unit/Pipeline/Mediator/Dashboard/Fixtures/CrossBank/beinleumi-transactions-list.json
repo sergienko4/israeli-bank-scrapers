@@ -15,7 +15,7 @@
       "url": "https://online.fibi.fake.example/appsng/bff-balancetransactions/api/v1/transactions/list",
       "method": "POST",
       "captureIndex": 9,
-      "postData": "{\"initialRequest\":{\"accountNumber\":111111,\"accountType\":105,\"branch\":\"099\",\"endDate\":\"2026-05-07\",\"startDate\":\"2025-11-07\",\"order\":1,\"language\":\"HEB\"}}",
+      "postData": "{\"initialRequest\":{\"accountNumber\":0,\"accountType\":105,\"branch\":\"099\",\"endDate\":\"2026-05-07\",\"startDate\":\"2025-11-07\",\"order\":1,\"language\":\"HEB\"}}",
       "responseBody": {
         "returncode": null,
         "errorMessage": null,
@@ -26,36 +26,36 @@
             "dateOfBusinessDay": "2026-05-05T00:00:00",
             "description": "FAKE-PAYMENT-A",
             "creditAmount": 0,
-            "debitAmount": 100.0,
+            "debitAmount": 0,
             "reference": 99001,
             "firstTransactionOfDay": true,
             "lastTransactionOfDay": true,
-            "openingBalance": 1000.0,
-            "closingBalance": 900.0
+            "openingBalance": 0,
+            "closingBalance": 0
           },
           {
             "dateOfRegistration": "2026-05-01T00:00:00",
             "dateOfBusinessDay": "2026-05-01T00:00:00",
             "description": "FAKE-CREDIT-B",
-            "creditAmount": 250.0,
+            "creditAmount": 0,
             "debitAmount": 0,
             "reference": 99002,
             "firstTransactionOfDay": true,
             "lastTransactionOfDay": true,
-            "openingBalance": 750.0,
-            "closingBalance": 1000.0
+            "openingBalance": 0,
+            "closingBalance": 0
           },
           {
             "dateOfRegistration": "2026-04-30T00:00:00",
             "dateOfBusinessDay": "2026-04-30T00:00:00",
             "description": "FAKE-PURCHASE-C",
             "creditAmount": 0,
-            "debitAmount": 50.0,
+            "debitAmount": 0,
             "reference": 99003,
             "firstTransactionOfDay": true,
             "lastTransactionOfDay": true,
-            "openingBalance": 800.0,
-            "closingBalance": 750.0
+            "openingBalance": 0,
+            "closingBalance": 0
           }
         ],
         "pagingContext": "FAKE-PAGING-TOKEN"
