@@ -8,8 +8,6 @@
  * cold login, so neither imported nor validation-response cookies reach it.
  */
 
-import { createHash, createHmac } from 'node:crypto';
-
 import { jest } from '@jest/globals';
 
 import { CompanyTypes } from '../../../../../../Definitions.js';
@@ -17,6 +15,7 @@ import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js
 import type { ScraperCredentials } from '../../../../../../Scrapers/Base/Interface.js';
 import type { IApiDirectCallConfig } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { IConfigTokenStrategy } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/TokenStrategyFromConfig.js';
+import { identityTag } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmTokenParts.js';
 import type { IStoredCookie } from '../../../../../../Scrapers/Pipeline/Types/Domain/CookieSession.js';
 import type { ITokenBus } from '../../../../../../Scrapers/Pipeline/Types/Domain/TokenBus.js';
 import type { ITokenContext } from '../../../../../../Scrapers/Pipeline/Types/Domain/TokenContext.js';
@@ -317,12 +316,7 @@ describe('cookie-jar keyed account tag', () => {
     const encoded = token.slice('v1.'.length);
     const body = Buffer.from(encoded, 'base64url').toString('utf8');
     const parsed = JSON.parse(body) as { a: string };
-    const hash = createHash('sha256');
-    hash.update(tagKey);
-    const key = hash.digest();
-    const hmac = createHmac('sha256', key);
-    const digest = hmac.update(ACCOUNT).digest('hex');
-    const tag = digest.slice(0, 16);
+    const tag = identityTag(ACCOUNT, tagKey);
     expect(parsed.a).toBe(tag);
   });
 

@@ -5,7 +5,7 @@
  * own envelope, check order and rejection texts.
  */
 
-import { createHash, createHmac } from 'node:crypto';
+import { createHash, createHmac, pbkdf2Sync } from 'node:crypto';
 
 import type { IStoredCookie } from '../../../Types/Domain/CookieSession.js';
 import type { JsonUnknown, JsonUnknownList, JsonUnknownRecord } from '../../../Types/JsonValue.js';
@@ -15,6 +15,10 @@ import { succeed } from '../../../Types/Procedure.js';
 /** Every warm token version starts with this. */
 const WARM_TOKEN_PREFIX = 'v1.';
 const IDENTITY_TAG_CHARS = 16;
+/** Domain salt for the tag-key KDF; the tag also covers the account values. */
+const TAG_KEY_SALT = 'israeli-bank-scrapers/warm-token-account-tag/v1';
+const TAG_KEY_ITERATIONS = 100_000;
+const TAG_KEY_BYTES = 32;
 
 /** The JS type of every cookie field; also the field whitelist. */
 const COOKIE_FIELD_TYPES: Readonly<Record<keyof IStoredCookie, 'string' | 'boolean' | 'number'>> = {
@@ -30,12 +34,14 @@ const COOKIE_FIELD_TYPES: Readonly<Record<keyof IStoredCookie, 'string' | 'boole
 const COOKIE_FIELDS = Object.keys(COOKIE_FIELD_TYPES) as readonly (keyof IStoredCookie)[];
 
 /**
- * Digest a caller or bank key before using it as an HMAC key.
+ * Derive the HMAC key from a caller or bank key. PBKDF2 is deliberate: the
+ * tag is a binding, not password storage, but a fast hash would make a stolen
+ * token cheap to test against a password list offline.
  * @param key - Non-empty tag key.
- * @returns The 32-byte SHA-256 digest of the key text.
+ * @returns A 32-byte derived key.
  */
 function tagKeyBytes(key: string): Buffer {
-  return createHash('sha256').update(key, 'utf8').digest();
+  return pbkdf2Sync(key, TAG_KEY_SALT, TAG_KEY_ITERATIONS, TAG_KEY_BYTES, 'sha256');
 }
 
 /**

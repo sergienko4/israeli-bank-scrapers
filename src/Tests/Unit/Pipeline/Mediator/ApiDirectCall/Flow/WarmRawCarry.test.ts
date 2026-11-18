@@ -5,8 +5,6 @@
  * form and is still accepted by the strategy.
  */
 
-import { createHash, createHmac } from 'node:crypto';
-
 import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js';
 import {
   decodeRawCarry,
@@ -14,6 +12,7 @@ import {
   type IRawCarryExpectation,
   isRawCarryToken,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmRawCarry.js';
+import { accountsTag } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmTokenParts.js';
 import {
   fail,
   type Procedure,
@@ -135,14 +134,7 @@ describe('raw carry keyed account tag', () => {
     const bytes = Buffer.from(encoded, 'base64url');
     const body = bytes.toString('utf8');
     const parsed = JSON.parse(body) as { a: string };
-    const hash = createHash('sha256');
-    hash.update(tagKey);
-    const key = hash.digest();
-    const hmac = createHmac('sha256', key);
-    const accountsJson = JSON.stringify(ACCOUNTS);
-    const updated = hmac.update(accountsJson);
-    const digest = updated.digest('hex');
-    const tag = digest.slice(0, 16);
+    const tag = accountsTag(ACCOUNTS, tagKey);
     expect(parsed.a).toBe(tag);
   });
 

@@ -7,8 +7,6 @@
  * reason only — never a value — so the cold login runs instead.
  */
 
-import { createHash, createHmac } from 'node:crypto';
-
 import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js';
 import {
   decodeWarmBundle,
@@ -16,6 +14,7 @@ import {
   type IWarmBundle,
   WARM_BUNDLE_REJECTIONS,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmCarryBundle.js';
+import { accountsTag } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmTokenParts.js';
 import type { Procedure } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { assertOk } from '../../../../../Helpers/AssertProcedure.js';
@@ -32,8 +31,7 @@ const CARRY = { clientId: `${COOKIE_MARKER}client`, certPem: `${COOKIE_MARKER}ce
 const WITH_JAR: IWarmBundle = { carry: CARRY, cookies: WARM_COOKIES };
 const WITHOUT_JAR: IWarmBundle = { carry: CARRY, cookies: false };
 /** The documented account tag: 16 hex chars of SHA-256 over the JSON array. */
-const ACCOUNTS_JSON = JSON.stringify(ACCOUNTS);
-const ACCOUNT_TAG = createHash('sha256').update(ACCOUNTS_JSON, 'utf8').digest('hex').slice(0, 16);
+const ACCOUNT_TAG = accountsTag(ACCOUNTS);
 
 /** Who a test bundle belongs to. */
 type BundleIdentity = Parameters<typeof encodeWarmBundle>[0];
@@ -107,12 +105,7 @@ describe('carry-bundle keyed account tag', () => {
     const token = encodeOk({ ...IDENTITY, tagKey: tagKey }, WITH_JAR);
     const body = bodyOf(token);
     const parsed = JSON.parse(body) as { a: string };
-    const hash = createHash('sha256');
-    hash.update(tagKey);
-    const key = hash.digest();
-    const hmac = createHmac('sha256', key);
-    const digest = hmac.update(ACCOUNTS_JSON).digest('hex');
-    const tag = digest.slice(0, 16);
+    const tag = accountsTag(ACCOUNTS, tagKey);
     expect(parsed.a).toBe(tag);
   });
 
