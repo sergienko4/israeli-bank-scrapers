@@ -1,13 +1,13 @@
 # One Zero
 
-|                |                                                                                                                                                                  |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CompanyTypes` | `OneZero`                                                                                                                                                        |
-| Engine         | **API-direct** (no browser)                                                                                                                                      |
-| Credentials    | `email`, `password` (plus `phoneNumber`, `otpCodeRetriever`, optional `otpLongTermToken`)                                                                        |
-| OTP            | Required (or `otpLongTermToken` from a previous run)                                                                                                             |
-| Phase chain    | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md)                                                            |
-| Phone format   | `international-plus` (`+972000000000`)                                                                                                                           |
+|                |                                                                                                                                                        |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `CompanyTypes` | `OneZero`                                                                                                                                              |
+| Engine         | **API-direct** (no browser)                                                                                                                            |
+| Credentials    | `email`, `password` (plus `phoneNumber`, `otpCodeRetriever`, optional `otpLongTermToken`)                                                              |
+| OTP            | Required (or `otpLongTermToken` from a previous run)                                                                                                   |
+| Phase chain    | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md)                                                  |
+| Phone format   | `international-plus` (`+972000000000`)                                                                                                                 |
 | Source         | [`Banks/BankPipelineTableC.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/BankPipelineTableC.ts) |
 
 ## Quick example
@@ -33,10 +33,15 @@ The same value is also delivered to the `onAuthFlowComplete` callback as
 `longTermToken`, which is useful when you want to persist it as soon as login
 completes rather than waiting for the scrape to finish.
 
+The token is opaque: a new run publishes a `v1.` envelope bound to OneZero and
+the `email` account, with an account tag keyed by the caller's password. A
+password change therefore costs one cold login. Tokens issued before this
+envelope are raw idTokens and are still accepted; do not parse either form.
+
 ### Treat it as a standing bypass of your second factor
 
-**This token does not rotate.** A warm run replays the stored value and returns
-it unchanged, so the value you store is the one minted by your last SMS login
+**This token does not rotate.** A warm run replays the stored raw value and
+publishes it again, so the value you store is the one minted by your last SMS login
 and it stays valid until the bank expires it — a lifetime measured in years,
 not a session.
 

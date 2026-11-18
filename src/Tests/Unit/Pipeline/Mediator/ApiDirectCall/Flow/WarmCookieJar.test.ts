@@ -8,6 +8,8 @@
  * cold login, so neither imported nor validation-response cookies reach it.
  */
 
+import { createHash, createHmac } from 'node:crypto';
+
 import { jest } from '@jest/globals';
 
 import { CompanyTypes } from '../../../../../../Definitions.js';
@@ -306,6 +308,42 @@ function credsWith(token: string, userCode = ACCOUNT): ScraperCredentials {
 function warnings(): string {
   return JSON.stringify(LOG.warn.mock.calls);
 }
+
+describe('cookie-jar keyed account tag', () => {
+  const tagKey = 'syn-password';
+
+  it('writes an HMAC tag when a key is supplied', (): void => {
+    const token = encodeOk({ ...IDENTITY, tagKey: tagKey });
+    const encoded = token.slice('v1.'.length);
+    const body = Buffer.from(encoded, 'base64url').toString('utf8');
+    const parsed = JSON.parse(body) as { a: string };
+    const hash = createHash('sha256');
+    hash.update(tagKey);
+    const key = hash.digest();
+    const hmac = createHmac('sha256', key);
+    const digest = hmac.update(ACCOUNT).digest('hex');
+    const tag = digest.slice(0, 16);
+    expect(parsed.a).toBe(tag);
+  });
+
+  it('opens a keyed token only with the same key', (): void => {
+    const token = encodeOk({ ...IDENTITY, tagKey: tagKey });
+    const opened = CODEC.decodeWarmJar(token, { ...IDENTITY, tagKey: tagKey, maxChars: LIMIT });
+    const refused = CODEC.decodeWarmJar(token, {
+      ...IDENTITY,
+      tagKey: 'syn-other',
+      maxChars: LIMIT,
+    });
+    const accountFailure = fail(ScraperErrorTypes.Generic, CODEC.WARM_JAR_REJECTIONS.account);
+    assertOk(opened);
+    expect(refused).toEqual(accountFailure);
+  });
+
+  it('still opens a legacy unkeyed token when a key is supplied', (): void => {
+    const opened = CODEC.decodeWarmJar(GOOD, { ...IDENTITY, tagKey: tagKey, maxChars: LIMIT });
+    assertOk(opened);
+  });
+});
 
 describe('cookie-jar warm start through the strategy', () => {
   it('imports the stored jar and resumes at fromStepIndex', async (): Promise<void> => {

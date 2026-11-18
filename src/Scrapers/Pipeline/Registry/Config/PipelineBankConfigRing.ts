@@ -42,6 +42,7 @@ const RING_SHARED = {
     carryField: 'key',
     fromStepIndex: RING_WARM_STEP_INDEX,
     validation: 'bank-call',
+    accountFields: ['id', 'card6Digits'],
   },
 } as const satisfies Omit<IApiDirectCallConfig, 'steps'>;
 
@@ -53,7 +54,8 @@ const RING_SHARED = {
 function buildRingApiDirectCall(ring: IRingConstants): IApiDirectCallConfig {
   const staticHeaders = ringStaticHeaders(ring);
   const steps = buildRingSteps(ring);
-  return { ...RING_SHARED, staticHeaders, steps };
+  const warmStart = { ...RING_SHARED.warmStart, provider: ring.isrdomain };
+  return { ...RING_SHARED, staticHeaders, steps, warmStart };
 }
 
 /**

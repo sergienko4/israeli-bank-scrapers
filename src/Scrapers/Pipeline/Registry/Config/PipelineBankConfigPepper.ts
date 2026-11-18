@@ -41,6 +41,8 @@ const PEPPER_API_DIRECT_CALL: IApiDirectCallConfig = {
     credsField: 'otpLongTermToken',
     carryField: 'token',
     fromStepIndex: 3,
+    provider: 'pepper',
+    accountFields: ['phoneNumber'],
   },
   signer: {
     algorithm: 'ECDSA-P256',

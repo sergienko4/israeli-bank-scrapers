@@ -1,0 +1,141 @@
+/**
+ * Raw carry warm start through the token strategy: a new `v1.` token is
+ * opened and its raw value seeded; a legacy raw token is still accepted; a
+ * token minted for another bank is refused and the cold flow runs instead.
+ */
+
+import { CompanyTypes } from '../../../../../../Definitions.js';
+import type { IApiDirectCallConfig } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
+import {
+  createTokenStrategyFromConfig,
+  type IConfigTokenStrategy,
+} from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/TokenStrategyFromConfig.js';
+import {
+  decodeRawCarry,
+  encodeRawCarry,
+} from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmRawCarry.js';
+import type { WKUrlGroup } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
+import { registerWkUrl } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
+import type { IPipelineContext } from '../../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import { succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { assertOk } from '../../../../../Helpers/AssertProcedure.js';
+import { type IApiPostCapture, makeStubMediator } from './StubMediator.js';
+
+const WARM_STEP_TAG: WKUrlGroup = 'auth.assert';
+const HINT = CompanyTypes.VisaCal;
+const PROVIDER = 'visacal';
+const USER = 'syn-user';
+const PASSWORD = 'syn-password';
+const RAW = 'syn-raw-hash';
+const MINTED = 'syn-minted-hash';
+const FOREIGN = 'syn-foreign-hash';
+const CTX = { companyId: HINT } as unknown as IPipelineContext;
+
+beforeAll((): void => {
+  registerWkUrl(WARM_STEP_TAG, HINT, 'https://example.test/api/raw-carry');
+});
+
+/**
+ * A carry warm start bound to the test provider and user.
+ * @returns API-direct-call config.
+ */
+function rawConfig(): IApiDirectCallConfig {
+  return {
+    flow: 'sms-otp',
+    envelope: {},
+    probe: { queryTag: 'customer' },
+    warmStart: {
+      credsField: 'otpLongTermToken',
+      carryField: 'token',
+      fromStepIndex: 1,
+      validation: 'bank-call',
+      provider: PROVIDER,
+      accountFields: ['username'],
+    },
+    steps: [
+      {
+        name: 'login',
+        urlTag: WARM_STEP_TAG,
+        body: { shape: {} },
+        extractsToCarry: { token: '/hash' },
+      },
+    ],
+  };
+}
+
+/**
+ * Build the strategy under test.
+ * @returns The config-driven token strategy.
+ */
+function makeStrategy(): IConfigTokenStrategy {
+  const built = createTokenStrategyFromConfig({ config: rawConfig() });
+  assertOk(built);
+  return built.value;
+}
+
+/**
+ * Credentials carrying a stored token.
+ * @param stored - Stored token.
+ * @returns Credential bag.
+ */
+function credsWith(stored: string): Record<string, string> {
+  return { username: USER, password: PASSWORD, otpLongTermToken: stored };
+}
+
+describe('raw carry warm start through the strategy', () => {
+  it('seeds the raw value from a matching v1 envelope', async () => {
+    const captures: IApiPostCapture[] = [];
+    const bus = makeStubMediator({ responses: [], captures });
+    const encoded = encodeRawCarry({ provider: PROVIDER, accounts: [USER], tagKey: PASSWORD }, RAW);
+    assertOk(encoded);
+    const strategy = makeStrategy();
+    const creds = credsWith(encoded.value);
+    const proc = await strategy.primeInitial(bus, CTX, creds);
+    assertOk(proc);
+    expect(proc.value).toBe(RAW);
+    expect(captures).toHaveLength(0);
+  });
+
+  it('accepts a legacy raw token unchanged', async () => {
+    const captures: IApiPostCapture[] = [];
+    const bus = makeStubMediator({ responses: [], captures });
+    const strategy = makeStrategy();
+    const creds = credsWith('legacy-hash');
+    const proc = await strategy.primeInitial(bus, CTX, creds);
+    assertOk(proc);
+    expect(proc.value).toBe('legacy-hash');
+    expect(captures).toHaveLength(0);
+  });
+
+  it('refuses another bank’s token and runs the cold flow', async () => {
+    const captures: IApiPostCapture[] = [];
+    const responses = [succeed({ hash: MINTED })];
+    const bus = makeStubMediator({ responses, captures });
+    const foreign = encodeRawCarry({ provider: 'isracard', accounts: [USER] }, FOREIGN);
+    assertOk(foreign);
+    const strategy = makeStrategy();
+    const creds = credsWith(foreign.value);
+    const proc = await strategy.primeInitial(bus, CTX, creds);
+    assertOk(proc);
+    expect(proc.value).toBe(MINTED);
+    expect(captures).toHaveLength(1);
+  });
+
+  it('publishes a v1 envelope for the token a cold flow mints', async () => {
+    const captures: IApiPostCapture[] = [];
+    const responses = [succeed({ hash: MINTED })];
+    const bus = makeStubMediator({ responses, captures });
+    const strategy = makeStrategy();
+    const proc = await strategy.primeInitial(bus, CTX, { username: USER, password: PASSWORD });
+    assertOk(proc);
+    const exported = strategy.getLatestLongTermToken();
+    const decoded = decodeRawCarry(exported, {
+      provider: PROVIDER,
+      accounts: [USER],
+      tagKey: PASSWORD,
+      maxChars: 16384,
+    });
+    assertOk(decoded);
+    expect(decoded.value).toBe(MINTED);
+  });
+});

@@ -37,6 +37,19 @@ function readCredsString(creds: GenericCreds, field: string): string {
 }
 
 /**
+ * Key that binds an account tag: the caller's password when supplied, else
+ * the bank-configured fallback. '' keeps the legacy unkeyed tag.
+ * @param creds - Caller credentials.
+ * @param fallback - Bank-configured tag key, or '' when none.
+ * @returns The tag key text.
+ */
+function accountTagKeyOf(creds: GenericCreds, fallback: string): string {
+  const password = readCredsString(creds, 'password');
+  if (password.length > 0) return password;
+  return fallback;
+}
+
+/**
  * Whether a stored seed looks like a token: printable ASCII within the
  * access-token length cap.
  * @param stored - Non-empty stored seed.
@@ -167,6 +180,7 @@ function gateFlowKind(config: IApiDirectCallConfig): Procedure<true> {
 }
 
 export {
+  accountTagKeyOf,
   gateFlowKind,
   isWarmSeedSupplied,
   makeWarmArgs,

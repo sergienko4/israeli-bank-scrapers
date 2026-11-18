@@ -47,6 +47,7 @@ function openToken(coldToken: string): IWarmBundle {
   const expected = { provider: warm.provider, accounts: OWN_ACCOUNTS, slots: warm.slots };
   const bundle = decodeWarmBundle(coldToken, {
     ...expected,
+    tagKey: YAHAV_MOCK_CREDS.password,
     hasCookies: true,
     maxChars: warm.maxTokenChars,
   });
@@ -70,7 +71,12 @@ interface ITokenChange {
  */
 function resealed(coldToken: string, change: ITokenChange): string {
   const bundle = openToken(coldToken);
-  const identity = { provider: yahavWarm().provider, accounts: OWN_ACCOUNTS, ...change.owner };
+  const identity = {
+    provider: yahavWarm().provider,
+    accounts: OWN_ACCOUNTS,
+    tagKey: YAHAV_MOCK_CREDS.password,
+    ...change.owner,
+  };
   const token = encodeWarmBundle(identity, change.edit?.(bundle) ?? bundle);
   if (!isOk(token)) throw new ScraperError(token.errorMessage);
   return token.value;

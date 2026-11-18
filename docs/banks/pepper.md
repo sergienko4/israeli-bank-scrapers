@@ -1,15 +1,15 @@
 # Pepper (by Bank Leumi)
 
-|                |                                                                                                                                                              |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `CompanyTypes` | `Pepper`                                                                                                                                                     |
-| Engine         | **API-direct** (no browser)                                                                                                                                  |
-| Transport      | Node's own `fetch` (`nativeFetch`) — see [HTTP transports](../architecture/pipeline.md#http-transports)                                              |
-| Credentials    | `phoneNumber`, `password`, `otpCodeRetriever`                                                                                                                |
-| OTP            | Required                                                                                                                                                     |
-| Phase chain    | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md)                                                        |
-| Phone format   | `international-flat` (`972000000000`)                                                                                                                        |
-| Durable auth   | Opt-in — see [Durable device auth](#durable-device-auth-opt-in)                                                                                              |
+|                |                                                                                                                                                        |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `CompanyTypes` | `Pepper`                                                                                                                                               |
+| Engine         | **API-direct** (no browser)                                                                                                                            |
+| Transport      | Node's own `fetch` (`nativeFetch`) — see [HTTP transports](../architecture/pipeline.md#http-transports)                                                |
+| Credentials    | `phoneNumber`, `password`, `otpCodeRetriever`                                                                                                          |
+| OTP            | Required                                                                                                                                               |
+| Phase chain    | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md)                                                  |
+| Phone format   | `international-flat` (`972000000000`)                                                                                                                  |
+| Durable auth   | Opt-in — see [Durable device auth](#durable-device-auth-opt-in)                                                                                        |
 | Source         | [`Banks/BankPipelineTableD.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/BankPipelineTableD.ts) |
 
 ## Quick example
@@ -26,7 +26,11 @@ const result = await scraper.scrape({
 
 Pepper's access token is short-lived. In the default **token-only** mode a run
 reuses `otpLongTermToken` while it is fresh, and pays one SMS for a cold login
-once it has expired.
+once it has expired. The token is opaque: a new run publishes a `v1.` envelope
+bound to Pepper and the `phoneNumber`, with an account tag keyed by the
+password. A password change therefore costs one cold login. Tokens issued
+before this envelope are raw JWTs and are still accepted; do not parse either
+form.
 
 **Durable state** mode keeps what the app keeps: the device Pepper bound during
 enrollment and that device's signing key. A later run renews an expired token

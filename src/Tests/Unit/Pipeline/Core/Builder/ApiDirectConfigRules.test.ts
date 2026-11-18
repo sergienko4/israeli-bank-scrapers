@@ -17,6 +17,7 @@ import {
 import type { IPipelineDescriptor } from '../../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
 import type {
   IApiDirectCallConfig,
+  ICarryWarmStart,
   ICookieJarWarmStart,
   IStepConfig,
   IStepOutcome,
@@ -141,6 +142,27 @@ function jarBinding(binding: JarBinding): IApiDirectRuleInput {
   return cookieJarWarm(1, JAR_DOMAINS, binding);
 }
 
+/** The raw carry binding fields a test may replace. */
+type RawBinding = Partial<Pick<ICarryWarmStart, 'provider' | 'accountFields' | 'accountTagKey'>>;
+
+/**
+ * A two-step raw carry warm start with the given binding.
+ * @param binding - Binding fields to set.
+ * @returns Rule input otherwise sound.
+ */
+function rawCarryWarm(binding: RawBinding = {}): IApiDirectRuleInput {
+  const warmStart = {
+    credsField: 'otpLongTermToken',
+    carryField: 'hash',
+    fromStepIndex: 1,
+    validation: 'bank-call',
+    provider: 'syn-bank',
+    accountFields: ['username'],
+    ...binding,
+  } as const;
+  return { call: makeCall({ warmStart, steps: [STEP, STEP] }), transport: false };
+}
+
 /**
  * A one-step call config with the given fields on top.
  * @param overrides - Fields to set.
@@ -186,6 +208,9 @@ const GUARDED_ENTRY_MSG = 'warmStart.fromStepIndex: a bank-call check step must 
 const PROVIDER_MSG = 'warmStart.provider: must not be blank';
 const ACCOUNT_FIELD_MSG = 'warmStart.accountField: must not be blank';
 const DEVICE_IDENTITY_MSG = 'deviceIdentity.seedSlot: must differ from credential';
+const RAW_PARTIAL_MSG = 'warmStart.provider: required with accountFields';
+const RAW_ACCOUNTS_MSG = 'warmStart.accountFields: must name a creds field, none blank';
+const TAG_KEY_MSG = 'warmStart.accountTagKey: must not be blank';
 
 /** A declaration that tries to keep the seed and the signature in one field. */
 const DUPLICATE_DEVICE_FIELDS = {
@@ -301,6 +326,16 @@ const BROKEN: readonly BrokenCase[] = [
     jarBinding({ accountField: '' }),
     ACCOUNT_FIELD_MSG,
   ],
+  ['raw carry with only a provider', rawCarryWarm({ accountFields: undefined }), RAW_PARTIAL_MSG],
+  ['raw carry with only account fields', rawCarryWarm({ provider: undefined }), RAW_PARTIAL_MSG],
+  ['raw carry with a blank provider', rawCarryWarm({ provider: ' ' }), PROVIDER_MSG],
+  ['raw carry with no account field', rawCarryWarm({ accountFields: [] }), RAW_ACCOUNTS_MSG],
+  [
+    'raw carry with a blank account field',
+    rawCarryWarm({ accountFields: [' '] }),
+    RAW_ACCOUNTS_MSG,
+  ],
+  ['raw carry with a blank tag key', rawCarryWarm({ accountTagKey: ' ' }), TAG_KEY_MSG],
   [
     'device identity uses one field for seed and signature',
     { call: makeCall({ ...DUPLICATE_DEVICE_FIELDS, steps: [STEP, STEP] }), transport: false },
@@ -344,6 +379,12 @@ const SOUND: readonly SoundCase[] = [
   ['bank-call warm from the second step, no claims', bankCallFrom(1)],
   ['jwt warm from the second step', jwtFrom(1)],
   ['jwt warm at the step count passes validation', jwtFrom(2)],
+  ['raw carry with provider and accounts', rawCarryWarm()],
+  ['raw carry with a tag key fallback', rawCarryWarm({ accountTagKey: 'syn-key' })],
+  [
+    'legacy raw carry without a binding',
+    rawCarryWarm({ provider: undefined, accountFields: undefined }),
+  ],
   ['cookie-jar warm at the lowest ceiling', cookieJarWarm(1)],
   ['cookie-jar warm at the seed ceiling', cookieJarWarm(16384)],
   ['bank-call warm past a guarded step', bankCallFrom(1, [GUARDED_STEP, STEP])],

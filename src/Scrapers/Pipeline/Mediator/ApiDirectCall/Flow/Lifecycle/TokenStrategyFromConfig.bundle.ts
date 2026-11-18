@@ -20,6 +20,7 @@ import {
 import type { StoredJar } from '../WarmCookieJar.js';
 import { textAt } from '../WarmTokenParts.js';
 import {
+  accountTagKeyOf,
   publishWithin,
   readCredsString,
   skipWarmRestore,
@@ -42,15 +43,31 @@ function accountValues(args: IWarmRunArgs, bundle: ICarryBundleWarmStart): reado
   return bundle.accountFields.map((field): string => readCredsString(args.creds, field));
 }
 
+/** What a stored bundle is checked against. */
+type BundleExpectation = Parameters<typeof decodeWarmBundle>[1];
+/** Who a new bundle belongs to. */
+type BundleIdentity = Parameters<typeof encodeWarmBundle>[0];
+
+/**
+ * Build the decode expectation for this run.
+ * @param args - Run and bundle config.
+ * @returns Provider, accounts, tag key, slots and limit.
+ */
+function bundleExpectation(args: IBundleRestoreArgs): BundleExpectation {
+  const { provider, slots, cookies: hasCookies, maxTokenChars: maxChars } = args.bundle;
+  const accounts = accountValues(args, args.bundle);
+  const tagKey = accountTagKeyOf(args.creds, args.bundle.accountTagKey ?? '');
+  return { provider, accounts, tagKey, slots, hasCookies, maxChars };
+}
+
 /**
  * Open a stored bundle for this run's provider, accounts and slots.
  * @param args - Run, carry-bundle warm start and stored token.
  * @returns The bundle, or the rejection.
  */
 function openStoredBundle(args: IBundleRestoreArgs): Procedure<IWarmBundle> {
-  const { provider, slots, cookies: hasCookies, maxTokenChars: maxChars } = args.bundle;
-  const accounts = accountValues(args, args.bundle);
-  return decodeWarmBundle(args.stored, { provider, accounts, slots, hasCookies, maxChars });
+  const expected = bundleExpectation(args);
+  return decodeWarmBundle(args.stored, expected);
 }
 
 /**
@@ -132,10 +149,21 @@ function encodeKept(
   bundle: ICarryBundleWarmStart,
   carry: BundleCarry,
 ): Procedure<string> {
-  const accounts = accountValues(args, bundle);
+  const identity = bundleIdentity(args, bundle);
   const cookies = keptJar(args, bundle);
-  const identity = { provider: bundle.provider, accounts };
   return encodeWarmBundle(identity, { carry, cookies });
+}
+
+/**
+ * Build who a new bundle belongs to.
+ * @param args - Run whose creds hold the accounts.
+ * @param bundle - Carry-bundle warm start.
+ * @returns Provider, accounts and tag key.
+ */
+function bundleIdentity(args: IWarmRunArgs, bundle: ICarryBundleWarmStart): BundleIdentity {
+  const accounts = accountValues(args, bundle);
+  const tagKey = accountTagKeyOf(args.creds, bundle.accountTagKey ?? '');
+  return { provider: bundle.provider, accounts, tagKey };
 }
 
 /**

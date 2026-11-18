@@ -13,6 +13,14 @@ Raised from `>= 22.14.0` in 9.0.0. Enforced by the `engines` field, so npm warns
 
 ## Release notes
 
+### 10.4.0 - Warm-start tokens are bound to the bank and account
+
+**Impact:** Behavior
+
+New warm-start tokens for VisaCal, Isracard, Amex, OneZero, PayBox and Pepper are `v1.` envelopes carrying a provider tag and an account tag; the account values themselves are never stored. Tokens issued before this change are raw values and remain accepted unchanged. Account tags in those envelopes, carry bundles and cookie jars are HMAC-SHA256 keyed by the caller's password; PayBox, whose login may carry no password, falls back to a bank-configured tag. A password change therefore invalidates a keyed token and costs one cold login, after which the newly published token works again. Old unkeyed tags remain readable. Stored JWTs may additionally be checked against a configured `iss` and `aud`.
+
+**What to do:** Keep treating `result.persistentOtpToken` and `otpLongTermToken` as opaque strings: store the published value and pass it back unchanged. Existing tokens keep working. After changing a password, expect one cold login while a replacement token is published.
+
 ### 10.3.0 - Invalid options and credentials fail before any bank request
 
 **Impact:** Behavior

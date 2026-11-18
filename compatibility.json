@@ -8,6 +8,15 @@
   },
   "entries": [
     {
+      "version": "10.4.0",
+      "impact": "behavior",
+      "title": "Warm-start tokens are bound to the bank and account",
+      "detail": "New warm-start tokens for VisaCal, Isracard, Amex, OneZero, PayBox and Pepper are `v1.` envelopes carrying a provider tag and an account tag; the account values themselves are never stored. Tokens issued before this change are raw values and remain accepted unchanged. Account tags in those envelopes, carry bundles and cookie jars are HMAC-SHA256 keyed by the caller's password; PayBox, whose login may carry no password, falls back to a bank-configured tag. A password change therefore invalidates a keyed token and costs one cold login, after which the newly published token works again. Old unkeyed tags remain readable. Stored JWTs may additionally be checked against a configured `iss` and `aud`.",
+      "action": "Keep treating `result.persistentOtpToken` and `otpLongTermToken` as opaque strings: store the published value and pass it back unchanged. Existing tokens keep working. After changing a password, expect one cold login while a replacement token is published.",
+      "before": null,
+      "after": null
+    },
+    {
       "version": "10.3.0",
       "impact": "behavior",
       "title": "Invalid options and credentials fail before any bank request",

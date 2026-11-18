@@ -7,7 +7,7 @@
  * reason only — never a value — so the cold login runs instead.
  */
 
-import { createHash } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 
 import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js';
 import {
@@ -99,6 +99,55 @@ function bodyOf(token: string): string {
   const encoded = token.slice('v1.'.length);
   return Buffer.from(encoded, 'base64url').toString('utf8');
 }
+
+describe('carry-bundle keyed account tag', () => {
+  const tagKey = 'syn-password';
+
+  it('writes an HMAC tag when a key is supplied', (): void => {
+    const token = encodeOk({ ...IDENTITY, tagKey: tagKey }, WITH_JAR);
+    const body = bodyOf(token);
+    const parsed = JSON.parse(body) as { a: string };
+    const hash = createHash('sha256');
+    hash.update(tagKey);
+    const key = hash.digest();
+    const hmac = createHmac('sha256', key);
+    const digest = hmac.update(ACCOUNTS_JSON).digest('hex');
+    const tag = digest.slice(0, 16);
+    expect(parsed.a).toBe(tag);
+  });
+
+  it('opens a keyed token only with the same key', (): void => {
+    const token = encodeOk({ ...IDENTITY, tagKey: tagKey }, WITH_JAR);
+    const opened = decodeWarmBundle(token, {
+      ...IDENTITY,
+      tagKey: tagKey,
+      slots: SLOTS,
+      hasCookies: true,
+      maxChars: LIMIT,
+    });
+    const refused = decodeWarmBundle(token, {
+      ...IDENTITY,
+      tagKey: 'syn-other',
+      slots: SLOTS,
+      hasCookies: true,
+      maxChars: LIMIT,
+    });
+    const accountFailure = fail(ScraperErrorTypes.Generic, WARM_BUNDLE_REJECTIONS.account);
+    assertOk(opened);
+    expect(refused).toEqual(accountFailure);
+  });
+
+  it('still opens a legacy unkeyed token when a key is supplied', (): void => {
+    const opened = decodeWarmBundle(GOOD, {
+      ...IDENTITY,
+      tagKey: tagKey,
+      slots: SLOTS,
+      hasCookies: true,
+      maxChars: LIMIT,
+    });
+    assertOk(opened);
+  });
+});
 
 /** A well-formed envelope for the test identity, before tampering. */
 const ENVELOPE = { p: PROVIDER, a: ACCOUNT_TAG, s: CARRY, c: WARM_COOKIES } as const;

@@ -17,6 +17,7 @@ import {
   CAL_API,
   CAL_WEB_SITE_ID,
 } from '../../../Scrapers/Pipeline/Banks/VisaCal/scrape/VisaCalShapeHelpers.js';
+import { decodeRawCarry } from '../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmRawCarry.js';
 import createScraper from '../../../Scrapers/Registry/Factory.js';
 import type { IMockHandle, IRecordedCall } from '../Helpers/FetchMockKit.js';
 import type { LoginFault } from './VisaCalFetchMock.js';
@@ -135,6 +136,23 @@ function isSent(calls: readonly IRecordedCall[], value: string): boolean {
   return calls.some(call => call.body.includes(value));
 }
 
+/**
+ * The raw hash inside a run's published token.
+ * @param token - Published opaque token.
+ * @returns The hash the caller would store.
+ */
+function persistedRaw(token: string): string {
+  const decoded = decodeRawCarry(token, {
+    provider: 'visacal',
+    accounts: [VISACAL_MOCK_CREDS.username],
+    tagKey: VISACAL_MOCK_CREDS.password,
+    maxChars: 16384,
+  });
+  expect(decoded.success).toBe(true);
+  if (!decoded.success) return '';
+  return decoded.value;
+}
+
 /** What the caller stores after a cold run: bioLogin's rotation of the login hash. */
 const COLD_RUN_HASH = rotatedHash(SYN_LOGIN_HASH);
 
@@ -182,7 +200,8 @@ describe('Visa Cal browserless login', () => {
 
   it("uses a cold run's rotated hash on the next warm run", async () => {
     const [cold, warm] = await runColdThenWarm();
-    expect(cold.result.persistentOtpToken).toBe(COLD_RUN_HASH);
+    const persisted = persistedRaw(cold.result.persistentOtpToken ?? '');
+    expect(persisted).toBe(COLD_RUN_HASH);
     expect(warm.result.success).toBe(true);
     expect(warm.steps).toEqual(['bioLogin']);
     const isPasswordSent = isSent(warm.calls, VISACAL_MOCK_CREDS.password);
@@ -194,7 +213,8 @@ describe('Visa Cal browserless login', () => {
     const run = await runCal(creds);
     expect(run.result.success).toBe(true);
     expect(run.steps).toEqual(['bioLogin', 'regularLogin', 'bioLogin']);
-    expect(run.result.persistentOtpToken).toBe(COLD_RUN_HASH);
+    const persisted = persistedRaw(run.result.persistentOtpToken ?? '');
+    expect(persisted).toBe(COLD_RUN_HASH);
   });
 
   it('fails a refused password as InvalidPassword before any data call', async () => {

@@ -10,6 +10,7 @@
 
 import { CompanyTypes } from '../../../Definitions.js';
 import type { ScraperCredentials } from '../../../Scrapers/Base/Interface.js';
+import { decodeRawCarry } from '../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmRawCarry.js';
 import createScraper from '../../../Scrapers/Registry/Factory.js';
 import type { IMockHandle as IKitMockHandle } from '../Helpers/FetchMockKit.js';
 import createScraperWithMtls from '../Helpers/MtlsScraper.js';
@@ -100,8 +101,12 @@ interface IApiDirectFlowCase {
   readonly minIdentityCalls?: number;
   readonly maxIdentityCalls?: number;
   readonly expectsWarmStart?: boolean;
-  /** Exact `result.persistentOtpToken` the caller must receive back. */
+  /** Exact raw token the caller must receive back inside the envelope. */
   readonly expectedPersistentToken?: string;
+  /** Provider tag the published envelope must carry. */
+  readonly expectedProvider?: string;
+  /** Credential fields the published envelope is bound to. */
+  readonly expectedAccountFields?: readonly string[];
   /** How many times the pipeline is allowed to ask for an SMS code. */
   readonly expectedOtpPrompts?: number;
   readonly timeoutMs?: number;
@@ -176,6 +181,8 @@ const ONEZERO_CASE: IApiDirectFlowCase = {
   expectsWarmStart: true,
   // The stored seed is replayed verbatim, so the caller gets it back unchanged.
   expectedPersistentToken: ONEZERO_MOCK_CREDS.otpLongTermToken,
+  expectedProvider: 'onezero',
+  expectedAccountFields: ['email'],
   expectedOtpPrompts: 0,
   timeoutMs: 60000,
 };
@@ -201,6 +208,8 @@ const ONEZERO_COLD_CASE: IApiDirectFlowCase = {
   // A cold run mints a brand-new handle; the caller must receive that one so it
   // can be stored for the next run. Distinct from the stored seed by `sub`.
   expectedPersistentToken: SYN_ID_TOKEN,
+  expectedProvider: 'onezero',
+  expectedAccountFields: ['email'],
   expectedOtpPrompts: 1,
 };
 
@@ -222,6 +231,8 @@ const VISACAL_COLD_CASE: IApiDirectFlowCase = {
   expectsWarmStart: false,
   // bioLogin rotates the hash regularLogin issued; the caller stores that one.
   expectedPersistentToken: rotatedHash(SYN_LOGIN_HASH),
+  expectedProvider: 'visacal',
+  expectedAccountFields: ['username'],
 };
 
 const VISACAL_WARM_CASE: IApiDirectFlowCase = {
@@ -233,6 +244,8 @@ const VISACAL_WARM_CASE: IApiDirectFlowCase = {
   maxIdentityCalls: 1,
   expectsWarmStart: true,
   expectedPersistentToken: rotatedHash(SYN_STORED_HASH),
+  expectedProvider: 'visacal',
+  expectedAccountFields: ['username'],
 };
 
 const ISRACARD_COLD_CASE: IApiDirectFlowCase = {
@@ -257,6 +270,8 @@ const ISRACARD_COLD_CASE: IApiDirectFlowCase = {
   expectsWarmStart: false,
   // The device key the ring issued and registered; the caller stores it.
   expectedPersistentToken: SYN_ISSUED_KEY,
+  expectedProvider: 'isracard',
+  expectedAccountFields: ['id', 'card6Digits'],
 };
 
 const ISRACARD_WARM_CASE: IApiDirectFlowCase = {
@@ -269,6 +284,8 @@ const ISRACARD_WARM_CASE: IApiDirectFlowCase = {
   expectsWarmStart: true,
   // The key does not rotate, so the caller gets the stored one back.
   expectedPersistentToken: SYN_STORED_KEY,
+  expectedProvider: 'isracard',
+  expectedAccountFields: ['id', 'card6Digits'],
 };
 
 const AMEX_COLD_CASE: IApiDirectFlowCase = {
@@ -280,6 +297,7 @@ const AMEX_COLD_CASE: IApiDirectFlowCase = {
    * @returns Mock handle.
    */
   installFetchMock: (): IKitMockHandle => installRingFetchMock(AMEX_RING_TARGET),
+  expectedProvider: 'amex',
 };
 
 const AMEX_WARM_CASE: IApiDirectFlowCase = {
@@ -287,6 +305,7 @@ const AMEX_WARM_CASE: IApiDirectFlowCase = {
   displayName: 'Amex (warm)',
   companyId: CompanyTypes.Amex,
   installFetchMock: AMEX_COLD_CASE.installFetchMock,
+  expectedProvider: 'amex',
 };
 
 const MAX_COLD_CASE: IApiDirectFlowCase = {
@@ -414,6 +433,33 @@ interface IAuthOutcomeSlice {
 }
 
 /**
+ * The raw token inside the published envelope.
+ * @param result - Scrape result under assertion.
+ * @param testCase - Bank case naming the expected provider and accounts.
+ * @returns The raw token, or the value unchanged when no binding is expected.
+ */
+function persistedRaw(result: IAuthOutcomeSlice, testCase: IApiDirectFlowCase): string {
+  const token = result.persistentOtpToken ?? '';
+  if (testCase.expectedProvider === undefined || testCase.expectedAccountFields === undefined) {
+    return token;
+  }
+  const creds = testCase.mockCreds as unknown as Record<string, unknown>;
+  const accounts = testCase.expectedAccountFields.map((field): string =>
+    typeof creds[field] === 'string' ? creds[field] : '',
+  );
+  const password = typeof creds.password === 'string' ? creds.password : '';
+  const decoded = decodeRawCarry(token, {
+    provider: testCase.expectedProvider,
+    accounts,
+    tagKey: password,
+    maxChars: 16384,
+  });
+  expect(decoded.success).toBe(true);
+  if (!decoded.success) return '';
+  return decoded.value;
+}
+
+/**
  * Asserts the caller-visible auth outcome: how many SMS prompts the run cost
  * and which durable token the caller receives back to store for next time.
  * @param result scrape result under assertion.
@@ -425,7 +471,8 @@ function assertAuthOutcome(result: IAuthOutcomeSlice, testCase: IApiDirectFlowCa
     expect(OTP_PROMPTS).toHaveLength(testCase.expectedOtpPrompts);
   }
   if (testCase.expectedPersistentToken !== undefined) {
-    expect(result.persistentOtpToken).toBe(testCase.expectedPersistentToken);
+    const raw = persistedRaw(result, testCase);
+    expect(raw).toBe(testCase.expectedPersistentToken);
   }
   return true;
 }

@@ -1,14 +1,14 @@
 # PayBox (by Discount Bank)
 
-|                |                                                                                                                                                              |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `CompanyTypes` | `PayBox`                                                                                                                                                     |
-| Engine         | **API-direct** (no browser)                                                                                                                                  |
-| Transport      | Node's own `fetch` (`nativeFetch`) — see [HTTP transports](../architecture/pipeline.md#http-transports)                                              |
-| Credentials    | `phoneNumber`, `otpCodeRetriever` (plus optional `otpLongTermToken`)                                                                                         |
-| OTP            | Required (cached long-term token supported)                                                                                                                  |
-| Phase chain    | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md)                                                        |
-| Phone format   | `international-dash` (`972-000000000`)                                                                                                                       |
+|                |                                                                                                                                                        |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `CompanyTypes` | `PayBox`                                                                                                                                               |
+| Engine         | **API-direct** (no browser)                                                                                                                            |
+| Transport      | Node's own `fetch` (`nativeFetch`) — see [HTTP transports](../architecture/pipeline.md#http-transports)                                                |
+| Credentials    | `phoneNumber`, `otpCodeRetriever` (plus optional `otpLongTermToken`)                                                                                   |
+| OTP            | Required (cached long-term token supported)                                                                                                            |
+| Phase chain    | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md)                                                  |
+| Phone format   | `international-dash` (`972-000000000`)                                                                                                                 |
 | Source         | [`Banks/BankPipelineTableD.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/BankPipelineTableD.ts) |
 
 ## Quick example
@@ -21,6 +21,14 @@ const result = await scraper.scrape({
 
 // Save result.persistentOtpToken — pass as otpLongTermToken on next run to skip SMS
 ```
+
+## Warm start
+
+`result.persistentOtpToken` is opaque: a new run publishes a `v1.` envelope
+bound to PayBox and the `phoneNumber`. A PayBox login may omit the password, so
+the account tag uses the bank's configured fallback when no password is
+supplied and the caller's password when one is. Tokens issued before this
+envelope are raw JWTs and are still accepted; do not parse either form.
 
 ## Known quirks
 

@@ -88,6 +88,8 @@ const VISACAL_API_DIRECT_CALL: IApiDirectCallConfig = {
     carryField: 'hash',
     fromStepIndex: 1,
     validation: 'bank-call',
+    provider: 'visacal',
+    accountFields: ['username'],
   },
   steps: [REGULAR_LOGIN_STEP, BIO_LOGIN_STEP],
 };

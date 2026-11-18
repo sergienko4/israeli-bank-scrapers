@@ -5,7 +5,7 @@
  * own envelope, check order and rejection texts.
  */
 
-import { createHash } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 
 import type { IStoredCookie } from '../../../Types/Domain/CookieSession.js';
 import type { JsonUnknown, JsonUnknownList, JsonUnknownRecord } from '../../../Types/JsonValue.js';
@@ -30,13 +30,78 @@ const COOKIE_FIELD_TYPES: Readonly<Record<keyof IStoredCookie, 'string' | 'boole
 const COOKIE_FIELDS = Object.keys(COOKIE_FIELD_TYPES) as readonly (keyof IStoredCookie)[];
 
 /**
- * Tag an identity without storing it.
- * @param text - Identity text, already normalized by the codec.
- * @returns First 16 hex chars of its SHA-256.
+ * Digest a caller or bank key before using it as an HMAC key.
+ * @param key - Non-empty tag key.
+ * @returns The 32-byte SHA-256 digest of the key text.
  */
-function identityTag(text: string): string {
-  const digest = createHash('sha256').update(text, 'utf8').digest('hex');
-  return digest.slice(0, IDENTITY_TAG_CHARS);
+function tagKeyBytes(key: string): Buffer {
+  return createHash('sha256').update(key, 'utf8').digest();
+}
+
+/**
+ * Tag an identity without storing it. A key makes the tag an HMAC-SHA256
+ * that only the same password or bank fallback reproduces; no key keeps the
+ * legacy unkeyed SHA-256, so older tokens stay readable.
+ * @param text - Identity text, already normalized by the codec.
+ * @param key - Optional password or bank-configured fallback.
+ * @returns First 16 hex chars of the digest.
+ */
+function identityTag(text: string, key = ''): string {
+  if (key.length === 0) {
+    const legacy = createHash('sha256').update(text, 'utf8').digest('hex');
+    return legacy.slice(0, IDENTITY_TAG_CHARS);
+  }
+  const bytes = tagKeyBytes(key);
+  const keyed = createHmac('sha256', bytes).update(text, 'utf8').digest('hex');
+  return keyed.slice(0, IDENTITY_TAG_CHARS);
+}
+
+/**
+ * Whether a stored tag matches the identity under the current key. The
+ * legacy unkeyed tag is always accepted, so a token minted before keying
+ * still opens once and is replaced with a keyed token on the next export.
+ * @param tag - Stored tag.
+ * @param text - Identity text, already normalized by the codec.
+ * @param key - Password or bank-configured fallback; '' for none.
+ * @returns True when the tag is the keyed or legacy digest.
+ */
+function identityMatches(tag: string, text: string, key = ''): boolean {
+  if (tag === identityTag(text)) return true;
+  if (key.length === 0) return false;
+  return tag === identityTag(text, key);
+}
+
+/**
+ * The normalized JSON array an account tag covers.
+ * @param accounts - Account values; surrounding spaces ignored.
+ * @returns The JSON text.
+ */
+function accountsJson(accounts: readonly string[]): string {
+  const trimmed = accounts.map((account): string => account.trim());
+  return JSON.stringify(trimmed);
+}
+
+/**
+ * Tag account values without storing them.
+ * @param accounts - Account values; surrounding spaces ignored.
+ * @param key - Password or bank fallback key; '' keeps the legacy tag.
+ * @returns The identity tag of their JSON array.
+ */
+function accountsTag(accounts: readonly string[], key = ''): string {
+  const json = accountsJson(accounts);
+  return identityTag(json, key);
+}
+
+/**
+ * Whether a stored tag covers the expected accounts under the current key.
+ * @param tag - Stored account tag.
+ * @param accounts - Expected account values.
+ * @param key - Password or bank fallback key; '' keeps the legacy tag.
+ * @returns True for the keyed or legacy tag.
+ */
+function accountsMatch(tag: string, accounts: readonly string[], key = ''): boolean {
+  const json = accountsJson(accounts);
+  return identityMatches(tag, json, key);
 }
 
 /**
@@ -115,6 +180,9 @@ function parseJsonBody(text: string, failure: Procedure<never>): Procedure<JsonU
 }
 
 export {
+  accountsMatch,
+  accountsTag,
+  identityMatches,
   identityTag,
   isListValue,
   isRecordValue,

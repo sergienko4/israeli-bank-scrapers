@@ -22,6 +22,7 @@ import { CompanyTypes } from '../../../../../Definitions.js';
 import type { IApiDirectCallConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { IConfigTokenStrategy } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/TokenStrategyFromConfig.js';
 import { createTokenStrategyFromConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/TokenStrategyFromConfig.js';
+import { decodeRawCarry } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmRawCarry.js';
 import { warmCarryField } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmStartKind.js';
 import type { ITokenContext } from '../../../../../Scrapers/Pipeline/Types/Domain/TokenContext.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
@@ -198,9 +199,16 @@ async function prime(
 describe('OneZero cold login — what it persists (issue #576)', () => {
   it('runs the full SMS chain and persists the durable idToken', async () => {
     const { urls, persisted, isSuccess } = await prime('', COLD_RESPONSES);
+    const decoded = decodeRawCarry(persisted, {
+      provider: 'onezero',
+      accounts: ['synthetic@example.test'],
+      tagKey: SYNTHETIC_PASSWORD,
+      maxChars: 16384,
+    });
     expect(isSuccess).toBe(true);
+    const expected = succeed(COLD_ID_TOKEN);
     expect(urls).toEqual(COLD_URL_SEQUENCE);
-    expect(persisted).toBe(COLD_ID_TOKEN);
+    expect(decoded).toEqual(expected);
   });
 });
 
@@ -233,8 +241,15 @@ describe('OneZero warm login — what actually goes on the wire (issue #576)', (
 
   it('falls back to the cold SMS chain for a legacy opaque token, so upgrades self-heal', async () => {
     const { urls, persisted, isSuccess } = await prime('legacy-opaque-otp-token', COLD_RESPONSES);
+    const decoded = decodeRawCarry(persisted, {
+      provider: 'onezero',
+      accounts: ['synthetic@example.test'],
+      tagKey: SYNTHETIC_PASSWORD,
+      maxChars: 16384,
+    });
     expect(isSuccess).toBe(true);
+    const expected = succeed(COLD_ID_TOKEN);
     expect(urls).toEqual(COLD_URL_SEQUENCE);
-    expect(persisted).toBe(COLD_ID_TOKEN);
+    expect(decoded).toEqual(expected);
   });
 });

@@ -1,12 +1,12 @@
 # Isracard
 
-|                |                                                                                                                                                                      |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CompanyTypes` | `Isracard`                                                                                                                                                           |
-| Engine         | **API-direct** (no browser)                                                                                                                                          |
-| Credentials    | `id`, `card6Digits`, `password` (optional `otpLongTermToken`)                                                                                                        |
-| OTP            | —                                                                                                                                                                    |
-| Phase chain    | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md)                                                                |
+|                |                                                                                                                                                        |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `CompanyTypes` | `Isracard`                                                                                                                                             |
+| Engine         | **API-direct** (no browser)                                                                                                                            |
+| Credentials    | `id`, `card6Digits`, `password` (optional `otpLongTermToken`)                                                                                          |
+| OTP            | —                                                                                                                                                      |
+| Phase chain    | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md)                                                  |
 | Source         | [`Banks/BankPipelineTableA.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/BankPipelineTableA.ts) |
 
 ## Quick example
@@ -61,7 +61,12 @@ the run starts at `resume`, skipping the password. The key carries no readable
 expiry, so the bank's answer is the check (`validation: 'bank-call'`); a
 rejected key falls back to a cold login with `id`, `card6Digits` and
 `password`, which are therefore always required. The key does not rotate: a
-warm run returns the key it was given.
+warm run publishes the key it was given.
+
+The token is opaque: a new run publishes a `v1.` envelope bound to the issuer,
+`id` and `card6Digits`, with an account tag keyed by the caller's password. A
+password change therefore costs one cold login. Tokens issued before this
+envelope are raw keys and are still accepted; do not parse either form.
 
 ## Scrape
 
