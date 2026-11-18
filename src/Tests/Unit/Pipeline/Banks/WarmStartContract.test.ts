@@ -394,15 +394,17 @@ describe('warm-start contract — every opted-in bank', () => {
   it('binds every raw carry token to a provider and account fields', async () => {
     const configs = await loadWarmStartConfigs();
     const raw = configs.filter(([, config]) => isCarryToken(config));
-    const unbound = raw.filter(([, config]) => config.warmStart?.provider === undefined);
-    const noAccounts = raw.filter(([, config]) => {
+    const invalid = raw.filter(([, config]) => {
       const warm = carryWarmOf(config);
-      return warm === false || warm.accountFields === undefined;
+      if (warm === false) return true;
+      return (
+        warm.provider === undefined ||
+        warm.accountFields === undefined ||
+        warm.accountFields.length === 0
+      );
     });
-    const unboundLabels = unbound.map(([label]) => label);
-    const noAccountsLabels = noAccounts.map(([label]) => label);
-    expect(unboundLabels).toEqual([]);
-    expect(noAccountsLabels).toEqual([]);
+    const labels = invalid.map(([label]) => label);
+    expect(labels).toEqual([]);
   });
 
   it('gives every raw carry provider a distinct tag', async () => {

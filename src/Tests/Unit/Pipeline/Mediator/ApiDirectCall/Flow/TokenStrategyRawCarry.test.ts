@@ -198,6 +198,36 @@ describe('raw carry warm start through the strategy', () => {
     expect(captures).toHaveLength(1);
   });
 
+  it('refuses an unwrapped value with a control character', async () => {
+    const encoded = encodeRawCarry(
+      { provider: PROVIDER, accounts: [USER], tagKey: PASSWORD },
+      'safe\r\nX-Injected: 1',
+    );
+    assertOk(encoded);
+    const captures: IApiPostCapture[] = [];
+    const bus = makeStubMediator({ responses: [succeed({ hash: MINTED })], captures });
+    const creds = credsWith(encoded.value);
+    const proc = await makeStrategy().primeInitial(bus, CTX, creds);
+    assertOk(proc);
+    expect(proc.value).toBe(MINTED);
+    expect(captures).toHaveLength(1);
+  });
+
+  it('publishes a legacy raw value when the envelope would not fit', async () => {
+    const raw = makeJwtExpiringInWithClaims(3600, { pad: 'x'.repeat(9_300) });
+    const encoded = encodeRawCarry({ provider: PROVIDER, accounts: [USER], tagKey: PASSWORD }, raw);
+    assertOk(encoded);
+    expect(raw.length).toBeLessThan(16384);
+    expect(encoded.value.length).toBeGreaterThan(16384);
+    const strategy = makeStrategy();
+    const captures: IApiPostCapture[] = [];
+    const bus = makeStubMediator({ responses: [succeed({ hash: raw })], captures });
+    const fresh = await strategy.primeFresh(bus, CTX, { username: USER, password: PASSWORD });
+    assertOk(fresh);
+    const published = strategy.getLatestLongTermToken();
+    expect(published).toBe(raw);
+  });
+
   it('clears a previous bound token when the replacement does not fit', async () => {
     const stored = encodeRawCarry({ provider: PROVIDER, accounts: [USER], tagKey: PASSWORD }, RAW);
     assertOk(stored);

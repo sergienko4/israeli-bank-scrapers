@@ -25,13 +25,12 @@ import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import {
   identityMatches,
-  identityTag,
   isListValue,
   isRecordValue,
   isStoredCookie,
   parseJsonBody,
   projectCookie,
-  randomSalt,
+  tagFields,
   WARM_TOKEN_PREFIX,
   wrapJsonText,
 } from './WarmTokenParts.js';
@@ -81,18 +80,6 @@ type WarmJarRejection = keyof typeof WARM_JAR_REJECTIONS;
  */
 function reject(reason: WarmJarRejection): Procedure<never> {
   return fail(ScraperErrorTypes.Generic, WARM_JAR_REJECTIONS[reason]);
-}
-
-/**
- * Tag an account without storing it.
- * @param account - Account the jar belongs to; surrounding spaces ignored.
- * @param key - Password or bank fallback key; '' keeps the legacy tag.
- * @param salt - Per-token nonce; '' uses the domain fallback.
- * @returns First 16 hex chars of its digest.
- */
-function accountTag(account: string, key = '', salt = ''): string {
-  const normalized = account.trim();
-  return identityTag(normalized, key, salt);
 }
 
 /**
@@ -155,9 +142,9 @@ function isUnbound(account: string): boolean {
  */
 function encodeWarmJar(identity: IWarmJarIdentity, cookies: StoredJar): Procedure<string> {
   if (isUnbound(identity.account)) return reject('unbound');
-  const n = randomSalt();
-  const a = accountTag(identity.account, identity.tagKey ?? '', n);
-  const envelope: IJarEnvelope = { p: identity.provider, a, n, c: cookies.map(projectCookie) };
+  const account = identity.account.trim();
+  const tag = tagFields(account, identity.tagKey ?? '');
+  const envelope: IJarEnvelope = { p: identity.provider, ...tag, c: cookies.map(projectCookie) };
   const json = JSON.stringify(envelope);
   const token = wrapJsonText(json);
   return succeed(token);

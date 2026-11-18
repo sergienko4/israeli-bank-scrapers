@@ -25,6 +25,9 @@ import {
   UNAUTHORIZED_FAILURE,
 } from '../Helpers/TelegramOtpFixtures.js';
 
+/** Synthetic Telegram chat id; all-zero after the -100 supergroup prefix. */
+const SYNTHETIC_CHAT_ID = -1000000000000;
+
 const MOCK_HUMAN_DELAY = jest.fn();
 
 jest.unstable_mockModule('../Helpers/HumanDelay.js', () => ({
@@ -54,7 +57,7 @@ type ITelegramFetchArgs = Parameters<typeof FETCH_OTP_FROM_TELEGRAM>[0];
 function makeArgs(log: ITestLogger): ITelegramFetchArgs {
   return {
     botToken: 'TEST_TOKEN',
-    chatId: '-1000000000000',
+    chatId: String(SYNTHETIC_CHAT_ID),
     bankName: 'Beinleumi',
     bankRegex: /(\d{4,8})/,
     timeoutMs: 1,

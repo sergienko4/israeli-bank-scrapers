@@ -134,6 +134,18 @@ describe('CrossBankCurrency — DigitalV3 numeric enum vs ISO code (#614)', () =
   });
 });
 
+describe('CrossBankCurrency — original amount beats billed amount', () => {
+  it('maps originalAmount from originalAmount, not billingAmount', (): void => {
+    const txn = mapped({
+      originalAmount: -25,
+      billingAmount: -92.5,
+      originalCurrency: 19,
+      originalCurrencyIso: 'USD',
+    });
+    expect(txn.originalAmount).toBe(-25);
+  });
+});
+
 describe('CrossBankCurrency — pinned alias precedence outside the ISO pair', () => {
   it.each([
     ['trnCurrencySymbol', { trnCurrencySymbol: 'USD' }, 'USD'],

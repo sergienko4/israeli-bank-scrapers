@@ -6,7 +6,7 @@
  */
 
 import type { Procedure } from '../../../../Types/Procedure.js';
-import { isOk } from '../../../../Types/Procedure.js';
+import { isOk, succeed } from '../../../../Types/Procedure.js';
 import type { ICarryWarmStart } from '../../ConfigContracts/index.js';
 import { isJwtFresh } from '../../Jwt/GenericJwtClaims.js';
 import { MAX_ACCESS_TOKEN_CHARS } from '../../PersistentAuthStateRules.js';
@@ -19,6 +19,9 @@ import {
   skipWarmRestore,
 } from './TokenStrategyFromConfig.shared.js';
 import type { IWarmRunArgs, WarmCarry } from './TokenStrategyFromConfig.types.js';
+
+/** A replayable raw value: printable ASCII, within the token cap. */
+const PRINTABLE_ASCII = /^[\x20-\x7E]+$/;
 
 /** A carry warm start that binds new tokens to a provider and accounts. */
 interface IBoundCarryWarm extends ICarryWarmStart {
@@ -120,7 +123,9 @@ function restoreBoundRaw(
  * @returns The carry, or false when the value is stale.
  */
 function seededRaw(args: IWarmRunArgs, warm: ICarryWarmStart, raw: string): WarmCarry | false {
-  if (!isRawFresh(args, raw)) return false;
+  const isShaped =
+    raw.length > 0 && raw.length <= MAX_ACCESS_TOKEN_CHARS && PRINTABLE_ASCII.test(raw);
+  if (!isShaped || !isRawFresh(args, raw)) return false;
   return { [warm.carryField]: raw };
 }
 
@@ -136,7 +141,11 @@ function exportRawCarry(args: IWarmRunArgs, warm: ICarryWarmStart, raw: string):
   const identity = rawExpected(args, warm);
   const encoded = encodeRawCarry(identity, raw);
   const limit = { credsField: warm.credsField, maxTokenChars: MAX_ACCESS_TOKEN_CHARS };
-  return publishWithin(limit, encoded);
+  if (!isOk(encoded)) return publishWithin(limit, encoded);
+  if (encoded.value.length <= MAX_ACCESS_TOKEN_CHARS) return encoded.value;
+  // The envelope grew past the ceiling; the raw value itself still fits.
+  const fallback = succeed(raw);
+  return publishWithin(limit, fallback);
 }
 
 export { exportRawCarry, restoreRawCarry };

@@ -113,7 +113,9 @@ function audienceMatches(payload: JwtPayload, audience?: string): boolean {
   if (typeof claim === 'string') return claim === audience;
   if (!Array.isArray(claim)) return false;
   const members = claim as unknown[];
-  return members.includes(audience);
+  return (
+    members.every((member): boolean => typeof member === 'string') && members.includes(audience)
+  );
 }
 
 /**

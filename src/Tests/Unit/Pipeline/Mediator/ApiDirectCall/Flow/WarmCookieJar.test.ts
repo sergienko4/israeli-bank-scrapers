@@ -15,7 +15,6 @@ import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js
 import type { ScraperCredentials } from '../../../../../../Scrapers/Base/Interface.js';
 import type { IApiDirectCallConfig } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { IConfigTokenStrategy } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/TokenStrategyFromConfig.js';
-import { identityTag } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmTokenParts.js';
 import type { IStoredCookie } from '../../../../../../Scrapers/Pipeline/Types/Domain/CookieSession.js';
 import type { ITokenBus } from '../../../../../../Scrapers/Pipeline/Types/Domain/TokenBus.js';
 import type { ITokenContext } from '../../../../../../Scrapers/Pipeline/Types/Domain/TokenContext.js';
@@ -31,6 +30,7 @@ import {
   WARM_COOKIES as COOKIES,
 } from './WarmJarSpy.js';
 import { makeJwt, WARM_STEP_TAG, warmTwoStepConfig } from './WarmStartFixtures.js';
+import { expectedTag, legacyTag } from './WarmTagFixture.js';
 
 /** Logger shared by the modules under test and the assertions. */
 const LOG = {
@@ -317,7 +317,7 @@ describe('cookie-jar keyed account tag', () => {
     const encoded = token.slice('v1.'.length);
     const body = Buffer.from(encoded, 'base64url').toString('utf8');
     const parsed = JSON.parse(body) as { a: string; n: string };
-    const tag = identityTag(ACCOUNT, tagKey, parsed.n);
+    const tag = expectedTag(ACCOUNT, tagKey, parsed.n);
     expect(parsed.a).toBe(tag);
   });
 
@@ -352,7 +352,7 @@ describe('cookie-jar keyed account tag', () => {
   it('treats an empty nonce as a legacy tag', (): void => {
     const token = wrapObject({
       p: PROVIDER,
-      a: identityTag(ACCOUNT),
+      a: legacyTag(ACCOUNT),
       n: '',
       c: COOKIES,
     });
@@ -362,6 +362,18 @@ describe('cookie-jar keyed account tag', () => {
       maxChars: LIMIT,
     });
     assertOk(opened);
+  });
+
+  it('rejects a nonce-bearing envelope with an unkeyed tag', (): void => {
+    const token = wrapObject({
+      p: PROVIDER,
+      a: legacyTag(ACCOUNT),
+      n: '00112233445566778899aabbccddeeff',
+      c: COOKIES,
+    });
+    const decoded = CODEC.decodeWarmJar(token, { ...IDENTITY, tagKey, maxChars: LIMIT });
+    const accountFailure = fail(ScraperErrorTypes.Generic, CODEC.WARM_JAR_REJECTIONS.account);
+    expect(decoded).toEqual(accountFailure);
   });
 
   it('still opens a legacy unkeyed token when a key is supplied', (): void => {

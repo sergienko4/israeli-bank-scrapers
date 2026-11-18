@@ -14,11 +14,11 @@ import type { JsonUnknown, JsonUnknownRecord } from '../../../Types/JsonValue.js
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import {
+  accountsJson,
   accountsMatch,
-  accountsTag,
   isRecordValue,
   parseJsonBody,
-  randomSalt,
+  tagFields,
   WARM_TOKEN_PREFIX,
   wrapJsonText,
 } from './WarmTokenParts.js';
@@ -148,9 +148,9 @@ function checkEnvelope(value: JsonUnknown, expected: IRawCarryIdentity): Procedu
 function encodeRawCarry(identity: IRawCarryIdentity, value: string): Procedure<string> {
   if (isUnbound(identity.accounts)) return reject('unbound');
   if (value.length === 0) return reject('value');
-  const n = randomSalt();
-  const a = accountsTag(identity.accounts, identity.tagKey ?? '', n);
-  const json = JSON.stringify({ p: identity.provider, a, n, v: value });
+  const accounts = accountsJson(identity.accounts);
+  const tag = tagFields(accounts, identity.tagKey ?? '');
+  const json = JSON.stringify({ p: identity.provider, ...tag, v: value });
   const token = wrapJsonText(json);
   return succeed(token);
 }

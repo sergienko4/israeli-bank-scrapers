@@ -196,19 +196,35 @@ async function prime(
   return { urls, captures, persisted, isSuccess: isOk(proc) };
 }
 
+/**
+ * Assert the published token carries the durable idToken, keyed to the
+ * password: the same token must not open with another key.
+ * @param persisted - Token the run published.
+ * @returns True once the assertions pass.
+ */
+function expectPersisted(persisted: string): true {
+  const base = {
+    provider: 'onezero',
+    accounts: ['synthetic@example.test'],
+    maxChars: 16384,
+  };
+  const decoded = decodeRawCarry(persisted, { ...base, tagKey: SYNTHETIC_PASSWORD });
+  const wrong = decodeRawCarry(persisted, { ...base, tagKey: 'syn-wrong-password' });
+  const expected = succeed(COLD_ID_TOKEN);
+  expect(decoded).toEqual(expected);
+  expect(wrong).toMatchObject({
+    success: false,
+    errorMessage: 'token belongs to another account',
+  });
+  return true;
+}
+
 describe('OneZero cold login — what it persists (issue #576)', () => {
   it('runs the full SMS chain and persists the durable idToken', async () => {
     const { urls, persisted, isSuccess } = await prime('', COLD_RESPONSES);
-    const decoded = decodeRawCarry(persisted, {
-      provider: 'onezero',
-      accounts: ['synthetic@example.test'],
-      tagKey: SYNTHETIC_PASSWORD,
-      maxChars: 16384,
-    });
     expect(isSuccess).toBe(true);
-    const expected = succeed(COLD_ID_TOKEN);
     expect(urls).toEqual(COLD_URL_SEQUENCE);
-    expect(decoded).toEqual(expected);
+    expectPersisted(persisted);
   });
 });
 
@@ -241,15 +257,8 @@ describe('OneZero warm login — what actually goes on the wire (issue #576)', (
 
   it('falls back to the cold SMS chain for a legacy opaque token, so upgrades self-heal', async () => {
     const { urls, persisted, isSuccess } = await prime('legacy-opaque-otp-token', COLD_RESPONSES);
-    const decoded = decodeRawCarry(persisted, {
-      provider: 'onezero',
-      accounts: ['synthetic@example.test'],
-      tagKey: SYNTHETIC_PASSWORD,
-      maxChars: 16384,
-    });
     expect(isSuccess).toBe(true);
-    const expected = succeed(COLD_ID_TOKEN);
     expect(urls).toEqual(COLD_URL_SEQUENCE);
-    expect(decoded).toEqual(expected);
+    expectPersisted(persisted);
   });
 });

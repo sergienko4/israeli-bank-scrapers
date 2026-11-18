@@ -7,8 +7,8 @@
     "expectedDedupKeyFields": ["identifier"],
     "expectedUniqueCount": 9,
     "startDate": "20250101",
-    "rationale": "isracard seqVoucherNumber/confirmationNumber unique per txn (within-capture echo of '[redacted-id]:42' across approvals + vouchers collapses correctly under ['identifier']).",
-    "_traceSource": "PII-redacted clone of a real isracard capture. businessName masked, merchantId zeroed. Amounts, dates, voucher IDs kept RAW."
+    "rationale": "isracard seqVoucherNumber/confirmationNumber is unique per transaction; the distinct inputs stay distinct under ['identifier'].",
+    "_traceSource": "Synthetic clone of a real isracard capture. businessName masked, merchantId zeroed. Amounts and sequence identifiers replaced; dates kept."
   },
   "captures": [
     {

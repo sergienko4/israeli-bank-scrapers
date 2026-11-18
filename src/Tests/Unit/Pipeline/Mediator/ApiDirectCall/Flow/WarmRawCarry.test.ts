@@ -13,16 +13,11 @@ import {
   isRawCarryToken,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmRawCarry.js';
 import {
-  accountsMatch,
-  accountsTag,
-  identityMatches,
-  identityTag,
-} from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmTokenParts.js';
-import {
   fail,
   type Procedure,
   succeed,
 } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { expectedTag, legacyTag } from './WarmTagFixture.js';
 
 /** Rejection reason a token shape must produce. */
 type RejectionReason =
@@ -43,6 +38,7 @@ const REJECTION_TEXT: Readonly<Record<RejectionReason, string>> = {
 
 const PROVIDER = 'syn-bank';
 const ACCOUNTS = ['syn-num', 'syn-id'] as const;
+const ACCOUNTS_JSON = JSON.stringify(ACCOUNTS);
 const IDENTITY = { provider: PROVIDER, accounts: ACCOUNTS } as const;
 const VALUE = 'syn-raw-carry-value';
 const LIMIT = 16384;
@@ -96,7 +92,7 @@ function wrapText(text: string): string {
 }
 
 const GOOD = encode(IDENTITY);
-const EMPTY_TAG = accountsTag(ACCOUNTS);
+const EMPTY_TAG = legacyTag(ACCOUNTS_JSON);
 const EMPTY_JSON = JSON.stringify({ p: PROVIDER, a: EMPTY_TAG, v: '' });
 const EMPTY_VALUE = wrapText(EMPTY_JSON);
 const REJECTED: readonly IRejectCase[] = [
@@ -170,29 +166,6 @@ describe('raw carry warm envelope', () => {
   });
 });
 
-describe('warm identity tags', () => {
-  it('isAccountMatch a legacy tag and a keyed tag under the same key', (): void => {
-    const legacy = identityTag('syn-account');
-    const keyed = identityTag('syn-account', 'syn-key');
-    const isLegacyMatch = identityMatches(legacy, 'syn-account');
-    const isLegacyUnderKey = identityMatches(legacy, 'syn-account', { key: 'syn-key' });
-    const isKeyedMatch = identityMatches(keyed, 'syn-account', { key: 'syn-key' });
-    const isWrongKey = identityMatches(keyed, 'syn-account', { key: 'syn-other' });
-    expect(isLegacyMatch).toBe(true);
-    expect(isLegacyUnderKey).toBe(true);
-    expect(isKeyedMatch).toBe(true);
-    expect(isWrongKey).toBe(false);
-  });
-
-  it('isAccountMatch an account array through the shared helper', (): void => {
-    const tag = accountsTag(ACCOUNTS, 'syn-key');
-    const isAccountMatch = accountsMatch(tag, ACCOUNTS, { key: 'syn-key' });
-    const isWrongKey = accountsMatch(tag, ACCOUNTS, { key: 'syn-other' });
-    expect(isAccountMatch).toBe(true);
-    expect(isWrongKey).toBe(false);
-  });
-});
-
 describe('raw carry keyed account tag', () => {
   const tagKey = 'syn-password';
 
@@ -202,7 +175,7 @@ describe('raw carry keyed account tag', () => {
     const bytes = Buffer.from(encoded, 'base64url');
     const body = bytes.toString('utf8');
     const parsed = JSON.parse(body) as { a: string; n: string };
-    const tag = accountsTag(ACCOUNTS, tagKey, parsed.n);
+    const tag = expectedTag(ACCOUNTS_JSON, tagKey, parsed.n);
     expect(parsed.a).toBe(tag);
   });
 
@@ -229,6 +202,16 @@ describe('raw carry keyed account tag', () => {
     const success = succeed(VALUE);
     expect(opened).toEqual(success);
     expect(refused).toEqual(accountFailure);
+  });
+
+  it('rejects a nonce-bearing envelope with an unkeyed tag', (): void => {
+    const nonce = '00112233445566778899aabbccddeeff';
+    const unkeyedTag = legacyTag(ACCOUNTS_JSON);
+    const body = JSON.stringify({ p: PROVIDER, a: unkeyedTag, n: nonce, v: VALUE });
+    const token = wrapText(body);
+    const decoded = decode(token, { tagKey: 'syn-key' });
+    const accountFailure = fail(ScraperErrorTypes.Generic, REJECTION_TEXT.account);
+    expect(decoded).toEqual(accountFailure);
   });
 
   it('still opens a legacy unkeyed token when a key is supplied', (): void => {

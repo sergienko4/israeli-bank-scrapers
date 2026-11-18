@@ -8,7 +8,7 @@
     "expectedUniqueCount": 38,
     "startDate": "20251114",
     "rationale": "Beinleumi reference field is a transaction-TYPE code (not a per-txn UID). Phase G shape detection observes distinct(reference)=11 < count(rows)=38 and picks the composite [date, identifier, originalAmount] tuple. All 38 distinct payment events round-trip without collapse.",
-    "_traceSource": "PII-redacted clone of a real Beinleumi capture (180-day window). Hebrew descriptions masked to <merchant:beinleumi-N> stable hints. Account number in postData replaced with 111111. CorrespondentAccount zeroed. CustomerName + Name + TransactionReason + OprationSource blanked. Amounts, reference codes, dates, balances kept RAW (non-PII, dedup-relevant)."
+    "_traceSource": "Synthetic clone of a real Beinleumi capture (180-day window). Hebrew descriptions masked to <merchant:beinleumi-N> stable hints. Account number in postData replaced with 111111. CorrespondentAccount zeroed. CustomerName + Name + TransactionReason + OprationSource blanked. Amounts and balances zeroed; dates and reference codes kept."
   },
   "captures": [
     {

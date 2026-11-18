@@ -31,8 +31,8 @@
         "chargedCurrency": "ILS"
       }
     ],
-    "rationale": "Issue #614: every voucher row carries a numeric originalCurrency enum (0=ILS, 19=USD, 100=EUR) beside the ISO-4217 originalCurrencyIso. The mapper must emit the ISO code. Expected amounts are negative because a card-issuer charge is a debit. data.approvals is null, as in every real capture. Summary blocks (totalForStatement, totalVouchersCurrencyDate, totalTransactionsCurrency) are not transactions.",
-    "_traceSource": "Fully synthetic. Voucher and summary-block keys mirror real DigitalV3 GetTransactionsList captures; every value is invented."
+    "rationale": "Issue #614: every voucher row carries a numeric originalCurrency enum (0=ILS, 19=USD, 100=EUR) beside the ISO-4217 originalCurrencyIso. The mapper must emit the ISO code. Amounts are zeroed; a synthetic mapper test pins the original-vs-billed field choice. data.approvals is null, as in every real capture. Summary blocks (totalForStatement, totalVouchersCurrencyDate, totalTransactionsCurrency) are not transactions.",
+    "_traceSource": "Fully synthetic. Voucher and summary-block keys mirror real DigitalV3 GetTransactionsList captures; every amount, identifier and value is invented."
   },
   "captures": [
     {
