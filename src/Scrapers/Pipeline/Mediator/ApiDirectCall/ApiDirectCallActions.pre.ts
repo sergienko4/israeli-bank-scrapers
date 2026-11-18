@@ -35,8 +35,9 @@ function withoutPersistentAuthOptions(merged: Record<string, unknown>): GenericC
 
 /**
  * Merge ScraperOptions into credentials so generic config refs can
- * read options-scope fields without knowing the distinction. The durable
- * device-auth options are withheld: they reach the token strategy only
+ * read options-scope fields without knowing the distinction. Credentials take
+ * precedence, so an option cannot replace a value the boundary validated. The
+ * durable device-auth options are withheld: they reach the token strategy only
  * through {@link readPersistentAuthInput}.
  * @param ctx - Pipeline context.
  * @returns Combined record for ApiDirectCall token flows.
@@ -44,7 +45,7 @@ function withoutPersistentAuthOptions(merged: Record<string, unknown>): GenericC
 function mergeOptionsIntoCreds(ctx: IPipelineContext): GenericCreds {
   const opts = ctx.options as unknown as Record<string, unknown>;
   const creds = ctx.credentials as unknown as Record<string, unknown>;
-  return withoutPersistentAuthOptions({ ...creds, ...opts });
+  return withoutPersistentAuthOptions({ ...opts, ...creds });
 }
 
 /**

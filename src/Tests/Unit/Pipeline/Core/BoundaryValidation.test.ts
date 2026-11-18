@@ -3,10 +3,13 @@
  * bank request, with stable PII-free messages.
  */
 
+import { runInNewContext } from 'node:vm';
+
 import { CompanyTypes } from '../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
 import type { ScraperCredentials, ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
 import validateBoundary from '../../../../Scrapers/Pipeline/Core/BoundaryValidation.js';
+import { MAX_ENCODED_CHARS } from '../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/PersistentAuthEnvelope.js';
 
 const START = new Date('2026-01-01');
 
@@ -61,6 +64,26 @@ describe('validateBoundary — startDate', () => {
       errorType: ScraperErrorTypes.Generic,
       errorMessage: 'startDate must be a valid date',
     });
+  });
+
+  it('accepts a Date from another realm', () => {
+    const foreign = runInNewContext('new Date("2026-01-01T00:00:00.000Z")') as Date;
+    const result = check({ startDate: foreign });
+    expect(result.success).toBe(true);
+  });
+
+  it('ignores an overridden getTime method', () => {
+    const hostile = new Date('2026-01-01T00:00:00.000Z');
+    /**
+     * Poison a prototype-based read.
+     * @returns An invalid timestamp.
+     */
+    function hostileGetTime(): number {
+      return Number.NaN;
+    }
+    Object.defineProperty(hostile, 'getTime', { value: hostileGetTime });
+    const result = check({ startDate: hostile });
+    expect(result.success).toBe(true);
   });
 });
 
@@ -117,6 +140,16 @@ describe('validateBoundary — credential lengths', () => {
     });
   });
 
+  it('treats an inherited field name as an ordinary credential', () => {
+    const creds = { constructor: 'x'.repeat(257) } as unknown as ScraperCredentials;
+    const result = check({}, creds);
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Generic,
+      errorMessage: 'constructor exceeds 256 characters',
+    });
+  });
+
   it('accepts a device signature at its own cap', () => {
     const creds = { userCode: 'u', password: 'p', deviceSignature: 'd'.repeat(8192) };
     const result = check({}, creds);
@@ -149,12 +182,26 @@ describe('validateBoundary — credential lengths', () => {
     });
   });
 
-  it('refuses persistent auth state over its cap', () => {
-    const result = check({ persistentAuthState: 's'.repeat(16_385) });
+  it('accepts a persistent auth state at the codec envelope cap', () => {
+    const result = check({ persistentAuthState: 's'.repeat(MAX_ENCODED_CHARS) });
+    expect(result.success).toBe(true);
+  });
+
+  it('refuses persistent auth state over the codec envelope cap', () => {
+    const result = check({ persistentAuthState: 's'.repeat(MAX_ENCODED_CHARS + 1) });
     expect(result).toMatchObject({
       success: false,
       errorType: ScraperErrorTypes.Generic,
-      errorMessage: 'persistentAuthState exceeds 16384 characters',
+      errorMessage: `persistentAuthState exceeds ${String(MAX_ENCODED_CHARS)} characters`,
+    });
+  });
+
+  it('refuses a non-string persistent auth state', () => {
+    const result = check({ persistentAuthState: null as unknown as string });
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Generic,
+      errorMessage: 'persistentAuthState must be a string',
     });
   });
 });

@@ -157,16 +157,17 @@ describe('Hapoalim browserless logs', () => {
       },
     );
 
-    const skippable = WARM_TOKENS.STALE_TOKENS.filter(stale => stale.label !== 'an oversize token');
-
-    it.each(skippable)('names why it skips $label, never the token', async stale => {
-      const token = stale.build(cold.token);
-      await runWarm(token);
-      const emitted = LOG_LINES.join('');
-      const leaked = leakedOf([token]);
-      expect(emitted).toContain(stale.logged);
-      expect(leaked).toEqual([]);
-    });
+    it.each(WARM_TOKENS.SKIPPABLE_TOKENS)(
+      'names why it skips $label, never the token',
+      async stale => {
+        const token = stale.build(cold.token);
+        await runWarm(token);
+        const emitted = LOG_LINES.join('');
+        const leaked = leakedOf([token]);
+        expect(emitted).toContain(stale.logged);
+        expect(leaked).toEqual([]);
+      },
+    );
 
     it('rejects an oversize token before the flow and never logs it', async () => {
       const token = WARM_TOKENS.oversizeToken();

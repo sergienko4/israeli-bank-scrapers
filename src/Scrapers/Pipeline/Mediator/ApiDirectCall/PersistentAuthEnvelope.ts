@@ -15,7 +15,7 @@ import { fail, isOk, succeed } from '../../Types/Procedure.js';
  * Encoded-length cap. Base64 maps 3 bytes to 4 characters, so 32 KiB of text
  * also bounds the decoded JSON at the 24 KiB the contract allows.
  */
-const MAX_ENCODED_CHARS = 32 * 1024;
+export const MAX_ENCODED_CHARS = 32 * 1024;
 
 /**
  * Build the category-only failure every invalid state returns.

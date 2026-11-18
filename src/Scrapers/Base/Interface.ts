@@ -133,8 +133,8 @@ interface IScraperOptions {
    * a bearer token and a device private key, so callers must store it as a
    * secret. Requires onPersistentAuthStateUpdate and must not be combined
    * with creds.otpLongTermToken. Omit it when nothing is stored: an empty
-   * string is rejected as invalid state. Values over 16,384 characters fail
-   * before any bank request.
+   * string is rejected as invalid state. Values over 32,768 characters fail
+   * before any bank request; the bound matches the codec envelope.
    */
   persistentAuthState?: string;
 

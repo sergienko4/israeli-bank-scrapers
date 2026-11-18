@@ -28,7 +28,8 @@ validates the options and credentials. Invalid `startDate`,
 `futureMonthsToScrape`, `persistentAuthState` or credentials return a `GENERIC`
 failure naming only the field: ordinary credential fields are 1–256 characters,
 `deviceSignature` is at most 8,192, and `otpLongTermToken` is at most 16,384.
-Each bank also declares its required credential fields; the shared
+`persistentAuthState` is bounded by the codec's `MAX_ENCODED_CHARS` envelope
+(32 KiB). Each bank also declares its required credential fields; the shared
 `checkCredentialRules` helper applies the same rules at the boundary and in the
 login flow. An unknown `companyId` still throws `unknown company id <id>` when
 the scraper is created.

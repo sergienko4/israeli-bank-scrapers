@@ -87,12 +87,6 @@ function bundleSkipOf(reason: string): string {
   return `warm start skipped: ${reason}`;
 }
 
-/**
- * At the 16384-char ceiling the shared seed check drops an oversize token
- * before the bundle codec reads it.
- */
-const MALFORMED_SEED_LINE = 'Stored warm token is malformed';
-
 /** A `v1` token whose JSON body is no carry bundle. */
 const SCHEMALESS_TOKEN = `v1.${Buffer.from('{"p":1}').toString('base64url')}`;
 
@@ -130,8 +124,8 @@ function schemalessToken(): string {
   return SCHEMALESS_TOKEN;
 }
 
-/** Every stored token a warm run refuses. */
-export const STALE_TOKENS: readonly IStaleToken[] = [
+/** Stored tokens a warm run skips for a cold login. */
+export const SKIPPABLE_TOKENS: readonly IStaleToken[] = [
   {
     label: 'another account',
     logged: bundleSkipOf(WARM_BUNDLE_REJECTIONS.account),
@@ -142,7 +136,6 @@ export const STALE_TOKENS: readonly IStaleToken[] = [
     logged: bundleSkipOf(WARM_BUNDLE_REJECTIONS.provider),
     build: otherProviderToken,
   },
-  { label: 'an oversize token', logged: MALFORMED_SEED_LINE, build: oversizeToken },
   {
     label: 'a non-v1 token',
     logged: bundleSkipOf(WARM_BUNDLE_REJECTIONS.prefix),

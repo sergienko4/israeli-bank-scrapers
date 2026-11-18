@@ -6,6 +6,7 @@
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import type { ScraperCredentials, ScraperOptions } from '../../Base/Interface.js';
 import { checkCredentialRules } from '../Mediator/ApiDirectCall/Flow/RequiredCreds.js';
+import { MAX_ENCODED_CHARS } from '../Mediator/ApiDirectCall/PersistentAuthEnvelope.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { fail, succeed } from '../Types/Procedure.js';
 import type { IPipelineDescriptor } from './PipelineDescriptor.js';
@@ -34,7 +35,26 @@ const LONG_FIELD_LIMITS: Readonly<Record<string, number>> = {
  * @returns The field's cap.
  */
 function capFor(field: string): number {
-  return LONG_FIELD_LIMITS[field] ?? MAX_CREDENTIAL_LENGTH;
+  if (Object.hasOwn(LONG_FIELD_LIMITS, field)) return LONG_FIELD_LIMITS[field];
+  return MAX_CREDENTIAL_LENGTH;
+}
+
+/**
+ * Refuse an invalid start date.
+ * @param options - Scraper options.
+ * @returns Success, or a typed failure.
+ */
+/**
+ * Read a value's timestamp without trusting its prototype or getTime method.
+ * @param value - Candidate Date, possibly from another realm.
+ * @returns The timestamp, or false when it is not a Date.
+ */
+function readStartTime(value: unknown): number | false {
+  try {
+    return Date.prototype.getTime.call(value);
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -43,11 +63,8 @@ function capFor(field: string): number {
  * @returns Success, or a typed failure.
  */
 function validStartDate(options: ScraperOptions): Procedure<true> {
-  const start = options.startDate;
-  if (!(start instanceof Date))
-    return fail(ScraperErrorTypes.Generic, 'startDate must be a valid date');
-  const time = start.getTime();
-  if (Number.isFinite(time)) return succeed(true);
+  const time = readStartTime(options.startDate);
+  if (time !== false && Number.isFinite(time)) return succeed(true);
   return fail(ScraperErrorTypes.Generic, 'startDate must be a valid date');
 }
 
@@ -67,17 +84,31 @@ function validFutureMonths(options: ScraperOptions): Procedure<true> {
 }
 
 /**
- * Refuse an oversized persisted-auth state.
+ * Refuse a persisted-auth state over the codec's envelope cap.
+ * @param state - Supplied state string.
+ * @returns The failure, or false when it fits.
+ */
+function persistentStateLengthFailure(state: string): Procedure<true> | false {
+  if (state.length <= MAX_ENCODED_CHARS) return false;
+  return fail(
+    ScraperErrorTypes.Generic,
+    `persistentAuthState exceeds ${String(MAX_ENCODED_CHARS)} characters`,
+  );
+}
+
+/**
+ * Refuse a non-string or oversized persisted-auth state.
  * @param options - Scraper options.
  * @returns Success, or a typed failure.
  */
 function validPersistentAuthState(options: ScraperOptions): Procedure<true> {
-  const state = options.persistentAuthState;
-  if (state === undefined || state.length <= MAX_TOKEN_LENGTH) return succeed(true);
-  return fail(
-    ScraperErrorTypes.Generic,
-    `persistentAuthState exceeds ${String(MAX_TOKEN_LENGTH)} characters`,
-  );
+  const state = options.persistentAuthState as string | null | undefined;
+  if (state === undefined) return succeed(true);
+  if (typeof state !== 'string') {
+    return fail(ScraperErrorTypes.Generic, 'persistentAuthState must be a string');
+  }
+  const lengthFailure = persistentStateLengthFailure(state);
+  return lengthFailure === false ? succeed(true) : lengthFailure;
 }
 
 /**

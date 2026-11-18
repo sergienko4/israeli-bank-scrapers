@@ -223,6 +223,31 @@ describe('mergeOptionsIntoCreds persistent-auth isolation', () => {
     expect(merged.onAuthFlowComplete).toBe(storeStateStub);
   });
 
+  it('keeps a credential value over an overlapping option', () => {
+    const base = makeMockContext();
+    /**
+     * Option-level OTP retriever.
+     * @returns A fixed code.
+     */
+    function optionRetriever(): Promise<string> {
+      return Promise.resolve('option');
+    }
+    /**
+     * Credential-level OTP retriever.
+     * @returns A fixed code.
+     */
+    function credentialRetriever(): Promise<string> {
+      return Promise.resolve('credential');
+    }
+    const ctx = {
+      ...base,
+      options: { ...base.options, otpCodeRetriever: optionRetriever },
+      credentials: { ...base.credentials, otpCodeRetriever: credentialRetriever },
+    } as IPipelineContext;
+    const merged = mergeOptionsIntoCreds(ctx);
+    expect(merged.otpCodeRetriever).toBe(credentialRetriever);
+  });
+
   it('withholds durable option names smuggled through credentials', () => {
     const base = makeMockContext();
     const credentials = { ...base.credentials, persistentAuthState: OPAQUE_STATE };

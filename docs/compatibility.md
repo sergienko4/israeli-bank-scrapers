@@ -17,9 +17,9 @@ Raised from `>= 22.14.0` in 9.0.0. Enforced by the `engines` field, so npm warns
 
 **Impact:** Behavior
 
-The public boundary validates startDate (a valid finite Date), futureMonthsToScrape (an integer from 0 to 24), persistentAuthState (at most 16,384 characters) and credentials (each bank’s required fields; ordinary strings 1–256 characters, deviceSignature at most 8,192, otpLongTermToken at most 16,384). Invalid input returns a GENERIC failure naming only the field, and the credential enricher and every bank request are skipped. An unknown companyId still throws when the scraper is created.
+The public boundary validates startDate (a valid finite Date), futureMonthsToScrape (an integer from 0 to 24), persistentAuthState (at most the codec envelope cap of 32,768 characters) and credentials (each bank’s required fields; ordinary strings 1–256 characters, deviceSignature at most 8,192, otpLongTermToken at most 16,384). Invalid input returns a GENERIC failure naming only the field, and the credential enricher and every bank request are skipped. An unknown companyId still throws when the scraper is created.
 
-**What to do:** Correct the invalid value before retrying. No bank request was sent. An oversized token must be trimmed or regenerated rather than passed through.
+**What to do:** Correct the invalid value before retrying. No bank request was sent. Discard an oversized cached token or durable state and obtain a replacement through the bank's supported login or enrollment flow; do not trim it.
 
 ### 10.2.0 - Bank response text is omitted from failures by default
 

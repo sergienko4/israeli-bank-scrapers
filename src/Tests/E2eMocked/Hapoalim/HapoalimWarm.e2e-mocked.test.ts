@@ -23,7 +23,7 @@ import {
   SCRAPE_TRAIL,
   SIGNED_IN_TRAIL,
 } from './HapoalimRun.js';
-import { oversizeToken, STALE_TOKENS } from './HapoalimWarmTokens.js';
+import { oversizeToken, SKIPPABLE_TOKENS } from './HapoalimWarmTokens.js';
 
 /** What the cold run each warm run starts from produced. */
 interface IColdRun {
@@ -40,8 +40,6 @@ interface IColdRun {
 function runWarm(token: string, fault: HapoalimFault = 'none'): Promise<IHapoalimRun> {
   return runHapoalim(fault, { creds: { otpLongTermToken: token } });
 }
-
-const SKIPPABLE_TOKENS = STALE_TOKENS.filter(stale => stale.label !== 'an oversize token');
 
 describe('Hapoalim warm start', () => {
   const cold: IColdRun = { token: '', accounts: [] };
