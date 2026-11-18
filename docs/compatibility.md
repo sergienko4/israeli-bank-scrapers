@@ -48,12 +48,7 @@ Starting with 10.0.0, this fork is distributed under the PolyForm Noncommercial 
 Before:
 
 ```js
-createScraper({
-  companyId,
-  startDate,
-  shouldCombineInstallments: false,
-  includeRawTransaction: true,
-});
+createScraper({ companyId, startDate, shouldCombineInstallments: false, includeRawTransaction: true });
 ```
 
 After:
