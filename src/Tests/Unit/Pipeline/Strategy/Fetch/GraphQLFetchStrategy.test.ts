@@ -243,7 +243,7 @@ describe('GraphQLFetchStrategy.query — transport behaviour', () => {
       success: false,
       errorType: ScraperErrorTypes.Generic,
     });
-    if (!result.success) expect(result.errorMessage).toContain('response body unreadable');
+    if (!result.success) expect(result.errorMessage).toContain('response body omitted');
   });
 
   it('keeps the reason and status when a capped 500 body read fails', async () => {

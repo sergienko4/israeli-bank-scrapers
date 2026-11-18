@@ -306,7 +306,7 @@ describe('ApiDirectScrape self-heal — gating + recovery failure (synthetic)', 
     const result = await runWithBankContext(SYN_CASE.name, work, {
       signal: controller.signal,
     });
-    expect(result).toEqual(rejected);
+    expect(result).toEqual({ ...rejected, errorMessage: 'balance HTTP 401' });
     expect(recoverSession).not.toHaveBeenCalled();
   });
 
