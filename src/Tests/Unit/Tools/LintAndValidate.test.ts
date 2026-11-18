@@ -484,6 +484,12 @@ describe('issuesFromCode — Rule PII-Log T09 template-literal patterns', () => 
     const pii = issues.filter((i): boolean => i.rule === 'PII-Log');
     expect(pii.length).toBe(0);
   });
+  it('flags a credential after an escaped backtick in the same template', () => {
+    const code = 'LOG.info(`escaped \\` tick: ' + '$' + '{credentials.password}`);';
+    const issues = issuesFromCode(SYNTHETIC_OTHER, code, new Map());
+    const pii = issues.filter((i): boolean => i.rule === 'PII-Log');
+    expect(pii.length).toBeGreaterThanOrEqual(1);
+  });
   it('does NOT cross the LOG template backtick', () => {
     const code = 'LOG.info(`ready`); const x = `' + '$' + '{credentials.username}`;';
     const issues = issuesFromCode(SYNTHETIC_OTHER, code, new Map());

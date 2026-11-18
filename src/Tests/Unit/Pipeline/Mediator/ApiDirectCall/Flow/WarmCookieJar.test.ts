@@ -364,6 +364,18 @@ describe('cookie-jar keyed account tag', () => {
     assertOk(opened);
   });
 
+  it('rejects a nonce-bearing envelope with an unkeyed tag', (): void => {
+    const token = wrapObject({
+      p: PROVIDER,
+      a: legacyTag(ACCOUNT),
+      n: '00112233445566778899aabbccddeeff',
+      c: COOKIES,
+    });
+    const decoded = CODEC.decodeWarmJar(token, { ...IDENTITY, tagKey, maxChars: LIMIT });
+    const accountFailure = fail(ScraperErrorTypes.Generic, CODEC.WARM_JAR_REJECTIONS.account);
+    expect(decoded).toEqual(accountFailure);
+  });
+
   it('still opens a legacy unkeyed token when a key is supplied', (): void => {
     const opened = CODEC.decodeWarmJar(GOOD, { ...IDENTITY, tagKey: tagKey, maxChars: LIMIT });
     assertOk(opened);

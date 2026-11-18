@@ -144,6 +144,19 @@ describe('carry-bundle keyed account tag', () => {
     expect(refused).toEqual(accountFailure);
   });
 
+  it('rejects a nonce-bearing envelope with an unkeyed tag', (): void => {
+    const token = wrapObject({
+      p: PROVIDER,
+      a: ACCOUNT_TAG,
+      n: '00112233445566778899aabbccddeeff',
+      s: CARRY,
+      c: WARM_COOKIES,
+    });
+    const decoded = decode(token);
+    const accountFailure = fail(ScraperErrorTypes.Generic, WARM_BUNDLE_REJECTIONS.account);
+    expect(decoded).toEqual(accountFailure);
+  });
+
   it('still opens a legacy unkeyed token when a key is supplied', (): void => {
     const opened = decodeWarmBundle(GOOD, {
       ...IDENTITY,
