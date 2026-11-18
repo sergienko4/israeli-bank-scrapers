@@ -15,6 +15,7 @@ import parseJsonResponse from './JsonResponse.js';
 import type { IRedirectRun, IRunEnd } from './RedirectFollow.js';
 import { sendUnderPolicy } from './RedirectFollow.js';
 import { emitSetCookies } from './RedirectShared.js';
+import cancelResponseBody from './ResponseBody.js';
 import emitResponseHeaders from './ResponseHeaderSink.js';
 import { refuseMediaType } from './ResponsePolicyCheck.js';
 import { safeUrlForLog } from './SafeUrlForLog.js';
@@ -49,13 +50,11 @@ const FAIL_MESSAGE = '[fetch] NETWORK FAIL';
 const STATUS_MESSAGE = '[fetch] STATUS';
 
 /**
- * Whether an integrity-bounded answer is a header-only challenge.
- * @param answer - The answered call.
+ * Whether the answer is a header-only challenge.
  * @param headers - The response's headers.
  * @returns True when the challenge body is not needed.
  */
-function hasHeaderChallenge(answer: IAnswer, headers: Record<string, string>): boolean {
-  if (answer.reading.responseIntegrity === undefined) return false;
+function hasHeaderChallenge(headers: Record<string, string>): boolean {
   return hasCloudflareChallengeHeader(headers);
 }
 
@@ -73,6 +72,27 @@ async function readFailureBody(response: Response): Promise<string> {
 }
 
 /**
+ * Release a header-only challenge body and answer with the empty text the
+ * classifier expects.
+ * @param answer - The challenged call.
+ * @returns The empty body text.
+ */
+async function releaseChallenge(answer: IAnswer): Promise<string> {
+  await cancelResponseBody(answer.response, answer);
+  return '';
+}
+
+/**
+ * Read the failure text, or release a header-only challenge.
+ * @param answer - The answered call.
+ * @param headers - The response's headers.
+ * @returns The failure text.
+ */
+function failureText(answer: IAnswer, headers: Record<string, string>): Promise<string> {
+  return hasHeaderChallenge(headers) ? releaseChallenge(answer) : readFailureBody(answer.response);
+}
+
+/**
  * Classify a failed or challenged answer into a Procedure failure.
  * @param answer - The answered call: non-2xx, or a 2xx challenge.
  * @returns WafBlocked for an edge refusal, else Generic honoring body omission.
@@ -80,7 +100,7 @@ async function readFailureBody(response: Response): Promise<string> {
 async function classifyStatus<T>(answer: IAnswer): Promise<Procedure<T>> {
   const { response, verb, url } = answer;
   const headers = Object.fromEntries(response.headers);
-  const body = hasHeaderChallenge(answer, headers) ? '' : await readFailureBody(response);
+  const body = await failureText(answer, headers);
   const privacy = { omitBankText: answer.reading.omitBankText };
   const redaction = { redactUrlValues: answer.reading.redactUrlValues };
   const failure = { verb, url, status: response.status, body, headers, ...privacy, ...redaction };

@@ -1,10 +1,14 @@
 /**
- * Unbounded Cloudflare challenges — without a response-integrity policy the
- * WAF classifier must read the challenge body, so a configured status action
- * must not abort it while the answer is still header-only.
+ * Cloudflare challenges — a challenge header alone identifies the edge block,
+ * so the dispatcher releases the body instead of reading it. A configured
+ * status action still decides first, and an abort-sensitive body must stay
+ * untouched until the answer is header-only.
  */
 
+import { jest } from '@jest/globals';
+
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
+import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { cappedNative } from '../../../../Helpers/CappedTransport.js';
 import { CLOUDFLARE_CHALLENGE_HEADERS } from '../../../../Helpers/EdgeBlockPages.js';
 
@@ -88,6 +92,22 @@ function fetchBrokenChallenge(): Promise<Response> {
   return Promise.resolve(response);
 }
 
+/**
+ * Send one challenge answer through the capped transport.
+ * @param response - The challenge response to answer with.
+ * @returns The transport result.
+ */
+async function fetchChallenge(response: Response): Promise<Procedure<unknown>> {
+  /**
+   * Answer with the supplied challenge.
+   * @returns The challenge response.
+   */
+  const impl = (): Promise<Response> => Promise.resolve(response);
+  globalThis.fetch = impl;
+  const strategy = cappedNative(BASE_URL, { timeoutMs: 1000 });
+  return strategy.fetchGet(ITEMS_URL, { extraHeaders: {} });
+}
+
 describe('unbounded Cloudflare challenges', () => {
   const originalFetch = globalThis.fetch;
 
@@ -162,7 +182,36 @@ describe('unbounded Cloudflare challenges', () => {
     });
   });
 
-  it('keeps an abort-sensitive 203 challenge body and reports WAF_BLOCKED', async () => {
+  it('never pulls a header-only challenge body', async () => {
+    const pull = jest.fn((): Promise<void> => Promise.resolve(undefined));
+    const body = new ReadableStream<Uint8Array>({ pull }, { highWaterMark: 0 });
+    const response = new Response(body, {
+      status: 403,
+      headers: CLOUDFLARE_CHALLENGE_HEADERS,
+    });
+    const result = await fetchChallenge(response);
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.WafBlocked,
+    });
+    expect(pull).not.toHaveBeenCalled();
+    expect(response.bodyUsed).toBe(true);
+  });
+
+  it('classifies an oversized challenge from headers without reading it', async () => {
+    const oversize = new Uint8Array(8 * 1024 * 1024 + 1);
+    const response = new Response(oversize, {
+      status: 403,
+      headers: CLOUDFLARE_CHALLENGE_HEADERS,
+    });
+    const result = await fetchChallenge(response);
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.WafBlocked,
+    });
+  });
+
+  it('classifies a 2xx challenge before its configured status policy', async () => {
     globalThis.fetch = ((_url: string, init: RequestInit): Promise<Response> => {
       const response = abortSensitiveResponse(init, {
         status: 203,
