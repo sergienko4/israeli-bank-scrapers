@@ -40,8 +40,9 @@ envelope are raw idTokens and are still accepted; do not parse either form.
 
 ### Treat it as a standing bypass of your second factor
 
-**This token does not rotate.** A warm run replays the stored raw value and
-publishes it again, so the value you store is the one minted by your last SMS login
+**This token does not rotate.** A warm run replays the same underlying
+`idToken` and re-wraps it in a new `v1.` string, so the value you store is the
+one minted by your last SMS login
 and it stays valid until the bank expires it — a lifetime measured in years,
 not a session.
 

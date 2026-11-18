@@ -208,8 +208,6 @@ const ONEZERO_COLD_CASE: IApiDirectFlowCase = {
   // A cold run mints a brand-new handle; the caller must receive that one so it
   // can be stored for the next run. Distinct from the stored seed by `sub`.
   expectedPersistentToken: SYN_ID_TOKEN,
-  expectedProvider: 'onezero',
-  expectedAccountFields: ['email'],
   expectedOtpPrompts: 1,
 };
 
@@ -244,8 +242,6 @@ const VISACAL_WARM_CASE: IApiDirectFlowCase = {
   maxIdentityCalls: 1,
   expectsWarmStart: true,
   expectedPersistentToken: rotatedHash(SYN_STORED_HASH),
-  expectedProvider: 'visacal',
-  expectedAccountFields: ['username'],
 };
 
 const ISRACARD_COLD_CASE: IApiDirectFlowCase = {
@@ -284,8 +280,6 @@ const ISRACARD_WARM_CASE: IApiDirectFlowCase = {
   expectsWarmStart: true,
   // The key does not rotate, so the caller gets the stored one back.
   expectedPersistentToken: SYN_STORED_KEY,
-  expectedProvider: 'isracard',
-  expectedAccountFields: ['id', 'card6Digits'],
 };
 
 const AMEX_COLD_CASE: IApiDirectFlowCase = {
@@ -433,6 +427,20 @@ interface IAuthOutcomeSlice {
 }
 
 /**
+ * Whether a case declares a provider and account fields together.
+ * @param testCase - Bank case under assertion.
+ * @returns True when both are declared.
+ */
+function hasEnvelopeBinding(testCase: IApiDirectFlowCase): boolean {
+  const hasProvider = testCase.expectedProvider !== undefined;
+  const hasAccounts = testCase.expectedAccountFields !== undefined;
+  if (hasProvider !== hasAccounts) {
+    throw new RangeError('expectedProvider and expectedAccountFields must be declared together');
+  }
+  return hasProvider;
+}
+
+/**
  * The raw token inside the published envelope.
  * @param result - Scrape result under assertion.
  * @param testCase - Bank case naming the expected provider and accounts.
@@ -440,20 +448,26 @@ interface IAuthOutcomeSlice {
  */
 function persistedRaw(result: IAuthOutcomeSlice, testCase: IApiDirectFlowCase): string {
   const token = result.persistentOtpToken ?? '';
-  if (testCase.expectedProvider === undefined || testCase.expectedAccountFields === undefined) {
-    return token;
-  }
+  if (!hasEnvelopeBinding(testCase)) return token;
+  return decodeEnvelope(token, testCase);
+}
+
+/**
+ * Decode one envelope using the case's provider and account fields.
+ * @param token - Published token.
+ * @param testCase - Bank case with a declared binding.
+ * @returns The raw token, or '' when it does not open.
+ */
+function decodeEnvelope(token: string, testCase: IApiDirectFlowCase): string {
+  const provider = testCase.expectedProvider;
+  const fields = testCase.expectedAccountFields;
+  if (provider === undefined || fields === undefined) return token;
   const creds = testCase.mockCreds as unknown as Record<string, unknown>;
-  const accounts = testCase.expectedAccountFields.map((field): string =>
+  const accounts = fields.map((field): string =>
     typeof creds[field] === 'string' ? creds[field] : '',
   );
   const password = typeof creds.password === 'string' ? creds.password : '';
-  const decoded = decodeRawCarry(token, {
-    provider: testCase.expectedProvider,
-    accounts,
-    tagKey: password,
-    maxChars: 16384,
-  });
+  const decoded = decodeRawCarry(token, { provider, accounts, tagKey: password, maxChars: 16384 });
   expect(decoded.success).toBe(true);
   if (!decoded.success) return '';
   return decoded.value;

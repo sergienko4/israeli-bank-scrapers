@@ -81,6 +81,25 @@ describe('PayBox warm-token bootstrap', () => {
     expect(carry.value.uId).toBe('');
   });
 
+  it('keeps the cold path open for an envelope bound to another phone', async () => {
+    const config = await loadCall();
+    const warm = carryWarmOf(config);
+    if (warm === false || warm.provider === undefined) throw new RangeError('unbound config');
+    const raw = warmJwt();
+    const foreign = encodeRawCarry(
+      { provider: warm.provider, accounts: ['972500000099'], tagKey: warm.accountTagKey ?? '' },
+      raw,
+    );
+    assertOk(foreign);
+    const carry = buildInitialCarry(
+      config,
+      { phoneNumber: PHONE, otpLongTermToken: foreign.value },
+      {},
+    );
+    assertOk(carry);
+    expect(carry.value.uId).toBe('');
+  });
+
   it('keeps the cold path open when the stored token is unusable', async () => {
     const config = await loadCall();
     const carry = buildInitialCarry(

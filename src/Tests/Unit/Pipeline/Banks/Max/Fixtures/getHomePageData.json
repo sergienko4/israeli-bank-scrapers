@@ -3,16 +3,36 @@
   "Result": {
     "UserCards": {
       "Summary": [
-        { "Currency": 124, "ActualDebitSum": 0, "TotalDebitSum": 0, "CurrencySymbol": "C$" },
+        {
+          "Currency": 124,
+          "ActualDebitSum": 0,
+          "TotalDebitSum": 0,
+          "CurrencySymbol": "C$"
+        },
         {
           "Currency": 376,
           "ActualDebitSum": 0,
           "TotalDebitSum": 0,
           "CurrencySymbol": " ₪"
         },
-        { "Currency": 826, "ActualDebitSum": 0, "TotalDebitSum": 0, "CurrencySymbol": "p" },
-        { "Currency": 840, "ActualDebitSum": 0, "TotalDebitSum": 0, "CurrencySymbol": "$" },
-        { "Currency": 978, "ActualDebitSum": 0, "TotalDebitSum": 0, "CurrencySymbol": "€" }
+        {
+          "Currency": 826,
+          "ActualDebitSum": 0,
+          "TotalDebitSum": 0,
+          "CurrencySymbol": "p"
+        },
+        {
+          "Currency": 840,
+          "ActualDebitSum": 0,
+          "TotalDebitSum": 0,
+          "CurrencySymbol": "$"
+        },
+        {
+          "Currency": 978,
+          "ActualDebitSum": 0,
+          "TotalDebitSum": 0,
+          "CurrencySymbol": "€"
+        }
       ],
       "Cards": [
         {
@@ -22,8 +42,8 @@
           "OwnerFullName": "FAKE_HEB_15",
           "CardName": "max executive",
           "CardImage": "https://www.max.co.il/SharedMedia/20779/max-executive-business-visa.png",
-          "CreditLimit": 34000,
-          "OpenToBuy": 33986.16,
+          "CreditLimit": 0,
+          "OpenToBuy": 0,
           "FixedDebit": 0,
           "CycleSummary": [
             {

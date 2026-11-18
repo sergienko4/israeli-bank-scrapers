@@ -542,7 +542,6 @@ const PII_IDENTIFIER_NAMES: readonly string[] = [
   'userCode',
   'nationalID',
   'card6Digits',
-  'num',
   'email',
   'cookie',
   'setCookie',
@@ -573,11 +572,23 @@ const PII_PAYLOAD_NAMES: readonly string[] = [
 ];
 /** LOG levels matched by both PII regexes. */
 const PII_LOG_LEVELS = '(?:trace|debug|info|warn|error|fatal)';
+/** Credential objects whose member is unambiguous, including `num`. */
+const PII_CREDENTIAL_OBJECT = '(?:credentials|creds|ctx\\.credentials)';
+/** Unambiguous PII names: safe bare or after any dotted path. */
+const PII_SAFE_GROUP = `(?:${PII_IDENTIFIER_NAMES.join('|')})`;
+/** A dotted or bare unambiguous credential reference. */
+const PII_DOTTED_SAFE = String.raw`(?:[A-Za-z_$][\w$]*\??\.)*${PII_SAFE_GROUP}\b`;
+/** A `num` reference only when it is a member of a credential object. */
+const PII_DOTTED_NUM = String.raw`(?:[A-Za-z_$][\w$]*\??\.)*${PII_CREDENTIAL_OBJECT}\.num\b`;
+/** A bracketed unambiguous credential reference, plain or optional. */
+const PII_BRACKET_SAFE = String.raw`(?:[A-Za-z_$][\w$]*\??\.)*[A-Za-z_$][\w$]*\??\.?\[\s*['"]${PII_SAFE_GROUP}['"]\s*\]`;
+/** A bracketed credential-object `num` reference, plain or optional. */
+const PII_BRACKET_NUM = String.raw`(?:[A-Za-z_$][\w$]*\??\.)*${PII_CREDENTIAL_OBJECT}\??\.?\[\s*['"]num['"]\s*\]`;
 /** Regex: one credential reference interpolated into a LOG template. */
-const PII_TEMPLATE_REFERENCE = String.raw`\$\{(?:(?:[A-Za-z_$][\w$]*\.)*(?:${PII_IDENTIFIER_NAMES.join('|')})\b|(?:[A-Za-z_$][\w$]*\.)*[A-Za-z_$][\w$]*\[\s*['"](?:${PII_IDENTIFIER_NAMES.join('|')})['"]\s*\])`;
+const PII_TEMPLATE_REFERENCE = String.raw`\$\{\s*(?:${PII_DOTTED_SAFE}|${PII_DOTTED_NUM}|${PII_BRACKET_SAFE}|${PII_BRACKET_NUM})`;
 /** Regex: PII identifier or credential access in a LOG.* template (T09). */
 const PII_TEMPLATE_RE = new RegExp(
-  String.raw`LOG\.${PII_LOG_LEVELS}\s*\(\s*\x60[\s\S]*?${PII_TEMPLATE_REFERENCE}`,
+  String.raw`LOG\.${PII_LOG_LEVELS}\s*\(\s*\x60(?:(?!\x60)[\s\S])*?${PII_TEMPLATE_REFERENCE}`,
   'g',
 );
 /** Regex: forbidden payload bucket passed to LOG.* (T16). The lookahead

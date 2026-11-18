@@ -60,8 +60,9 @@ Pass the previous run's `result.persistentOtpToken` as `otpLongTermToken` and
 the run starts at `resume`, skipping the password. The key carries no readable
 expiry, so the bank's answer is the check (`validation: 'bank-call'`); a
 rejected key falls back to a cold login with `id`, `card6Digits` and
-`password`, which are therefore always required. The key does not rotate: a
-warm run publishes the key it was given.
+`password`, which are therefore always required. The underlying bank key does
+not rotate; a warm run re-publishes the same key inside a newly encoded `v1.`
+string, so do not compare the returned string byte-for-byte with the input.
 
 The token is opaque: a new run publishes a `v1.` envelope bound to the issuer,
 `id` and `card6Digits`, with an account tag keyed by the caller's password. A

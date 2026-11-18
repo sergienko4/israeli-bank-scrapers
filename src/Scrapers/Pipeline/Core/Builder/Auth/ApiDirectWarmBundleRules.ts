@@ -44,13 +44,21 @@ function isBundleBroken(input: IApiDirectRuleInput, check: BundleCheck): boolean
 }
 
 /**
+ * Whether an account-field list is empty or names a blank field.
+ * @param fields - Configured account fields.
+ * @returns True when the token could not be bound.
+ */
+function isUnboundFields(fields: readonly string[]): boolean {
+  return fields.length === 0 || fields.some((field): boolean => field.trim().length === 0);
+}
+
+/**
  * Whether the bundle names no account field, or a blank one.
  * @param bundle - Carry-bundle warm start.
  * @returns True when the token could not be bound.
  */
 function isUnboundBundle(bundle: ICarryBundleWarmStart): boolean {
-  const fields = bundle.accountFields;
-  return fields.length === 0 || fields.some((field): boolean => field.trim().length === 0);
+  return isUnboundFields(bundle.accountFields);
 }
 
 /**
@@ -236,8 +244,7 @@ function isRawProviderBlank(input: IApiDirectRuleInput): boolean {
 function isRawAccountsUnbound(input: IApiDirectRuleInput): boolean {
   const warm = carryWarmOf(input.call);
   if (warm === false || warm.accountFields === undefined) return false;
-  const fields = warm.accountFields;
-  return fields.length === 0 || fields.some((field): boolean => field.trim().length === 0);
+  return isUnboundFields(warm.accountFields);
 }
 
 /**
@@ -253,7 +260,7 @@ function isAccountTagKeyBlank(input: IApiDirectRuleInput): boolean {
 const API_DIRECT_WARM_BUNDLE_RULES: readonly IApiDirectRule[] = [
   { message: 'warmStart.accountTagKey: must not be blank', isBroken: isAccountTagKeyBlank },
   {
-    message: 'warmStart.provider: required with accountFields',
+    message: 'warmStart: provider and accountFields must be declared together',
     isBroken: isRawBindingPartial,
   },
   { message: 'warmStart.provider: must not be blank', isBroken: isRawProviderBlank },

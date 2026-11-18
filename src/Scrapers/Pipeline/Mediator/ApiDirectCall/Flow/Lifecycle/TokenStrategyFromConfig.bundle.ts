@@ -54,10 +54,9 @@ type BundleIdentity = Parameters<typeof encodeWarmBundle>[0];
  * @returns Provider, accounts, tag key, slots and limit.
  */
 function bundleExpectation(args: IBundleRestoreArgs): BundleExpectation {
-  const { provider, slots, cookies: hasCookies, maxTokenChars: maxChars } = args.bundle;
-  const accounts = accountValues(args, args.bundle);
-  const tagKey = accountTagKeyOf(args.creds, args.bundle.accountTagKey ?? '');
-  return { provider, accounts, tagKey, slots, hasCookies, maxChars };
+  const identity = bundleIdentity(args, args.bundle);
+  const { slots, cookies: hasCookies, maxTokenChars: maxChars } = args.bundle;
+  return { ...identity, slots, hasCookies, maxChars };
 }
 
 /**

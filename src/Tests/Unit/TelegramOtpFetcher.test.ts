@@ -20,6 +20,9 @@ import {
   UNAUTHORIZED_FAILURE,
 } from '../Helpers/TelegramOtpFixtures.js';
 
+/** Synthetic Telegram chat id; all-zero after the -100 supergroup prefix. */
+const SYNTHETIC_CHAT_ID = -1000000000000;
+
 /** Captures `fetch` calls per test. */
 let fetchSpy: jest.Mock;
 let originalFetch: typeof fetch | undefined;
@@ -227,7 +230,7 @@ function makeArgs(overrides?: Partial<ITelegramFetchArgs>): ITelegramFetchArgs {
   const log = makeStubLogger();
   return {
     botToken: 'TEST_TOKEN',
-    chatId: '-1000000000000',
+    chatId: String(SYNTHETIC_CHAT_ID),
     bankName: 'Beinleumi',
     bankRegex: /(\d{4,8})/,
     timeoutMs: 2_000,
@@ -282,7 +285,7 @@ function makeReplyUpdateAt(args: IMakeReplyUpdateAtArgs): Record<string, unknown
   return {
     update_id: args.updateId,
     message: {
-      chat: { id: -1000000000000 },
+      chat: { id: SYNTHETIC_CHAT_ID },
       text: args.text,
       date: args.dateSec,
       reply_to_message: { message_id: args.replyToId },
@@ -523,7 +526,7 @@ describe('fetchOtpFromTelegram', () => {
           {
             update_id: 2,
             message: {
-              chat: { id: -1000000000000 },
+              chat: { id: SYNTHETIC_CHAT_ID },
               text: '777777',
               date: 1715200000,
             },
@@ -888,9 +891,18 @@ describe('fetchOtpFromTelegram', () => {
     const staleResp = {
       ok: true,
       result: [
-        { update_id: 70, message: { chat: { id: -1000000000000 }, text: 'a', date: ancientDate } },
-        { update_id: 71, message: { chat: { id: -1000000000000 }, text: 'b', date: ancientDate } },
-        { update_id: 72, message: { chat: { id: -1000000000000 }, text: 'c', date: ancientDate } },
+        {
+          update_id: 70,
+          message: { chat: { id: SYNTHETIC_CHAT_ID }, text: 'a', date: ancientDate },
+        },
+        {
+          update_id: 71,
+          message: { chat: { id: SYNTHETIC_CHAT_ID }, text: 'b', date: ancientDate },
+        },
+        {
+          update_id: 72,
+          message: { chat: { id: SYNTHETIC_CHAT_ID }, text: 'c', date: ancientDate },
+        },
       ],
     };
     /**

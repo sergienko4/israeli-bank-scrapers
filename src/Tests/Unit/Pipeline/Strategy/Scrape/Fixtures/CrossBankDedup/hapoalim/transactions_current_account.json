@@ -8,7 +8,7 @@
     "expectedUniqueCount": 1,
     "startDate": "20250101",
     "rationale": "Hapoalim referenceNumber is unique per txn in this 30-day window; shape detector picks [identifier].",
-    "_traceSource": "PII-redacted clone of a real Hapoalim capture (30-day window). activityDescription masked. beneficiaryDetailsData party fields blanked. contra* account/bank/branch zeroed. Amounts, dates, referenceNumber kept RAW."
+    "_traceSource": "Synthetic clone of a real Hapoalim capture (30-day window). activityDescription masked. beneficiaryDetailsData party fields blanked. contra* account/bank/branch zeroed. Amounts and formatted amounts zeroed; dates and referenceNumber kept."
   },
   "captures": [
     {
@@ -46,10 +46,10 @@
             "valueDate": 20260414,
             "formattedValueDate": "2026-04-14T00:00:00.000Z",
             "eventAmount": 0,
-            "formattedEventAmount": "150.00",
+            "formattedEventAmount": "0.00",
             "eventActivityTypeCode": 1,
             "currentBalance": 0,
-            "formattedCurrentBalance": "150.00",
+            "formattedCurrentBalance": "0.00",
             "internalLinkCode": 0,
             "originalEventCreateDate": 20260414,
             "formattedOriginalEventCreateDate": null,

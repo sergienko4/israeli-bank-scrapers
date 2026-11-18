@@ -152,9 +152,7 @@ type RawBinding = Partial<Pick<ICarryWarmStart, 'provider' | 'accountFields' | '
  */
 function rawCarryWarm(binding: RawBinding = {}): IApiDirectRuleInput {
   const warmStart = {
-    credsField: 'otpLongTermToken',
-    carryField: 'hash',
-    fromStepIndex: 1,
+    ...WARM,
     validation: 'bank-call',
     provider: 'syn-bank',
     accountFields: ['username'],
@@ -208,7 +206,7 @@ const GUARDED_ENTRY_MSG = 'warmStart.fromStepIndex: a bank-call check step must 
 const PROVIDER_MSG = 'warmStart.provider: must not be blank';
 const ACCOUNT_FIELD_MSG = 'warmStart.accountField: must not be blank';
 const DEVICE_IDENTITY_MSG = 'deviceIdentity.seedSlot: must differ from credential';
-const RAW_PARTIAL_MSG = 'warmStart.provider: required with accountFields';
+const RAW_PARTIAL_MSG = 'warmStart: provider and accountFields must be declared together';
 const RAW_ACCOUNTS_MSG = 'warmStart.accountFields: must name a creds field, none blank';
 const TAG_KEY_MSG = 'warmStart.accountTagKey: must not be blank';
 

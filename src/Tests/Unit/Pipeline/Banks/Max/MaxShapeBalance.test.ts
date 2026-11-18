@@ -32,8 +32,16 @@ interface IFixtureShape {
 describe('ilsCycleDebit — captured Max response', () => {
   it('reads the ILS cycle debit off a captured card shape', () => {
     const fixture = loadFixture() as unknown as IFixtureShape;
-    const captured = fixture.Result.UserCards.Cards[0];
-    const card = { ...captured, CycleSummary: [{ Currency: 376, TotalDebitSum: 13.84 }] };
+    const captured = fixture.Result.UserCards.Cards[0] as {
+      readonly CycleSummary: readonly {
+        readonly Currency: number;
+        readonly TotalDebitSum: number;
+      }[];
+    };
+    const summary = captured.CycleSummary.map(row =>
+      row.Currency === 376 ? { ...row, TotalDebitSum: 13.84 } : row,
+    );
+    const card = { ...captured, CycleSummary: summary };
     const debit = ilsCycleDebit(card);
     expect(debit).toBe(13.84);
   });

@@ -23,14 +23,14 @@ import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import type { StoredJar } from './WarmCookieJar.js';
 import {
+  accountsJson,
   accountsMatch,
-  accountsTag,
   isListValue,
   isRecordValue,
   isStoredCookie,
   parseJsonBody,
   projectCookie,
-  randomSalt,
+  tagFields,
   textAt,
   WARM_TOKEN_PREFIX,
   wrapJsonText,
@@ -220,10 +220,10 @@ function checkEnvelope(
  */
 function encodeWarmBundle(identity: IWarmBundleIdentity, bundle: IWarmBundle): Procedure<string> {
   if (isUnbound(identity.accounts)) return reject('unbound');
-  const n = randomSalt();
-  const a = accountsTag(identity.accounts, identity.tagKey ?? '', n);
+  const accounts = accountsJson(identity.accounts);
+  const tag = tagFields(accounts, identity.tagKey ?? '');
   const jar = bundle.cookies === false ? {} : { c: bundle.cookies.map(projectCookie) };
-  const json = JSON.stringify({ p: identity.provider, a, n, s: bundle.carry, ...jar });
+  const json = JSON.stringify({ p: identity.provider, ...tag, s: bundle.carry, ...jar });
   const token = wrapJsonText(json);
   return succeed(token);
 }

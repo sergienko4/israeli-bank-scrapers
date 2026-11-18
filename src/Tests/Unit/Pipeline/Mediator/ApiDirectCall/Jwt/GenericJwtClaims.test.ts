@@ -21,13 +21,7 @@ const EXP_60S: IJwtClaimsConfig = {
  * @returns Compact JWT-shaped string (signature ignored).
  */
 function makeJwt(field: string, seconds: number): string {
-  const headerObj = { alg: 'none' };
-  const headerJson = JSON.stringify(headerObj);
-  const headerEnc = Buffer.from(headerJson).toString('base64url');
-  const payloadObj: Record<string, number> = { [field]: seconds };
-  const payloadJson = JSON.stringify(payloadObj);
-  const payloadEnc = Buffer.from(payloadJson).toString('base64url');
-  return `${headerEnc}.${payloadEnc}.synthetic-sig`;
+  return makeClaimsJwt({ [field]: seconds });
 }
 
 /**
@@ -79,6 +73,13 @@ describe('GenericJwtClaims.isJwtFresh — issuer and audience binding', () => {
     const config: IJwtClaimsConfig = { ...EXP_60S, audience: 'syn-audience' };
     const isFresh = isJwtFresh(jwt, config);
     expect(isFresh).toBe(true);
+  });
+
+  it('rejects an array audience with a non-string member', () => {
+    const jwt = makeClaimsJwt({ exp: future, aud: ['syn-audience', 42] });
+    const config: IJwtClaimsConfig = { ...EXP_60S, audience: 'syn-audience' };
+    const isFresh = isJwtFresh(jwt, config);
+    expect(isFresh).toBe(false);
   });
 
   it('rejects a non-string, non-array audience', () => {

@@ -20,6 +20,7 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import {
   type AuditHit,
@@ -372,9 +373,9 @@ describe('fixtures-pii gate parity with PiiRedactor', () => {
 describe('fixtures-pii scope canary', () => {
   it('walks both the integration bank fixtures and the unit fixtures', () => {
     const files = fixtureFiles();
-    const cwd = process.cwd();
-    const unitRoot = join(cwd, 'src', 'Tests', 'Unit');
-    const integrationRoot = join(cwd, 'src', 'Tests', 'Integration');
+    const repoRoot = fileURLToPath(new URL('../../../../..', import.meta.url));
+    const unitRoot = join(repoRoot, 'src', 'Tests', 'Unit');
+    const integrationRoot = join(repoRoot, 'src', 'Tests', 'Integration');
     let hasUnit = false;
     let hasIntegration = false;
     for (const file of files) {
@@ -386,9 +387,9 @@ describe('fixtures-pii scope canary', () => {
   });
 
   it('audits the unit-fixture canary with no reported hits', () => {
-    const cwd = process.cwd();
+    const repoRoot = fileURLToPath(new URL('../../../../..', import.meta.url));
     const canary = join(
-      cwd,
+      repoRoot,
       'src',
       'Tests',
       'Unit',

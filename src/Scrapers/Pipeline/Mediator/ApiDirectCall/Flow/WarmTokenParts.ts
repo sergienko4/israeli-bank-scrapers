@@ -90,10 +90,14 @@ function identityTag(text: string, key = '', salt = ''): string {
  * @returns True when the tag is the keyed or legacy digest.
  */
 function identityMatches(tag: string, text: string, options: ITagKeyOptions = {}): boolean {
-  if (tag === identityTag(text)) return true;
   const key = options.key ?? '';
+  const salt = options.salt ?? '';
+  // A nonce-bearing envelope must carry a keyed tag; accepting the legacy
+  // digest here would let a downgraded token keep the nonce but lose the key.
+  if (salt.length > 0) return key.length > 0 && tag === identityTag(text, key, salt);
+  if (tag === identityTag(text)) return true;
   if (key.length === 0) return false;
-  return tag === identityTag(text, key, options.salt ?? '');
+  return tag === identityTag(text, key);
 }
 
 /**
@@ -107,15 +111,16 @@ function accountsJson(accounts: readonly string[]): string {
 }
 
 /**
- * Tag account values without storing them.
- * @param accounts - Account values; surrounding spaces ignored.
- * @param key - Password or bank fallback key; '' keeps the legacy tag.
- * @param salt - Per-token nonce; '' uses the domain fallback.
- * @returns The identity tag of their JSON array.
+ * Build the account-tag fields of an envelope. A key adds a fresh nonce and
+ * a keyed tag; no key keeps the legacy unkeyed tag and writes no nonce.
+ * @param text - Identity text, already normalized.
+ * @param key - Password or bank fallback key; '' for the legacy tag.
+ * @returns The `a` tag and, only when keyed, the `n` nonce.
  */
-function accountsTag(accounts: readonly string[], key = '', salt = ''): string {
-  const json = accountsJson(accounts);
-  return identityTag(json, key, salt);
+function tagFields(text: string, key: string): { readonly a: string; readonly n?: string } {
+  if (key.length === 0) return { a: identityTag(text) };
+  const n = randomSalt();
+  return { a: identityTag(text, key, n), n };
 }
 
 /**
@@ -210,16 +215,15 @@ function parseJsonBody(text: string, failure: Procedure<never>): Procedure<JsonU
 }
 
 export {
+  accountsJson,
   accountsMatch,
-  accountsTag,
   identityMatches,
-  identityTag,
   isListValue,
   isRecordValue,
   isStoredCookie,
   parseJsonBody,
   projectCookie,
-  randomSalt,
+  tagFields,
   textAt,
   WARM_TOKEN_PREFIX,
   wrapJsonText,

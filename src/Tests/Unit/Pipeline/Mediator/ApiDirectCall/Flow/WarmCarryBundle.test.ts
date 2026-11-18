@@ -14,11 +14,11 @@ import {
   type IWarmBundle,
   WARM_BUNDLE_REJECTIONS,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmCarryBundle.js';
-import { accountsTag } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmTokenParts.js';
 import type { Procedure } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { assertOk } from '../../../../../Helpers/AssertProcedure.js';
 import { COOKIE_MARKER, WARM_COOKIES } from './WarmJarSpy.js';
+import { expectedTag, legacyTag } from './WarmTagFixture.js';
 
 type RejectionKey = keyof typeof WARM_BUNDLE_REJECTIONS;
 
@@ -31,7 +31,8 @@ const CARRY = { clientId: `${COOKIE_MARKER}client`, certPem: `${COOKIE_MARKER}ce
 const WITH_JAR: IWarmBundle = { carry: CARRY, cookies: WARM_COOKIES };
 const WITHOUT_JAR: IWarmBundle = { carry: CARRY, cookies: false };
 /** The documented account tag: 16 hex chars of SHA-256 over the JSON array. */
-const ACCOUNT_TAG = accountsTag(ACCOUNTS);
+const ACCOUNTS_JSON = JSON.stringify(ACCOUNTS);
+const ACCOUNT_TAG = legacyTag(ACCOUNTS_JSON);
 
 /** Who a test bundle belongs to. */
 type BundleIdentity = Parameters<typeof encodeWarmBundle>[0];
@@ -84,7 +85,8 @@ function decode(token: string, opts: IDecodeOpts = {}): Procedure<IWarmBundle> {
  */
 function wrapObject(envelope: object): string {
   const json = JSON.stringify(envelope);
-  const body = Buffer.from(json, 'utf8').toString('base64url');
+  const bytes = Buffer.from(json, 'utf8');
+  const body = bytes.toString('base64url');
   return `v1.${body}`;
 }
 
@@ -95,7 +97,8 @@ function wrapObject(envelope: object): string {
  */
 function bodyOf(token: string): string {
   const encoded = token.slice('v1.'.length);
-  return Buffer.from(encoded, 'base64url').toString('utf8');
+  const bytes = Buffer.from(encoded, 'base64url');
+  return bytes.toString('utf8');
 }
 
 describe('carry-bundle keyed account tag', () => {
@@ -105,7 +108,7 @@ describe('carry-bundle keyed account tag', () => {
     const token = encodeOk({ ...IDENTITY, tagKey: tagKey }, WITH_JAR);
     const body = bodyOf(token);
     const parsed = JSON.parse(body) as { a: string; n: string };
-    const tag = accountsTag(ACCOUNTS, tagKey, parsed.n);
+    const tag = expectedTag(ACCOUNTS_JSON, tagKey, parsed.n);
     expect(parsed.a).toBe(tag);
   });
 

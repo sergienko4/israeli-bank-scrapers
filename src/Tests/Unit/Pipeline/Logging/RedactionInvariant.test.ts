@@ -11,11 +11,11 @@ import pino from 'pino';
 
 import type { ScraperCredentials } from '../../../../Scrapers/Base/Interface.js';
 import BANK_PIPELINE_TABLE from '../../../../Scrapers/Pipeline/Banks/BankPipelineTable.js';
+import { buildSilentOptions } from '../../../../Scrapers/Pipeline/Logging/RootLoggerOptions.js';
 import type {
   IApiDirectCallConfig,
   ICarryGenerator,
 } from '../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
-import SENSITIVE_PATHS from '../../../../Scrapers/Pipeline/Types/DebugConfig.js';
 import { createCensorFn } from '../../../../Scrapers/Pipeline/Types/PiiRedactor.js';
 
 /** Keys present on at least one arm of a union. */
@@ -261,7 +261,10 @@ function logRedacted(payload: Readonly<Record<string, unknown>>): string {
     output += chunk.toString();
   });
   const censor = createCensorFn() as unknown as (value: unknown, path: string[]) => unknown;
-  const sink = pino({ level: 'info', redact: { paths: [...SENSITIVE_PATHS], censor } }, stream);
+  const options = buildSilentOptions();
+  const paths = options.redact as { paths: readonly string[] };
+  const redact = { paths: [...paths.paths], censor };
+  const sink = pino({ ...options, level: 'info', redact }, stream);
   sink.info(payload, 'redaction invariant probe');
   return output;
 }
@@ -286,6 +289,11 @@ const SECRET_MARKERS = markersFor(FACTS.secretKeys);
 const HEADER_MARKERS = markersFor(HEADER_NAMES);
 
 describe('redaction invariant', () => {
+  it('reaches the production sink', () => {
+    const output = logRedacted({ safe: 'value' });
+    expect(output).toContain('redaction invariant probe');
+  });
+
   it('lists every credential key at compile time', () => {
     expect(hasAllCredentialKeys).toBe(true);
   });

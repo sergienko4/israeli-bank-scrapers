@@ -454,7 +454,6 @@ describe('issuesFromCode — Rule PII-Log T09 template-literal patterns', () => 
     'userCode',
     'nationalID',
     'card6Digits',
-    'num',
     'email',
     'cookie',
     'setCookie',
@@ -478,6 +477,18 @@ describe('issuesFromCode — Rule PII-Log T09 template-literal patterns', () => 
     const issues = issuesFromCode(SYNTHETIC_OTHER, code, new Map());
     const pii = issues.filter((i): boolean => i.rule === 'PII-Log');
     expect(pii.length).toBeGreaterThanOrEqual(1);
+  });
+  it('does NOT flag a bare num that is not a credential', () => {
+    const code = 'const num = jobs.length; LOG.info(`jobs: ' + '$' + '{num}`);';
+    const issues = issuesFromCode(SYNTHETIC_OTHER, code, new Map());
+    const pii = issues.filter((i): boolean => i.rule === 'PII-Log');
+    expect(pii.length).toBe(0);
+  });
+  it('does NOT cross the LOG template backtick', () => {
+    const code = 'LOG.info(`ready`); const x = `' + '$' + '{credentials.username}`;';
+    const issues = issuesFromCode(SYNTHETIC_OTHER, code, new Map());
+    const pii = issues.filter((i): boolean => i.rule === 'PII-Log');
+    expect(pii.length).toBe(0);
   });
   it('does NOT flag a scalar identifier in template literal', () => {
     const code = 'LOG.info(`' + '$' + '{count} txns scraped`);';

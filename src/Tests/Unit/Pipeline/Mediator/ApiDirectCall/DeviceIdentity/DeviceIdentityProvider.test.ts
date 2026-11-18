@@ -90,6 +90,17 @@ function signatureOf(result: Procedure<ScraperCredentials>): string {
 }
 
 /**
+ * The device seed a successful enrichment injected.
+ * @param result - Enrichment result.
+ * @returns The seed, or '' on failure.
+ */
+function seedOf(result: Procedure<ScraperCredentials>): string {
+  if (!result.success) return '';
+  const value = (result.value as { deviceSeed?: string }).deviceSeed;
+  return value ?? '';
+}
+
+/**
  * The enricher for a config and warm start, or a failed expectation.
  * @param warm - Warm-start config.
  * @returns The enricher.
@@ -161,6 +172,8 @@ describe('device-identity provider edges', () => {
     const secondResult = enrich(creds);
     const first = signatureOf(firstResult);
     const second = signatureOf(secondResult);
+    const seed = seedOf(firstResult);
+    expect(seed).toBe('seed-a');
     expect(first).not.toBe('');
     expect(second).toBe(first);
   });
