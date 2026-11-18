@@ -45,7 +45,17 @@ function withoutPersistentAuthOptions(merged: Record<string, unknown>): GenericC
 function mergeOptionsIntoCreds(ctx: IPipelineContext): GenericCreds {
   const opts = ctx.options as unknown as Record<string, unknown>;
   const creds = ctx.credentials as unknown as Record<string, unknown>;
-  return withoutPersistentAuthOptions({ ...opts, ...creds });
+  return withoutPersistentAuthOptions({ ...opts, ...definedOnly(creds) });
+}
+
+/**
+ * Drop explicitly undefined credential properties so an option can fill them.
+ * @param record - Credential record.
+ * @returns Only the supplied values.
+ */
+function definedOnly(record: Record<string, unknown>): Record<string, unknown> {
+  const supplied = Object.entries(record).filter(([, value]): boolean => value !== undefined);
+  return Object.fromEntries(supplied);
 }
 
 /**

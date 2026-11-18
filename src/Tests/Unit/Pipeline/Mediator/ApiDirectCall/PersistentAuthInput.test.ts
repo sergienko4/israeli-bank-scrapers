@@ -248,6 +248,24 @@ describe('mergeOptionsIntoCreds persistent-auth isolation', () => {
     expect(merged.otpCodeRetriever).toBe(credentialRetriever);
   });
 
+  it('falls back to an option when the credential value is undefined', () => {
+    const base = makeMockContext();
+    /**
+     * Option-level OTP retriever.
+     * @returns A fixed fallback code.
+     */
+    function fallbackRetriever(): Promise<string> {
+      return Promise.resolve('fallback');
+    }
+    const ctx = {
+      ...base,
+      options: { ...base.options, otpCodeRetriever: fallbackRetriever },
+      credentials: { ...base.credentials, otpCodeRetriever: undefined },
+    } as IPipelineContext;
+    const merged = mergeOptionsIntoCreds(ctx);
+    expect(merged.otpCodeRetriever).toBe(fallbackRetriever);
+  });
+
   it('withholds durable option names smuggled through credentials', () => {
     const base = makeMockContext();
     const credentials = { ...base.credentials, persistentAuthState: OPAQUE_STATE };
