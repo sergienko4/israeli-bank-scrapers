@@ -57,11 +57,16 @@ function evalFreshSeed(entry: ISeedCarrySource): Procedure<JsonValue> {
  * failure.
  * @param entry - Single seed source.
  * @param creds - Caller credentials (bootstrap input).
+ * @param config - Bank call config.
  * @returns Procedure with the resolved JsonValue.
  */
-function evalAbsentSeed(entry: ISeedCarrySource, creds: Creds): Procedure<JsonValue> {
+function evalAbsentSeed(
+  entry: ISeedCarrySource,
+  creds: Creds,
+  config: IApiDirectCallConfig,
+): Procedure<JsonValue> {
   if (entry.bootstrap === undefined) return noBootstrapFail(entry.field);
-  return evalBootstrap(entry.bootstrap, creds);
+  return evalBootstrap(entry.bootstrap, creds, config);
 }
 
 /**
@@ -69,13 +74,18 @@ function evalAbsentSeed(entry: ISeedCarrySource, creds: Creds): Procedure<JsonVa
  * present + non-empty, otherwise resolve the configured bootstrap.
  * @param entry - Single seed source.
  * @param creds - Caller credentials.
+ * @param config - Bank call config.
  * @returns Procedure with the resolved JsonValue.
  */
-function evalSeedSource(entry: ISeedCarrySource, creds: Creds): Procedure<JsonValue> {
+function evalSeedSource(
+  entry: ISeedCarrySource,
+  creds: Creds,
+  config: IApiDirectCallConfig,
+): Procedure<JsonValue> {
   if (entry.alwaysBootstrap !== undefined) return evalFreshSeed(entry);
   const coerced = coerceCredsValue(creds[entry.field]);
   if (isOk(coerced) && coerced.value !== '') return coerced;
-  return evalAbsentSeed(entry, creds);
+  return evalAbsentSeed(entry, creds, config);
 }
 
 /**
@@ -95,7 +105,7 @@ function normaliseSeedEntry(entry: SeedSourceEntry): ISeedCarrySource {
  */
 function applyOneSeed(ctx: IReduceSeedCtx): Procedure<CarryMut> {
   const entry = normaliseSeedEntry(ctx.entry);
-  const proc = evalSeedSource(entry, ctx.creds);
+  const proc = evalSeedSource(entry, ctx.creds, ctx.config);
   if (!isOk(proc)) return proc;
   ctx.carry[entry.field] = proc.value;
   return succeed(ctx.carry);
@@ -129,7 +139,7 @@ function applySeedCarry(args: IApplySeedCarryArgs): Procedure<CarryMut> {
   const entries = config.seedCarryFromCreds ?? [];
   const seed: Procedure<CarryMut> = succeed(carry);
   return entries.reduce<Procedure<CarryMut>>(
-    (acc, entry) => reduceSeed(acc, { entry, creds, carry }),
+    (acc, entry) => reduceSeed(acc, { entry, creds, carry, config }),
     seed,
   );
 }

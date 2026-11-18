@@ -9,7 +9,6 @@ import { getDebug } from '../../../../Logging/Debug.js';
 import type { Procedure } from '../../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../../Types/Procedure.js';
 import type { IApiDirectCallConfig } from '../../ConfigContracts/index.js';
-import { isJwtFresh } from '../../Jwt/GenericJwtClaims.js';
 import { MAX_ACCESS_TOKEN_CHARS } from '../../PersistentAuthStateRules.js';
 import type { GenericCreds, IMakeWarmArgs, IRunFlowArgs } from './TokenStrategyFromConfig.types.js';
 
@@ -70,20 +69,6 @@ function dropMalformedSeed(credsField: string): false {
 }
 
 /**
- * Whether the seed passes the config's local JWT freshness check, if any.
- * A 'bank-call' warm start leaves the judgement to the bank, so it skips the
- * local check even when `jwtClaims` is set.
- * @param config - API-direct-call config.
- * @param stored - Stored seed.
- * @returns True when there is no JWT check or the token is fresh.
- */
-function isJwtGateOpen(config: IApiDirectCallConfig, stored: string): boolean {
-  if (config.warmStart?.validation === 'bank-call') return true;
-  if (config.jwtClaims === undefined) return true;
-  return isJwtFresh(stored, config.jwtClaims);
-}
-
-/**
  * Whether the caller supplied a stored seed at all, before any local check.
  * A wrong-type value counts as supplied, so its refusal still earns the
  * cold-fallback warning.
@@ -109,7 +94,6 @@ function pickWarmSeed(config: IApiDirectCallConfig, creds: GenericCreds): string
   const stored = readCredsString(creds, warm.credsField);
   if (stored.length === 0) return false;
   if (!isSeedShaped(stored)) return dropMalformedSeed(warm.credsField);
-  if (!isJwtGateOpen(config, stored)) return false;
   return stored;
 }
 

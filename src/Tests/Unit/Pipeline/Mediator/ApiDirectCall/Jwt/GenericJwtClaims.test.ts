@@ -4,7 +4,10 @@
  */
 
 import type { IJwtClaimsConfig } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
-import { isJwtFresh } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Jwt/GenericJwtClaims.js';
+import {
+  decodeNumericClaim,
+  isJwtFresh,
+} from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Jwt/GenericJwtClaims.js';
 
 const EXP_60S: IJwtClaimsConfig = {
   freshnessField: 'exp',
@@ -78,10 +81,36 @@ describe('GenericJwtClaims.isJwtFresh — issuer and audience binding', () => {
     expect(isFresh).toBe(true);
   });
 
+  it('rejects a non-string, non-array audience', () => {
+    const jwt = makeClaimsJwt({ exp: future, aud: 7 });
+    const config: IJwtClaimsConfig = { ...EXP_60S, audience: 'syn-audience' };
+    const isFresh = isJwtFresh(jwt, config);
+    expect(isFresh).toBe(false);
+  });
+
   it('ignores both expectations when none are configured', () => {
     const jwt = makeClaimsJwt({ exp: future, iss: 'any', aud: 'any' });
     const isFresh = isJwtFresh(jwt, EXP_60S);
     expect(isFresh).toBe(true);
+  });
+});
+
+describe('GenericJwtClaims.decodeNumericClaim', () => {
+  it.each(['exp', 'nbf'])('reads a numeric %s claim', field => {
+    const jwt = makeJwt(field, 1234);
+    const claim = decodeNumericClaim(jwt, field);
+    expect(claim).toBe(1234);
+  });
+
+  it('returns false for a malformed JWT', () => {
+    const claim = decodeNumericClaim('not-a-jwt', 'exp');
+    expect(claim).toBe(false);
+  });
+
+  it('returns false for a missing claim', () => {
+    const jwt = makeJwt('exp', 1234);
+    const claim = decodeNumericClaim(jwt, 'nbf');
+    expect(claim).toBe(false);
   });
 });
 

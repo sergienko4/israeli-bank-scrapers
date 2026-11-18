@@ -19,6 +19,7 @@ import { registerWkUrl } from '../../../../../../Scrapers/Pipeline/Registry/WK/U
 import type { IPipelineContext } from '../../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { assertOk } from '../../../../../Helpers/AssertProcedure.js';
+import { makeJwtExpiringIn, makeJwtExpiringInWithClaims } from '../../../../../Helpers/Jwt.js';
 import { type IApiPostCapture, makeStubMediator } from './StubMediator.js';
 
 const WARM_STEP_TAG: WKUrlGroup = 'auth.assert';
@@ -64,11 +65,30 @@ function rawConfig(): IApiDirectCallConfig {
 }
 
 /**
+ * A raw carry warm start validated by the inner JWT's expiry.
+ * @returns API-direct-call config.
+ */
+function rawJwtConfig(): IApiDirectCallConfig {
+  return {
+    ...rawConfig(),
+    warmStart: {
+      credsField: 'otpLongTermToken',
+      carryField: 'token',
+      fromStepIndex: 1,
+      provider: PROVIDER,
+      accountFields: ['username'],
+    },
+    jwtClaims: { freshnessField: 'exp', skewSeconds: 60 },
+  };
+}
+
+/**
  * Build the strategy under test.
+ * @param config - Config literal, defaulting to the bank-call config.
  * @returns The config-driven token strategy.
  */
-function makeStrategy(): IConfigTokenStrategy {
-  const built = createTokenStrategyFromConfig({ config: rawConfig() });
+function makeStrategy(config: IApiDirectCallConfig = rawConfig()): IConfigTokenStrategy {
+  const built = createTokenStrategyFromConfig({ config });
   assertOk(built);
   return built.value;
 }
@@ -115,6 +135,63 @@ describe('raw carry warm start through the strategy', () => {
     assertOk(foreign);
     const strategy = makeStrategy();
     const creds = credsWith(foreign.value);
+    const proc = await strategy.primeInitial(bus, CTX, creds);
+    assertOk(proc);
+    expect(proc.value).toBe(MINTED);
+    expect(captures).toHaveLength(1);
+  });
+
+  it('reuses a published token when its inner JWT is fresh', async () => {
+    const token = makeJwtExpiringInWithClaims(3600, { sub: 'syn-warm' });
+    const coldCaptures: IApiPostCapture[] = [];
+    const coldBus = makeStubMediator({
+      responses: [succeed({ hash: token })],
+      captures: coldCaptures,
+    });
+    const config = rawJwtConfig();
+    const strategy = makeStrategy(config);
+    const cold = await strategy.primeInitial(coldBus, CTX, { username: USER, password: PASSWORD });
+    assertOk(cold);
+    const published = strategy.getLatestLongTermToken();
+    const warmCaptures: IApiPostCapture[] = [];
+    const warmBus = makeStubMediator({
+      responses: [succeed({ hash: 'cold-fallback' })],
+      captures: warmCaptures,
+    });
+    const creds = credsWith(published);
+    const warmConfig = rawJwtConfig();
+    const warmStrategy = makeStrategy(warmConfig);
+    const warm = await warmStrategy.primeInitial(warmBus, CTX, creds);
+    assertOk(warm);
+    expect(warm.value).toBe(token);
+    expect(warmCaptures).toHaveLength(0);
+  });
+
+  it('runs the cold flow when the inner JWT is stale', async () => {
+    const stale = makeJwtExpiringIn(-10);
+    const encoded = encodeRawCarry(
+      { provider: PROVIDER, accounts: [USER], tagKey: PASSWORD },
+      stale,
+    );
+    assertOk(encoded);
+    const captures: IApiPostCapture[] = [];
+    const bus = makeStubMediator({ responses: [succeed({ hash: MINTED })], captures });
+    const creds = credsWith(encoded.value);
+    const config = rawJwtConfig();
+    const strategy = makeStrategy(config);
+    const proc = await strategy.primeInitial(bus, CTX, creds);
+    assertOk(proc);
+    expect(proc.value).toBe(MINTED);
+    expect(captures).toHaveLength(1);
+  });
+
+  it('runs the cold flow when a legacy raw JWT is stale', async () => {
+    const stale = makeJwtExpiringIn(-10);
+    const captures: IApiPostCapture[] = [];
+    const bus = makeStubMediator({ responses: [succeed({ hash: MINTED })], captures });
+    const creds = credsWith(stale);
+    const config = rawJwtConfig();
+    const strategy = makeStrategy(config);
     const proc = await strategy.primeInitial(bus, CTX, creds);
     assertOk(proc);
     expect(proc.value).toBe(MINTED);

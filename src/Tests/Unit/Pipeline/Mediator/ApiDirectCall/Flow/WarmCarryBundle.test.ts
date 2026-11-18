@@ -104,9 +104,20 @@ describe('carry-bundle keyed account tag', () => {
   it('writes an HMAC tag when a key is supplied', (): void => {
     const token = encodeOk({ ...IDENTITY, tagKey: tagKey }, WITH_JAR);
     const body = bodyOf(token);
-    const parsed = JSON.parse(body) as { a: string };
-    const tag = accountsTag(ACCOUNTS, tagKey);
+    const parsed = JSON.parse(body) as { a: string; n: string };
+    const tag = accountsTag(ACCOUNTS, tagKey, parsed.n);
     expect(parsed.a).toBe(tag);
+  });
+
+  it('uses a fresh nonce for every token', (): void => {
+    const first = encodeOk({ ...IDENTITY, tagKey }, WITH_JAR);
+    const second = encodeOk({ ...IDENTITY, tagKey }, WITH_JAR);
+    const firstBody = bodyOf(first);
+    const secondBody = bodyOf(second);
+    const firstParsed = JSON.parse(firstBody) as { a: string; n: string };
+    const secondParsed = JSON.parse(secondBody) as { a: string; n: string };
+    expect(firstParsed.n).not.toBe(secondParsed.n);
+    expect(firstParsed.a).not.toBe(secondParsed.a);
   });
 
   it('opens a keyed token only with the same key', (): void => {

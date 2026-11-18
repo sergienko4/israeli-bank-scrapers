@@ -2,10 +2,11 @@
  * WarmRawCarry — the provider/account-bound envelope for a warm token whose
  * payload is one raw carry string: a login hash, a device key or a JWT.
  *
- * <p>Wire form: `v1.` + unpadded base64url over UTF-8 JSON `{p, a, v}` — the
- * provider tag, a 16-hex account tag (never the account values) and the raw
- * value. A token without the `v1.` prefix is a pre-envelope raw token and is
- * still accepted unchanged; the envelope only binds tokens minted now.
+ * <p>Wire form: `v1.` + unpadded base64url over UTF-8 JSON `{p, a, n, v}` —
+ * the provider tag, a 16-hex account tag (never the account values), a
+ * per-token nonce and the raw value. A token without the `v1.` prefix is a
+ * pre-envelope raw token and is still accepted unchanged; the envelope only
+ * binds tokens minted now.
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
@@ -17,6 +18,7 @@ import {
   accountsTag,
   isRecordValue,
   parseJsonBody,
+  randomSalt,
   WARM_TOKEN_PREFIX,
   wrapJsonText,
 } from './WarmTokenParts.js';
@@ -38,6 +40,7 @@ interface IRawCarryExpectation extends IRawCarryIdentity {
 interface IRawCarryEnvelope extends JsonUnknownRecord {
   readonly p: string;
   readonly a: string;
+  readonly n?: string;
   readonly v: string;
 }
 
@@ -84,7 +87,9 @@ function isRawCarryEnvelope(value: JsonUnknown): value is IRawCarryEnvelope {
   if (!isRecordValue(value)) return false;
   const isTagged = typeof value.p === 'string' && typeof value.a === 'string';
   const isValue = typeof value.v === 'string';
-  return isTagged && isValue && Object.keys(value).length === 3;
+  const hasNonce = value.n === undefined || typeof value.n === 'string';
+  const keyCount = Object.keys(value).length;
+  return isTagged && isValue && hasNonce && (keyCount === 3 || keyCount === 4);
 }
 
 /**
@@ -104,6 +109,23 @@ function unwrapBody(token: string, maxChars: number): Procedure<string> {
 }
 
 /**
+ * Whose token an envelope is, against the expected owner.
+ * @param value - Envelope of a checked shape.
+ * @param expected - Expected provider and account values.
+ * @returns The first mismatch's rejection key, or false when it is theirs.
+ */
+function ownerRejection(
+  value: IRawCarryEnvelope,
+  expected: IRawCarryIdentity,
+): WarmRawCarryRejection | false {
+  if (value.p !== expected.provider) return 'provider';
+  const nonce = typeof value.n === 'string' ? value.n : '';
+  const key = nonce.length > 0 ? (expected.tagKey ?? '') : '';
+  if (!accountsMatch(value.a, expected.accounts, { key, salt: nonce })) return 'account';
+  return false;
+}
+
+/**
  * Check the envelope's shape, whose token it is, and that it carries a value.
  * @param value - Parsed token body.
  * @param expected - Expected identity.
@@ -111,10 +133,8 @@ function unwrapBody(token: string, maxChars: number): Procedure<string> {
  */
 function checkEnvelope(value: JsonUnknown, expected: IRawCarryIdentity): Procedure<string> {
   if (!isRawCarryEnvelope(value)) return reject('schema');
-  if (value.p !== expected.provider) return reject('provider');
-  if (!accountsMatch(value.a, expected.accounts, expected.tagKey ?? '')) {
-    return reject('account');
-  }
+  const mismatch = ownerRejection(value, expected);
+  if (mismatch !== false) return reject(mismatch);
   if (value.v.length === 0) return reject('value');
   return succeed(value.v);
 }
@@ -128,8 +148,9 @@ function checkEnvelope(value: JsonUnknown, expected: IRawCarryIdentity): Procedu
 function encodeRawCarry(identity: IRawCarryIdentity, value: string): Procedure<string> {
   if (isUnbound(identity.accounts)) return reject('unbound');
   if (value.length === 0) return reject('value');
-  const a = accountsTag(identity.accounts, identity.tagKey ?? '');
-  const json = JSON.stringify({ p: identity.provider, a, v: value });
+  const n = randomSalt();
+  const a = accountsTag(identity.accounts, identity.tagKey ?? '', n);
+  const json = JSON.stringify({ p: identity.provider, a, n, v: value });
   const token = wrapJsonText(json);
   return succeed(token);
 }

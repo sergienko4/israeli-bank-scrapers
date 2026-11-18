@@ -106,9 +106,9 @@ describe('warm seed under jwtClaims', () => {
     expect(picked).toBe(OPAQUE_SEED);
   });
 
-  it('drops an opaque seed when it is validated as a JWT', (): void => {
+  it('keeps an opaque seed for the raw restore to judge as a JWT', (): void => {
     const config = claimsConfig('jwt');
     const picked = SHARED.pickWarmSeed(config, { otpLongTermToken: OPAQUE_SEED });
-    expect(picked).toBe(false);
+    expect(picked).toBe(OPAQUE_SEED);
   });
 });

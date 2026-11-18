@@ -10,6 +10,7 @@ import { ScraperErrorTypes } from '../../../../../Base/ErrorTypes.js';
 import describeJsonParseFailure from '../../../../Types/JsonParseFailure.js';
 import type { Procedure } from '../../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../../Types/Procedure.js';
+import type { IApiDirectCallConfig } from '../../ConfigContracts/index.js';
 import {
   evalRandomBootstrap,
   isRandomBootstrap,
@@ -23,6 +24,7 @@ import type {
   IWalkJsonCtx,
   SeedCarryBootstrapKind,
 } from './FlowInitCarry.types.js';
+import unwrapWarmValue from './FlowInitCarry.warm.js';
 
 /** Hex prefix length produced by the `'sha256-prefix-16'` bootstrap. */
 const SHA256_PREFIX_LENGTH = 16;
@@ -149,14 +151,26 @@ function emptySourceOutcome(args: IJwtClaimArgs): Procedure<string> {
 /**
  * Decode the JWT in `creds[args.from]` and walk to `args.claim`.
  * @param args - Bootstrap args bundle.
+ * @param raw - Stored creds value.
+ * @returns Procedure with the leaf string.
+ */
+function decodedWarmJwt(args: IJwtClaimArgs, raw: string): Procedure<string> {
+  const unwrapped = unwrapWarmValue(args.config, args.creds, raw);
+  if (!isOk(unwrapped)) return args.optional ? succeed('') : unwrapped;
+  const decoded = decodeJwtPayload(unwrapped.value);
+  if (!isOk(decoded)) return decoded;
+  return walkJsonPath(decoded.value, args.claim);
+}
+
+/**
+ * Decode the JWT in `creds[args.from]` and walk to `args.claim`.
+ * @param args - Bootstrap args bundle.
  * @returns Procedure with the leaf string.
  */
 function bootstrapJwtClaim(args: IJwtClaimArgs): Procedure<string> {
   const raw = args.creds[args.from];
   if (typeof raw !== 'string' || raw.length === 0) return emptySourceOutcome(args);
-  const decoded = decodeJwtPayload(raw);
-  if (!isOk(decoded)) return decoded;
-  return walkJsonPath(decoded.value, args.claim);
+  return decodedWarmJwt(args, raw);
 }
 
 /**
@@ -165,12 +179,13 @@ function bootstrapJwtClaim(args: IJwtClaimArgs): Procedure<string> {
  * @returns IJwtClaimArgs bundle.
  */
 function makeJwtClaimArgs(args: IMakeJwtClaimArgs): IJwtClaimArgs {
-  const { bootstrap, creds } = args;
+  const { bootstrap, creds, config } = args;
   return {
     from: bootstrap.from,
     claim: bootstrap.claim,
     optional: bootstrap.optional === true,
     creds,
+    config,
   };
 }
 
@@ -178,14 +193,16 @@ function makeJwtClaimArgs(args: IMakeJwtClaimArgs): IJwtClaimArgs {
  * Dispatch parameterised bootstrap kinds (everything except the random ones).
  * @param bootstrap - Discriminated bootstrap descriptor (non-random kind).
  * @param creds - Caller credentials.
+ * @param config - Bank call config.
  * @returns Procedure with the bootstrap-produced value.
  */
 function evalParameterisedBootstrap(
   bootstrap: ParameterisedBootstrap,
   creds: Creds,
+  config: IApiDirectCallConfig,
 ): Procedure<string> {
   if (bootstrap.kind === 'sha256-prefix-16') return bootstrapSha256Prefix16(bootstrap.from, creds);
-  const args = makeJwtClaimArgs({ bootstrap, creds });
+  const args = makeJwtClaimArgs({ bootstrap, creds, config });
   return bootstrapJwtClaim(args);
 }
 
@@ -193,11 +210,16 @@ function evalParameterisedBootstrap(
  * Dispatch a bootstrap kind to its generator.
  * @param bootstrap - Discriminated bootstrap descriptor.
  * @param creds - Caller credentials (consulted by parameterised kinds).
+ * @param config - Bank call config.
  * @returns Procedure with the bootstrap-produced value.
  */
-function evalBootstrap(bootstrap: SeedCarryBootstrapKind, creds: Creds): Procedure<string> {
+function evalBootstrap(
+  bootstrap: SeedCarryBootstrapKind,
+  creds: Creds,
+  config: IApiDirectCallConfig,
+): Procedure<string> {
   if (isRandomBootstrap(bootstrap)) return evalRandomBootstrap(bootstrap);
-  return evalParameterisedBootstrap(bootstrap, creds);
+  return evalParameterisedBootstrap(bootstrap, creds, config);
 }
 
 export default evalBootstrap;

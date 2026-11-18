@@ -12,7 +12,12 @@ import {
   type IRawCarryExpectation,
   isRawCarryToken,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmRawCarry.js';
-import { accountsTag } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmTokenParts.js';
+import {
+  accountsMatch,
+  accountsTag,
+  identityMatches,
+  identityTag,
+} from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmTokenParts.js';
 import {
   fail,
   type Procedure,
@@ -20,15 +25,20 @@ import {
 } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
 /** Rejection reason a token shape must produce. */
-type RejectionReason = 'account' | 'prefix' | 'size' | 'provider' | 'unbound';
+type RejectionReason =
+  'account' | 'encoding' | 'json' | 'prefix' | 'provider' | 'schema' | 'size' | 'unbound' | 'value';
 
 /** The production message for each reason this suite exercises. */
 const REJECTION_TEXT: Readonly<Record<RejectionReason, string>> = {
   account: 'token belongs to another account',
+  encoding: 'token body is not canonical base64url',
+  json: 'token body is not JSON',
   prefix: 'not a v1 raw-carry token',
-  size: 'token longer than maxTokenChars',
   provider: 'token belongs to another provider',
+  schema: 'token body is not a raw-carry token',
+  size: 'token longer than maxTokenChars',
   unbound: 'no account to bind the token to',
+  value: 'token carries no value',
 };
 
 const PROVIDER = 'syn-bank';
@@ -75,7 +85,20 @@ interface IRejectCase {
   readonly reason: RejectionReason;
 }
 
+/**
+ * Wrap JSON text as a `v1.` token.
+ * @param text - Envelope JSON text.
+ * @returns A `v1.` token.
+ */
+function wrapText(text: string): string {
+  const body = Buffer.from(text, 'utf8').toString('base64url');
+  return `v1.${body}`;
+}
+
 const GOOD = encode(IDENTITY);
+const EMPTY_TAG = accountsTag(ACCOUNTS);
+const EMPTY_JSON = JSON.stringify({ p: PROVIDER, a: EMPTY_TAG, v: '' });
+const EMPTY_VALUE = wrapText(EMPTY_JSON);
 const REJECTED: readonly IRejectCase[] = [
   { label: 'a foreign prefix', token: `v2${GOOD.slice(2)}`, expected: {}, reason: 'prefix' },
   {
@@ -97,6 +120,16 @@ const REJECTED: readonly IRejectCase[] = [
     reason: 'account',
   },
   { label: 'no bound account', token: GOOD, expected: { accounts: [] }, reason: 'unbound' },
+  {
+    label: 'a blank account',
+    token: GOOD,
+    expected: { accounts: [' '] },
+    reason: 'unbound',
+  },
+  { label: 'unreadable JSON', token: wrapText('{'), expected: {}, reason: 'json' },
+  { label: 'a JSON array', token: wrapText('[]'), expected: {}, reason: 'schema' },
+  { label: 'a non-canonical body', token: `${GOOD}=`, expected: {}, reason: 'encoding' },
+  { label: 'an empty value', token: EMPTY_VALUE, expected: {}, reason: 'value' },
 ];
 
 describe('raw carry warm envelope', () => {
@@ -118,10 +151,45 @@ describe('raw carry warm envelope', () => {
     expect(body).not.toContain(ACCOUNTS[1]);
   });
 
+  it('refuses to encode an empty value', (): void => {
+    const encoded = encodeRawCarry(IDENTITY, '');
+    const expected = fail(ScraperErrorTypes.Generic, REJECTION_TEXT.value);
+    expect(encoded).toEqual(expected);
+  });
+
+  it('refuses to encode without an account', (): void => {
+    const encoded = encodeRawCarry({ ...IDENTITY, accounts: [] }, VALUE);
+    const expected = fail(ScraperErrorTypes.Generic, REJECTION_TEXT.unbound);
+    expect(encoded).toEqual(expected);
+  });
+
   it.each(REJECTED)('refuses $label', (row: IRejectCase): void => {
     const expected = fail(ScraperErrorTypes.Generic, REJECTION_TEXT[row.reason]);
     const decoded = decode(row.token, row.expected);
     expect(decoded).toEqual(expected);
+  });
+});
+
+describe('warm identity tags', () => {
+  it('isAccountMatch a legacy tag and a keyed tag under the same key', (): void => {
+    const legacy = identityTag('syn-account');
+    const keyed = identityTag('syn-account', 'syn-key');
+    const isLegacyMatch = identityMatches(legacy, 'syn-account');
+    const isLegacyUnderKey = identityMatches(legacy, 'syn-account', { key: 'syn-key' });
+    const isKeyedMatch = identityMatches(keyed, 'syn-account', { key: 'syn-key' });
+    const isWrongKey = identityMatches(keyed, 'syn-account', { key: 'syn-other' });
+    expect(isLegacyMatch).toBe(true);
+    expect(isLegacyUnderKey).toBe(true);
+    expect(isKeyedMatch).toBe(true);
+    expect(isWrongKey).toBe(false);
+  });
+
+  it('isAccountMatch an account array through the shared helper', (): void => {
+    const tag = accountsTag(ACCOUNTS, 'syn-key');
+    const isAccountMatch = accountsMatch(tag, ACCOUNTS, { key: 'syn-key' });
+    const isWrongKey = accountsMatch(tag, ACCOUNTS, { key: 'syn-other' });
+    expect(isAccountMatch).toBe(true);
+    expect(isWrongKey).toBe(false);
   });
 });
 
@@ -133,9 +201,24 @@ describe('raw carry keyed account tag', () => {
     const encoded = token.slice('v1.'.length);
     const bytes = Buffer.from(encoded, 'base64url');
     const body = bytes.toString('utf8');
-    const parsed = JSON.parse(body) as { a: string };
-    const tag = accountsTag(ACCOUNTS, tagKey);
+    const parsed = JSON.parse(body) as { a: string; n: string };
+    const tag = accountsTag(ACCOUNTS, tagKey, parsed.n);
     expect(parsed.a).toBe(tag);
+  });
+
+  it('uses a fresh nonce for every token', (): void => {
+    const first = encode({ ...IDENTITY, tagKey });
+    const second = encode({ ...IDENTITY, tagKey });
+    const firstEncoded = first.slice('v1.'.length);
+    const firstBytes = Buffer.from(firstEncoded, 'base64url');
+    const firstBody = firstBytes.toString('utf8');
+    const secondEncoded = second.slice('v1.'.length);
+    const secondBytes = Buffer.from(secondEncoded, 'base64url');
+    const secondBody = secondBytes.toString('utf8');
+    const firstParsed = JSON.parse(firstBody) as { a: string; n: string };
+    const secondParsed = JSON.parse(secondBody) as { a: string; n: string };
+    expect(firstParsed.n).not.toBe(secondParsed.n);
+    expect(firstParsed.a).not.toBe(secondParsed.a);
   });
 
   it('opens a keyed token only with the same key', (): void => {

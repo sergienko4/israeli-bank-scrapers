@@ -372,11 +372,14 @@ describe('fixtures-pii gate parity with PiiRedactor', () => {
 describe('fixtures-pii scope canary', () => {
   it('walks both the integration bank fixtures and the unit fixtures', () => {
     const files = fixtureFiles();
+    const cwd = process.cwd();
+    const unitRoot = join(cwd, 'src', 'Tests', 'Unit');
+    const integrationRoot = join(cwd, 'src', 'Tests', 'Integration');
     let hasUnit = false;
     let hasIntegration = false;
     for (const file of files) {
-      if (file.includes('/src/Tests/Unit/')) hasUnit = true;
-      if (file.includes('/src/Tests/Integration/')) hasIntegration = true;
+      if (file.startsWith(unitRoot)) hasUnit = true;
+      if (file.startsWith(integrationRoot)) hasIntegration = true;
     }
     expect(hasUnit).toBe(true);
     expect(hasIntegration).toBe(true);

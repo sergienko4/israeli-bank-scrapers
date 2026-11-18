@@ -241,12 +241,14 @@ A default (`kind` omitted) warm start stores one raw carry value — a login
 hash, a device key or a JWT. `provider` and `accountFields` opt into a `v1.`
 envelope; both are declared together, and `Flow/Lifecycle/TokenStrategyFromConfig.raw.ts`
 opens it. `encodeRawCarry` in `Flow/WarmRawCarry.ts` encodes `v1.` plus
-unpadded base64url over `{p, a, v}`: the provider tag, the keyed account tag
-and the raw value. `decodeRawCarry` checks an account to bind, size, prefix,
+unpadded base64url over `{p, a, n, v}`: the provider tag, the keyed account
+tag, a per-token nonce and the raw value. `decodeRawCarry` checks an account to bind, size, prefix,
 canonical base64url, JSON, shape, provider, account and a non-empty value,
-refusing with a reason from `WARM_RAW_CARRY_REJECTIONS` and never a value. A
-token without the `v1.` prefix is the pre-envelope raw value and seeds the
-carry unchanged, so stored tokens still open. The build refuses a partial
+refusing with a reason from `WARM_RAW_CARRY_REJECTIONS` and never a value.
+It takes an `IRawCarryExpectation`; `isRawCarryToken` distinguishes the
+envelope from the legacy raw form. A token without the `v1.` prefix is the
+pre-envelope raw value and seeds the carry unchanged, so stored tokens still
+open. The build refuses a partial
 binding (provider without account fields or the reverse), a blank provider or
 a blank account field. `restoreRawCarry`/`exportRawCarry` apply the envelope
 while the token strategy restores and publishes the carry.
@@ -256,13 +258,17 @@ while the token strategy restores and publishes the carry.
 A `kind: 'cookie-jar'` warm start (`ICookieJarWarmStart`) is always validated
 as `'bank-call'`, and adds `provider`, `accountField` and `maxTokenChars`.
 `Flow/WarmStartKind.ts` reads the kind: `cookieJarWarmOf` returns the
-cookie-jar config or `false`, and `warmCarryField` returns the carry slot, or
-`''` when there is none to seed.
+cookie-jar config or `false`, `carryWarmOf` returns the raw carry config or
+`false`, and `warmCarryField` returns the carry slot, or `''` when there is
+none to seed.
 `encodeWarmJar` in `Flow/WarmCookieJar.ts` encodes a `StoredJar` as `v1.` plus
-unpadded base64url over the JSON `{p, a, c}`: the provider tag, the first 16
-hex characters of an HMAC-SHA256 over the trimmed account keyed by the
-caller's password (or the bank's `accountTagKey` fallback), never the account
-itself, and the cookies in creation order. Only the cookie's own fields
+unpadded base64url over the JSON `{p, a, n, c}`: the provider tag, the first
+16 hex characters of an HMAC-SHA256 over the trimmed account, a fresh
+per-token nonce `n`, and the cookies in creation order. The HMAC key is
+derived from the caller's password (or the bank's `accountTagKey` fallback)
+with scrypt and `n`, so two tokens for one account carry different tags;
+never the account itself. `accountTagKeyOf` in
+`Flow/Lifecycle/TokenStrategyFromConfig.shared.ts` selects that key. Only the cookie's own fields
 travel. `decodeWarmJar` opens it, refusing with a reason from
 `WARM_JAR_REJECTIONS` and never a value; it accepts the keyed tag or the
 legacy unkeyed SHA-256 tag, so stored jar tokens still open. Both refuse a
@@ -302,15 +308,16 @@ creds fields the token is bound to, in order), `slots`, `maxTokenChars`,
 `false`.
 `encodeWarmBundle` in `Flow/WarmCarryBundle.ts` encodes `v1.` plus unpadded
 base64url over the JSON `{p, a, s, c?}`: the provider tag, the first 16 hex
-characters of an HMAC-SHA256 over the JSON array of trimmed account values
-keyed by the caller's password (or the bank's `accountTagKey` fallback), never
-the values, the kept slots, and — only when the config keeps the jar — the
-cookies. `decodeWarmBundle` checks in order — an account to bind, size,
+characters of an HMAC-SHA256 over the JSON array of trimmed account values,
+a per-token nonce `n`, the kept slots, and — only when the config keeps the
+jar — the cookies. The HMAC key is derived from the caller's password (or the
+bank's `accountTagKey` fallback) with scrypt and `n`; the values themselves
+are never stored. `decodeWarmBundle` checks in order — an account to bind, size,
 prefix, canonical base64url, JSON, shape, provider, account, slots (exactly
 the config's, each non-empty text), then the jar (present exactly when the
 config keeps it, each cookie well-typed) — and refuses with a reason from
 `WARM_BUNDLE_REJECTIONS`, never a value. Every account value must be
-non-blank (`unbound`). `decodeWarmBundle` returns an `IWarmBundle`: the `BundleCarry` slots and the jar, or `false` when the config keeps none. The parts the codecs share live in `Flow/WarmTokenParts.ts`: `WARM_TOKEN_PREFIX`, `identityTag` (the 16-hex keyed HMAC or legacy SHA-256 tag), `identityMatches` (which also accepts a stored legacy tag), `accountsTag`/`accountsMatch` for an ordered account array, `wrapJsonText` and `parseJsonBody` for the body, `isRecordValue`, `isListValue`, `isStoredCookie` and `projectCookie` for the shape and cookies, and `textAt` for a slot's text. A stored legacy tag still opens, so tokens minted before keying keep working.
+non-blank (`unbound`). `decodeWarmBundle` returns an `IWarmBundle`: the `BundleCarry` slots and the jar, or `false` when the config keeps none. The parts the codecs share live in `Flow/WarmTokenParts.ts`: `WARM_TOKEN_PREFIX`, `randomSalt` (the per-token nonce), `identityTag` (the 16-hex keyed HMAC or legacy SHA-256 tag), `identityMatches` (which also accepts a stored legacy tag), `accountsTag`/`accountsMatch` for an ordered account array, `wrapJsonText` and `parseJsonBody` for the body, `isRecordValue`, `isListValue`, `isStoredCookie` and `projectCookie` for the shape and cookies, and `textAt` for a slot's text. A stored legacy tag still opens, so tokens minted before keying keep working.
 
 Each kind's ops take an `IWarmRunArgs` (config, bus and creds) and restore a `WarmCarry` starting carry: `restoreJar` and `exportJar` (`TokenStrategyFromConfig.jar.ts`), and `restoreBundle` and `exportBundle` (`TokenStrategyFromConfig.bundle.ts`). Both skip a token through `skipWarmRestore` and publish through `publishWithin`, which applies `maxTokenChars`. The build rules read either bound kind through `boundWarmOf`, which returns a `BoundWarmStart` (a cookie-jar or carry-bundle config) or `false`, and check cookie domains through `hasCookieDomains` (`Core/Builder/ApiDirectRuleInput.ts`).
 

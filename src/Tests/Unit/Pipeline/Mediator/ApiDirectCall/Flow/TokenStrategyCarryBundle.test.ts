@@ -170,6 +170,27 @@ const STORED = bundleToken(STORED_CLIENT);
 /** What a cold login publishes: the login's slot and the jar it ends with. */
 const PUBLISHED = bundleToken(LOGIN_CLIENT);
 
+/** A decoded published bundle. */
+type DecodedBundle = Extract<ReturnType<typeof CODEC.decodeWarmBundle>, { success: true }>['value'];
+
+/**
+ * Decode a token the strategy published.
+ * @param token - Published token.
+ * @param hasCookies - Whether the config keeps the jar.
+ * @returns The decoded bundle.
+ */
+function decodePublished(token: string, hasCookies = true): DecodedBundle {
+  const decoded = CODEC.decodeWarmBundle(token, {
+    provider: PROVIDER,
+    accounts: [NUM, NATIONAL_ID],
+    slots: ['clientId'],
+    hasCookies,
+    maxChars: LIMIT,
+  });
+  assertOk(decoded);
+  return decoded.value;
+}
+
 /** Strategy, bus, jar and request log for one run. */
 interface IBundleRun {
   readonly strategy: IConfigTokenStrategy;
@@ -313,7 +334,10 @@ describe('carry-bundle warm export', () => {
     const proc = await run.strategy.primeFresh(run.bus, CTX, creds);
     assertOk(proc);
     const published = run.strategy.getLatestLongTermToken();
-    expect(published).toBe(PUBLISHED);
+    const decoded = decodePublished(published);
+    expect(published.length).toBe(PUBLISHED.length);
+    expect(decoded.carry.clientId).toBe(LOGIN_CLIENT);
+    expect(decoded.cookies).toEqual(WARM_COOKIES);
     expect(LOG.warn).not.toHaveBeenCalled();
   });
 
@@ -323,8 +347,9 @@ describe('carry-bundle warm export', () => {
     const proc = await run.strategy.primeFresh(run.bus, CTX, creds);
     assertOk(proc);
     const published = run.strategy.getLatestLongTermToken();
-    const expected = bundleToken(LOGIN_CLIENT, false);
-    expect(published).toBe(expected);
+    const decoded = decodePublished(published, false);
+    expect(decoded.carry.clientId).toBe(LOGIN_CLIENT);
+    expect(decoded.cookies).toBe(false);
   });
 
   it('publishes no token when the export is one char over', async (): Promise<void> => {
@@ -456,10 +481,11 @@ describe('carry-bundle cookie hand-off', () => {
     const proc = await run.strategy.primeInitial(run.bus, CTX, creds);
     assertOk(proc);
     const published = run.strategy.getLatestLongTermToken();
-    const restoredWithJar = bundleToken(STORED_CLIENT);
+    const decoded = decodePublished(published);
     const left = domain.jar.exportAll();
     const bancsHeader = domain.jar.header(BANCS_URL);
-    expect(published).toBe(restoredWithJar);
+    expect(decoded.carry.clientId).toBe(STORED_CLIENT);
+    expect(decoded.cookies).toEqual(WARM_COOKIES);
     expect(left).toEqual([]);
     expect(bancsHeader).toBe('');
   });

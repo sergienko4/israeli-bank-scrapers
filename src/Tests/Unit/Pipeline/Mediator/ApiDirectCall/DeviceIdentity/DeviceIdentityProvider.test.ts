@@ -18,6 +18,7 @@ import type {
   IDeviceProfile,
   IDeviceSignatureFormat,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/DeviceIdentity/DeviceIdentityTypes.js';
+import { encodeWarmBundle } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmCarryBundle.js';
 import type { Procedure } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
@@ -123,6 +124,45 @@ describe('device-identity provider edges', () => {
     const result = enrich({ ...CREDS, otpLongTermToken: 'stored' });
     const signature = signatureOf(result);
     expect(signature).not.toBe('');
+  });
+
+  it('reads the seed with the bank fallback when no password is supplied', () => {
+    const warm = { ...WARM, accountTagKey: 'syn-fallback' };
+    const encoded = encodeWarmBundle(
+      { provider: 'test', accounts: ['user-a'], tagKey: 'syn-fallback' },
+      { carry: { deviceSeed: 'seed-a' }, cookies: false },
+    );
+    if (!encoded.success) throw new ScraperError(encoded.errorMessage);
+    const enrich = enricherOf(warm);
+    const creds = {
+      userCode: 'user-a',
+      otpLongTermToken: encoded.value,
+    } as unknown as ScraperCredentials;
+    const firstResult = enrich(creds);
+    const secondResult = enrich(creds);
+    const first = signatureOf(firstResult);
+    const second = signatureOf(secondResult);
+    expect(first).not.toBe('');
+    expect(second).toBe(first);
+  });
+
+  it('reads an unkeyed seed when no password or fallback is configured', () => {
+    const encoded = encodeWarmBundle(
+      { provider: 'test', accounts: ['user-a'] },
+      { carry: { deviceSeed: 'seed-a' }, cookies: false },
+    );
+    if (!encoded.success) throw new ScraperError(encoded.errorMessage);
+    const enrich = enricherOf(WARM);
+    const creds = {
+      userCode: 'user-a',
+      otpLongTermToken: encoded.value,
+    } as unknown as ScraperCredentials;
+    const firstResult = enrich(creds);
+    const secondResult = enrich(creds);
+    const first = signatureOf(firstResult);
+    const second = signatureOf(secondResult);
+    expect(first).not.toBe('');
+    expect(second).toBe(first);
   });
 
   it('creates a fresh seed when the token is unusable', () => {

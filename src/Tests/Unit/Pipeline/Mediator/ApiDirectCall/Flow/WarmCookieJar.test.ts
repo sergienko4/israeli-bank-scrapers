@@ -117,7 +117,8 @@ beforeEach((): void => {
  * @returns A `v1.` token.
  */
 function wrapJson(json: string): string {
-  const body = Buffer.from(json, 'utf8').toString('base64url');
+  const bytes = Buffer.from(json, 'utf8');
+  const body = bytes.toString('base64url');
   return `v1.${body}`;
 }
 
@@ -315,9 +316,24 @@ describe('cookie-jar keyed account tag', () => {
     const token = encodeOk({ ...IDENTITY, tagKey: tagKey });
     const encoded = token.slice('v1.'.length);
     const body = Buffer.from(encoded, 'base64url').toString('utf8');
-    const parsed = JSON.parse(body) as { a: string };
-    const tag = identityTag(ACCOUNT, tagKey);
+    const parsed = JSON.parse(body) as { a: string; n: string };
+    const tag = identityTag(ACCOUNT, tagKey, parsed.n);
     expect(parsed.a).toBe(tag);
+  });
+
+  it('uses a fresh nonce for every token', (): void => {
+    const first = encodeOk({ ...IDENTITY, tagKey });
+    const second = encodeOk({ ...IDENTITY, tagKey });
+    const firstEncoded = first.slice('v1.'.length);
+    const firstBytes = Buffer.from(firstEncoded, 'base64url');
+    const firstBody = firstBytes.toString('utf8');
+    const secondEncoded = second.slice('v1.'.length);
+    const secondBytes = Buffer.from(secondEncoded, 'base64url');
+    const secondBody = secondBytes.toString('utf8');
+    const firstParsed = JSON.parse(firstBody) as { a: string; n: string };
+    const secondParsed = JSON.parse(secondBody) as { a: string; n: string };
+    expect(firstParsed.n).not.toBe(secondParsed.n);
+    expect(firstParsed.a).not.toBe(secondParsed.a);
   });
 
   it('opens a keyed token only with the same key', (): void => {
@@ -331,6 +347,21 @@ describe('cookie-jar keyed account tag', () => {
     const accountFailure = fail(ScraperErrorTypes.Generic, CODEC.WARM_JAR_REJECTIONS.account);
     assertOk(opened);
     expect(refused).toEqual(accountFailure);
+  });
+
+  it('treats an empty nonce as a legacy tag', (): void => {
+    const token = wrapObject({
+      p: PROVIDER,
+      a: identityTag(ACCOUNT),
+      n: '',
+      c: COOKIES,
+    });
+    const opened = CODEC.decodeWarmJar(token, {
+      ...IDENTITY,
+      tagKey,
+      maxChars: LIMIT,
+    });
+    assertOk(opened);
   });
 
   it('still opens a legacy unkeyed token when a key is supplied', (): void => {
@@ -347,10 +378,12 @@ describe('cookie-jar warm start through the strategy', () => {
     assertOk(proc);
     const wasWarm = run.strategy.lastPrimeWasWarm();
     const published = run.strategy.getLatestLongTermToken();
+    const publishedJar = CODEC.decodeWarmJar(published, { ...IDENTITY, maxChars: LIMIT });
+    assertOk(publishedJar);
     expect(run.captures).toHaveLength(WARM_STEPS);
     expect(run.jar.events).toEqual([IMPORTED]);
     expect(wasWarm).toBe(true);
-    expect(published).toBe(GOOD);
+    expect(publishedJar.value).toEqual(COOKIES);
   });
 
   it('sends an imported cookie on the resumed request through the native transport', async () => {
@@ -441,17 +474,27 @@ describe('cookie-jar warm start through the strategy', () => {
   });
 
   it('publishes an exported jar of exactly maxTokenChars', async (): Promise<void> => {
-    const run = makeRun({ responses: [STEP_OK, STEP_OK], maxTokenChars: GOOD.length });
+    const reference = CODEC.encodeWarmJar(IDENTITY, COOKIES);
+    assertOk(reference);
+    const run = makeRun({ responses: [STEP_OK, STEP_OK], maxTokenChars: reference.value.length });
     const creds = credsWith('');
     const proc = await run.strategy.primeFresh(run.bus, CTX, creds);
     assertOk(proc);
     const published = run.strategy.getLatestLongTermToken();
-    expect(published).toBe(GOOD);
+    expect(published.length).toBe(reference.value.length);
+    const decoded = CODEC.decodeWarmJar(published, { ...IDENTITY, maxChars: LIMIT });
+    assertOk(decoded);
+    expect(decoded.value).toEqual(COOKIES);
     expect(LOG.warn).not.toHaveBeenCalled();
   });
 
   it('publishes no token when the export is one char over', async (): Promise<void> => {
-    const run = makeRun({ responses: [STEP_OK, STEP_OK], maxTokenChars: GOOD.length - 1 });
+    const reference = CODEC.encodeWarmJar(IDENTITY, COOKIES);
+    assertOk(reference);
+    const run = makeRun({
+      responses: [STEP_OK, STEP_OK],
+      maxTokenChars: reference.value.length - 1,
+    });
     const creds = credsWith('');
     const proc = await run.strategy.primeFresh(run.bus, CTX, creds);
     assertOk(proc);
@@ -466,9 +509,11 @@ describe('cookie-jar warm start through the strategy', () => {
     { label: 'oversized', exported: GROWN_COOKIES, account: ACCOUNT },
     { label: 'unbound', exported: COOKIES, account: '' },
   ])('clears the previous token after an $label export', async ({ exported, account }) => {
+    const reference = CODEC.encodeWarmJar(IDENTITY, COOKIES);
+    assertOk(reference);
     const run = makeRun({
       responses: [STEP_OK, STEP_OK, STEP_OK],
-      maxTokenChars: GOOD.length,
+      maxTokenChars: reference.value.length,
     });
     const exportAll = jest
       .fn((): readonly IStoredCookie[] => exported)
@@ -478,7 +523,9 @@ describe('cookie-jar warm start through the strategy', () => {
     const initial = await run.strategy.primeInitial(bus, CTX, initialCreds);
     assertOk(initial);
     const previous = run.strategy.getLatestLongTermToken();
-    expect(previous).toBe(GOOD);
+    const previousJar = CODEC.decodeWarmJar(previous, { ...IDENTITY, maxChars: LIMIT });
+    assertOk(previousJar);
+    expect(previousJar.value).toEqual(COOKIES);
     const freshCreds = credsWith('', account);
     const refreshed = await run.strategy.primeFresh(bus, CTX, freshCreds);
     assertOk(refreshed);

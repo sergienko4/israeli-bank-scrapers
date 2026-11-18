@@ -2,11 +2,12 @@
  * WarmCarryBundle — the warm token of a bank whose warm login needs several
  * carry slots a cold login fills, and optionally the session jar too.
  *
- * <p>Wire form: `v1.` + unpadded base64url over UTF-8 JSON `{p, a, s, c?}` —
- * the provider tag, a 16-hex tag of the JSON array of the trimmed account
- * values (keyed HMAC when a password or bank fallback is supplied, legacy
- * SHA-256 otherwise; never the values), exactly the kept slots, and — only
- * when the config keeps the jar — the cookies in creation order.
+ * <p>Wire form: `v1.` + unpadded base64url over UTF-8 JSON `{p, a, n, s, c?}`
+ * — the provider tag, a 16-hex tag of the JSON array of the trimmed account
+ * values (keyed HMAC from a scrypt-derived password/fallback key and the
+ * per-token nonce `n`, legacy SHA-256 otherwise; never the values), exactly
+ * the kept slots, and — only when the config keeps the jar — the cookies in
+ * creation order.
  *
  * <p>A token failing any check is refused with a reason from
  * {@link WARM_BUNDLE_REJECTIONS} — never a value, as the slots and jar hold a
@@ -29,6 +30,7 @@ import {
   isStoredCookie,
   parseJsonBody,
   projectCookie,
+  randomSalt,
   textAt,
   WARM_TOKEN_PREFIX,
   wrapJsonText,
@@ -62,6 +64,7 @@ interface IWarmBundle {
 interface IBundleEnvelope extends JsonUnknownRecord {
   readonly p: string;
   readonly a: string;
+  readonly n?: string;
   readonly s: JsonUnknownRecord;
 }
 
@@ -170,7 +173,9 @@ function ownerMismatch(
   expected: IWarmBundleIdentity,
 ): WarmBundleRejection | false {
   if (envelope.p !== expected.provider) return 'provider';
-  if (!accountsMatch(envelope.a, expected.accounts, expected.tagKey ?? '')) return 'account';
+  const nonce = typeof envelope.n === 'string' ? envelope.n : '';
+  const key = nonce.length > 0 ? (expected.tagKey ?? '') : '';
+  if (!accountsMatch(envelope.a, expected.accounts, { key, salt: nonce })) return 'account';
   return false;
 }
 
@@ -215,9 +220,10 @@ function checkEnvelope(
  */
 function encodeWarmBundle(identity: IWarmBundleIdentity, bundle: IWarmBundle): Procedure<string> {
   if (isUnbound(identity.accounts)) return reject('unbound');
-  const a = accountsTag(identity.accounts, identity.tagKey ?? '');
+  const n = randomSalt();
+  const a = accountsTag(identity.accounts, identity.tagKey ?? '', n);
   const jar = bundle.cookies === false ? {} : { c: bundle.cookies.map(projectCookie) };
-  const json = JSON.stringify({ p: identity.provider, a, s: bundle.carry, ...jar });
+  const json = JSON.stringify({ p: identity.provider, a, n, s: bundle.carry, ...jar });
   const token = wrapJsonText(json);
   return succeed(token);
 }
