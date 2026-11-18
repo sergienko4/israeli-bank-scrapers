@@ -198,6 +198,26 @@ describe('raw carry warm start through the strategy', () => {
     expect(captures).toHaveLength(1);
   });
 
+  it('clears a previous bound token when the replacement does not fit', async () => {
+    const stored = encodeRawCarry({ provider: PROVIDER, accounts: [USER], tagKey: PASSWORD }, RAW);
+    assertOk(stored);
+    const strategy = makeStrategy();
+    const warmBus = makeStubMediator({ responses: [], captures: [] });
+    const warmCreds = credsWith(stored.value);
+    const warm = await strategy.primeInitial(warmBus, CTX, warmCreds);
+    assertOk(warm);
+    const previous = strategy.getLatestLongTermToken();
+    expect(previous).not.toBe('');
+    const huge = makeJwtExpiringInWithClaims(3600, { pad: 'x'.repeat(20_000) });
+    const hugeResponse = succeed({ hash: huge });
+    const captures: IApiPostCapture[] = [];
+    const freshBus = makeStubMediator({ responses: [hugeResponse], captures });
+    const fresh = await strategy.primeFresh(freshBus, CTX, { username: USER, password: PASSWORD });
+    assertOk(fresh);
+    const published = strategy.getLatestLongTermToken();
+    expect(published).toBe('');
+  });
+
   it('publishes a v1 envelope for the token a cold flow mints', async () => {
     const captures: IApiPostCapture[] = [];
     const responses = [succeed({ hash: MINTED })];

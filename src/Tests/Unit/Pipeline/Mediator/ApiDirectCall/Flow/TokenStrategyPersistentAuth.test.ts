@@ -15,6 +15,7 @@ import type {
   PersistentAuthMode,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/TokenStrategyFromConfig.js';
 import type { Procedure } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { makeJwtExpiringInWithClaims } from '../../../../../Helpers/Jwt.js';
 import {
   bodyData,
   BOUND_DEVICE_ID,
@@ -150,6 +151,39 @@ describe('durable enrollment', () => {
     const longTermToken = run.strategy.getLatestLongTermToken();
     const wasWarm = run.strategy.lastPrimeWasWarm();
     expect({ longTermToken, wasWarm }).toEqual({ longTermToken: '', wasWarm: false });
+  });
+});
+
+describe('durable resume — pinned JWT claims', () => {
+  /**
+   * Pepper's config with issuer and audience pins.
+   * @returns Pinned config.
+   */
+  const pinnedConfig = (): IApiDirectCallConfig => ({
+    ...config,
+    jwtClaims: {
+      ...(config.jwtClaims ?? { freshnessField: 'exp', skewSeconds: 60 }),
+      issuer: 'syn-issuer',
+      audience: 'syn-aud',
+    },
+  });
+
+  it('does not replay a fresh token with a mismatched issuer', async () => {
+    const stored = makeStoredState(FRESH_JWT);
+    const pinned = pinnedConfig();
+    const responses = resumeResponses(FRESH_JWT);
+    const run = await runPrime(responses, stored, pinned);
+    expect(run.captures.length).toBeGreaterThan(0);
+    expect(run.result).toEqual({ success: true, value: FRESH_JWT });
+  });
+
+  it('replays a token whose issuer and audience match', async () => {
+    const token = makeJwtExpiringInWithClaims(3600, { iss: 'syn-issuer', aud: 'syn-aud' });
+    const stored = makeStoredState(token);
+    const pinned = pinnedConfig();
+    const run = await runPrime([], stored, pinned);
+    expect(run.captures).toHaveLength(0);
+    expect(run.result).toEqual({ success: true, value: token });
   });
 });
 

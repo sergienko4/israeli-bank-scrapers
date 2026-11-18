@@ -259,7 +259,9 @@ A `kind: 'cookie-jar'` warm start (`ICookieJarWarmStart`) is always validated
 as `'bank-call'`, and adds `provider`, `accountField` and `maxTokenChars`.
 `Flow/WarmStartKind.ts` reads the kind: `cookieJarWarmOf` returns the
 cookie-jar config or `false`, `carryWarmOf` returns the raw carry config or
-`false`, and `warmCarryField` returns the carry slot, or `''` when there is
+`false`, `isBoundWarmToken` reports whether the token is provider/account
+bound (including a bound raw carry, so an empty export clears the previous
+token), and `warmCarryField` returns the carry slot, or `''` when there is
 none to seed.
 `encodeWarmJar` in `Flow/WarmCookieJar.ts` encodes a `StoredJar` as `v1.` plus
 unpadded base64url over the JSON `{p, a, n, c}`: the provider tag, the first

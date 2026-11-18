@@ -70,4 +70,23 @@ function boundWarmOf(config: IApiDirectCallConfig): BoundWarmStart | false {
   return carryBundleWarmOf(config);
 }
 
-export { boundWarmOf, carryBundleWarmOf, carryWarmOf, cookieJarWarmOf, warmCarryField };
+/**
+ * Whether a warm token is provider/account-bound, so an empty export must
+ * clear the previous token instead of leaving it stale.
+ * @param config - API-direct-call config.
+ * @returns True for a jar, bundle or bound raw carry.
+ */
+function isBoundWarmToken(config: IApiDirectCallConfig): boolean {
+  if (boundWarmOf(config) !== false) return true;
+  const warm = carryWarmOf(config);
+  return warm !== false && warm.provider !== undefined && warm.accountFields !== undefined;
+}
+
+export {
+  boundWarmOf,
+  carryBundleWarmOf,
+  carryWarmOf,
+  cookieJarWarmOf,
+  isBoundWarmToken,
+  warmCarryField,
+};

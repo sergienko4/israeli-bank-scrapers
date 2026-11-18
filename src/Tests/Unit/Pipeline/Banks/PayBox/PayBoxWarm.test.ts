@@ -73,6 +73,14 @@ describe('PayBox warm-token bootstrap', () => {
     expect(carry.value.uId).toBe(UID);
   });
 
+  it('keeps the cold path open when the inner JWT is malformed', async () => {
+    const config = await loadCall();
+    const token = wrap(config, 'not-a-jwt');
+    const carry = buildInitialCarry(config, { phoneNumber: PHONE, otpLongTermToken: token }, {});
+    assertOk(carry);
+    expect(carry.value.uId).toBe('');
+  });
+
   it('keeps the cold path open when the stored token is unusable', async () => {
     const config = await loadCall();
     const carry = buildInitialCarry(

@@ -170,7 +170,9 @@ function decodedWarmJwt(args: IJwtClaimArgs, raw: string): Procedure<string> {
 function bootstrapJwtClaim(args: IJwtClaimArgs): Procedure<string> {
   const raw = args.creds[args.from];
   if (typeof raw !== 'string' || raw.length === 0) return emptySourceOutcome(args);
-  return decodedWarmJwt(args, raw);
+  const decoded = decodedWarmJwt(args, raw);
+  if (isOk(decoded) || !args.optional) return decoded;
+  return succeed('');
 }
 
 /**
