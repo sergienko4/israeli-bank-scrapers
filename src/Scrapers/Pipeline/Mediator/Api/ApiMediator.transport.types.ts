@@ -33,7 +33,7 @@ interface IApiMediatorArgs {
   readonly redirectPolicy?: RedirectPolicy;
   /** 2xx statuses the bank decides itself; none when absent. */
   readonly statusPolicy?: StatusPolicy;
-  /** Omit bank response text from native HTTP failures when enabled. */
+  /** Omit bank response text from native HTTP failures; default true, `false` opts in. */
   readonly omitBankText?: boolean;
   /** Media type each response kind must name when a call names none. */
   readonly mediaTypes?: MediaTypePolicy;

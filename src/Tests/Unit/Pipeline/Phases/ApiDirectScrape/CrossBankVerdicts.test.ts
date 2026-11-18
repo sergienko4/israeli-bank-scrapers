@@ -8,7 +8,7 @@
  * <ul>
  *   <li>balance 5xx — fail the run, or keep the account with a fallback;</li>
  *   <li>a pagination ceiling — succeed with an unproven window verdict;</li>
- *   <li>bank text in a failure — propagate it through `errorMessage`.</li>
+ *   <li>bank text in a failure — omitted unless the shape opts in.</li>
  * </ul>
  *
  * <p>The shapes' extractors are instrumented with a generic account/page so the
@@ -175,10 +175,12 @@ function makeBus(scenario: Scenario): IBusResult {
   const route = (op: string): Procedure<unknown> => {
     if (op === 'balance') {
       balanceCalls += 1;
-      if (scenario === 'balance5xx') return fail(ScraperErrorTypes.Generic, 'balance 5xx');
+      if (scenario === 'balance5xx') {
+        return fail(ScraperErrorTypes.Generic, 'balance 5xx', 500);
+      }
     }
     if (op === 'transactions' && scenario === 'bankText') {
-      return fail(ScraperErrorTypes.Generic, 'BANK-TEXT-MARKER');
+      return fail(ScraperErrorTypes.Generic, 'BANK-TEXT-MARKER', 500);
     }
     return succeed({});
   };
@@ -416,7 +418,7 @@ describe('cross-bank result policy characterization', () => {
     expect(row.shape.balance.skipFetch === true).toBe(isSkipped);
     expect(verdict.success).toBe(hasFallback);
     expect(verdict.balanceCalls).toBe(isSkipped ? 0 : 1);
-    if (!hasFallback) expect(verdict.message).toBe('balance 5xx');
+    if (!hasFallback) expect(verdict.message).toBe('balance HTTP 500');
   });
 
   it.each(SHAPES)('$bank — a page ceiling succeeds with an unproven window', async row => {
@@ -427,8 +429,18 @@ describe('cross-bank result policy characterization', () => {
     expect(verdict.reason).toBe(CEILING_REASON[row.bank]);
   });
 
-  it.each(SHAPES)('$bank — bank text reaches errorMessage today', async row => {
+  it.each(SHAPES)('$bank — bank text is omitted from errorMessage', async row => {
     const verdict = await verdictOf(row, 'bankText');
+    expect(verdict.success).toBe(false);
+    expect(verdict.message).not.toContain('BANK-TEXT-MARKER');
+  });
+
+  it('keeps bank text only for a shape that opts in', async () => {
+    const optedIn = {
+      ...instrument(PEPPER_SHAPE as unknown as IApiDirectScrapeShape<unknown, unknown>, 'bankText'),
+      omitBankText: false,
+    };
+    const verdict = await verdictOfShape(optedIn, 'bankText');
     expect(verdict.success).toBe(false);
     expect(verdict.message).toContain('BANK-TEXT-MARKER');
   });

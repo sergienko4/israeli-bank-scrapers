@@ -8,6 +8,13 @@
   },
   "entries": [
     {
+      "version": "10.2.0",
+      "impact": "behavior",
+      "title": "Bank response text is omitted from failures by default",
+      "detail": "Failed api-direct calls, login extracts and native HTTP failures now omit the bank's response text by default. The message names the call and its HTTP status, or the error type when no status arrived; local dispatch and hydration errors keep their diagnostic text. WAF and integrity refusals keep their fixed reasons.",
+      "action": "Read `errorType` and `errorMessage`; if a bank reply text is needed for diagnostics, set `omitBankText: false` on its API-direct config or transport block. No result field was removed."
+    },
+    {
       "version": "10.1.0",
       "impact": "behavior",
       "title": "Hapoalim stores the device seed in `otpLongTermToken` and re-enrolls once",

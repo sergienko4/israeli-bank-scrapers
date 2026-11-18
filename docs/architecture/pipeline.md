@@ -138,8 +138,9 @@ configuration.
 REST and GraphQL calls both honor `IApiQueryOpts.policy`: per-call redirect
 settings override the bank default, and header sinks receive only declared headers.
 
-With `transport.omitBankText: true`, native HTTP failures keep their verb, safe URL
-and status, but replace the response snippet with `response body omitted`.
+Native HTTP failures omit the response snippet by default, keeping their verb,
+safe URL and status and using `response body omitted`. A bank opts in to its
+response snippet with `transport.omitBankText: false`.
 `classifyHttpFailure` still examines the body for WAF classification first;
 fixed WAF reasons and error types are unchanged. Without this opt-in, generic
 failures retain their existing snippets.

@@ -13,6 +13,14 @@ Raised from `>= 22.14.0` in 9.0.0. Enforced by the `engines` field, so npm warns
 
 ## Release notes
 
+### 10.2.0 - Bank response text is omitted from failures by default
+
+**Impact:** Behavior
+
+Failed api-direct calls, login extracts and native HTTP failures now omit the bank's response text by default. The message names the call and its HTTP status, or the error type when no status arrived; local dispatch and hydration errors keep their diagnostic text. WAF and integrity refusals keep their fixed reasons.
+
+**What to do:** Read `errorType` and `errorMessage`; if a bank reply text is needed for diagnostics, set `omitBankText: false` on its API-direct config or transport block. No result field was removed.
+
 ### 10.1.0 - Hapoalim stores the device seed in `otpLongTermToken` and re-enrolls once
 
 **Impact:** Behavior

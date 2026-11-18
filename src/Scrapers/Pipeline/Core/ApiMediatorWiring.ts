@@ -40,14 +40,15 @@ type TTransportArgs = IApiWiring['transport'] &
 /**
  * Decode the optional transport flags into explicit booleans.
  * @param cfg - Transport block from PIPELINE_BANK_CONFIG.
- * @returns The transport flags, each defaulted to false when absent.
+ * @returns The transport flags, each defaulted to its safe value; bank text is
+ *   omitted unless the block explicitly opts in.
  */
 function toWiringFlags(cfg: ITransportConfig): IWiringFlags {
   return {
     requiresClientCert: cfg.requiresClientCert === true,
     nativeFetch: cfg.nativeFetch === true,
     sessionCookies: cfg.sessionCookies === true,
-    isBankTextOmitted: cfg.omitBankText === true,
+    isBankTextOmitted: cfg.omitBankText !== false,
   };
 }
 

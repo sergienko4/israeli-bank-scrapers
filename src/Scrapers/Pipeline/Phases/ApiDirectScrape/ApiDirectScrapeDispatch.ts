@@ -18,7 +18,7 @@ import sanitiseStepFailure from '../../Mediator/ApiDirectCall/Flow/Steps/RunStep
 import type { WKUrlOrLiteral } from '../../Registry/WK/UrlsWK.js';
 import type { ApiPostData } from '../../Types/Domain/ApiPostData.js';
 import type { IActionContext } from '../../Types/PipelineContext.js';
-import type { Procedure } from '../../Types/Procedure.js';
+import type { IProcedureFailure, Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import { maybeSignBody, resolveStepBody } from './ApiDirectScrapeBody.js';
 import withBodyDigest from './ApiDirectScrapeBodyDigest.js';
@@ -138,10 +138,21 @@ export function applyBodyChecks(
 }
 
 /**
+ * Whether a failure can carry text the bank sent, rather than a local
+ * dispatch or hydration message.
+ * @param failure - Failed scrape result.
+ * @returns True for an HTTP or GraphQL-envelope failure.
+ */
+function mayQuoteBank(failure: IProcedureFailure): boolean {
+  return failure.httpStatus !== undefined || failure.messageOnlyFailure === true;
+}
+
+/**
  * Rebuild an opted-in scrape failure without its bank-supplied response text.
+ * Local dispatch and hydration failures keep their diagnostic message.
  * @param response - Scrape call result.
  * @param name - Name of the failed call.
- * @param omitBankText - Whether the bank opted out of response text.
+ * @param omitBankText - Whether bank text is omitted; `false` opts in.
  * @returns A sanitized failure or the unchanged result.
  */
 export function omitBankResponseText<T>(
@@ -149,7 +160,7 @@ export function omitBankResponseText<T>(
   name: string,
   omitBankText?: boolean,
 ): Procedure<T> {
-  if (isOk(response) || omitBankText !== true) return response;
+  if (isOk(response) || omitBankText === false || !mayQuoteBank(response)) return response;
   return sanitiseStepFailure({ name }, response);
 }
 

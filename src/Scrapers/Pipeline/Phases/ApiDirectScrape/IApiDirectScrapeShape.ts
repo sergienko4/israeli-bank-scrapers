@@ -546,12 +546,12 @@ export interface IApiDirectScrapeShape<TAcct, TCursor> {
    */
   readonly checkBodyByOperation?: OperationBodyChecks;
   /**
-   * Set for banks whose replies can quote the customer back: a failed
-   * scrape call then names only the call and its HTTP status, never the
-   * response text. `withApiDirect` copies it from the login config's
-   * `omitBankText`, so a bank declares it once.
+   * Whether a failed scrape call names only the call and its HTTP status,
+   * never the response text. Omitted text is the default; set `false` to let
+   * a bank's own text reach the failure. `withApiDirect` copies it from the
+   * login config's `omitBankText`, so a bank declares it once.
    */
-  readonly omitBankText?: true;
+  readonly omitBankText?: boolean;
   /**
    * Optional session read from every successful answer `dispatchStep`
    * returns — bootstrap, customer, balance and transactions — after
@@ -569,9 +569,10 @@ export interface IApiDirectScrapeShape<TAcct, TCursor> {
    * Optional fail-closed guard run in the phase POST stage. Receives a
    * PII-free {@link IApiDirectScrapeGuardSummary} and returns a failure
    * Procedure to abort the run (e.g. zero transactions from a degraded
-   * warm session) or `succeed(undefined)` to pass through. Absent ⇒ the
-   * phase default guard applies, which fails a run that resolved zero
-   * accounts (a universally invalid post-login outcome).
+   * warm session) or `succeed(undefined)` to pass through. Build bank-specific
+   * checks with `resultGuardFromPolicy`. Absent ⇒ the phase default guard
+   * applies, which fails a run that resolved zero accounts (a universally
+   * invalid post-login outcome).
    */
   readonly resultGuard?: (summary: IApiDirectScrapeGuardSummary) => Procedure<void>;
 }

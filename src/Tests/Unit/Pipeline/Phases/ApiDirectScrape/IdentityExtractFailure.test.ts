@@ -125,6 +125,7 @@ function driverWithRejectedSecondary(
 const QUOTED_SECONDARY_FAILURE = fail(
   ScraperErrorTypes.Generic,
   'GET https://api.bank.example/v1/customer 500: SYN bank notice 7731',
+  500,
 );
 
 /**
@@ -146,17 +147,18 @@ function oneAccount(): readonly string[] {
 
 /**
  * Build a driver whose secondary identity GET fails with a quoting transport
- * message, for a bank that omits its text.
+ * message.
+ * @param omitBankText - Whether bank text is omitted; `false` opts in.
  * @returns Driver context.
  */
-function driverWithQuotedSecondary(): IDriverCtx<string, number> {
+function driverWithQuotedSecondary(omitBankText?: boolean): IDriverCtx<string, number> {
   const customer = {
     skipFetch: true,
     secondaryUrlTag: 'data.customerSecondary',
     extractAccounts: oneAccount,
   };
   const bus = { getSessionContext: emptySessionContext, apiGet: quotedReply };
-  return { shape: { customer, omitBankText: true }, bus } as unknown as IDriverCtx<string, number>;
+  return { shape: { customer, omitBankText }, bus } as unknown as IDriverCtx<string, number>;
 }
 
 describe('fetchAccounts secondary identity body check', () => {
@@ -177,9 +179,15 @@ describe('fetchAccounts secondary identity body check', () => {
     expect(result).toMatchObject({ success: false, errorMessage: 'expired' });
   });
 
-  it('strips bank text from a failed secondary identity call when the bank opts in', async () => {
+  it('strips bank text from a failed secondary identity call by default', async () => {
     const driver = driverWithQuotedSecondary();
     const result = await fetchAccounts(driver);
     expect(result).toMatchObject({ success: false, errorMessage: 'customer HTTP 500' });
+  });
+
+  it('keeps bank text on a failed secondary identity call when the bank opts in', async () => {
+    const driver = driverWithQuotedSecondary(false);
+    const result = await fetchAccounts(driver);
+    expect(result).toEqual(QUOTED_SECONDARY_FAILURE);
   });
 });

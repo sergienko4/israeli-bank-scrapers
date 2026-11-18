@@ -1,7 +1,5 @@
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
-import type { IWafErrorDetails } from '../../../../Scrapers/Base/Interfaces/WafErrorDetails.js';
 import { fail, isOk, succeed, toLegacy } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
-import failureWithDetails from '../../../Helpers/FailureWithDetails.js';
 
 describe('Procedure/succeed', () => {
   it('creates IProcedureSuccess with success=true', () => {
@@ -30,11 +28,6 @@ describe('Procedure/fail', () => {
     expect(result.success).toBe(false);
     expect(result.errorType).toBe(ScraperErrorTypes.InvalidPassword);
     expect(result.errorMessage).toBe('wrong password');
-  });
-
-  it('sets errorDetails to none()', () => {
-    const result = fail(ScraperErrorTypes.Generic, 'error');
-    expect(result.errorDetails.has).toBe(false);
   });
 
   it('works with every ScraperErrorTypes value', () => {
@@ -99,25 +92,5 @@ describe('Procedure/toLegacy', () => {
     const proc = fail(ScraperErrorTypes.Generic, 'POST /x 401: denied', 401);
     const legacy = toLegacy(proc);
     expect(legacy.errorMessage).toBe('POST /x 401: denied');
-  });
-
-  it('includes errorDetails in legacy when present', () => {
-    const details: IWafErrorDetails = {
-      provider: 'cloudflare',
-      httpStatus: 429,
-      pageTitle: 'Rate Limited',
-      pageUrl: 'https://bank.co.il',
-      suggestions: [],
-    };
-    const proc = failureWithDetails(ScraperErrorTypes.WafBlocked, 'waf', details);
-    const legacy = toLegacy(proc);
-    expect(legacy.errorDetails).toBeDefined();
-    expect(legacy.errorDetails?.provider).toBe('cloudflare');
-  });
-
-  it('omits errorDetails from legacy when absent', () => {
-    const proc = fail(ScraperErrorTypes.Generic, 'err');
-    const legacy = toLegacy(proc);
-    expect(legacy.errorDetails).toBeUndefined();
   });
 });

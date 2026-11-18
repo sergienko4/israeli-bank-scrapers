@@ -7,7 +7,12 @@ export interface IScraperScrapingResult {
   accounts?: ITransactionsAccount[];
   errorType?: ScraperErrorTypes;
   errorMessage?: string; // only on success=false
-  errorDetails?: IWafErrorDetails; // only on errorType=WAF_BLOCKED
+  /**
+   * Structured WAF details, when a legacy result carries them.
+   * @deprecated Never produced by the pipeline; retained for source
+   * compatibility. Read `errorType` and `errorMessage` instead.
+   */
+  errorDetails?: IWafErrorDetails;
   /** Long-term OTP token returned by banks that support it (e.g. OneZero).
    *  Save and pass as credentials.otpLongTermToken to skip SMS on future runs. */
   persistentOtpToken?: string;
