@@ -5,20 +5,20 @@ How a failure is detected, typed and reported without leaking bank reply text.
 ## Bank text in failures
 
 When a required extract misses, `extractFields` in
-`Envelope/GenericEnvelopeParser.ts` names the slot and pointer. By default it
-also appends the first non-blank `message`, `explanation` or `error` field of
-the reply, cut to 30 characters by `maskVisibleText`:
+`Envelope/GenericEnvelopeParser.ts` names the slot and pointer. It omits the
+reply text by default, so a miss reads
+`envelope selector miss: <slot> at <pointer>`. A bank whose replies never
+quote the customer opts in with `omitBankText: false`; the miss then appends
+the first non-blank `message`, `explanation` or `error` field, cut to 30
+characters by `maskVisibleText`:
 `envelope selector miss: <slot> at <pointer> — bank said: <text>`.
-
-A bank whose replies can quote the customer back sets `omitBankText: true`.
-The miss then reads `envelope selector miss: <slot> at <pointer>` and no reply
-text reaches the failure. `buildReduceArgs` reads the flag once per flow and
-`collectCarry` hands it to `extractFields`; banks that leave it unset keep
-today's message.
+`buildReduceArgs` reads the flag once per flow and `collectCarry` hands it to
+`extractFields`.
 
 The same flag keeps a response's `error_code` out of login diagnostics:
 the logger records a length-only hint instead of the bank-supplied value.
-Banks that leave the flag unset or false retain their existing diagnostics.
+Only `omitBankText: false` retains the bank-supplied value; an unset flag
+omits it.
 
 `withApiDirect` copies the flag onto the scrape shape, so the scrape phase
 honours it too: a failed scrape call reads `<call> HTTP <status>` and quotes
@@ -144,9 +144,10 @@ origin and path. Query parameters can carry device ids and session values, so
 they never reach an error message or a log line from that URL. Native fetch also
 passes a caught exception's text through `scrubUrlFromText`, so a transport
 message that quotes the request URL keeps only its origin and path as well.
-Response text is not covered by that guarantee: `classifyHttpFailure` appends
-the first 120 characters of the body to a non-2xx `GENERIC`, and a bank can echo
-query parameters back in it.
+Response text is omitted by default. When a bank opts in with
+`transport.omitBankText: false`, `classifyHttpFailure` appends the first 120
+characters of the body to a non-2xx `GENERIC`, and a bank can echo query
+parameters back in it.
 
 A non-2xx response becomes `GENERIC` with a `<VERB> <url> <status>: ` prefix;
 the exception is a Cloudflare block page: a `4xx` HTML page carrying
@@ -182,14 +183,18 @@ password, the OTP or a device id back in its reply. `sanitiseStepFailure`
 (`src/Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.failure.ts`)
 reports a failed step as `<step> HTTP <status>` when the bank answered, or as
 `<step> <errorType>` (for example `bind TIMEOUT`) when no reply arrived. It
-keeps `errorType` and `errorDetails`, except that a step's
-[`httpFailureMap`](#http-failure-map) may name the type for the reply's
-status, and leaves a `WAF_BLOCKED` failure as it is, since that message
-carries a fixed reason instead of the page. The in-request re-mint runs below the step, so it still reads the
-original space-delimited `<status>:` marker. A scrape call keeps the
-transport message unless its shape sets `omitBankText`; the scrape phase then
-passes the failure through `sanitiseStepFailure` with only the call's name, so
-it reads `<call> HTTP <status>` and no login `httpFailureMap` applies.
+keeps `errorType` (the deprecated `errorDetails` field is not populated),
+except that a step's [`httpFailureMap`](#http-failure-map) may name the type for
+the reply's status, and leaves a `WAF_BLOCKED` failure as it is, since that
+message carries a fixed reason instead of the page. The in-request re-mint runs
+below the step, so it still reads the original space-delimited `<status>:`
+marker. A scrape call carries only its name and status by default; a shape opts
+in to the transport message with `omitBankText: false`. The scrape phase passes
+eligible failures through `sanitiseStepFailure`, so a failure with a status
+reads `<call> HTTP <status>`, one without a status reads
+`<call> <errorType>`, and a WAF refusal keeps its fixed reason. Local dispatch
+and hydration failures keep their diagnostic message, and no login
+`httpFailureMap` applies.
 
 ## Failure modes
 

@@ -6,7 +6,6 @@
  */
 import { CompanyTypes } from '../../../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js';
-import type { IWafErrorDetails } from '../../../../../../Scrapers/Base/Interfaces/WafErrorDetails.js';
 import type {
   IApiDirectCallConfig,
   IStepConfig,
@@ -16,7 +15,6 @@ import type { ITemplateScope } from '../../../../../../Scrapers/Pipeline/Mediato
 import { registerWkUrl } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import type { Procedure } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
-import failureWithDetails from '../../../../../Helpers/FailureWithDetails.js';
 import { makeStubMediator } from './StubMediator.js';
 
 const HINT = CompanyTypes.OneZero;
@@ -110,14 +108,6 @@ const MAP_CASES: readonly IMapCase[] = [
   },
 ];
 
-const WAF_DETAILS: IWafErrorDetails = {
-  provider: 'cloudflare',
-  httpStatus: 403,
-  pageTitle: 'Attention Required',
-  pageUrl: BIND_URL,
-  suggestions: [],
-};
-
 beforeAll((): void => {
   registerWkUrl('auth.bind', HINT, BIND_URL);
 });
@@ -147,7 +137,7 @@ describe('httpFailureMap', () => {
 
   it('leaves a WAF block on a mapped status as it is', async (): Promise<void> => {
     const message = `POST ${BIND_URL} 403: blocked by Cloudflare edge (WAF) before reaching the API`;
-    const refused = failureWithDetails(ScraperErrorTypes.WafBlocked, message, WAF_DETAILS);
+    const refused = fail(ScraperErrorTypes.WafBlocked, message);
     const result = await runFailing(MAPPED, refused);
     expect(result).toEqual(refused);
   });

@@ -8,7 +8,7 @@
  * <ul>
  *   <li>balance 5xx — fail the run, or keep the account with a fallback;</li>
  *   <li>a pagination ceiling — succeed with an unproven window verdict;</li>
- *   <li>bank text in a failure — propagate it through `errorMessage`.</li>
+ *   <li>bank text in a failure — omitted unless the shape opts in.</li>
  * </ul>
  *
  * <p>The shapes' extractors are instrumented with a generic account/page so the
@@ -61,12 +61,14 @@ interface IVerdict {
   readonly reason?: string;
   readonly message?: string;
   readonly balanceCalls?: number;
+  readonly txnCalls?: number;
 }
 
 /** A mediator plus the count of balance operations it saw. */
 interface IBusResult {
   readonly bus: IApiMediator;
   readonly balanceCalls: () => number;
+  readonly txnCalls: () => number;
 }
 
 /** Synthetic account handed to every instrumented shape. */
@@ -167,6 +169,7 @@ const CEILING_REASON: Readonly<Record<string, string>> = {
  */
 function makeBus(scenario: Scenario): IBusResult {
   let balanceCalls = 0;
+  let txnCalls = 0;
   /**
    * Answer one operation.
    * @param op - Operation label.
@@ -175,10 +178,15 @@ function makeBus(scenario: Scenario): IBusResult {
   const route = (op: string): Procedure<unknown> => {
     if (op === 'balance') {
       balanceCalls += 1;
-      if (scenario === 'balance5xx') return fail(ScraperErrorTypes.Generic, 'balance 5xx');
+      if (scenario === 'balance5xx') {
+        return fail(ScraperErrorTypes.Generic, 'balance 5xx', 500);
+      }
     }
-    if (op === 'transactions' && scenario === 'bankText') {
-      return fail(ScraperErrorTypes.Generic, 'BANK-TEXT-MARKER');
+    if (op === 'transactions') {
+      txnCalls += 1;
+      if (scenario === 'bankText') {
+        return fail(ScraperErrorTypes.Generic, 'BANK-TEXT-MARKER', 500);
+      }
     }
     return succeed({});
   };
@@ -254,7 +262,12 @@ function makeBus(scenario: Scenario): IBusResult {
    * @returns Number of balance operations seen.
    */
   const readBalanceCalls = (): number => balanceCalls;
-  return { bus, balanceCalls: readBalanceCalls };
+  /**
+   * Read the transaction-call count.
+   * @returns Number of transaction operations seen.
+   */
+  const readTxnCalls = (): number => txnCalls;
+  return { bus, balanceCalls: readBalanceCalls, txnCalls: readTxnCalls };
 }
 
 /**
@@ -339,6 +352,7 @@ function instrument(
 interface IContextResult {
   readonly ctx: IPipelineContext;
   readonly balanceCalls: () => number;
+  readonly txnCalls: () => number;
 }
 
 /**
@@ -347,24 +361,46 @@ interface IContextResult {
  * @returns Context wired to the scenario's mediator.
  */
 function contextOf(scenario: Scenario): IContextResult {
-  const { bus, balanceCalls } = makeBus(scenario);
+  const { bus, balanceCalls, txnCalls } = makeBus(scenario);
   const windowEnd = some(new Date('2026-02-01'));
   const ctx = makeMockContext({ apiMediator: some(bus), windowEnd });
-  return { ctx, balanceCalls };
+  return { ctx, balanceCalls, txnCalls };
+}
+
+/** Counts of operations the mediator saw so far. */
+interface ICallCounts {
+  readonly balance: number;
+  readonly txn: number;
+}
+
+/**
+ * Read the current operation counts.
+ * @param result - Context result carrying both counters.
+ * @returns The balance and transaction counts.
+ */
+function countsOf(result: IContextResult): ICallCounts {
+  return { balance: result.balanceCalls(), txn: result.txnCalls() };
 }
 
 /**
  * Reduce one phase result to its recorded verdict.
  * @param result - Phase result.
- * @param balanceCalls - Number of balance operations the mediator saw.
+ * @param counts - Balance and transaction operations the mediator saw.
  * @returns Observed verdict.
  */
-function verdictFrom(result: Procedure<IPipelineContext>, balanceCalls: number): IVerdict {
+function verdictFrom(result: Procedure<IPipelineContext>, counts: ICallCounts): IVerdict {
   if (!result.success) {
-    return { success: false, message: result.errorMessage, balanceCalls };
+    return {
+      success: false,
+      message: result.errorMessage,
+      balanceCalls: counts.balance,
+      txnCalls: counts.txn,
+    };
   }
   const scrape = result.value.scrape;
-  if (!scrape.has) return { success: true, balanceCalls };
+  if (!scrape.has) {
+    return { success: true, balanceCalls: counts.balance, txnCalls: counts.txn };
+  }
   const account = scrape.value.accounts[0];
   const coverage = account.windowCoverage;
   return {
@@ -372,7 +408,8 @@ function verdictFrom(result: Procedure<IPipelineContext>, balanceCalls: number):
     txns: account.txns.length,
     coverage: coverage === undefined ? undefined : coverage.status,
     reason: coverage !== undefined && 'reason' in coverage ? coverage.reason : undefined,
-    balanceCalls,
+    balanceCalls: counts.balance,
+    txnCalls: counts.txn,
   };
 }
 
@@ -387,14 +424,14 @@ async function verdictOfShape(
   scenario: Scenario,
 ): Promise<IVerdict> {
   const phase = buildApiDirectScrapePhase(shape);
-  const { ctx, balanceCalls } = contextOf(scenario);
-  const action = await phase.action(ctx, ctx);
-  const callsAfterAction = balanceCalls();
-  if (!action.success) return verdictFrom(action, callsAfterAction);
-  const input = { ...ctx, scrape: action.value.scrape };
-  const post = await phase.post(ctx, input);
-  const callsAfterPost = balanceCalls();
-  return verdictFrom(post, callsAfterPost);
+  const context = contextOf(scenario);
+  const action = await phase.action(context.ctx, context.ctx);
+  const counts = countsOf(context);
+  if (!action.success) return verdictFrom(action, counts);
+  const input = { ...context.ctx, scrape: action.value.scrape };
+  const post = await phase.post(context.ctx, input);
+  const postCounts = countsOf(context);
+  return verdictFrom(post, postCounts);
 }
 
 /**
@@ -416,7 +453,7 @@ describe('cross-bank result policy characterization', () => {
     expect(row.shape.balance.skipFetch === true).toBe(isSkipped);
     expect(verdict.success).toBe(hasFallback);
     expect(verdict.balanceCalls).toBe(isSkipped ? 0 : 1);
-    if (!hasFallback) expect(verdict.message).toBe('balance 5xx');
+    if (!hasFallback) expect(verdict.message).toBe('balance HTTP 500');
   });
 
   it.each(SHAPES)('$bank — a page ceiling succeeds with an unproven window', async row => {
@@ -427,9 +464,21 @@ describe('cross-bank result policy characterization', () => {
     expect(verdict.reason).toBe(CEILING_REASON[row.bank]);
   });
 
-  it.each(SHAPES)('$bank — bank text reaches errorMessage today', async row => {
+  it.each(SHAPES)('$bank — bank text is omitted from errorMessage', async row => {
     const verdict = await verdictOf(row, 'bankText');
     expect(verdict.success).toBe(false);
+    expect(verdict.txnCalls).toBeGreaterThan(0);
+    expect(verdict.message).not.toContain('BANK-TEXT-MARKER');
+  });
+
+  it('keeps bank text only for a shape that opts in', async () => {
+    const optedIn = {
+      ...instrument(PEPPER_SHAPE as unknown as IApiDirectScrapeShape<unknown, unknown>, 'bankText'),
+      omitBankText: false,
+    };
+    const verdict = await verdictOfShape(optedIn, 'bankText');
+    expect(verdict.success).toBe(false);
+    expect(verdict.txnCalls).toBeGreaterThan(0);
     expect(verdict.message).toContain('BANK-TEXT-MARKER');
   });
 

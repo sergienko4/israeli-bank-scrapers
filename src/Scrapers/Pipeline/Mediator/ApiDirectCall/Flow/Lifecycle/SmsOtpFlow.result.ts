@@ -126,7 +126,7 @@ function buildReduceArgs(args: IRunSmsOtpArgs, prep: ISmsOtpPrep): IStepReduceAr
     companyId: args.companyId,
     keypair: selectSigningKeypair(args.config, prep.keypairs),
     creds: args.creds,
-    isBankTextOmitted: args.config.omitBankText === true,
+    isBankTextOmitted: args.config.omitBankText !== false,
   };
 }
 

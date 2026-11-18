@@ -126,7 +126,7 @@ interface IFetchCallPolicy {
 interface IResponseReading {
   readonly statusPolicy: StatusPolicy;
   readonly responseKind: ResponseKind;
-  /** Omit the response snippet from generic HTTP failures, not WAF classification. */
+  /** Omit the response snippet from generic HTTP failures, not WAF classification; default true. */
   readonly omitBankText?: boolean;
   readonly documentMarker?: string;
   readonly maxTextChars?: number;

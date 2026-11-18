@@ -85,19 +85,18 @@ function setApiDirectScrape(state: IBuilderState, shape: AnyApiDirectScrapeShape
 }
 
 /**
- * Carry the login config's `omitBankText` onto the scrape shape, so a bank
- * that keeps its own text out of login failures keeps it out of scrape
- * failures too.
+ * Carry the login config's `omitBankText` onto the scrape shape, so login and
+ * scrape failures follow the same bank-text rule (omit by default; `false`
+ * opts in).
  * @param shape - Bank IApiDirectScrapeShape literal.
  * @param config - The same bank's IApiDirectCallConfig literal.
- * @returns The shape, flagged when the login config sets `omitBankText`.
+ * @returns The shape with the effective bank-text rule.
  */
 function bindBankTextRule(
   shape: AnyApiDirectScrapeShape,
   config: IApiDirectCallConfig,
 ): AnyApiDirectScrapeShape {
-  if (config.omitBankText !== true) return shape;
-  return { ...shape, omitBankText: true };
+  return { ...shape, omitBankText: config.omitBankText !== false };
 }
 
 /**

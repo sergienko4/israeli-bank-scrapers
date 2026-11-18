@@ -39,10 +39,9 @@
  * is deliberately passed through here.
  */
 
-import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { IApiDirectScrapeGuardSummary } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
+import resultGuardFromPolicy from '../../../Phases/ApiDirectScrape/ResultGuardPolicy.js';
 import type { Procedure } from '../../../Types/Procedure.js';
-import { fail, succeed } from '../../../Types/Procedure.js';
 
 /**
  * PII-free operator message. Contains no account identifiers, no balance
@@ -60,25 +59,19 @@ const PAYBOX_DEGRADED_SCRAPE_MSG =
   'to its default, so a rejected request cannot be told apart from a ' +
   'genuinely empty page.';
 
-/**
- * True when the scrape produced at least one account, zero transactions
- * across all of them, AND the balance step fell back (degraded outcome).
- * @param summary - PII-free scrape summary from the POST stage.
- * @returns Whether the degraded-empty signature is present.
- */
-function isDegradedEmpty(summary: IApiDirectScrapeGuardSummary): boolean {
-  return summary.accountCount >= 1 && summary.totalTxns === 0 && summary.balanceDegraded;
-}
+/** PayBox's extra check, expressed as data for the shared result policy. */
+const PAYBOX_POLICY = resultGuardFromPolicy({
+  failOnDegradedEmpty: true,
+  degradedEmptyMessage: PAYBOX_DEGRADED_SCRAPE_MSG,
+});
 
 /**
  * Fail-closed guard for PayBox scrape results.
  * @param summary - PII-free scrape summary from the POST stage.
- * @returns Failure when the zero-txns + degraded-balance signature is
- *   present; otherwise a pass-through success.
+ * @returns Failure when the zero-txns + degraded-balance signature is present.
  */
 function payBoxResultGuard(summary: IApiDirectScrapeGuardSummary): Procedure<void> {
-  if (isDegradedEmpty(summary)) return fail(ScraperErrorTypes.Generic, PAYBOX_DEGRADED_SCRAPE_MSG);
-  return succeed(undefined);
+  return PAYBOX_POLICY(summary);
 }
 
 export default payBoxResultGuard;

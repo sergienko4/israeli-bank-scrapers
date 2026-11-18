@@ -25,6 +25,7 @@ type DefaultHeadersByVerb = Readonly<Record<HttpVerb, Readonly<Record<string, st
 interface INativeFetchOptions {
   readonly redirectPolicy?: RedirectPolicy;
   readonly statusPolicy?: StatusPolicy;
+  /** Omit bank response text from HTTP failures; default true, `false` opts in. */
   readonly omitBankText?: boolean;
   /** Media type each response kind must name when a call names none. */
   readonly mediaTypes?: MediaTypePolicy;
@@ -65,7 +66,7 @@ function seedTransport(options: INativeFetchOptions): ITransportSeed {
   return {
     timeoutMs: options.timeoutMs,
     capOnlyWithIntegrity: options.capOnlyWithIntegrity === true,
-    omitBankText: options.omitBankText === true,
+    omitBankText: options.omitBankText !== false,
     responseIntegrity: options.responseIntegrity,
     isConnectRetryDisabled: options.isConnectRetryDisabled === true,
   };

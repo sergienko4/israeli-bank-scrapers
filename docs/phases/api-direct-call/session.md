@@ -226,12 +226,13 @@ from what it extracted:
   the listed texts ([Conditional steps](overview.md#conditional-steps)).
 - `generate` writes fresh device material, such as an RSA key, into carry
   before the body is hydrated ([Carry generators](flow.md#carry-generators)).
-- `omitBankText: true` on the config keeps reply text out of a missed extract
-  and out of a failed scrape call, and records a length-only hint for
-  `error_code` in login diagnostics
-  ([Bank text in failures](errors.md#bank-text-in-failures)).
-- `transport.omitBankText: true` also omits bank text from native HTTP failures,
-  including post-login data calls. WAF classification still runs first
+- `omitBankText` is enabled by default: it keeps reply text out of a missed
+  extract and out of a failed scrape call, and records a length-only hint for
+  `error_code` in login diagnostics. Set `omitBankText: false` to opt in to
+  bank text ([Bank text in failures](errors.md#bank-text-in-failures)).
+- `transport.omitBankText: false` likewise opts in to bank text in native HTTP
+  failures, including post-login data calls; the default omits it. WAF
+  classification still runs first
   ([HTTP transports](../../architecture/pipeline.md#http-transports)).
 
 ## Cookie-jar warm start

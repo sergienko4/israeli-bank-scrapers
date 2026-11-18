@@ -5,8 +5,6 @@
 
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import type { IScraperScrapingResult } from '../../Base/Interface.js';
-import type { IWafErrorDetails } from '../../Base/Interfaces/WafErrorDetails.js';
-import { none, type Option } from './Option.js';
 
 /** Successful procedure outcome carrying a typed payload. */
 interface IProcedureSuccess<T> {
@@ -19,7 +17,6 @@ interface IProcedureFailure {
   readonly success: false;
   readonly errorType: ScraperErrorTypes;
   readonly errorMessage: string;
-  readonly errorDetails: Option<IWafErrorDetails>;
   readonly responseIntegrityRefusal?: true;
   /** HTTP status the bank answered, when the failure came from a response. */
   readonly httpStatus?: number;
@@ -55,10 +52,7 @@ function fail(
   errorMessage: string,
   httpStatus?: number,
 ): IProcedureFailure {
-  return attachStatus(
-    { success: false, errorType, errorMessage, errorDetails: none() },
-    httpStatus,
-  );
+  return attachStatus({ success: false, errorType, errorMessage }, httpStatus);
 }
 
 /**
@@ -160,9 +154,7 @@ function legacyBase(proc: IProcedureFailure): IScraperScrapingResult {
  */
 function toLegacy<T>(proc: Procedure<T>): IScraperScrapingResult {
   if (proc.success) return { success: true };
-  const base = legacyBase(proc);
-  if (!proc.errorDetails.has) return base;
-  return { ...base, errorDetails: proc.errorDetails.value };
+  return legacyBase(proc);
 }
 
 export type { IProcedureFailure, IProcedureSuccess, Procedure };

@@ -316,6 +316,7 @@ declare enum ScraperErrorTypes {
     WafBlocked = "WAF_BLOCKED"
 }
 
+/** Structured details a legacy WAF-block result may carry. */
 interface IWafErrorDetails {
     provider: 'cloudflare' | 'unknown';
     httpStatus: number;
@@ -330,6 +331,11 @@ interface IScraperScrapingResult {
     accounts?: ITransactionsAccount[];
     errorType?: ScraperErrorTypes;
     errorMessage?: string;
+    /**
+     * Structured WAF details, when a legacy result carries them.
+     * @deprecated Never produced by the pipeline; retained for source
+     * compatibility. Read `errorType` and `errorMessage` instead.
+     */
     errorDetails?: IWafErrorDetails;
     /** Long-term OTP token returned by banks that support it (e.g. OneZero).
      *  Save and pass as credentials.otpLongTermToken to skip SMS on future runs. */

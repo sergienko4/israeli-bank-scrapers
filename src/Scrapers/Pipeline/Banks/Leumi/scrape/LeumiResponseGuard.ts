@@ -11,6 +11,7 @@ import type {
   IApiDirectScrapeGuardSummary,
   OperationBodyChecks,
 } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
+import resultGuardFromPolicy from '../../../Phases/ApiDirectScrape/ResultGuardPolicy.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import {
@@ -131,18 +132,19 @@ export const LEUMI_BODY_CHECKS: OperationBodyChecks = {
   txns: bodyCheck(validTransactions, 'transactions'),
 };
 
+/** Leumi's extra checks, expressed as data for the shared result policy. */
+const LEUMI_POLICY = resultGuardFromPolicy({
+  requireCompleteEvidence: true,
+  incompleteMessage: 'Leumi financial evidence is incomplete',
+  lossCaveats: LOSS_CAVEATS,
+  lossMessage: 'Leumi scrape observed transaction loss',
+});
+
 /**
  * Refuses missing financial evidence and observed row loss.
  * @param summary - PII-free signals from the completed scrape.
  * @returns A failure when financial results cannot be trusted.
  */
 export function leumiResultGuard(summary: IApiDirectScrapeGuardSummary): Procedure<void> {
-  const { observedCaveats } = summary;
-  if (summary.accountCount < 1 || summary.balanceDegraded || observedCaveats === undefined) {
-    return fail(ScraperErrorTypes.Generic, 'Leumi financial evidence is incomplete');
-  }
-  if (LOSS_CAVEATS.some(caveat => observedCaveats.includes(caveat))) {
-    return fail(ScraperErrorTypes.Generic, 'Leumi scrape observed transaction loss');
-  }
-  return succeed(undefined);
+  return LEUMI_POLICY(summary);
 }

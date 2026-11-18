@@ -255,6 +255,7 @@ describe('ApiDirectScrapeDispatch.dispatchStep — shape body check', () => {
 const QUOTING_FAILURE = fail(
   ScraperErrorTypes.Generic,
   'GET https://api.bank.example/v1/items 500: SYN bank notice 7731',
+  500,
 );
 
 describe('ApiDirectScrapeDispatch.dispatchStep — bank-text rule', () => {
@@ -263,14 +264,14 @@ describe('ApiDirectScrapeDispatch.dispatchStep — bank-text rule', () => {
     { label: 'the call name', overrides: { call: 'accounts' }, message: 'accounts HTTP 500' },
   ])('names a failed call by $label and status only', async ({ overrides, message }) => {
     const bus = makeOneShotBus(QUOTING_FAILURE);
-    const args = makeDispatchArgs({ bus, omitBankText: true, ...overrides });
+    const args = makeDispatchArgs({ bus, ...overrides });
     const result = await dispatchStep(args);
     expect(result).toEqual({ ...QUOTING_FAILURE, errorMessage: message });
   });
 
-  it('keeps the transport message for a shape that does not omit bank text', async () => {
+  it('keeps the transport message for a shape that opts in', async () => {
     const bus = makeOneShotBus(QUOTING_FAILURE);
-    const args = makeDispatchArgs({ bus });
+    const args = makeDispatchArgs({ bus, omitBankText: false });
     const result = await dispatchStep(args);
     expect(result).toBe(QUOTING_FAILURE);
   });

@@ -13,7 +13,6 @@ import pino, { type Logger, type LoggerOptions } from 'pino';
 
 import { CompanyTypes } from '../../../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js';
-import type { IWafErrorDetails } from '../../../../../../Scrapers/Base/Interfaces/WafErrorDetails.js';
 import { runWithBankContext } from '../../../../../../Scrapers/Pipeline/Logging/BankContext.js';
 import { buildSilentOptions } from '../../../../../../Scrapers/Pipeline/Logging/RootLogger.js';
 import isAuthRejectedFailure from '../../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.authReject.js';
@@ -34,7 +33,6 @@ import {
   ENVELOPE_SESSION_ID,
   sealedAnswer,
 } from '../../../../../Helpers/EnvelopeOracle.js';
-import failureWithDetails from '../../../../../Helpers/FailureWithDetails.js';
 import { fakeFetch, type IFetchFake } from '../../../../../Helpers/FakeFetch.js';
 
 /** Every serialized log line any pipeline module emitted. */
@@ -120,14 +118,6 @@ const FORM_BIND_STEP: IStepConfig = {
   ...BIND_STEP,
   encoding: 'form',
   body: { shape: { $merge: { base: 'carry.loginForm', set: {} } } },
-};
-
-const WAF_DETAILS: IWafErrorDetails = {
-  provider: 'cloudflare',
-  httpStatus: 403,
-  pageTitle: 'Attention Required',
-  pageUrl: BIND_URL,
-  suggestions: [],
 };
 
 /** One transport failure and the safe message the step must report. */
@@ -304,10 +294,9 @@ describe('login-step failure message', () => {
   });
 
   it('passes a WAF-blocked step through with its fixed reason', async (): Promise<void> => {
-    const refused = failureWithDetails(
+    const refused = fail(
       ScraperErrorTypes.WafBlocked,
       `POST ${BIND_URL} 403: blocked by Cloudflare edge (WAF) before reaching the API`,
-      WAF_DETAILS,
     );
     const bus = STUB.makeStubMediator({ responses: [refused], captures: [] });
     const result = await runBind(bus);

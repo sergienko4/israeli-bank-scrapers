@@ -150,13 +150,14 @@ function reduceAll(ctx: IMissContext, selectors: IEnvelopeSelectors): Procedure<
  * Extract every named selector from the envelope.
  * @param doc - Response envelope (parsed JSON).
  * @param selectors - Bank's selector map.
- * @param isBankTextOmitted - True to keep the bank's own text out of a miss.
+ * @param isBankTextOmitted - True to keep the bank's own text out of a miss;
+ *   omitted text is the default.
  * @returns Procedure<ExtractedFields> — fail on first missing selector.
  */
 function extractFields(
   doc: JsonValue,
   selectors: IEnvelopeSelectors,
-  isBankTextOmitted = false,
+  isBankTextOmitted = true,
 ): Procedure<ExtractedFields> {
   const ctx: IMissContext = { doc, isBankTextOmitted };
   return reduceAll(ctx, selectors);

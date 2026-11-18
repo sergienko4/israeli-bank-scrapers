@@ -146,11 +146,14 @@ interface IApiDirectCallConfig {
    */
   readonly requiredCreds?: Readonly<Record<string, CredRule>>;
   /**
-   * Set for banks whose replies can quote the customer back. A missed
-   * extract then names only the slot and pointer, and a failed scrape call
-   * only the call and its HTTP status — never the bank's text.
+   * Whether bank response text is omitted from failures. Omitted text is the
+   * default; set `false` for a bank whose replies never quote the customer and
+   * whose failure text must reach the caller. A missed extract then names only
+   * the slot and pointer, and a failed scrape call only the call and its HTTP
+   * status. A native HTTP scrape failure also needs
+   * `transport.omitBankText: false` so its transport snippet survives.
    */
-  readonly omitBankText?: true;
+  readonly omitBankText?: boolean;
 }
 
 export type {

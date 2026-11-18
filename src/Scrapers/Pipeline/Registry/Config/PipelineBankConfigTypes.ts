@@ -119,8 +119,8 @@ export interface ITransportConfig {
   readonly statusPolicy?: StatusPolicy;
   /**
    * With `nativeFetch`, omit bank response text from HTTP failures, including
-   * data calls. WAF classification still reads the body first. Default:
-   * undefined (generic failures keep their response snippet).
+   * data calls. WAF classification still reads the body first. Default: true;
+   * set `false` for a bank that opts in to its response snippet.
    */
   readonly omitBankText?: boolean;
   /**

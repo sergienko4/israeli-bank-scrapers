@@ -136,9 +136,9 @@ describe('GenericEnvelopeParser.extractFields — deep + escaped paths', () => {
  * failure undiagnosable from a log.
  */
 describe('GenericEnvelopeParser.extractFields — error envelopes (T-ENV)', () => {
-  it('T-ENV-1 (FIRING): surfaces the reason the bank gave', () => {
+  it('T-ENV-1 (FIRING): surfaces the reason the bank gave when the bank opts in', () => {
     const doc = { code: 'E123', name: 'PinError', message: 'pin is not valid' };
-    const result = extractFields(doc, { accessToken2: '/content/access_token' });
+    const result = extractFields(doc, { accessToken2: '/content/access_token' }, false);
     const reason = result.success ? '' : result.errorMessage;
     expect(reason).toContain('pin is not valid');
   });
@@ -159,7 +159,7 @@ describe('GenericEnvelopeParser.extractFields — error envelopes (T-ENV)', () =
 
   it('T-ENV-4 (FIRING): skips a blank field for one that carries the reason', () => {
     const doc = { message: '   ', explanation: 'card is blocked' };
-    const result = extractFields(doc, { accessToken2: '/content/access_token' });
+    const result = extractFields(doc, { accessToken2: '/content/access_token' }, false);
     const reason = result.success ? '' : result.errorMessage;
     expect(reason).toContain('card is blocked');
   });
@@ -173,8 +173,9 @@ describe('GenericEnvelopeParser.extractFields — error envelopes (T-ENV)', () =
 });
 
 /**
- * UT-BT — some banks put the customer's own details in `message`. Those banks
- * opt out of the `bank said:` suffix; every other bank keeps it.
+ * UT-BT — bank text is omitted by default because some banks put the
+ * customer's own details in `message`. A bank opts in to the `bank said:`
+ * suffix explicitly.
  */
 describe('GenericEnvelopeParser.extractFields — bank-text omission (UT-BT)', () => {
   const miss = 'envelope selector miss: accessToken2 at /content/access_token';
@@ -187,8 +188,14 @@ describe('GenericEnvelopeParser.extractFields — bank-text omission (UT-BT)', (
     expect(reason).toBe(miss);
   });
 
-  it('UT-BT-02: keeps the bank text by default', () => {
+  it('UT-BT-02: drops the bank text by default', () => {
     const result = extractFields(doc, selectors);
+    const reason = result.success ? '' : result.errorMessage;
+    expect(reason).toBe(miss);
+  });
+
+  it('UT-BT-03: keeps the bank text when the bank opts in', () => {
+    const result = extractFields(doc, selectors, false);
     const reason = result.success ? '' : result.errorMessage;
     expect(reason).toBe(`${miss} — bank said: pin is not valid`);
   });
