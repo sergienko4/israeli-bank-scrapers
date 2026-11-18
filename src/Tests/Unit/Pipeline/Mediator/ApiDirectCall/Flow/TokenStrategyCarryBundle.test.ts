@@ -335,7 +335,7 @@ describe('carry-bundle warm export', () => {
     assertOk(proc);
     const published = run.strategy.getLatestLongTermToken();
     const decoded = decodePublished(published);
-    expect(published.length).toBe(PUBLISHED.length);
+    expect(published).toHaveLength(PUBLISHED.length);
     expect(decoded.carry.clientId).toBe(LOGIN_CLIENT);
     expect(decoded.cookies).toEqual(WARM_COOKIES);
     expect(LOG.warn).not.toHaveBeenCalled();

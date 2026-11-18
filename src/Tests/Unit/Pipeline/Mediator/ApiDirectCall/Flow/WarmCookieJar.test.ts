@@ -481,7 +481,7 @@ describe('cookie-jar warm start through the strategy', () => {
     const proc = await run.strategy.primeFresh(run.bus, CTX, creds);
     assertOk(proc);
     const published = run.strategy.getLatestLongTermToken();
-    expect(published.length).toBe(reference.value.length);
+    expect(published).toHaveLength(reference.value.length);
     const decoded = CODEC.decodeWarmJar(published, { ...IDENTITY, maxChars: LIMIT });
     assertOk(decoded);
     expect(decoded.value).toEqual(COOKIES);
