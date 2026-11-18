@@ -370,6 +370,12 @@ interface IAuthFlowInfo {
  * <p>It IS called again for a genuinely new code when a login is retried after
  * the bank rejects the previous one.
  */
+/**
+ * Bank credentials. The public boundary checks the bank's required fields and
+ * length caps before enrichment or any request: ordinary fields 1–256 chars,
+ * `deviceSignature` ≤8192, `otpLongTermToken` ≤16384. A violation returns a
+ * `GENERIC` failure naming the field, never its value.
+ */
 type ScraperCredentials = {
     userCode: string;
     password: string;
@@ -438,11 +444,14 @@ interface IScraperOptions {
      */
     companyId: CompanyTypes;
     /**
-     * the date to fetch transactions from (can't be before the minimum allowed time difference for the scraper)
+     * The date to fetch transactions from. Must be a valid `Date`; an invalid
+     * value fails before enrichment or any bank request.
      */
     startDate: Date;
     /**
-     * scrape transactions to be processed X months in the future
+     * Scrape transactions to be processed X months in the future. An integer
+     * from 0 to 24; out-of-range values fail before any bank request.
+     * @default 1
      */
     futureMonthsToScrape?: number;
     /**
@@ -477,7 +486,8 @@ interface IScraperOptions {
      * a bearer token and a device private key, so callers must store it as a
      * secret. Requires onPersistentAuthStateUpdate and must not be combined
      * with creds.otpLongTermToken. Omit it when nothing is stored: an empty
-     * string is rejected as invalid state.
+     * string is rejected as invalid state. Values over 32,768 characters fail
+     * before any bank request; the bound matches the codec envelope.
      */
     persistentAuthState?: string;
     /**

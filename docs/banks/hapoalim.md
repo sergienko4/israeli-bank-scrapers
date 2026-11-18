@@ -120,9 +120,11 @@ cold login that sends none of the stored cookies and reuses the same seed.
 That login's SMS count depends on the device: none on a registered device
 (`LANDPAGE`) and two on a new one (login, then device step-up).
 `otpCodeRetriever` is called only when the bank asks for a code, so `userCode`,
-`password` and the retriever stay required. A token for another user code,
-from another bank, longer than `MAX_ACCESS_TOKEN_CHARS` or of the wrong shape
-is skipped for a cold login; the log names the reason, never the token.
+`password` and the retriever stay required. A token for another user code, from
+another bank or of the wrong shape is skipped for a cold login; the log names
+the reason, never the token. A token longer than `MAX_ACCESS_TOKEN_CHARS` is
+rejected at the boundary before any login step: discard it and retry without
+`otpLongTermToken`, with `otpCodeRetriever` available for the cold login.
 
 A warm session lost mid-scrape resumes `step1-mobile` once without SMS and
 retries the scrape; a persistent rejection then ends the run. A cold run that

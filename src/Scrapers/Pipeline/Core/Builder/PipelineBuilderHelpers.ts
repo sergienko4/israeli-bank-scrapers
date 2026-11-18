@@ -14,6 +14,33 @@ import {
   validateBuilderFields,
 } from './PipelineBuilderValidation.js';
 
+/** The descriptor's credential-policy slice. */
+type CredentialPolicy = NonNullable<IPipelineDescriptor['credentialPolicy']>;
+
+/**
+ * The bank's required-credential policy, when it declares one.
+ * @param fields - Validated builder fields.
+ * @returns The policy, or false when the bank has no call config.
+ */
+function credentialPolicyOf(fields: IBuilderFields): CredentialPolicy | false {
+  if (fields.apiDirectConfig === false) return false;
+  return { requiredCreds: fields.apiDirectConfig.requiredCreds };
+}
+
+/**
+ * Assemble the descriptor's options, phases and credential policy.
+ * @param fields - Validated builder fields.
+ * @param options - Scraper options.
+ * @returns Pipeline descriptor without the enricher.
+ */
+function baseDescriptor(fields: IBuilderFields, options: ScraperOptions): IPipelineDescriptor {
+  const state = toBuilderState(fields);
+  const phases = assemblePhases(state);
+  const policy = credentialPolicyOf(fields);
+  if (policy === false) return { options, phases };
+  return { options, phases, credentialPolicy: policy };
+}
+
 /**
  * Construct the pipeline descriptor from validated fields.
  * @param fields - Validated builder fields.
@@ -21,9 +48,7 @@ import {
  * @returns Pipeline descriptor.
  */
 function assembleDescriptor(fields: IBuilderFields, options: ScraperOptions): IPipelineDescriptor {
-  const state = toBuilderState(fields);
-  const phases = assemblePhases(state);
-  const descriptor = { options, phases };
+  const descriptor = baseDescriptor(fields, options);
   if (fields.enrichCredentials === undefined) return descriptor;
   return { ...descriptor, enrichCredentials: fields.enrichCredentials };
 }

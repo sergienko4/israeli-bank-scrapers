@@ -150,13 +150,31 @@ function buildReadyContext(
  * @param credentials - User bank credentials.
  * @returns Pipeline result Procedure.
  */
-function runInsideScope(
+function startReduction(
   descriptor: IPipelineDescriptor,
   credentials: ScraperCredentials,
 ): Promise<Procedure<IPipelineContext>> {
   const initialCtx = buildReadyContext(descriptor, credentials);
   const tracker: IContextTracker = { phases: descriptor.phases, lastCtx: initialCtx };
   return runWithCleanup(tracker, initialCtx);
+}
+
+/**
+ * Build the context and reduce phases, converting a synchronous build throw
+ * into a typed failure.
+ * @param descriptor - The pipeline to execute.
+ * @param credentials - User bank credentials.
+ * @returns Pipeline result Procedure.
+ */
+async function runInsideScope(
+  descriptor: IPipelineDescriptor,
+  credentials: ScraperCredentials,
+): Promise<Procedure<IPipelineContext>> {
+  try {
+    return await startReduction(descriptor, credentials);
+  } catch (error) {
+    return wrapError(error as Error);
+  }
 }
 
 /**

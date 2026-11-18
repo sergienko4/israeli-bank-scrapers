@@ -13,6 +13,7 @@ import * as path from 'node:path';
 import { jest } from '@jest/globals';
 
 import { CompanyTypes } from '../../../../Definitions.js';
+import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
 import type { ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
 import ScraperError from '../../../../Scrapers/Base/ScraperError.js';
 import { getRootLogger } from '../../../../Scrapers/Pipeline/Logging/RootLogger.js';
@@ -67,12 +68,16 @@ describe('PipelineExecutor — synchronous init failure cleanup', () => {
     openedStream = false;
   });
 
-  it('retires the run logger when context construction throws', async () => {
+  it('retires the run logger when context construction fails', async () => {
     const env = readEnvironment({ FORENSIC_TRACE: 'true', RUNS_ROOT });
     const descriptor = { options: OPTIONS, phases: [] };
     const credentials = { username: 'user', password: 'pass' };
-    const execution = EXECUTE_PIPELINE(descriptor, credentials, env);
-    await expect(execution).rejects.toThrow('init failed after opening the run logger');
+    const result = await EXECUTE_PIPELINE(descriptor, credentials, env);
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Generic,
+    });
+    expect(result.errorMessage).toContain('init failed after opening the run logger');
     expect(openedFolder).not.toBe('');
     expect(openedStream).not.toBe(false);
     if (openedStream === false) throw new ScraperError('mock did not open the run logger');

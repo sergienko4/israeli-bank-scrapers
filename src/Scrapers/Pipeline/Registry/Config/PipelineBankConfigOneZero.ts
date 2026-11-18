@@ -115,6 +115,7 @@ const ONEZERO_API_DIRECT_CALL: IApiDirectCallConfig = {
   flow: 'sms-otp',
   envelope: {},
   authScheme: 'bearer',
+  requiredCreds: { email: 'nonEmpty', password: 'nonEmpty' },
   // The identity host's WAF rejects any other client; see ONEZERO_USER_AGENT.
   staticHeaders: { 'User-Agent': ONEZERO_USER_AGENT },
   // Matches Pepper and PayBox: lets pickWarmSeed retire a stale stored token

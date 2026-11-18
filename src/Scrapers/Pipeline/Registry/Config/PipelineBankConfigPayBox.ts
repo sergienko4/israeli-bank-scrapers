@@ -124,6 +124,7 @@ const PAYBOX_API_DIRECT_CALL: IApiDirectCallConfig = {
   flow: 'sms-otp',
   envelope: {},
   authScheme: 'raw',
+  requiredCreds: { phoneNumber: 'nonEmpty' },
   staticHeaders: PAYBOX_STATIC_HEADERS,
   secrets: PAYBOX_SECRETS,
   jwtClaims: { freshnessField: 'exp', skewSeconds: 60 },

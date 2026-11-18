@@ -15,6 +15,8 @@ const DEFAULT_FUTURE_MONTHS = 1;
 /**
  * Resolve futureMonthsToScrape with null-aware fallback.
  * Explicit 0 is respected; undefined/null falls back to DEFAULT_FUTURE_MONTHS.
+ * The public boundary validates a supplied value as an integer from 0 to 24;
+ * this helper only applies the default.
  * @param options - Scraper options.
  * @returns Number of future months to include in the scrape window.
  */

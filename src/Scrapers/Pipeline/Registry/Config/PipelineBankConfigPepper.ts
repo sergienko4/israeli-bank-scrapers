@@ -34,6 +34,7 @@ const PEPPER_API_DIRECT_CALL: IApiDirectCallConfig = {
   flow: 'sms-otp',
   envelope: {},
   authScheme: 'raw',
+  requiredCreds: { phoneNumber: 'nonEmpty', password: 'nonEmpty' },
   staticHeaders: STATIC_HEADERS,
   jwtClaims: { freshnessField: 'exp', skewSeconds: 60 },
   warmStart: {
