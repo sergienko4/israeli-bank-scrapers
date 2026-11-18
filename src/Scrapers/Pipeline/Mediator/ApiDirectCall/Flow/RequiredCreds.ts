@@ -63,17 +63,31 @@ function isCredSound(creds: GenericCreds, entry: CredEntry): boolean {
 }
 
 /**
- * Check every required credential before any request is sent.
- * @param config - API-direct-call config.
+ * Check a set of required credential rules before any request is sent.
  * @param creds - Caller credentials.
+ * @param requiredCreds - Field names and rules; absent means no requirements.
  * @returns Success, or a Generic failure naming the bad fields.
  */
-function checkRequiredCreds(config: IApiDirectCallConfig, creds: GenericCreds): Procedure<true> {
-  const entries = Object.entries(config.requiredCreds ?? {});
+function checkCredentialRules(
+  creds: GenericCreds,
+  requiredCreds?: Readonly<Record<string, CredRule>>,
+): Procedure<true> {
+  const entries = Object.entries(requiredCreds ?? {});
   const bad = entries.filter((entry): boolean => !isCredSound(creds, entry));
   if (bad.length === 0) return succeed(true);
   const names = bad.map(([field]): string => field).join(', ');
   return fail(ScraperErrorTypes.Generic, `${MISSING_CREDS_PREFIX}${names}`);
 }
 
+/**
+ * Check every credential an API-direct call config declares.
+ * @param config - API-direct-call config.
+ * @param creds - Caller credentials.
+ * @returns Success, or a Generic failure naming the bad fields.
+ */
+function checkRequiredCreds(config: IApiDirectCallConfig, creds: GenericCreds): Procedure<true> {
+  return checkCredentialRules(creds, config.requiredCreds);
+}
+
+export { checkCredentialRules };
 export default checkRequiredCreds;

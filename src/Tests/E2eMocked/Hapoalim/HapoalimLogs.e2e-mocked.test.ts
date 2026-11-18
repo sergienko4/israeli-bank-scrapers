@@ -10,6 +10,7 @@
 import { jest } from '@jest/globals';
 import pino, { type Logger, type LoggerOptions } from 'pino';
 
+import { ScraperErrorTypes } from '../../../Scrapers/Base/ErrorTypes.js';
 import { runWithBankContext } from '../../../Scrapers/Pipeline/Logging/BankContext.js';
 import { buildSilentOptions } from '../../../Scrapers/Pipeline/Logging/RootLogger.js';
 import type { HapoalimFault } from './HapoalimFaults.js';
@@ -106,8 +107,11 @@ const SECRETS: readonly string[] = [
  * @param fault - How the bank misbehaves.
  * @returns Resolves once the run ends.
  */
-async function runWarm(token: string, fault: HapoalimFault = 'none'): Promise<void> {
-  await HAPOALIM_RUN.runHapoalim(fault, { creds: { otpLongTermToken: token } });
+async function runWarm(
+  token: string,
+  fault: HapoalimFault = 'none',
+): ReturnType<typeof HAPOALIM_RUN.runHapoalim> {
+  return HAPOALIM_RUN.runHapoalim(fault, { creds: { otpLongTermToken: token } });
 }
 
 /**
@@ -153,13 +157,30 @@ describe('Hapoalim browserless logs', () => {
       },
     );
 
-    it.each(WARM_TOKENS.STALE_TOKENS)('names why it skips $label, never the token', async stale => {
+    const skippable = WARM_TOKENS.STALE_TOKENS.filter(stale => stale.label !== 'an oversize token');
+
+    it.each(skippable)('names why it skips $label, never the token', async stale => {
       const token = stale.build(cold.token);
       await runWarm(token);
       const emitted = LOG_LINES.join('');
       const leaked = leakedOf([token]);
       expect(emitted).toContain(stale.logged);
       expect(leaked).toEqual([]);
+    });
+
+    it('rejects an oversize token before the flow and never logs it', async () => {
+      const token = WARM_TOKENS.oversizeToken();
+      const run = await runWarm(token);
+      expect(run.result).toMatchObject({
+        success: false,
+        errorType: ScraperErrorTypes.Generic,
+        errorMessage: 'otpLongTermToken exceeds 16384 characters',
+      });
+      expect(run.calls).toHaveLength(0);
+      const leaked = leakedOf([token]);
+      const emitted = LOG_LINES.join('');
+      expect(leaked).toEqual([]);
+      expect(emitted).not.toContain(token);
     });
   });
 });

@@ -213,7 +213,7 @@ Each issuer previously kept a private copy of the same arithmetic, so the walk n
 Three constraints shape the split, and all three are load-bearing:
 
 - **The module is named `*ShapeTxns.ts` under `Phases/ApiDirectScrape/`.** That path is what keeps it inside the window-end ESLint rule's glob, which bans reading the clock and forces the bound to come from `scrapeWindowEnd(ctx)`. A shared module outside the glob would silently opt out of the coverage backfill and re-introduce the transaction loss the backfill exists to close.
-- **The open-cycle floor is an optional argument, not a defaulted `0`.** `getFutureMonths` does not clamp, and `futureMonthsToScrape` is an unconstrained public option, so a negative value reaches the walk. Flooring at `0` would _widen_ the window for the three unfloored issuers rather than preserve their behaviour; omitting the floor passes the request through untouched.
+- **The open-cycle floor is an optional argument, not a defaulted `0`.** The public boundary rejects a negative, non-integer or over-24 `futureMonthsToScrape` before the walk, so shapes receive 0–24. Flooring at `0` would _widen_ the window for the three unfloored issuers rather than preserve their behaviour; omitting the floor passes every in-range request through untouched.
 - **The ceiling is passed to `nextCursorOf`, never recomputed inside it.** VisaCal floors its walk at one month because CAL indexes a billing month by its _debit_ date, so a purchase made today belongs to next month's cycle. Taking the ceiling as an argument lets that divergence live at VisaCal's call site instead of becoming a branch in shared code.
 
 ## urlTag resolution — WK token or inline literal URL

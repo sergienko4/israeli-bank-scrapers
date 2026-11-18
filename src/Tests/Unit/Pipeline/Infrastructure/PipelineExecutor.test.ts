@@ -243,20 +243,18 @@ describe('PipelineExecutor/returns-promise', () => {
 // ── registerOrFail ───────────────────────────────────────
 
 describe('PipelineExecutor/registerOrFail', () => {
-  it('throws ScraperError when companyId is not a known TraceConfig slug', async () => {
+  it('returns a typed failure when companyId is not a known TraceConfig slug', async () => {
     const badOptions = { companyId: 'not-a-real-bank', startDate: new Date('2024-01-01') };
     const descriptor: IPipelineDescriptor = {
       options: badOptions as unknown as ScraperOptions,
       phases: [],
     };
-    let caught: unknown = null;
-    try {
-      await executePipeline(descriptor, MOCK_CREDENTIALS);
-    } catch (error) {
-      caught = error;
-    }
-    expect(caught).toBeInstanceOf(Error);
-    expect((caught as Error).message).toMatch(/No run without bank/);
+    const result = await executePipeline(descriptor, MOCK_CREDENTIALS);
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Generic,
+    });
+    expect(result.errorMessage).toMatch(/No run without bank/);
   });
 });
 

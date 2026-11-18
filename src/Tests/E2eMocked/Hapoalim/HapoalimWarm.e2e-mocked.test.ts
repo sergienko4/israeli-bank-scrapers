@@ -23,7 +23,7 @@ import {
   SCRAPE_TRAIL,
   SIGNED_IN_TRAIL,
 } from './HapoalimRun.js';
-import { STALE_TOKENS } from './HapoalimWarmTokens.js';
+import { oversizeToken, STALE_TOKENS } from './HapoalimWarmTokens.js';
 
 /** What the cold run each warm run starts from produced. */
 interface IColdRun {
@@ -40,6 +40,8 @@ interface IColdRun {
 function runWarm(token: string, fault: HapoalimFault = 'none'): Promise<IHapoalimRun> {
   return runHapoalim(fault, { creds: { otpLongTermToken: token } });
 }
+
+const SKIPPABLE_TOKENS = STALE_TOKENS.filter(stale => stale.label !== 'an oversize token');
 
 describe('Hapoalim warm start', () => {
   const cold: IColdRun = { token: '', accounts: [] };
@@ -72,12 +74,24 @@ describe('Hapoalim warm start', () => {
     expect(coldBootstrapCookie).toBeNull();
   });
 
-  it.each(STALE_TOKENS)('skips $label and signs in cold', async stale => {
+  it.each(SKIPPABLE_TOKENS)('skips $label and signs in cold', async stale => {
     const token = stale.build(cold.token);
     const run = await runWarm(token);
     expect(run.result.success).toBe(true);
     expect(run.trail).toEqual([...SIGNED_IN_TRAIL, ...SCRAPE_TRAIL]);
     expect(run.hints).toEqual([HP_PHONE]);
+  });
+
+  it('rejects an oversize token before any request', async () => {
+    const token = oversizeToken();
+    const run = await runWarm(token);
+    expect(run.result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Generic,
+      errorMessage: 'otpLongTermToken exceeds 16384 characters',
+    });
+    expect(run.calls).toHaveLength(0);
+    expect(run.hints).toEqual([]);
   });
 
   it('resumes once without SMS when a warm session is lost mid-scrape, then fails', async () => {

@@ -14,6 +14,7 @@ import type {
 } from '../../Base/Interface.js';
 import type { VoidResult } from '../../Base/Interfaces/CallbackTypes.js';
 import { isOk, type Procedure, succeed, toLegacy } from '../Types/Procedure.js';
+import validateBoundary from './BoundaryValidation.js';
 import normalizeCredentials from './CredentialAliases.js';
 import executePipeline from './Executor/PipelineExecutor.js';
 import type { IPipelineDescriptor } from './PipelineDescriptor.js';
@@ -84,12 +85,8 @@ class PipelineScraper<TCredentials extends ScraperCredentials> implements IScrap
    */
   public async scrape(credentials: TCredentials): Promise<IScraperScrapingResult> {
     const buildResult = this._buildPipeline(this._options);
-    if (!isOk(buildResult)) {
-      const legacy = toLegacy(buildResult);
-      return legacy;
-    }
-    const normalized = normalizeCredentials(credentials);
-    return runEnriched(buildResult.value, normalized);
+    if (!isOk(buildResult)) return toLegacy(buildResult);
+    return this.runDescriptor(buildResult.value, credentials);
   }
 
   /**
@@ -99,6 +96,22 @@ class PipelineScraper<TCredentials extends ScraperCredentials> implements IScrap
    */
   public onProgress(func: ProgressCallback): VoidResult {
     this._emitter.on(SCRAPE_PROGRESS, func);
+  }
+
+  /**
+   * Validate the public boundary, then enrich and run the descriptor.
+   * @param descriptor - Built pipeline descriptor.
+   * @param credentials - User bank credentials.
+   * @returns Legacy scrape result.
+   */
+  private async runDescriptor(
+    descriptor: IPipelineDescriptor,
+    credentials: TCredentials,
+  ): Promise<IScraperScrapingResult> {
+    const normalized = normalizeCredentials(credentials);
+    const boundary = validateBoundary(this._options, normalized, descriptor.credentialPolicy);
+    if (!isOk(boundary)) return toLegacy(boundary);
+    return runEnriched(descriptor, normalized);
   }
 }
 

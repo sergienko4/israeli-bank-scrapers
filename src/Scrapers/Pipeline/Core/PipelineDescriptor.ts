@@ -4,14 +4,22 @@
  */
 
 import type { ScraperCredentials, ScraperOptions } from '../../Base/Interface.js';
+import type { CredRule } from '../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type BasePhase from '../Phases/Base/BasePhase.js';
 import type { IMtlsInvokeOptions } from '../Types/Domain/MtlsInvokeTypes.js';
 import type { Procedure } from '../Types/Procedure.js';
+
+/** A bank's always-required credential fields and their rules. */
+interface ICredentialPolicy {
+  readonly requiredCreds?: Readonly<Record<string, CredRule>>;
+}
 
 /** Descriptor produced by PipelineBuilder, consumed by PipelineExecutor. */
 interface IPipelineDescriptor {
   readonly options: ScraperOptions;
   readonly phases: readonly BasePhase[];
+  /** Bank-declared required credentials, checked at the public boundary. */
+  readonly credentialPolicy?: ICredentialPolicy;
   /**
    * Optional bank hook that fills credentials it can derive itself — a
    * device signature generated per host, for example. Runs once per scrape
@@ -36,4 +44,4 @@ interface IPipelineDescriptor {
  */
 type PipelineFactory = (options: ScraperOptions) => Procedure<IPipelineDescriptor>;
 
-export type { IPipelineDescriptor, PipelineFactory };
+export type { ICredentialPolicy, IPipelineDescriptor, PipelineFactory };

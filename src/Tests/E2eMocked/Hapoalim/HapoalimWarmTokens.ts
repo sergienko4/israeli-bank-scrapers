@@ -73,7 +73,7 @@ function reboundToken(coldToken: string, owner: Partial<ITokenOwner>): string {
  * A token one character over the warm-start limit.
  * @returns The oversize token.
  */
-function oversizeToken(): string {
+export function oversizeToken(): string {
   const { maxTokenChars } = hapoalimWarm();
   return `v1.${'A'.repeat(maxTokenChars - 2)}`;
 }

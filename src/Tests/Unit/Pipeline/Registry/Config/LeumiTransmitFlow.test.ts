@@ -343,7 +343,7 @@ describe('Leumi encrypted flow with a synthetic peer', () => {
     const result = await scraper.scrape(CREDS);
     expect(result).toMatchObject({
       success: false,
-      errorMessage: 'Leumi startDate must be a valid date',
+      errorMessage: 'startDate must be a valid date',
     });
     expect(fetch).not.toHaveBeenCalled();
   });
