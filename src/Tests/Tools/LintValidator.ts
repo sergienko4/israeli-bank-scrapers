@@ -588,7 +588,7 @@ const PII_BRACKET_NUM = String.raw`(?:[A-Za-z_$][\w$]*\??\.)*${PII_CREDENTIAL_OB
 const PII_TEMPLATE_REFERENCE = String.raw`\$\{\s*(?:${PII_DOTTED_SAFE}|${PII_DOTTED_NUM}|${PII_BRACKET_SAFE}|${PII_BRACKET_NUM})`;
 /** Regex: PII identifier or credential access in a LOG.* template (T09). */
 const PII_TEMPLATE_RE = new RegExp(
-  String.raw`LOG\.${PII_LOG_LEVELS}\s*\(\s*\x60(?:\\[\s\S]|(?!\x60)[\s\S])*?${PII_TEMPLATE_REFERENCE}`,
+  String.raw`LOG\.${PII_LOG_LEVELS}\s*\(\s*\x60(?:\\[\s\S]|[^\\\x60])*?${PII_TEMPLATE_REFERENCE}`,
   'g',
 );
 /** Regex: forbidden payload bucket passed to LOG.* (T16). The lookahead
