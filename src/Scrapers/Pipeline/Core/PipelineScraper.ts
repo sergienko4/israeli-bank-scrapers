@@ -33,17 +33,18 @@ type ProgressCallback = (
 const SCRAPE_PROGRESS = 'SCRAPE_PROGRESS';
 
 /**
- * Snapshot caller options, copying the Date so later mutations cannot change
- * the validated run.
+ * Snapshot caller options, copying the Date and reading the signal explicitly
+ * so later mutations and prototype getters cannot change the validated run.
  * @param options - Caller options.
  * @returns A shallow copy with a local startDate when it is readable.
  */
 function snapshotOptions(options: ScraperOptions): ScraperOptions {
+  const signal = options.signal;
   try {
     const time = Date.prototype.getTime.call(options.startDate);
-    return { ...options, startDate: new Date(time) };
+    return { ...options, startDate: new Date(time), signal };
   } catch {
-    return { ...options };
+    return { ...options, signal };
   }
 }
 

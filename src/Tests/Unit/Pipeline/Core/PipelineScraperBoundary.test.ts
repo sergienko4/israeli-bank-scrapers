@@ -148,7 +148,7 @@ describe('PipelineScraper boundary', () => {
     const opts = options(CompanyTypes.Leumi);
     const originalStart = opts.startDate;
     const build = jest.fn((snapshot: ScraperOptions) => {
-      opts.startDate = new Date('2030-01-01T00:00:00.000Z');
+      opts.startDate = new Date(Number.NaN);
       return succeed({ options: snapshot, phases: [] });
     });
     const scraper = new PipelineScraper(opts, build);
@@ -159,6 +159,24 @@ describe('PipelineScraper boundary', () => {
     const originalTime = originalStart.getTime();
     expect(snapshot.startDate).not.toBe(originalStart);
     expect(snapshotTime).toBe(originalTime);
+  });
+
+  it('keeps a non-enumerable caller signal in the snapshot', async () => {
+    const controller = new AbortController();
+    const opts = options(CompanyTypes.Leumi);
+    /**
+     * Read the caller's signal.
+     * @returns The abort signal.
+     */
+    function signalOf(): AbortSignal {
+      return controller.signal;
+    }
+    Object.defineProperty(opts, 'signal', { get: signalOf, enumerable: false });
+    const build = jest.fn((snapshot: ScraperOptions) => succeed({ options: snapshot, phases: [] }));
+    const scraper = new PipelineScraper(opts, build);
+    await scraper.scrape({ username: 'u', password: 'p' });
+    const snapshot = build.mock.calls[0][0];
+    expect(snapshot.signal).toBe(controller.signal);
   });
 
   it('accepts a codec-published Pepper state above 16 KiB', async () => {
