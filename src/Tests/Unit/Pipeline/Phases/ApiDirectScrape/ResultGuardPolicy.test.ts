@@ -84,6 +84,18 @@ describe('resultGuardFromPolicy', () => {
     expect(result).toMatchObject({ success: false, errorMessage: 'degraded empty' });
   });
 
+  it('returns incomplete evidence before loss when both checks fail', () => {
+    const guard = resultGuardFromPolicy({
+      requireCompleteEvidence: true,
+      incompleteMessage: 'incomplete',
+      lossCaveats: ['mappingRejectedRows'],
+      lossMessage: 'loss',
+    });
+    const input = summary({ balanceDegraded: true, observedCaveats: ['mappingRejectedRows'] });
+    const result = guard(input);
+    expect(result).toMatchObject({ success: false, errorMessage: 'incomplete' });
+  });
+
   it('passes a healthy empty wallet', () => {
     const guard = resultGuardFromPolicy({
       failOnDegradedEmpty: true,

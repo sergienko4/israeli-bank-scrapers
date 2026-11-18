@@ -150,7 +150,8 @@ interface IApiDirectCallConfig {
    * default; set `false` for a bank whose replies never quote the customer and
    * whose failure text must reach the caller. A missed extract then names only
    * the slot and pointer, and a failed scrape call only the call and its HTTP
-   * status.
+   * status. A native HTTP scrape failure also needs
+   * `transport.omitBankText: false` so its transport snippet survives.
    */
   readonly omitBankText?: boolean;
 }

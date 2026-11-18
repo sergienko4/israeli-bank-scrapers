@@ -111,34 +111,20 @@ function degradedEmptyFailure(
 }
 
 /**
- * Run one policy check.
- * @param check - The check to run.
+ * Run the policy's checks in order, stopping at the first failure.
  * @param summary - PII-free scrape summary.
  * @param policy - Bank policy.
- * @returns The failure, or false when the check passes.
+ * @returns The first failure, or false when every check passes.
  */
-function runCheck(
-  check: typeof incompleteFailure,
+function firstFailure(
   summary: IApiDirectScrapeGuardSummary,
   policy: IResultGuardPolicy,
 ): Procedure<void> | false {
-  return check(summary, policy);
-}
-
-/**
- * Run the policy's checks in a fixed order.
- * @param summary - PII-free scrape summary.
- * @param policy - Bank policy.
- * @returns The first failure, or a pass-through success.
- */
-function evaluate(
-  summary: IApiDirectScrapeGuardSummary,
-  policy: IResultGuardPolicy,
-): Procedure<void> {
-  const checks = [incompleteFailure, lossFailure, degradedEmptyFailure];
-  const results = checks.map(check => runCheck(check, summary, policy));
-  const failure = results.find((result): result is Procedure<void> => result !== false);
-  return failure ?? succeed(undefined);
+  const incomplete = incompleteFailure(summary, policy);
+  if (incomplete !== false) return incomplete;
+  const loss = lossFailure(summary, policy);
+  if (loss !== false) return loss;
+  return degradedEmptyFailure(summary, policy);
 }
 
 /**
@@ -147,7 +133,10 @@ function evaluate(
  * @returns A fail-closed result guard.
  */
 function resultGuardFromPolicy(policy: IResultGuardPolicy): ScrapeResultGuard {
-  return (summary): Procedure<void> => evaluate(summary, policy);
+  return (summary): Procedure<void> => {
+    const failure = firstFailure(summary, policy);
+    return failure === false ? succeed(undefined) : failure;
+  };
 }
 
 export default resultGuardFromPolicy;

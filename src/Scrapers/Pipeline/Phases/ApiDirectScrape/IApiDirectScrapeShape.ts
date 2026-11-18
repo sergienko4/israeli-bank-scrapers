@@ -570,9 +570,11 @@ export interface IApiDirectScrapeShape<TAcct, TCursor> {
    * PII-free {@link IApiDirectScrapeGuardSummary} and returns a failure
    * Procedure to abort the run (e.g. zero transactions from a degraded
    * warm session) or `succeed(undefined)` to pass through. Build bank-specific
-   * checks with `resultGuardFromPolicy`. Absent ⇒ the phase default guard
-   * applies, which fails a run that resolved zero accounts (a universally
-   * invalid post-login outcome).
+   * checks with `resultGuardFromPolicy`. The universal zero-account floor
+   * always runs first and can reject the run without invoking this guard; a
+   * custom guard adds checks only after the floor passes, and
+   * `succeed(undefined)` passes only the custom check. Absent ⇒ only the floor
+   * runs.
    */
   readonly resultGuard?: (summary: IApiDirectScrapeGuardSummary) => Procedure<void>;
 }

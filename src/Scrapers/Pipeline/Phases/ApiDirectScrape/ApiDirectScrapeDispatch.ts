@@ -60,7 +60,7 @@ export interface IDispatchArgs {
   readonly operation?: ScrapeOperation;
   /** Shape-level body digest — see `IApiDirectScrapeShape.bodyDigest`. */
   readonly bodyDigest?: IBodyDigestConfig;
-  /** Omit bank response text from failed calls when the bank opts in. */
+  /** Omit bank text from eligible failures (the default); `false` retains it. */
   readonly omitBankText?: boolean;
   /** Shape-level response session — see `IApiDirectScrapeShape.responseSession`. */
   readonly responseSession?: IResponseSessionSpec;
@@ -152,7 +152,8 @@ function mayQuoteBank(failure: IProcedureFailure): boolean {
  * Local dispatch and hydration failures keep their diagnostic message.
  * @param response - Scrape call result.
  * @param name - Name of the failed call.
- * @param omitBankText - Whether bank text is omitted; `false` opts in.
+ * @param omitBankText - Whether bank text is omitted from eligible failures
+ *   (the default); `false` retains the bank reply text.
  * @returns A sanitized failure or the unchanged result.
  */
 export function omitBankResponseText<T>(

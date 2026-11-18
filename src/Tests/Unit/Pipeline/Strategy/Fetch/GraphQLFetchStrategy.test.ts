@@ -242,6 +242,7 @@ describe('GraphQLFetchStrategy.query — transport behaviour', () => {
     expect(result).toMatchObject({
       success: false,
       errorType: ScraperErrorTypes.Generic,
+      httpStatus: 500,
     });
     if (!result.success) expect(result.errorMessage).toContain('response body omitted');
   });
