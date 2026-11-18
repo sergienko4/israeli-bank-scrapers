@@ -131,6 +131,11 @@ const PAYBOX_API_DIRECT_CALL: IApiDirectCallConfig = {
   warmStart: {
     credsField: 'otpLongTermToken',
     carryField: 'token',
+    provider: 'paybox',
+    accountFields: ['phoneNumber'],
+    // PayBox can log in with only the phone number, so the account tag
+    // falls back to this bank tag when no password is supplied.
+    accountTagKey: 'paybox-warm-token-v1',
     // Skip every login step on the warm path — the cached JWT IS
     // the final token. Derived from steps.length so adding or
     // removing a step keeps the warm-skip range aligned.

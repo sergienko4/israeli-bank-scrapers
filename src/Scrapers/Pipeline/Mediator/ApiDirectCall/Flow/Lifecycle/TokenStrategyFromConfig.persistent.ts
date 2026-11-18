@@ -189,9 +189,8 @@ async function enrollDurable(run: IDurableRun): Promise<Procedure<string>> {
  * @returns True when it may be replayed without a request.
  */
 function isReplayable(run: IDurableRun, accessToken: string): boolean {
-  const freshnessField = run.prime.config.jwtClaims?.freshnessField ?? 'exp';
-  const skewSeconds = run.block.freshnessMarginSeconds;
-  return isJwtFresh(accessToken, { freshnessField, skewSeconds });
+  const claims = run.prime.config.jwtClaims ?? { freshnessField: 'exp', skewSeconds: 60 };
+  return isJwtFresh(accessToken, { ...claims, skewSeconds: run.block.freshnessMarginSeconds });
 }
 
 /**

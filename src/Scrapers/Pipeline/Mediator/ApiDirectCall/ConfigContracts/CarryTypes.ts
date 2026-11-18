@@ -18,6 +18,12 @@ import type { RefToken } from './TemplateTypes.js';
 interface IWarmStartBase {
   readonly credsField: string;
   readonly fromStepIndex: number;
+  /**
+   * Static key used to bind an account tag when the caller supplies no
+   * password (a password-less SMS login). It is a domain tag, not a secret:
+   * a token minted under it only opens with the same tag.
+   */
+  readonly accountTagKey?: string;
 }
 
 /**
@@ -32,6 +38,10 @@ interface ICarryWarmStart extends IWarmStartBase {
   /** Omitted on every carry config; the default kind. */
   readonly kind?: 'carry';
   readonly carryField: string;
+  /** Provider tag a new `v1.` token carries; old raw tokens carry none. */
+  readonly provider?: string;
+  /** Creds fields, in order, a new token is bound to; at least one. */
+  readonly accountFields?: readonly string[];
   /**
    * How a stored token is judged before reuse. `'jwt'` (default) reads its
    * expiry locally through `jwtClaims`; `'bank-call'` is for a token with no
@@ -279,6 +289,7 @@ export type {
   ColdFallback,
   DerivedOp,
   ICarryBundleWarmStart,
+  ICarryWarmStart,
   ICookieJarWarmStart,
   IDerivedCarry,
   IFormatOp,

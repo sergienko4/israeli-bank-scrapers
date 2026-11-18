@@ -5,7 +5,7 @@
  * own envelope, check order and rejection texts.
  */
 
-import { createHash } from 'node:crypto';
+import { createHash, createHmac, randomBytes, scryptSync } from 'node:crypto';
 
 import type { IStoredCookie } from '../../../Types/Domain/CookieSession.js';
 import type { JsonUnknown, JsonUnknownList, JsonUnknownRecord } from '../../../Types/JsonValue.js';
@@ -15,6 +15,10 @@ import { succeed } from '../../../Types/Procedure.js';
 /** Every warm token version starts with this. */
 const WARM_TOKEN_PREFIX = 'v1.';
 const IDENTITY_TAG_CHARS = 16;
+/** Fallback domain salt for a key passed without a per-token nonce. */
+const TAG_KEY_FALLBACK_SALT = 'israeli-bank-scrapers/warm-token-account-tag/v1';
+const TAG_KEY_BYTES = 32;
+const TAG_SALT_BYTES = 16;
 
 /** The JS type of every cookie field; also the field whitelist. */
 const COOKIE_FIELD_TYPES: Readonly<Record<keyof IStoredCookie, 'string' | 'boolean' | 'number'>> = {
@@ -29,14 +33,105 @@ const COOKIE_FIELD_TYPES: Readonly<Record<keyof IStoredCookie, 'string' | 'boole
 
 const COOKIE_FIELDS = Object.keys(COOKIE_FIELD_TYPES) as readonly (keyof IStoredCookie)[];
 
+/** Optional key material for a tag check. */
+interface ITagKeyOptions {
+  readonly key?: string;
+  readonly salt?: string;
+}
+
 /**
- * Tag an identity without storing it.
- * @param text - Identity text, already normalized by the codec.
- * @returns First 16 hex chars of its SHA-256.
+ * A fresh per-token nonce. It makes two tokens for one account carry
+ * different tags, so a stolen token is not a reusable password oracle.
+ * @returns 16 random bytes as hex.
  */
-function identityTag(text: string): string {
-  const digest = createHash('sha256').update(text, 'utf8').digest('hex');
-  return digest.slice(0, IDENTITY_TAG_CHARS);
+function randomSalt(): string {
+  return randomBytes(TAG_SALT_BYTES).toString('hex');
+}
+
+/**
+ * Derive the HMAC key from a caller or bank key. scrypt is deliberate: the
+ * tag is a binding, not password storage, but a fast hash would make a stolen
+ * token cheap to test against a password list offline.
+ * @param key - Non-empty tag key.
+ * @param salt - Per-token nonce; '' uses the domain fallback.
+ * @returns A 32-byte derived key.
+ */
+function tagKeyBytes(key: string, salt: string): Buffer {
+  const effectiveSalt = salt.length > 0 ? salt : TAG_KEY_FALLBACK_SALT;
+  return scryptSync(key, effectiveSalt, TAG_KEY_BYTES);
+}
+
+/**
+ * Tag an identity without storing it. A key makes the tag an HMAC-SHA256
+ * that only the same password or bank fallback reproduces; no key keeps the
+ * legacy unkeyed SHA-256, so older tokens stay readable.
+ * @param text - Identity text, already normalized by the codec.
+ * @param key - Optional password or bank-configured fallback.
+ * @param salt - Per-token nonce; '' uses the domain fallback.
+ * @returns First 16 hex chars of the digest.
+ */
+function identityTag(text: string, key = '', salt = ''): string {
+  if (key.length === 0) {
+    const legacy = createHash('sha256').update(text, 'utf8').digest('hex');
+    return legacy.slice(0, IDENTITY_TAG_CHARS);
+  }
+  const bytes = tagKeyBytes(key, salt);
+  const keyed = createHmac('sha256', bytes).update(text, 'utf8').digest('hex');
+  return keyed.slice(0, IDENTITY_TAG_CHARS);
+}
+
+/**
+ * Whether a stored tag matches the identity under the current key. The
+ * legacy unkeyed tag is always accepted, so a token minted before keying
+ * still opens once and is replaced with a keyed token on the next export.
+ * @param tag - Stored tag.
+ * @param text - Identity text, already normalized by the codec.
+ * @param options - Password/fallback key and per-token nonce.
+ * @returns True when the tag is the keyed or legacy digest.
+ */
+function identityMatches(tag: string, text: string, options: ITagKeyOptions = {}): boolean {
+  if (tag === identityTag(text)) return true;
+  const key = options.key ?? '';
+  if (key.length === 0) return false;
+  return tag === identityTag(text, key, options.salt ?? '');
+}
+
+/**
+ * The normalized JSON array an account tag covers.
+ * @param accounts - Account values; surrounding spaces ignored.
+ * @returns The JSON text.
+ */
+function accountsJson(accounts: readonly string[]): string {
+  const trimmed = accounts.map((account): string => account.trim());
+  return JSON.stringify(trimmed);
+}
+
+/**
+ * Tag account values without storing them.
+ * @param accounts - Account values; surrounding spaces ignored.
+ * @param key - Password or bank fallback key; '' keeps the legacy tag.
+ * @param salt - Per-token nonce; '' uses the domain fallback.
+ * @returns The identity tag of their JSON array.
+ */
+function accountsTag(accounts: readonly string[], key = '', salt = ''): string {
+  const json = accountsJson(accounts);
+  return identityTag(json, key, salt);
+}
+
+/**
+ * Whether a stored tag covers the expected accounts under the current key.
+ * @param tag - Stored account tag.
+ * @param accounts - Expected account values.
+ * @param options - Password/fallback key and per-token nonce.
+ * @returns True for the keyed or legacy tag.
+ */
+function accountsMatch(
+  tag: string,
+  accounts: readonly string[],
+  options: ITagKeyOptions = {},
+): boolean {
+  const json = accountsJson(accounts);
+  return identityMatches(tag, json, options);
 }
 
 /**
@@ -115,12 +210,16 @@ function parseJsonBody(text: string, failure: Procedure<never>): Procedure<JsonU
 }
 
 export {
+  accountsMatch,
+  accountsTag,
+  identityMatches,
   identityTag,
   isListValue,
   isRecordValue,
   isStoredCookie,
   parseJsonBody,
   projectCookie,
+  randomSalt,
   textAt,
   WARM_TOKEN_PREFIX,
   wrapJsonText,

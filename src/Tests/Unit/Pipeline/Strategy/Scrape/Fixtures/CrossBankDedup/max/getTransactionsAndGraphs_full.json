@@ -19,14 +19,14 @@
         "result": {
           "transactions": [
             {
-              "actualPaymentAmount": 13.84,
+              "actualPaymentAmount": 0,
               "categoryId": 7,
               "refIndex": 0,
               "comments": "",
               "discountKeyAmount": null,
               "discountKeyRecType": null,
               "merchantName": "FAKE Merchant 1 (max)",
-              "originalAmount": 13.84,
+              "originalAmount": 0,
               "originalCurrency": "ILS",
               "paymentCurrency": 376,
               "paymentDate": "2026-06-02T00:00:00",
@@ -48,14 +48,14 @@
                 "address": "FAKE",
                 "merchantCommercialName": null,
                 "coordinates": null,
-                "merchantPhone": "03-508-1406",
+                "merchantPhone": "[redacted-account]",
                 "maxPhone": false,
                 "merchant": "084220",
-                "merchantNumber": "005466963",
+                "merchantNumber": "[redacted-id-1]",
                 "merchantTaxId": ""
               },
               "dealData": {
-                "userName": "FAKE",
+                "userName": "[redacted-name]",
                 "amountIls": 13.84,
                 "cardName": "FAKE",
                 "purchaseAmount": null,
@@ -84,7 +84,7 @@
                 "acq": "2",
                 "plan": 1000,
                 "tdmTransactionType": 12,
-                "tdmCardToken": "401047******5398",
+                "tdmCardToken": "[redacted-token]",
                 "showSpread": false,
                 "showSpreadButton": false,
                 "showSpreadBenefitButton": false,
@@ -115,9 +115,9 @@
           "totalCycle": [
             {
               "currency": 376,
-              "totalAmount": 13.84,
+              "totalAmount": 0,
               "pastDebit": 0,
-              "futureDebit": 13.84
+              "futureDebit": 0
             },
             {
               "currency": 840,
@@ -244,7 +244,7 @@
             "successBlockedLinkText": "FAKE TEXT",
             "successBlockedBtnText": "FAKE TEXT",
             "successBlockedBtnTextMobile": "FAKE TEXT",
-            "successBlockedPhoneNumber": "03-6178800",
+            "successBlockedPhoneNumber": "[redacted-landline]",
             "failTitle": "FAKE TEXT",
             "failSubTitle": "FAKE TEXT",
             "failBtnText": "FAKE TEXT",

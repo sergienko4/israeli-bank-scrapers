@@ -54,7 +54,7 @@ type ITelegramFetchArgs = Parameters<typeof FETCH_OTP_FROM_TELEGRAM>[0];
 function makeArgs(log: ITestLogger): ITelegramFetchArgs {
   return {
     botToken: 'TEST_TOKEN',
-    chatId: '-100456789',
+    chatId: '-1000000000000',
     bankName: 'Beinleumi',
     bankRegex: /(\d{4,8})/,
     timeoutMs: 1,

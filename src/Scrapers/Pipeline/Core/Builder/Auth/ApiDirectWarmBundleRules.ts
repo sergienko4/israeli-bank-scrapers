@@ -18,7 +18,10 @@ import type {
   IRsaKeyGenerator,
   IStepConfig,
 } from '../../../Mediator/ApiDirectCall/ConfigContracts/index.js';
-import { carryBundleWarmOf } from '../../../Mediator/ApiDirectCall/Flow/WarmStartKind.js';
+import {
+  carryBundleWarmOf,
+  carryWarmOf,
+} from '../../../Mediator/ApiDirectCall/Flow/WarmStartKind.js';
 import {
   hasCookieDomains,
   type IApiDirectRule,
@@ -204,8 +207,60 @@ function isBundleJarWithoutDomains(input: IApiDirectRuleInput): boolean {
   return isBundleBroken(input, isJarWithoutDomains);
 }
 
+/**
+ * A raw carry warm start binds both or neither of provider and accountFields.
+ * @param input - Rule input.
+ * @returns True when only one side of the binding is declared.
+ */
+function isRawBindingPartial(input: IApiDirectRuleInput): boolean {
+  const warm = carryWarmOf(input.call);
+  if (warm === false) return false;
+  return (warm.provider === undefined) !== (warm.accountFields === undefined);
+}
+
+/**
+ * A bound raw carry warm start names the provider it belongs to.
+ * @param input - Rule input.
+ * @returns True when `provider` is present but blank.
+ */
+function isRawProviderBlank(input: IApiDirectRuleInput): boolean {
+  const warm = carryWarmOf(input.call);
+  return warm !== false && warm.provider?.trim().length === 0;
+}
+
+/**
+ * A bound raw carry warm start names at least one non-blank account field.
+ * @param input - Rule input.
+ * @returns True when `accountFields` is empty or names a blank field.
+ */
+function isRawAccountsUnbound(input: IApiDirectRuleInput): boolean {
+  const warm = carryWarmOf(input.call);
+  if (warm === false || warm.accountFields === undefined) return false;
+  const fields = warm.accountFields;
+  return fields.length === 0 || fields.some((field): boolean => field.trim().length === 0);
+}
+
+/**
+ * A configured tag key must name a non-blank value.
+ * @param input - Rule input.
+ * @returns True when `accountTagKey` is blank.
+ */
+function isAccountTagKeyBlank(input: IApiDirectRuleInput): boolean {
+  return input.call.warmStart?.accountTagKey?.trim().length === 0;
+}
+
 /** Carry-bundle rules, checked right after the cookie-jar rules. */
 const API_DIRECT_WARM_BUNDLE_RULES: readonly IApiDirectRule[] = [
+  { message: 'warmStart.accountTagKey: must not be blank', isBroken: isAccountTagKeyBlank },
+  {
+    message: 'warmStart.provider: required with accountFields',
+    isBroken: isRawBindingPartial,
+  },
+  { message: 'warmStart.provider: must not be blank', isBroken: isRawProviderBlank },
+  {
+    message: 'warmStart.accountFields: must name a creds field, none blank',
+    isBroken: isRawAccountsUnbound,
+  },
   {
     message: 'warmStart.accountFields: must name a creds field, none blank',
     isBroken: isBundleUnbound,

@@ -3,16 +3,20 @@
  * stored token as a carry slot; a cookie-jar warm start replays it as the
  * session jar (`TokenStrategyFromConfig.jar.ts`); a carry-bundle warm start
  * replays several slots and, optionally, the jar
- * (`TokenStrategyFromConfig.bundle.ts`). The kind decides three moments of a
- * prime: how the stored token is restored, what a cold start resets, and
- * which token a finished flow publishes.
+ * (`TokenStrategyFromConfig.bundle.ts`). The kind decides how the stored
+ * token is restored, what a cold start resets, and what a flow publishes.
  */
 
-import type { ICarryBundleWarmStart, ICookieJarWarmStart } from '../../ConfigContracts/index.js';
-import { carryBundleWarmOf, cookieJarWarmOf, warmCarryField } from '../WarmStartKind.js';
+import type {
+  ICarryBundleWarmStart,
+  ICarryWarmStart,
+  ICookieJarWarmStart,
+} from '../../ConfigContracts/index.js';
+import { carryBundleWarmOf, carryWarmOf, cookieJarWarmOf } from '../WarmStartKind.js';
 import { isColdStart } from './TokenStrategyFromConfig.budget.js';
 import { exportBundle, restoreBundle } from './TokenStrategyFromConfig.bundle.js';
 import { exportJar, restoreJar } from './TokenStrategyFromConfig.jar.js';
+import { exportRawCarry, restoreRawCarry } from './TokenStrategyFromConfig.raw.js';
 import { pickWarmSeed } from './TokenStrategyFromConfig.shared.js';
 import type {
   IFlowCapture,
@@ -119,26 +123,65 @@ function bundleOps(args: IWarmRunArgs, bundle: ICarryBundleWarmStart): IWarmKind
 }
 
 /**
- * Carry ops: the stored token is one carry slot, and the flow's own token is
- * the next one.
- * @param carryField - Slot the token seeds ('' when there is no warm start).
- * @returns The kind's ops.
+ * No carry warm start: nothing to restore or bind.
+ * @returns No-op ops.
  */
-function carryOps(carryField: string): IWarmKindOps {
+function noCarryOps(): IWarmKindOps {
   return {
     /**
-     * Seed the carry slot with the stored token.
-     * @param stored - Stored token.
-     * @returns The starting carry.
+     * Seed no carry slot.
+     * @returns An empty carry.
      */
-    restore: (stored: string): WarmCarry => ({ [carryField]: stored }),
+    restore: (): WarmCarry => ({}),
     resetCold: keepAll,
     /**
-     * Publish the token the flow extracted.
+     * Publish the flow's own token unchanged.
      * @param capture - The flow's outputs.
      * @returns The flow's long-term token.
      */
     publish: (capture: IFlowCapture): string => capture.longTermToken,
+  };
+}
+
+/**
+ * Bind the restore step to one carry warm start.
+ * @param args - Config, bus and creds.
+ * @param warm - Carry warm start.
+ * @returns A restore function.
+ */
+function carryRestore(
+  args: IWarmRunArgs,
+  warm: ICarryWarmStart,
+): (stored: string) => WarmCarry | false {
+  return (stored: string): WarmCarry | false => restoreRawCarry(args, warm, stored);
+}
+
+/**
+ * Bind the publish step to one carry warm start.
+ * @param args - Config, bus and creds.
+ * @param warm - Carry warm start.
+ * @returns A publish function.
+ */
+function carryPublish(
+  args: IWarmRunArgs,
+  warm: ICarryWarmStart,
+): (capture: IFlowCapture) => string {
+  return (capture: IFlowCapture): string => exportRawCarry(args, warm, capture.longTermToken);
+}
+
+/**
+ * Carry ops: the stored token is one carry slot, and the flow's own token is
+ * the next one.
+ * @param args - Config, bus and creds.
+ * @param warm - Carry warm start, or false when none is declared.
+ * @returns The kind's ops.
+ */
+function carryOps(args: IWarmRunArgs, warm: ICarryWarmStart | false): IWarmKindOps {
+  if (warm === false) return noCarryOps();
+  return {
+    restore: carryRestore(args, warm),
+    resetCold: keepAll,
+    publish: carryPublish(args, warm),
   };
 }
 
@@ -152,8 +195,8 @@ function warmOpsOf(args: IWarmRunArgs): IWarmKindOps {
   if (jar !== false) return jarOps(args, jar);
   const bundle = carryBundleWarmOf(args.config);
   if (bundle !== false) return bundleOps(args, bundle);
-  const carryField = warmCarryField(args.config);
-  return carryOps(carryField);
+  const warm = carryWarmOf(args.config);
+  return carryOps(args, warm);
 }
 
 /**

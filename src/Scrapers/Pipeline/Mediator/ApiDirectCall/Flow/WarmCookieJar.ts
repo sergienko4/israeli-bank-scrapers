@@ -2,9 +2,11 @@
  * WarmCookieJar — the warm token of a cookie-session bank. Such a bank has no
  * bearer to replay, so the token is the session jar itself.
  *
- * <p>Wire form: `v1.` + unpadded base64url over UTF-8 JSON `{p, a, c}` — the
- * provider tag, a 16-hex SHA-256 tag of the trimmed account (never the account
- * itself), and the cookies in creation order. Only the cookie fields of
+ * <p>Wire form: `v1.` + unpadded base64url over UTF-8 JSON `{p, a, n, c}` —
+ * the provider tag, a 16-hex tag of the trimmed account (keyed HMAC from a
+ * scrypt-derived password/fallback key and the per-token nonce `n`, legacy
+ * SHA-256 otherwise; never the account itself), and the cookies in creation
+ * order. Only the cookie fields of
  * {@link IStoredCookie} travel; anything else is dropped on both sides.
  *
  * <p>A token failing any check is refused with a reason from
@@ -22,12 +24,14 @@ import type { JsonUnknown } from '../../../Types/JsonValue.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import {
+  identityMatches,
   identityTag,
   isListValue,
   isRecordValue,
   isStoredCookie,
   parseJsonBody,
   projectCookie,
+  randomSalt,
   WARM_TOKEN_PREFIX,
   wrapJsonText,
 } from './WarmTokenParts.js';
@@ -36,6 +40,8 @@ import {
 interface IWarmJarIdentity {
   readonly provider: string;
   readonly account: string;
+  /** Password or bank fallback key; '' keeps the legacy unkeyed tag. */
+  readonly tagKey?: string;
 }
 
 /** Who a stored jar must belong to, and its size limit. */
@@ -50,6 +56,7 @@ type StoredJar = readonly IStoredCookie[];
 interface IJarEnvelope {
   readonly p: string;
   readonly a: string;
+  readonly n?: string;
   readonly c: StoredJar;
 }
 
@@ -79,11 +86,13 @@ function reject(reason: WarmJarRejection): Procedure<never> {
 /**
  * Tag an account without storing it.
  * @param account - Account the jar belongs to; surrounding spaces ignored.
- * @returns First 16 hex chars of its SHA-256.
+ * @param key - Password or bank fallback key; '' keeps the legacy tag.
+ * @param salt - Per-token nonce; '' uses the domain fallback.
+ * @returns First 16 hex chars of its digest.
  */
-function accountTag(account: string): string {
+function accountTag(account: string, key = '', salt = ''): string {
   const normalized = account.trim();
-  return identityTag(normalized);
+  return identityTag(normalized, key, salt);
 }
 
 /**
@@ -121,7 +130,10 @@ function unwrapBody(token: string, maxChars: number): Procedure<string> {
 function checkEnvelope(value: JsonUnknown, expected: IWarmJarIdentity): Procedure<StoredJar> {
   if (!isJarEnvelope(value)) return reject('schema');
   if (value.p !== expected.provider) return reject('provider');
-  if (value.a !== accountTag(expected.account)) return reject('account');
+  const normalized = expected.account.trim();
+  const nonce = typeof value.n === 'string' ? value.n : '';
+  const key = nonce.length > 0 ? (expected.tagKey ?? '') : '';
+  if (!identityMatches(value.a, normalized, { key, salt: nonce })) return reject('account');
   const cookies = value.c.map(projectCookie);
   return succeed(cookies);
 }
@@ -143,8 +155,9 @@ function isUnbound(account: string): boolean {
  */
 function encodeWarmJar(identity: IWarmJarIdentity, cookies: StoredJar): Procedure<string> {
   if (isUnbound(identity.account)) return reject('unbound');
-  const a = accountTag(identity.account);
-  const envelope: IJarEnvelope = { p: identity.provider, a, c: cookies.map(projectCookie) };
+  const n = randomSalt();
+  const a = accountTag(identity.account, identity.tagKey ?? '', n);
+  const envelope: IJarEnvelope = { p: identity.provider, a, n, c: cookies.map(projectCookie) };
   const json = JSON.stringify(envelope);
   const token = wrapJsonText(json);
   return succeed(token);

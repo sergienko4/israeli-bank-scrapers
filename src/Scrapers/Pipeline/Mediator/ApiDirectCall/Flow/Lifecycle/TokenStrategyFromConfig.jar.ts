@@ -14,6 +14,7 @@ import {
   WARM_JAR_REJECTIONS,
 } from '../WarmCookieJar.js';
 import {
+  accountTagKeyOf,
   publishWithin,
   readCredsString,
   skipWarmRestore,
@@ -26,14 +27,27 @@ interface IJarRestoreArgs extends IWarmRunArgs {
   readonly stored: string;
 }
 
+/** What a stored jar is checked against. */
+type JarExpectation = Parameters<typeof decodeWarmJar>[1];
+
+/**
+ * Build the decode expectation for this run.
+ * @param args - Run and jar config.
+ * @returns Provider, account, tag key and limit.
+ */
+function jarExpectation(args: IJarRestoreArgs): JarExpectation {
+  const account = readCredsString(args.creds, args.jar.accountField);
+  const tagKey = accountTagKeyOf(args.creds, args.jar.accountTagKey ?? '');
+  return { provider: args.jar.provider, account, tagKey, maxChars: args.jar.maxTokenChars };
+}
+
 /**
  * Open a stored jar for this run's provider and account.
  * @param args - Run, cookie-jar warm start and stored token.
  * @returns The cookies, or the rejection.
  */
 function openStoredJar(args: IJarRestoreArgs): Procedure<StoredJar> {
-  const account = readCredsString(args.creds, args.jar.accountField);
-  const expected = { provider: args.jar.provider, account, maxChars: args.jar.maxTokenChars };
+  const expected = jarExpectation(args);
   return decodeWarmJar(args.stored, expected);
 }
 
@@ -61,7 +75,8 @@ function restoreJar(args: IJarRestoreArgs): WarmCarry | false {
 function exportJar(args: IWarmRunArgs, jar: ICookieJarWarmStart): string {
   const cookies = args.bus.cookies?.exportAll() ?? [];
   const account = readCredsString(args.creds, jar.accountField);
-  const token = encodeWarmJar({ provider: jar.provider, account }, cookies);
+  const tagKey = accountTagKeyOf(args.creds, jar.accountTagKey ?? '');
+  const token = encodeWarmJar({ provider: jar.provider, account, tagKey }, cookies);
   return publishWithin(jar, token);
 }
 

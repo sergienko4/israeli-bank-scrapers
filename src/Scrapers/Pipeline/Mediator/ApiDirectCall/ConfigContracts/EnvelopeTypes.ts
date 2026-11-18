@@ -32,6 +32,10 @@ interface IFingerprintConfig {
 interface IJwtClaimsConfig {
   readonly freshnessField: 'exp' | 'nbf';
   readonly skewSeconds: number;
+  /** Expected `iss`; a token naming another issuer is stale. */
+  readonly issuer?: string;
+  /** Expected `aud` member; a string or any array member matches. */
+  readonly audience?: string;
 }
 
 /**

@@ -1,12 +1,12 @@
 # Visa Cal
 
-|                |                                                                                                                                                                  |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CompanyTypes` | `VisaCal`                                                                                                                                                        |
-| Engine         | **API-direct** (no browser)                                                                                                                                      |
-| Credentials    | `username`, `password` (optional `otpLongTermToken`)                                                                                                             |
-| OTP            | —                                                                                                                                                                |
-| Phase chain    | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md)                                                            |
+|                |                                                                                                                                                        |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `CompanyTypes` | `VisaCal`                                                                                                                                              |
+| Engine         | **API-direct** (no browser)                                                                                                                            |
+| Credentials    | `username`, `password` (optional `otpLongTermToken`)                                                                                                   |
+| OTP            | —                                                                                                                                                      |
+| Phase chain    | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md)                                                  |
 | Source         | [`Banks/BankPipelineTableD.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/BankPipelineTableD.ts) |
 
 ## Quick example
@@ -50,6 +50,11 @@ readable expiry, so the bank's answer is the check (`validation: 'bank-call'`);
 a rejected hash falls back to a cold login with `username` and `password`,
 which are therefore always required. `bioLogin` rotates the hash, so store the
 new `persistentOtpToken` after every run.
+
+The token is opaque: a new run publishes a `v1.` envelope bound to VisaCal and
+the `username` account, with an account tag keyed by the caller's password. A
+password change therefore costs one cold login. Tokens issued before this
+envelope are raw hashes and are still accepted; do not parse either form.
 
 ## Scrape
 

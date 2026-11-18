@@ -538,6 +538,11 @@ const PII_IDENTIFIER_NAMES: readonly string[] = [
   'idToken',
   'userName',
   'UserName',
+  'username',
+  'userCode',
+  'nationalID',
+  'card6Digits',
+  'num',
   'email',
   'cookie',
   'setCookie',
@@ -568,9 +573,11 @@ const PII_PAYLOAD_NAMES: readonly string[] = [
 ];
 /** LOG levels matched by both PII regexes. */
 const PII_LOG_LEVELS = '(?:trace|debug|info|warn|error|fatal)';
-/** Regex: PII identifier interpolated into LOG.* template literal (T09). */
+/** Regex: one credential reference interpolated into a LOG template. */
+const PII_TEMPLATE_REFERENCE = String.raw`\$\{(?:(?:[A-Za-z_$][\w$]*\.)*(?:${PII_IDENTIFIER_NAMES.join('|')})\b|(?:[A-Za-z_$][\w$]*\.)*[A-Za-z_$][\w$]*\[\s*['"](?:${PII_IDENTIFIER_NAMES.join('|')})['"]\s*\])`;
+/** Regex: PII identifier or credential access in a LOG.* template (T09). */
 const PII_TEMPLATE_RE = new RegExp(
-  String.raw`LOG\.${PII_LOG_LEVELS}\s*\(\s*\x60[\s\S]*?\$\{(?:${PII_IDENTIFIER_NAMES.join('|')})`,
+  String.raw`LOG\.${PII_LOG_LEVELS}\s*\(\s*\x60[\s\S]*?${PII_TEMPLATE_REFERENCE}`,
   'g',
 );
 /** Regex: forbidden payload bucket passed to LOG.* (T16). The lookahead

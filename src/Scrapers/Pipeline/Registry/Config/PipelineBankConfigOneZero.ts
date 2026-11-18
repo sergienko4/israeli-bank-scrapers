@@ -126,6 +126,8 @@ const ONEZERO_API_DIRECT_CALL: IApiDirectCallConfig = {
   warmStart: {
     credsField: 'otpLongTermToken',
     carryField: WARM_START_CARRY_FIELD,
+    provider: 'onezero',
+    accountFields: ['email'],
     // Resume right after the step that mints the stored artifact: everything
     // before it is already satisfied by the seed, and everything after it —
     // the short-lived access token — must be minted fresh on every run.

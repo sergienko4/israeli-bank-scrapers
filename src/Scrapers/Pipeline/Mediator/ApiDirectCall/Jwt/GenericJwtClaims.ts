@@ -66,19 +66,54 @@ function parsePayload(payloadB64: string): JwtPayload | false {
 }
 
 /**
+ * Decode a compact JWT's payload object.
+ * @param jwt - Compact JWT string.
+ * @returns The payload, or false on any decoding failure.
+ */
+function decodePayload(jwt: string): JwtPayload | false {
+  const parts = jwt.split('.');
+  if (parts.length < 2) return false;
+  return parsePayload(parts[1]);
+}
+
+/**
  * Decode the configured numeric claim from a compact JWT.
  * @param jwt - Compact JWT string.
  * @param field - Claim field name (e.g. 'exp' or 'nbf').
  * @returns Unix seconds at which the claim fires, or false.
  */
 function decodeNumericClaim(jwt: string, field: string): number | false {
-  const parts = jwt.split('.');
-  if (parts.length < 2) return false;
-  const payload = parsePayload(parts[1]);
+  const payload = decodePayload(jwt);
   if (payload === false) return false;
   const value = payload[field];
   if (typeof value !== 'number') return false;
   return value;
+}
+
+/**
+ * Whether a payload names the expected issuer.
+ * @param payload - Decoded JWT payload.
+ * @param issuer - Expected issuer, when the bank pins one.
+ * @returns True when no issuer is expected or `iss` matches.
+ */
+function issuerMatches(payload: JwtPayload, issuer?: string): boolean {
+  if (issuer === undefined) return true;
+  return payload.iss === issuer;
+}
+
+/**
+ * Whether a payload names the expected audience, as a string or an array.
+ * @param payload - Decoded JWT payload.
+ * @param audience - Expected audience member, when the bank pins one.
+ * @returns True when no audience is expected or `aud` contains it.
+ */
+function audienceMatches(payload: JwtPayload, audience?: string): boolean {
+  if (audience === undefined) return true;
+  const claim = payload.aud;
+  if (typeof claim === 'string') return claim === audience;
+  if (!Array.isArray(claim)) return false;
+  const members = claim as unknown[];
+  return members.includes(audience);
 }
 
 /**
@@ -89,8 +124,12 @@ function decodeNumericClaim(jwt: string, field: string): number | false {
  * @returns Freshness flag.
  */
 function isJwtFresh(jwt: string, config: IJwtClaimsConfig): boolean {
-  const claim = decodeNumericClaim(jwt, config.freshnessField);
-  if (claim === false) return false;
+  const payload = decodePayload(jwt);
+  if (payload === false) return false;
+  if (!issuerMatches(payload, config.issuer)) return false;
+  if (!audienceMatches(payload, config.audience)) return false;
+  const claim = payload[config.freshnessField];
+  if (typeof claim !== 'number') return false;
   const nowSec = Math.floor(Date.now() / 1000);
   return claim > nowSec + config.skewSeconds;
 }

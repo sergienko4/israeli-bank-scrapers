@@ -57,13 +57,18 @@ function reboundToken(coldToken: string, owner: Partial<ITokenOwner>): string {
   const expected = {
     provider: own.provider,
     accounts: [own.account],
+    tagKey: HAPOALIM_MOCK_CREDS.password,
     slots: warm.slots,
     hasCookies: warm.cookies,
     maxChars: warm.maxTokenChars,
   };
   const bundle = decodeWarmBundle(coldToken, expected);
   if (!isOk(bundle)) throw new ScraperError(bundle.errorMessage);
-  const identity = { provider: target.provider, accounts: [target.account] };
+  const identity = {
+    provider: target.provider,
+    accounts: [target.account],
+    tagKey: HAPOALIM_MOCK_CREDS.password,
+  };
   const rebound = encodeWarmBundle(identity, bundle.value);
   if (!isOk(rebound)) throw new ScraperError(rebound.errorMessage);
   return rebound.value;

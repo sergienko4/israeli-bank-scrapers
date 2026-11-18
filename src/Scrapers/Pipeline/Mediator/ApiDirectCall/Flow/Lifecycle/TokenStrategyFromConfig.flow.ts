@@ -10,7 +10,7 @@ import type { Procedure } from '../../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../../Types/Procedure.js';
 import { formatAuthValue } from '../AuthModePolicy.js';
 import handOffCookies from '../CookieHandoff.js';
-import { boundWarmOf } from '../WarmStartKind.js';
+import { isBoundWarmToken } from '../WarmStartKind.js';
 import { runSmsOtpFlow } from './SmsOtpFlow.js';
 import { admitFlow, isColdStart } from './TokenStrategyFromConfig.budget.js';
 import { primeDurable } from './TokenStrategyFromConfig.durable.js';
@@ -82,7 +82,7 @@ interface IFinishFlowArgs {
 function finishFlow(input: IFinishFlowArgs): string {
   const longTermToken = exportWarmToken(input.args, input.result);
   handOffCookies(input.args, input.slot);
-  const shouldReplaceEmpty = boundWarmOf(input.args.config) !== false;
+  const shouldReplaceEmpty = isBoundWarmToken(input.args.config);
   captureFlowResult(input.slot, { ...input.result, longTermToken }, shouldReplaceEmpty);
   const headerValue = formatAuthValue(input.args.config, input.result.bearer);
   const isCold = isColdStart(input.args);

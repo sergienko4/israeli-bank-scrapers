@@ -6,6 +6,7 @@
 import type {
   IApiDirectCallConfig,
   ICarryBundleWarmStart,
+  ICarryWarmStart,
   ICookieJarWarmStart,
 } from '../ConfigContracts/index.js';
 
@@ -21,6 +22,19 @@ function warmCarryField(config: IApiDirectCallConfig): string {
   const warm = config.warmStart;
   if (warm === undefined || !('carryField' in warm)) return '';
   return warm.carryField;
+}
+
+/**
+ * The carry warm start, when the config declares one.
+ * @param config - API-direct-call config.
+ * @returns The carry warm start, or false.
+ */
+function carryWarmOf(config: IApiDirectCallConfig): ICarryWarmStart | false {
+  const warm = config.warmStart;
+  if (warm === undefined || warm.kind === 'cookie-jar' || warm.kind === 'carry-bundle') {
+    return false;
+  }
+  return warm;
 }
 
 /**
@@ -56,4 +70,23 @@ function boundWarmOf(config: IApiDirectCallConfig): BoundWarmStart | false {
   return carryBundleWarmOf(config);
 }
 
-export { boundWarmOf, carryBundleWarmOf, cookieJarWarmOf, warmCarryField };
+/**
+ * Whether a warm token is provider/account-bound, so an empty export must
+ * clear the previous token instead of leaving it stale.
+ * @param config - API-direct-call config.
+ * @returns True for a jar, bundle or bound raw carry.
+ */
+function isBoundWarmToken(config: IApiDirectCallConfig): boolean {
+  if (boundWarmOf(config) !== false) return true;
+  const warm = carryWarmOf(config);
+  return warm !== false && warm.provider !== undefined && warm.accountFields !== undefined;
+}
+
+export {
+  boundWarmOf,
+  carryBundleWarmOf,
+  carryWarmOf,
+  cookieJarWarmOf,
+  isBoundWarmToken,
+  warmCarryField,
+};

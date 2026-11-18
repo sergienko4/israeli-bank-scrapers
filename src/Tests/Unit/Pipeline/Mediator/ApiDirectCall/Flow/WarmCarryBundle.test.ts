@@ -7,8 +7,6 @@
  * reason only — never a value — so the cold login runs instead.
  */
 
-import { createHash } from 'node:crypto';
-
 import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js';
 import {
   decodeWarmBundle,
@@ -16,6 +14,7 @@ import {
   type IWarmBundle,
   WARM_BUNDLE_REJECTIONS,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmCarryBundle.js';
+import { accountsTag } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmTokenParts.js';
 import type { Procedure } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { assertOk } from '../../../../../Helpers/AssertProcedure.js';
@@ -32,8 +31,7 @@ const CARRY = { clientId: `${COOKIE_MARKER}client`, certPem: `${COOKIE_MARKER}ce
 const WITH_JAR: IWarmBundle = { carry: CARRY, cookies: WARM_COOKIES };
 const WITHOUT_JAR: IWarmBundle = { carry: CARRY, cookies: false };
 /** The documented account tag: 16 hex chars of SHA-256 over the JSON array. */
-const ACCOUNTS_JSON = JSON.stringify(ACCOUNTS);
-const ACCOUNT_TAG = createHash('sha256').update(ACCOUNTS_JSON, 'utf8').digest('hex').slice(0, 16);
+const ACCOUNT_TAG = accountsTag(ACCOUNTS);
 
 /** Who a test bundle belongs to. */
 type BundleIdentity = Parameters<typeof encodeWarmBundle>[0];
@@ -99,6 +97,61 @@ function bodyOf(token: string): string {
   const encoded = token.slice('v1.'.length);
   return Buffer.from(encoded, 'base64url').toString('utf8');
 }
+
+describe('carry-bundle keyed account tag', () => {
+  const tagKey = 'syn-password';
+
+  it('writes an HMAC tag when a key is supplied', (): void => {
+    const token = encodeOk({ ...IDENTITY, tagKey: tagKey }, WITH_JAR);
+    const body = bodyOf(token);
+    const parsed = JSON.parse(body) as { a: string; n: string };
+    const tag = accountsTag(ACCOUNTS, tagKey, parsed.n);
+    expect(parsed.a).toBe(tag);
+  });
+
+  it('uses a fresh nonce for every token', (): void => {
+    const first = encodeOk({ ...IDENTITY, tagKey }, WITH_JAR);
+    const second = encodeOk({ ...IDENTITY, tagKey }, WITH_JAR);
+    const firstBody = bodyOf(first);
+    const secondBody = bodyOf(second);
+    const firstParsed = JSON.parse(firstBody) as { a: string; n: string };
+    const secondParsed = JSON.parse(secondBody) as { a: string; n: string };
+    expect(firstParsed.n).not.toBe(secondParsed.n);
+    expect(firstParsed.a).not.toBe(secondParsed.a);
+  });
+
+  it('opens a keyed token only with the same key', (): void => {
+    const token = encodeOk({ ...IDENTITY, tagKey: tagKey }, WITH_JAR);
+    const opened = decodeWarmBundle(token, {
+      ...IDENTITY,
+      tagKey: tagKey,
+      slots: SLOTS,
+      hasCookies: true,
+      maxChars: LIMIT,
+    });
+    const refused = decodeWarmBundle(token, {
+      ...IDENTITY,
+      tagKey: 'syn-other',
+      slots: SLOTS,
+      hasCookies: true,
+      maxChars: LIMIT,
+    });
+    const accountFailure = fail(ScraperErrorTypes.Generic, WARM_BUNDLE_REJECTIONS.account);
+    assertOk(opened);
+    expect(refused).toEqual(accountFailure);
+  });
+
+  it('still opens a legacy unkeyed token when a key is supplied', (): void => {
+    const opened = decodeWarmBundle(GOOD, {
+      ...IDENTITY,
+      tagKey: tagKey,
+      slots: SLOTS,
+      hasCookies: true,
+      maxChars: LIMIT,
+    });
+    assertOk(opened);
+  });
+});
 
 /** A well-formed envelope for the test identity, before tampering. */
 const ENVELOPE = { p: PROVIDER, a: ACCOUNT_TAG, s: CARRY, c: WARM_COOKIES } as const;

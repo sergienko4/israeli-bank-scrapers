@@ -4,7 +4,10 @@
  */
 
 import type { IJwtClaimsConfig } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
-import { isJwtFresh } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Jwt/GenericJwtClaims.js';
+import {
+  decodeNumericClaim,
+  isJwtFresh,
+} from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Jwt/GenericJwtClaims.js';
 
 const EXP_60S: IJwtClaimsConfig = {
   freshnessField: 'exp',
@@ -26,6 +29,90 @@ function makeJwt(field: string, seconds: number): string {
   const payloadEnc = Buffer.from(payloadJson).toString('base64url');
   return `${headerEnc}.${payloadEnc}.synthetic-sig`;
 }
+
+/**
+ * Build a synthetic JWT with arbitrary payload claims.
+ * @param claims - Payload claims to embed.
+ * @returns Compact JWT-shaped string (signature ignored).
+ */
+function makeClaimsJwt(claims: Readonly<Record<string, unknown>>): string {
+  const headerJson = JSON.stringify({ alg: 'none' });
+  const headerEnc = Buffer.from(headerJson).toString('base64url');
+  const payloadJson = JSON.stringify(claims);
+  const payloadEnc = Buffer.from(payloadJson).toString('base64url');
+  return `${headerEnc}.${payloadEnc}.synthetic-sig`;
+}
+
+describe('GenericJwtClaims.isJwtFresh — issuer and audience binding', () => {
+  const future = Math.floor(Date.now() / 1000) + 3600;
+  const claims = { exp: future, iss: 'syn-issuer', aud: ['syn-audience', 'syn-other'] };
+  const jwt = makeClaimsJwt(claims);
+
+  it('accepts a matching issuer and audience', () => {
+    const config: IJwtClaimsConfig = { ...EXP_60S, issuer: 'syn-issuer', audience: 'syn-audience' };
+    const isFresh = isJwtFresh(jwt, config);
+    expect(isFresh).toBe(true);
+  });
+
+  it('rejects a different issuer', () => {
+    const config: IJwtClaimsConfig = { ...EXP_60S, issuer: 'syn-other' };
+    const isFresh = isJwtFresh(jwt, config);
+    expect(isFresh).toBe(false);
+  });
+
+  it('rejects a missing issuer when one is expected', () => {
+    const jwt = makeClaimsJwt({ exp: future });
+    const config: IJwtClaimsConfig = { ...EXP_60S, issuer: 'syn-issuer' };
+    const isFresh = isJwtFresh(jwt, config);
+    expect(isFresh).toBe(false);
+  });
+
+  it('rejects a different audience in a string claim', () => {
+    const jwt = makeClaimsJwt({ exp: future, aud: 'syn-other' });
+    const config: IJwtClaimsConfig = { ...EXP_60S, audience: 'syn-audience' };
+    const isFresh = isJwtFresh(jwt, config);
+    expect(isFresh).toBe(false);
+  });
+
+  it('accepts a string audience that matches', () => {
+    const jwt = makeClaimsJwt({ exp: future, aud: 'syn-audience' });
+    const config: IJwtClaimsConfig = { ...EXP_60S, audience: 'syn-audience' };
+    const isFresh = isJwtFresh(jwt, config);
+    expect(isFresh).toBe(true);
+  });
+
+  it('rejects a non-string, non-array audience', () => {
+    const jwt = makeClaimsJwt({ exp: future, aud: 7 });
+    const config: IJwtClaimsConfig = { ...EXP_60S, audience: 'syn-audience' };
+    const isFresh = isJwtFresh(jwt, config);
+    expect(isFresh).toBe(false);
+  });
+
+  it('ignores both expectations when none are configured', () => {
+    const jwt = makeClaimsJwt({ exp: future, iss: 'any', aud: 'any' });
+    const isFresh = isJwtFresh(jwt, EXP_60S);
+    expect(isFresh).toBe(true);
+  });
+});
+
+describe('GenericJwtClaims.decodeNumericClaim', () => {
+  it.each(['exp', 'nbf'])('reads a numeric %s claim', field => {
+    const jwt = makeJwt(field, 1234);
+    const claim = decodeNumericClaim(jwt, field);
+    expect(claim).toBe(1234);
+  });
+
+  it('returns false for a malformed JWT', () => {
+    const claim = decodeNumericClaim('not-a-jwt', 'exp');
+    expect(claim).toBe(false);
+  });
+
+  it('returns false for a missing claim', () => {
+    const jwt = makeJwt('exp', 1234);
+    const claim = decodeNumericClaim(jwt, 'nbf');
+    expect(claim).toBe(false);
+  });
+});
 
 describe('GenericJwtClaims.isJwtFresh — exp branch', () => {
   it('returns true when exp is far in the future', () => {

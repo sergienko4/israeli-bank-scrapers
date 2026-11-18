@@ -27,6 +27,7 @@ interface IJwtClaimArgs {
   readonly claim: string;
   readonly optional: boolean;
   readonly creds: Creds;
+  readonly config: IApiDirectCallConfig;
 }
 
 /** Args bundle for `resolveDerivedPart` — keeps params ≤3. */
@@ -62,6 +63,7 @@ interface IStepJsonPathArgs {
 interface IMakeJwtClaimArgs {
   readonly bootstrap: Extract<SeedCarryBootstrapKind, { kind: 'jwt-claim' }>;
   readonly creds: Creds;
+  readonly config: IApiDirectCallConfig;
 }
 
 /** Shared context across derivedCarry entries — creds + config + carry. */
@@ -96,6 +98,7 @@ interface IReduceSeedCtx {
   readonly entry: SeedSourceEntry;
   readonly creds: Creds;
   readonly carry: CarryMut;
+  readonly config: IApiDirectCallConfig;
 }
 
 /** Bundle for `reduceDerivedPart` — one part RefToken + eval context. */

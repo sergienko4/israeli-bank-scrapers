@@ -9,7 +9,6 @@ import { getDebug } from '../../../../Logging/Debug.js';
 import type { Procedure } from '../../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../../Types/Procedure.js';
 import type { IApiDirectCallConfig } from '../../ConfigContracts/index.js';
-import { isJwtFresh } from '../../Jwt/GenericJwtClaims.js';
 import { MAX_ACCESS_TOKEN_CHARS } from '../../PersistentAuthStateRules.js';
 import type { GenericCreds, IMakeWarmArgs, IRunFlowArgs } from './TokenStrategyFromConfig.types.js';
 
@@ -37,6 +36,19 @@ function readCredsString(creds: GenericCreds, field: string): string {
 }
 
 /**
+ * Key that binds an account tag: the caller's password when supplied, else
+ * the bank-configured fallback. '' keeps the legacy unkeyed tag.
+ * @param creds - Caller credentials.
+ * @param fallback - Bank-configured tag key, or '' when none.
+ * @returns The tag key text.
+ */
+function accountTagKeyOf(creds: GenericCreds, fallback: string): string {
+  const password = readCredsString(creds, 'password');
+  if (password.length > 0) return password;
+  return fallback;
+}
+
+/**
  * Whether a stored seed looks like a token: printable ASCII within the
  * access-token length cap.
  * @param stored - Non-empty stored seed.
@@ -54,20 +66,6 @@ function isSeedShaped(stored: string): boolean {
 function dropMalformedSeed(credsField: string): false {
   LOG.warn({ credsField }, 'Stored warm token is malformed — running the cold login');
   return false;
-}
-
-/**
- * Whether the seed passes the config's local JWT freshness check, if any.
- * A 'bank-call' warm start leaves the judgement to the bank, so it skips the
- * local check even when `jwtClaims` is set.
- * @param config - API-direct-call config.
- * @param stored - Stored seed.
- * @returns True when there is no JWT check or the token is fresh.
- */
-function isJwtGateOpen(config: IApiDirectCallConfig, stored: string): boolean {
-  if (config.warmStart?.validation === 'bank-call') return true;
-  if (config.jwtClaims === undefined) return true;
-  return isJwtFresh(stored, config.jwtClaims);
 }
 
 /**
@@ -96,7 +94,6 @@ function pickWarmSeed(config: IApiDirectCallConfig, creds: GenericCreds): string
   const stored = readCredsString(creds, warm.credsField);
   if (stored.length === 0) return false;
   if (!isSeedShaped(stored)) return dropMalformedSeed(warm.credsField);
-  if (!isJwtGateOpen(config, stored)) return false;
   return stored;
 }
 
@@ -167,6 +164,7 @@ function gateFlowKind(config: IApiDirectCallConfig): Procedure<true> {
 }
 
 export {
+  accountTagKeyOf,
   gateFlowKind,
   isWarmSeedSupplied,
   makeWarmArgs,

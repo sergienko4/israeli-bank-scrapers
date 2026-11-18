@@ -6,8 +6,8 @@
         { "Currency": 124, "ActualDebitSum": 0, "TotalDebitSum": 0, "CurrencySymbol": "C$" },
         {
           "Currency": 376,
-          "ActualDebitSum": 13.84,
-          "TotalDebitSum": 13.84,
+          "ActualDebitSum": 0,
+          "TotalDebitSum": 0,
           "CurrencySymbol": " ₪"
         },
         { "Currency": 826, "ActualDebitSum": 0, "TotalDebitSum": 0, "CurrencySymbol": "p" },
@@ -24,7 +24,7 @@
           "CardImage": "https://www.max.co.il/SharedMedia/20779/max-executive-business-visa.png",
           "CreditLimit": 34000,
           "OpenToBuy": 33986.16,
-          "FixedDebit": 34000,
+          "FixedDebit": 0,
           "CycleSummary": [
             {
               "Date": "2026-06-02T00:00:00",
@@ -37,8 +37,8 @@
             {
               "Date": "2026-06-02T00:00:00",
               "Currency": 376,
-              "ActualDebitSum": 13.84,
-              "TotalDebitSum": 13.84,
+              "ActualDebitSum": 0,
+              "TotalDebitSum": 0,
               "IsFinnal": false,
               "CurrencySymbol": " ₪"
             },

@@ -38,8 +38,10 @@ generic `enrichCredentials` hook. Before the first phase, the provider:
 
 1. validates a non-empty caller credential and uses it instead of the
    generated signature (the override);
-2. reads the token's `deviceSeed`; when the token is absent or unusable it
-   generates a fresh random seed;
+2. reads the token's `deviceSeed` with the account tag keyed by the caller's
+   password (or the bank's configured fallback; a legacy unkeyed tag still
+   opens); when the token is absent or unusable it generates a fresh random
+   seed;
 3. derives `signatureSeed = HMAC-SHA256(deviceSeed, scope)`, builds a host
    profile, and asks the format for the signature — the device value is never
    stored;

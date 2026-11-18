@@ -85,6 +85,9 @@ describe('PAYBOX_API_DIRECT_CALL — flow shape', () => {
       credsField: 'otpLongTermToken',
       carryField: 'token',
       fromStepIndex: 3,
+      provider: 'paybox',
+      accountFields: ['phoneNumber'],
+      accountTagKey: 'paybox-warm-token-v1',
     });
   });
 

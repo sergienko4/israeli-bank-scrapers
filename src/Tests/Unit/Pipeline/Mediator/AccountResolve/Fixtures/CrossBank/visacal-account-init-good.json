@@ -12,7 +12,7 @@
       "captureIndex": 25,
       "responseBody": {
         "result": {
-          "user": { "firstName": "TEST", "lastName": "USER" },
+          "user": { "firstName": "[redacted-name]", "lastName": "[redacted-name]" },
           "cards": [
             {
               "cardUniqueId": "FAKE-VC-CARD-AAAA",

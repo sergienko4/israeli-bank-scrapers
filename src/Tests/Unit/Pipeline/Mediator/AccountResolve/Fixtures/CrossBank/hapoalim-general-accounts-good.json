@@ -14,7 +14,7 @@
         {
           "bankNumber": 12,
           "branchNumber": 170,
-          "accountNumber": 999999,
+          "accountNumber": 0,
           "productLabel": "FAKE-HAPOALIM-001"
         }
       ]

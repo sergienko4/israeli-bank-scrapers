@@ -96,6 +96,17 @@ function withValues(
 }
 
 /**
+ * Key for the account tag: the caller's password, or the bank fallback.
+ * @param source - Warm token, its config and credentials.
+ * @returns The tag key, or '' when neither is supplied.
+ */
+function tagKeyOf(source: IWarmTokenSource): string {
+  const password = suppliedValue(source.credentials, 'password');
+  if (password !== '') return password;
+  return source.warmStart.accountTagKey ?? '';
+}
+
+/**
  * The decoder expectation a source's warm config describes.
  * @param source - Warm token, its config and the seed slot.
  * @returns The expectation the decoder validates.
@@ -105,7 +116,8 @@ function expectationOf(source: IWarmTokenSource): WarmExpectation {
     suppliedValue(source.credentials, field),
   );
   const { provider, slots, cookies: hasCookies, maxTokenChars } = source.warmStart;
-  return { provider, accounts, slots, hasCookies, maxChars: maxTokenChars };
+  const tagKey = tagKeyOf(source);
+  return { provider, accounts, tagKey, slots, hasCookies, maxChars: maxTokenChars };
 }
 
 /**

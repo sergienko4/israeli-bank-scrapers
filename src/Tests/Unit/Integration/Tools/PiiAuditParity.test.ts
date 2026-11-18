@@ -18,9 +18,13 @@
  * have caught.
  */
 
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import {
   type AuditHit,
   auditText,
+  fixtureFiles,
   RULE_IDS,
   ruleRegex,
 } from '../../../../../scripts/audit-fixtures-pii.cjs';
@@ -362,5 +366,43 @@ describe('fixtures-pii gate parity with PiiRedactor', () => {
   it.each(NEGATIVE_CASES)('never flags a $key look-alike', row => {
     const fired = failingRules(row.input);
     expect(fired).toEqual([]);
+  });
+});
+
+describe('fixtures-pii scope canary', () => {
+  it('walks both the integration bank fixtures and the unit fixtures', () => {
+    const files = fixtureFiles();
+    const cwd = process.cwd();
+    const unitRoot = join(cwd, 'src', 'Tests', 'Unit');
+    const integrationRoot = join(cwd, 'src', 'Tests', 'Integration');
+    let hasUnit = false;
+    let hasIntegration = false;
+    for (const file of files) {
+      if (file.startsWith(unitRoot)) hasUnit = true;
+      if (file.startsWith(integrationRoot)) hasIntegration = true;
+    }
+    expect(hasUnit).toBe(true);
+    expect(hasIntegration).toBe(true);
+  });
+
+  it('audits the unit-fixture canary with no reported hits', () => {
+    const cwd = process.cwd();
+    const canary = join(
+      cwd,
+      'src',
+      'Tests',
+      'Unit',
+      'Pipeline',
+      'Infrastructure',
+      'fixtures',
+      'beinleumi-dump',
+      '0002-balances-105.json',
+    );
+    const files = fixtureFiles();
+    expect(files).toContain(canary);
+    const raw = readFileSync(canary, 'utf8');
+    const hits = auditText(raw);
+    const reported = hits.filter(hit => hit.pat.severity !== 'INFO');
+    expect(reported).toEqual([]);
   });
 });

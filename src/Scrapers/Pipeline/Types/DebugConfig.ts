@@ -18,6 +18,16 @@ const SENSITIVE_PATHS = [
   'credentials.card6Digits',
   'credentials.num',
   'authorization',
+  // Credential keys logged at the top level, including the canonical
+  // user code, the legacy Yahav alias and the national ID.
+  'userCode',
+  'username',
+  'nationalID',
+  'num',
+  'otpCodeRetriever',
+  // Every credential key, including one added later, is default-deny inside
+  // the credential bag; the path tail still selects the per-category hint.
+  'credentials.*',
   // Internal card GUIDs (WL_SENSITIVE_KEYS that appear in top-level log objects)
   'cardUniqueId',
   'cardUniqueID',
@@ -51,6 +61,12 @@ const SENSITIVE_PATHS = [
   'description',
   'merchant',
   'payee',
+  // Carry slots hold live session material: tokens, device seeds, keys and
+  // derived identifiers. A wildcard keeps every current and future slot
+  // default-deny even when a new bank adds one.
+  'carry.*',
+  // Static config literals (app ids, signing keys, salts).
+  'secrets.*',
   // Long-term auth context (otpLongTermToken + assertion ids) — fully redacted.
   // `longTermToken` is the onAuthFlowComplete payload key and
   // `persistentOtpToken` is the public result field; the same durable
@@ -69,6 +85,10 @@ const SENSITIVE_PATHS = [
   'credentials.mfp',
   'idToken',
   'otpToken',
+  'accessToken',
+  'ecPrivateKeyPkcs8Base64',
+  '*.accessToken',
+  '*.ecPrivateKeyPkcs8Base64',
   'smsAssertionId',
   'pwdAssertionId',
   'otpContext',
@@ -85,6 +105,11 @@ const SENSITIVE_PATHS = [
   'cookie',
   'cookies',
   'setCookie',
+  // Request and answer headers, at the top level or under a record. Banks
+  // put session ids and custom auth headers in both shapes.
+  'headers.*',
+  '*.headers.*',
+  '["set-cookie"]',
 ];
 
 export default SENSITIVE_PATHS;

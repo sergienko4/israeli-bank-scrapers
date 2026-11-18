@@ -93,8 +93,8 @@ function chargedOf(row: Row): number {
 }
 
 describe('TxnMapper/NumericDirectionCode', () => {
-  it('maps the real captured inbound row positive, unchanged', () => {
-    const row = realRow();
+  it('maps an inbound code on the captured row positive', () => {
+    const row = rowWith(INBOUND, 150);
     const txn = mapRow(row);
     expect(txn.chargedAmount).toBe(150);
   });
