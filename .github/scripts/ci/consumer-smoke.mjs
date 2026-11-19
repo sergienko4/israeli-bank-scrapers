@@ -1,4 +1,5 @@
 import * as scraperExports from '@sergienko4/israeli-bank-scrapers';
 import smoke from './smoke.cjs';
 
+smoke.assertPublicEnums(scraperExports);
 await smoke.runScrape(scraperExports, process.argv[2]);

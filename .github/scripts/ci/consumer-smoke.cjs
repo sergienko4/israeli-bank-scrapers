@@ -47,6 +47,36 @@ const DUMMY_CREDENTIALS = {
 };
 
 /**
+ * Runtime enum values the packed package must expose. A missing export or a
+ * renamed member is invisible to the scrape scenarios, so both entry points
+ * check it before the first request.
+ */
+const PUBLIC_ENUMS = [
+  ['ScraperErrorTypes', { WafBlocked: 'WAF_BLOCKED' }],
+  ['TransactionTypes', { Normal: 'normal', Installments: 'installments' }],
+  ['TransactionStatuses', { Completed: 'completed', Pending: 'pending' }],
+  ['ScraperProgressTypes', { Initializing: 'INITIALIZING', EndScraping: 'END_SCRAPING' }],
+];
+
+/**
+ * Assert the packed package exposes the public runtime enums.
+ * @param {object} exports - The package's exports.
+ * @returns {void}
+ */
+function assertPublicEnums(exports) {
+  for (const [name, members] of PUBLIC_ENUMS) {
+    const enumValue = exports[name];
+    if (enumValue === undefined) throw new Error(`missing public export ${name}`);
+    for (const [member, expected] of Object.entries(members)) {
+      if (enumValue[member] !== expected) {
+        throw new Error(`${name}.${member} is not ${expected}`);
+      }
+    }
+  }
+  console.log('PUBLIC_ENUMS_OK');
+}
+
+/**
  * Replacement `fetch` for the Leumi scenario: accepts only the prime URL.
  * @param {string | URL | Request} input - The request target.
  * @returns {Promise<Response>} A synthetic 503.
@@ -538,7 +568,9 @@ async function runScrape(exports, name = DEFAULT_SCENARIO) {
   }
 }
 
-module.exports = { runScrape };
+module.exports = { assertPublicEnums, runScrape };
 if (require.main === module) {
-  runScrape(require('@sergienko4/israeli-bank-scrapers'), process.argv[2]);
+  const pkg = require('@sergienko4/israeli-bank-scrapers');
+  assertPublicEnums(pkg);
+  runScrape(pkg, process.argv[2]);
 }

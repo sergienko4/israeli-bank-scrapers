@@ -98,6 +98,21 @@ declare enum ScraperProgressTypes {
     Terminating = "TERMINATING"
 }
 
+/** Categorized error types returned by scrapers on failure. */
+declare enum ScraperErrorTypes {
+    TwoFactorRetrieverMissing = "TWO_FACTOR_RETRIEVER_MISSING",
+    InvalidOtp = "INVALID_OTP",
+    InvalidPassword = "INVALID_PASSWORD",
+    /** Supplied `phoneNumber` cannot be normalised to the bank's wire format. */
+    InvalidPhoneNumber = "INVALID_PHONE_NUMBER",
+    ChangePassword = "CHANGE_PASSWORD",
+    Timeout = "TIMEOUT",
+    NetworkError = "NETWORK_ERROR",
+    AccountBlocked = "ACCOUNT_BLOCKED",
+    Generic = "GENERIC",
+    WafBlocked = "WAF_BLOCKED"
+}
+
 /**
  * Type-level alias that resolves to void at compile time.
  * Used in callback parameter types where the return value is intentionally ignored.
@@ -299,21 +314,6 @@ interface ITransaction {
     status: TransactionStatuses;
     installments?: ITransactionInstallments;
     category?: string;
-}
-
-/** Categorized error types returned by scrapers on failure. */
-declare enum ScraperErrorTypes {
-    TwoFactorRetrieverMissing = "TWO_FACTOR_RETRIEVER_MISSING",
-    InvalidOtp = "INVALID_OTP",
-    InvalidPassword = "INVALID_PASSWORD",
-    /** Supplied `phoneNumber` cannot be normalised to the bank's wire format. */
-    InvalidPhoneNumber = "INVALID_PHONE_NUMBER",
-    ChangePassword = "CHANGE_PASSWORD",
-    Timeout = "TIMEOUT",
-    NetworkError = "NETWORK_ERROR",
-    AccountBlocked = "ACCOUNT_BLOCKED",
-    Generic = "GENERIC",
-    WafBlocked = "WAF_BLOCKED"
 }
 
 /** Structured details a legacy WAF-block result may carry. */
@@ -562,5 +562,5 @@ type ScraperScrapingResult = IScraperScrapingResult;
  */
 declare function createScraper(options: ScraperOptions): IScraper<ScraperCredentials>;
 
-export { CompanyTypes, SCRAPERS, createScraper };
-export type { IScraper, IScraperScrapingResult, IWindowCoverage, IWindowCovered, IWindowLowerBoundReached, IWindowUnproven, Scraper, ScraperCredentials, ScraperOptions, ScraperScrapingResult, WindowCaveat, WindowUnprovenReason };
+export { CompanyTypes, SCRAPERS, ScraperErrorTypes, ScraperProgressTypes, TransactionStatuses, TransactionTypes, createScraper };
+export type { IAuthFlowInfo, IScraper, IScraperScrapingResult, ITransaction, IWafErrorDetails, IWindowCoverage, IWindowCovered, IWindowLowerBoundReached, IWindowUnproven, Scraper, ScraperCredentials, ScraperOptions, ScraperScrapingResult, WindowCaveat, WindowUnprovenReason };
