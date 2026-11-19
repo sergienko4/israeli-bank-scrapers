@@ -69,6 +69,7 @@ function logicalRequirements(raw: string): readonly string[] {
       current = '';
     }
   }
+  if (current.length > 0) logical.push(current);
   return logical;
 }
 
@@ -134,6 +135,11 @@ describe('docs dependency pins', () => {
       expect(requirement).toMatch(/^[\w.-]+==\S+/);
       expect(requirement).toContain('--hash=sha256:');
     }
+  });
+
+  it('keeps a final requirement that ends with a continuation', () => {
+    const parsed = logicalRequirements('click==8.5.1 \\\n');
+    expect(parsed).toEqual(['click==8.5.1']);
   });
 
   it('keeps the lock in step with requirements-docs.in', () => {
