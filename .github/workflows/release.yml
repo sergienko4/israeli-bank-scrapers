@@ -49,7 +49,8 @@ permissions:
 # ──────────────────────────────────────────────────────────────
 # Job DAG:
 #
-#   release-please ─┬─→ upgrade-notes (if release_created)
+#   release-please ─┬─→ stamp-compatibility (if a release PR exists)
+#                   ├─→ upgrade-notes (if release_created)
 #                   └─→ publish       (if release_created)
 #
 # No validate job — PR checks already passed before merge.
@@ -75,6 +76,9 @@ jobs:
       release_created: ${{ steps.release.outputs.release_created == 'true' || inputs.force_publish == 'true' }}
       tag_name: ${{ steps.release.outputs.tag_name }}
       version: ${{ steps.release.outputs.version }}
+      # The release PR release-please opened or refreshed, as JSON. Empty on
+      # the run that cuts the release, because the PR has just been merged.
+      pr: ${{ steps.release.outputs.pr }}
     steps:
       - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         id: release
@@ -82,6 +86,64 @@ jobs:
           token: ${{ secrets.RELEASE_TOKEN }} # PAT with contents:write — needed for cross-branch release commits
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+
+  # Stamp the compatibility notes on the release PR itself. `main` requires a
+  # PR, so a post-release push cannot work; the release PR is also the one
+  # place where the proposed version is known, because release-please writes it
+  # to `package.json`. Stamping there means the notes land through the merge
+  # the maintainer already makes, with no separate version record to maintain.
+  #
+  # release-please may reset the branch on its next run; this job then runs
+  # again and re-applies, and the final PR always carries the stamped files.
+  stamp-compatibility:
+    name: Stamp compatibility notes
+    needs: [release-please]
+    if: needs.release-please.outputs.release_created != 'true' && needs.release-please.outputs.pr != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Resolve the release PR branch
+        id: pr
+        env:
+          PR: ${{ needs.release-please.outputs.pr }}
+        run: |
+          set -euo pipefail
+          branch=$(jq -r '.headBranchName' <<< "$PR")
+          if [ -z "$branch" ] || [ "$branch" = "null" ]; then
+            echo "::error::release-please reported a pull request without a head branch."
+            exit 1
+          fi
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.pr.outputs.branch }}
+          # Tags are the release record: the stamp must know the highest
+          # released version so it cannot move a historical untagged note.
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Stamp the proposed release version
+        run: |
+          set -euo pipefail
+          VERSION=$(node -p "require('./package.json').version")
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          node scripts/stamp-compatibility.mjs --version "$VERSION"
+      - name: Push the stamp to the release PR branch
+        env:
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          BRANCH: ${{ steps.pr.outputs.branch }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- compatibility.json docs/compatibility.md; then
+            echo "Compatibility notes already stamped."
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add compatibility.json docs/compatibility.md
+          git commit -m 'chore(release): stamp compatibility notes' -m "Release ${VERSION}."
+          git push "https://x-access-token:${RELEASE_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${BRANCH}"
 
   # release-please writes the changelog (what changed); this adds the part a
   # consumer actually needs on upgrade (whether they must do anything). Runs
@@ -97,6 +159,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # Tags let the selector include only the newest release's sentinel
+          # entries, never a pending note when re-rendering an old release.
+          fetch-depth: 0
           persist-credentials: false
       - name: Append the Upgrading section to the release body
         env:
@@ -219,9 +284,11 @@ jobs:
   # previous version. That happens whenever `publish` is SKIPPED rather than
   # failed — a skipped job is not a red workflow, so nothing raises a hand.
   # This job runs whenever a release was created and fails unless `publish`
-  # actually succeeded, converting silence into a failed run.
+  # actually succeeded. It also proves the compatibility page names the
+  # released version, so a note that missed the release-PR stamp cannot hide
+  # behind a green publish.
   release-complete:
-    name: Release reached npm
+    name: Release completed
     needs: [release-please, publish]
     if: always() && needs.release-please.outputs.release_created == 'true'
     runs-on: ubuntu-latest
@@ -230,6 +297,7 @@ jobs:
       contents: read
     steps:
       - name: Publish job must have succeeded
+        if: ${{ !cancelled() }}
         env:
           PUBLISH_RESULT: ${{ needs.publish.result }}
           VERSION: ${{ needs.release-please.outputs.version }}
@@ -244,3 +312,14 @@ jobs:
           echo "       and CHANGELOG all claim this version shipped, but npm is" >&2
           echo "       still serving the previous one." >&2
           exit 1
+      # The release PR stamp normally makes every entry name a real release.
+      # This is the proof: with the new tag fetched, strict mode rejects any
+      # sentinel or version newer than the highest tag that slipped through.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: ${{ !cancelled() }}
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Compatibility notes match the released version
+        if: ${{ !cancelled() }}
+        run: node scripts/check-compatibility-versions.mjs --strict

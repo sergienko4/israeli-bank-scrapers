@@ -371,6 +371,17 @@ jobs:
         if: ${{ !cancelled() && steps.ready.outcome == 'success' && (needs.changes.outputs.docs == 'true') }}
         run: node scripts/build-compatibility.mjs --check
 
+      # A compatibility entry may name a release only when that release
+      # happened. The check reads the `v*` tags and the version release-please
+      # proposed in `package.json`, so no local list of versions exists to
+      # drift. It runs on every PR, not only docs changes: a guessed number is
+      # exactly what this gate exists to stop.
+      - name: Compatibility versions are released or unreleased
+        if: ${{ !cancelled() && steps.ready.outcome == 'success' }}
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || 'origin/main' }}
+        run: node scripts/check-compatibility-versions.mjs --base "$BASE_SHA"
+
       # The Node range we advertise and the range we test drift apart in four
       # different ways (see the script header). This is a pure file-consistency
       # check, so it runs whenever any of its four inputs could have moved —

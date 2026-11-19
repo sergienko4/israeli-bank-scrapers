@@ -598,6 +598,13 @@ commit stages source code; it skips commits that touch only `.github/`,
 `.husky/`, Markdown, JSON or YAML files, which covers most files bound to this
 page. The guard tests still run on bot pull requests that touch CI scripts or
 dependencies.
+The compatibility tooling is part of `ci_scripts` for the same reason:
+`build-compatibility.mjs`, `upgrade-notes.mjs`, `stamp-compatibility.mjs` and
+`check-compatibility-versions.mjs` sit outside `src/`, so a script-only edit
+would otherwise skip the unit suite that proves it. The compatibility version
+gate is not exempt for bot pull requests: a release PR is checked against the
+version release-please wrote to its own `package.json`, not against a manually
+maintained list.
 Two gaps remain, and each needs a person to update the page: a bot bump that
 changes behaviour this page describes, such as a `scorecard-action` bump
 whose engine fixes a finding recorded below, and a human commit on a bot

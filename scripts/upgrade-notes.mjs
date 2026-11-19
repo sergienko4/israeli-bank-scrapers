@@ -22,7 +22,13 @@
  */
 import { argv, exit, stderr, stdout } from 'node:process';
 import { pathToFileURL } from 'node:url';
-import { IMPACT_LABEL, readData } from './build-compatibility.mjs';
+import {
+  compareSemver,
+  IMPACT_LABEL,
+  readData,
+  readReleasedVersions,
+  UNRELEASED,
+} from './build-compatibility.mjs';
 
 const DOCS_URL = 'https://sergienko4.github.io/israeli-bank-scrapers/compatibility/';
 
@@ -86,16 +92,46 @@ function renderActions(entries) {
 }
 
 /**
- * Renders the whole section, listing every entry for the version.
+ * Whether the requested version is the newest release, so entries still
+ * carrying the sentinel belong to it.
+ * @param version Target version, without a leading `v`.
+ * @param releasedVersions Versions that already have a `v*` tag.
+ * @returns True when no tagged version is newer than the target.
+ */
+function isNewestRelease(version, releasedVersions) {
+  return releasedVersions.every((tagged) => compareSemver(tagged, version) <= 0);
+}
+
+/**
+ * Renders the whole section, listing every entry for the version. Sentinel
+ * entries are included only for the newest release, so re-rendering an old
+ * release cannot pick up notes that belong to the next one.
  * @param version Target version, without a leading `v`.
  * @param data Parsed compatibility document.
+ * @param releasedVersions Versions that already have a `v*` tag.
  * @returns Complete Markdown section.
  */
-export function renderSection(version, data) {
-  const entries = data.entries.filter((e) => e.version === version);
+export function renderSection(version, data, releasedVersions = []) {
+  const includeUnreleased = isNewestRelease(version, releasedVersions);
+  const entries = data.entries.filter(
+    (e) => e.version === version || (includeUnreleased && e.version === UNRELEASED),
+  );
   const body = entries.length > 0 ? renderActions(entries) : renderNoAction();
   const lines = [`## Upgrading to ${version}`, '', ...body, '', `Requires Node ${data.runtime.node}.`, '', `Full upgrade notes: ${DOCS_URL}`];
   return `${lines.join('\n')}\n`;
+}
+
+/**
+ * Read tags without failing the release body when the checkout is shallow.
+ * @returns Released versions, or an empty list when git cannot list tags.
+ */
+function releasedVersionsOrEmpty() {
+  try {
+    return readReleasedVersions();
+  } catch (error) {
+    stderr.write(`warning: could not read release tags (${error.message}); including unreleased notes\n`);
+    return [];
+  }
 }
 
 /** Entry point: resolve the version, then print the section. */
@@ -105,7 +141,7 @@ function main() {
     stderr.write('usage: node scripts/upgrade-notes.mjs --version <x.y.z>\n');
     exit(2);
   }
-  stdout.write(renderSection(version, readData()));
+  stdout.write(renderSection(version, readData(), releasedVersionsOrEmpty()));
 }
 
 // Only run the CLI when invoked directly, so the renderer above can be

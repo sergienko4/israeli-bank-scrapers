@@ -9,26 +9,61 @@
 ```mermaid
 flowchart LR
     MERGE[Squash merge to main]
-    RP[release-please<br/>tag + GitHub release + CHANGELOG]
+    PR[release-please<br/>updates the release PR]
+    STAMP[stamp compatibility notes<br/>on the release PR]
+    REL[merge the release PR<br/>tag + GitHub release + CHANGELOG]
     PUB[npm publish<br/>--provenance]
     SCAN[npm scans the tarball<br/>version not yet installable]
     VER[Verify installable<br/>version + dist-tag + attestation]
-    OK[Release reached npm]
+    OK[Release completed]
 
-    MERGE --> RP -->|"release_created"| PUB --> SCAN --> VER --> OK
+    MERGE --> PR --> STAMP --> REL -->|"release_created"| PUB --> SCAN --> VER --> OK
     VER -.->|"registry disagrees"| FAIL[Workflow fails]
     PUB -.->|"skipped"| FAIL
 ```
 
-Two guards exist because `npm publish` exiting `0` is a weaker claim than it
-looks:
+Three guards exist because `npm publish` exiting `0` is a weaker claim than it
+looks, and because the release notes must name a release that happened:
 
-| Guard                               | Failure it catches                                                                                                                                                                                                                   |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `Verify the release is installable` | The tarball was accepted but the version is not yet resolvable, or `dist-tags.latest` still points at the previous version, so `npm install` keeps serving old code — or the OIDC exchange degraded and published without provenance |
-| `Release reached npm`               | The `publish` job was **skipped**. A skipped job is not a red workflow, so the tag, GitHub release and CHANGELOG all say "shipped" while npm serves the previous version                                                             |
+| Guard                                            | Failure it catches                                                                                                                                                                                                                   |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Verify the release is installable`              | The tarball was accepted but the version is not yet resolvable, or `dist-tags.latest` still points at the previous version, so `npm install` keeps serving old code — or the OIDC exchange degraded and published without provenance |
+| `Release completed`                              | The `publish` job was **skipped**. A skipped job is not a red workflow, so the tag, GitHub release and CHANGELOG all say "shipped" while npm serves the previous version                                                             |
+| `Compatibility notes match the released version` | A sentinel or a version newer than the highest tag survived the release PR, so the committed page would name a release that does not exist                                                                                           |
 
-Both live in [`.github/workflows/release.yml`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/.github/workflows/release.yml).
+All three live in [`.github/workflows/release.yml`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/.github/workflows/release.yml).
+
+## Compatibility notes are version-agnostic
+
+`compatibility.json` is the source of truth for upgrade notes, but its
+`version` field is not a place for a human to guess. A new entry uses the
+sentinel:
+
+```json
+{ "version": "unreleased", "impact": "behavior", "title": "..." }
+```
+
+The release process fills in the number:
+
+1. On a normal merge, release-please updates its release PR and writes the
+   proposed version to `package.json` on that branch.
+2. The `stamp-compatibility` job checks out the release PR branch, reads that
+   version, and rewrites every entry newer than the highest `v*` tag — sentinel
+   or guessed number alike. Entries for older releases, including the two
+   historical notes that predate tagging, are left alone.
+3. The job pushes the two stamped files back to the release PR branch. The
+   maintainer merges the PR as usual; release-please tags the same version.
+4. After the tag exists, the strict version guard proves no sentinel or
+   newer-than-released entry survived.
+
+There is no separate version record to maintain. The tags are the release
+record and release-please's `package.json` is the proposed version. A PR that
+types a new number without a tag fails `Compatibility versions are released or
+unreleased` in the static checks and is told to write `unreleased` instead.
+
+The four entries currently labelled `10.1.0` are grandfathered: they were
+written before the sentinel existed, and the first release PR stamps them if
+release-please proposes a different version.
 
 ## Publishing is no longer the same moment as being installable
 
@@ -113,7 +148,7 @@ than re-running.
 | Provenance attestation | `publishConfig.provenance` + Trusted Publishing OIDC | Release workflow fails if the published version has no attestation                                                                                                                                                                                                                                         |
 | `dist-tags.latest`     | `npm publish`                                        | Polled back from the registry after every publish                                                                                                                                                                                                                                                          |
 | Supported Node range   | `engines.node`                                       | The packed-consumer smoke runs on the floor, and the unit matrix on the `.nvmrc` pin, latest 24.x and latest 26.x (see [Node support policy](#node-support-policy) for when it runs); `npm run lint:node-support` fails the build if `.nvmrc`, `engines.node`, the CI matrix and the README table disagree |
-| Upgrade notes          | `compatibility.json`                                 | `npm run compat:check` diffs the generated page against its source                                                                                                                                                                                                                                         |
+| Upgrade notes          | `compatibility.json`                                 | New entries use `unreleased`; the release PR stamps release-please's version. `compat:check` diffs the generated page against its source and `compat:versions` rejects a guessed number                                                                                                                    |
 
 ## Node support policy
 

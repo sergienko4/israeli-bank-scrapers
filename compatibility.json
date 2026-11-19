@@ -1,5 +1,5 @@
 {
-  "$comment": "Source of truth for docs/compatibility.md. Edit this file, then run `npm run compat:build`. CI fails if the generated page drifts from this data (`npm run compat:check`).",
+  "$comment": "Source of truth for docs/compatibility.md. Write new entries with \"version\": \"unreleased\"; the release PR stamps them with the version release-please proposes. Edit this file, then run `npm run compat:build`. CI fails if the generated page drifts (`npm run compat:check`) or a version is guessed (`npm run compat:versions`).",
   "package": "@sergienko4/israeli-bank-scrapers",
   "runtime": {
     "node": ">= 24.11.0",
