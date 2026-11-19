@@ -42,7 +42,7 @@ jobs:
       - run: npm ci
 
       - name: Install mkdocs + plugins
-        run: pip install -r requirements-docs.txt
+        run: 'pip install --require-hashes --only-binary=:all: -r requirements-docs.txt'
 
       - name: Build mkdocs (strict — fails on dead links)
         run: PYTHONPATH=. zensical build --clean --strict

@@ -9,6 +9,10 @@
 # array below. Each entry there MUST document the reason and the
 # last-reviewed date.
 #
+# `--list-packages` prints the parsed package names and exits without
+# network access; the docs-pin policy test uses it to prove the hash
+# continuation lines are not mistaken for packages.
+#
 # Why this exists: `actions/dependency-review-action` only warns on
 # Scorecard regressions (it has no fail-on-scorecard input). For
 # production code we want hard failures so a new low-scoring
@@ -18,6 +22,20 @@ set -euo pipefail
 
 THRESHOLD="${SCORECARD_THRESHOLD:-3.0}"
 REQ_FILE="${REQUIREMENTS_FILE:-requirements-docs.txt}"
+
+# Only requirement headers are packages. A generated hash lock puts
+# `    --hash=sha256:...` continuation lines under each header; those are
+# not package names and must never reach the PyPI lookup.
+list_packages() {
+  grep -E '^[A-Za-z0-9_.-]+[[:space:]]*([<>=!~]|$)' "$REQ_FILE" \
+    | sed -E 's/[[:space:]]*([<>=!~].*)?$//' \
+    | tr -d '\r'
+}
+
+if [ "${1:-}" = "--list-packages" ]; then
+  list_packages
+  exit 0
+fi
 
 # Documented exceptions. Format: package name (lowercase) → rationale.
 # Adding an entry implies the reviewer accepted the score AND
@@ -34,8 +52,7 @@ CHECKED=0
 SKIPPED=0
 ACCEPTED=0
 
-# Strip comments/blanks/extras; produce one package name per line.
-mapfile -t PKGS < <(grep -vE '^\s*(#|$)' "$REQ_FILE" | sed -E 's/[[:space:]]*([<>=!~].*)?$//' | tr -d '\r')
+mapfile -t PKGS < <(list_packages)
 
 for raw_pkg in "${PKGS[@]}"; do
   pkg="${raw_pkg,,}"  # lowercase for the ACCEPTED key + Scorecard URL casing
