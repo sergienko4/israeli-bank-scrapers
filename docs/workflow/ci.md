@@ -285,6 +285,10 @@ the account's concurrent-job limit.
   with and without `NODE_ENV=production`; the scenario is the program's first
   argument. Both replace `fetch` outright and never call the original, so a
   request they do not recognise fails closed and cannot reach a network.
+  Before the first request, both entry points assert the packed package still
+  exports `ScraperErrorTypes`, `TransactionTypes`, `TransactionStatuses` and
+  `ScraperProgressTypes` with their exact member values. A missing or renamed
+  public enum fails the gate before any scenario runs.
   - `leumi-503` uses native Leumi and a synthetic 503 response, so the expected
     failure is `prime HTTP 503`. The synthetic handler accepts only
     `https://hb2.bankleumi.co.il/H/Login.html`; a wrong host or path fails
