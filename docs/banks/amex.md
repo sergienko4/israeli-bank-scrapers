@@ -51,7 +51,10 @@ starts. The ring edge challenges Node's stock handshake and its habit of
 placing `Host`/`Connection` after the caller's headers. The transport presents
 OpenSSL's HTTP/1.1 cipher list, sends `Host`, `Accept-Encoding: identity` and
 `Connection: keep-alive` first, and capitalizes `User-Agent`, `BCKey` and
-`TraceIdentifier`. `identity` keeps the response uncompressed, so the
+`TraceIdentifier`. Every call also carries the app's
+`Access-Control-Allow-Origin: *` default and an `X-CLIENT-IP` header; the
+library sends the app's `0.0.0.0` fallback rather than calling its external-IP
+lookup service. `identity` keeps the response uncompressed, so the
 transport needs no decompressor. Browser options passed to `createScraper` are
 no longer supported; see the
 [migration notes](../configuration.md#removed-browser-options).

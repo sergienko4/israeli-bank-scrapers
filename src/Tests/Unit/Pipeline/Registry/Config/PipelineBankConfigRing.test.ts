@@ -268,11 +268,13 @@ describe.each(ISSUERS)('ring login config — $bank', issuer => {
       'Accept-Encoding',
       'Connection',
       'Accept',
+      'Access-Control-Allow-Origin',
       'Content-Type',
       'isrdomain',
       'Accept-Language',
       'platform',
       'User-Agent',
+      'X-CLIENT-IP',
     ]);
     expect(call.staticHeaders).toMatchObject({
       Host: new URL(issuer.origin).host,
@@ -281,6 +283,8 @@ describe.each(ISSUERS)('ring login config — $bank', issuer => {
       isrdomain: issuer.isrdomain,
       platform: 'mobile',
       'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'X-CLIENT-IP': '0.0.0.0',
     });
     const userAgent = call.staticHeaders?.['User-Agent'] ?? '';
     expect(userAgent).toContain('Chrome/83');

@@ -243,6 +243,8 @@ describe('ring headers', () => {
       BCKey: 'bc-1',
       'Accept-Encoding': 'identity',
       Connection: 'keep-alive',
+      'Access-Control-Allow-Origin': '*',
+      'X-CLIENT-IP': '0.0.0.0',
     });
     expect(first.TraceIdentifier).toMatch(UUID);
     expect(second.TraceIdentifier).not.toBe(first.TraceIdentifier);

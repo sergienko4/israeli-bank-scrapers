@@ -49,8 +49,11 @@ node:https transport with the `openssl-http1` ClientHello and a cookie jar, so
 no browser starts. The ring edge challenges Node's stock handshake and header
 order; the transport sends `Host`, `Accept-Encoding: identity` and
 `Connection: keep-alive` first, then the app headers, and capitalizes
-`User-Agent`, `BCKey` and `TraceIdentifier`. Browser options passed to
-`createScraper` are no longer supported; see the
+`User-Agent`, `BCKey` and `TraceIdentifier`. Every call also carries the app's
+`Access-Control-Allow-Origin: *` default and an `X-CLIENT-IP` header; the
+library sends the app's `0.0.0.0` fallback rather than calling its external-IP
+lookup service. Browser options passed to `createScraper` are no longer
+supported; see the
 [migration notes](../configuration.md#removed-browser-options).
 
 `validate` succeeds on `returnCode` `1`; `4` fails the run as
