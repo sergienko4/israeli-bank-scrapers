@@ -1,5 +1,40 @@
 # Changelog
 
+## [10.1.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v10.0.1...v10.1.0) (2026-11-19)
+
+
+### Features
+
+* add run cancellation and deadlines ([#864](https://github.com/sergienko4/israeli-bank-scrapers/issues/864)) ([6388538](https://github.com/sergienko4/israeli-bank-scrapers/commit/6388538d3453d5ba6068f1296e24514ddd839b00))
+* automate release compatibility versions ([#873](https://github.com/sergienko4/israeli-bank-scrapers/issues/873)) ([589896a](https://github.com/sergienko4/israeli-bank-scrapers/commit/589896a623a5f14f0618295a657550f6f93928f8))
+* export the public runtime enums ([#875](https://github.com/sergienko4/israeli-bank-scrapers/issues/875)) ([6573bb5](https://github.com/sergienko4/israeli-bank-scrapers/commit/6573bb5650a2f251a1f12f2adcdec4f12e7018a7))
+* gate symbol-level dead code ([#791](https://github.com/sergienko4/israeli-bank-scrapers/issues/791)) ([1dba151](https://github.com/sergienko4/israeli-bank-scrapers/commit/1dba1510eb71200acca4a019afedf18d1da94ce1))
+* harden redaction and warm-token binding ([#871](https://github.com/sergienko4/israeli-bank-scrapers/issues/871)) ([45a9e4c](https://github.com/sergienko4/israeli-bank-scrapers/commit/45a9e4c2991be748cffad67f7fe241806ca9b1ec))
+* omit bank text by default and share result guards ([#868](https://github.com/sergienko4/israeli-bank-scrapers/issues/868)) ([5c27c28](https://github.com/sergienko4/israeli-bank-scrapers/commit/5c27c288d0313831d9b546816422f5fbf6d62192))
+* **pepper:** derive the device name per user ([#877](https://github.com/sergienko4/israeli-bank-scrapers/issues/877)) ([b614cf0](https://github.com/sergienko4/israeli-bank-scrapers/commit/b614cf0d4c8cd0e707e2a53291bd601a6e8b354a))
+* use the Hapoalim app flow ([#785](https://github.com/sergienko4/israeli-bank-scrapers/issues/785)) ([f3214a9](https://github.com/sergienko4/israeli-bank-scrapers/commit/f3214a98cca8f77bc7574f19920e04c281d607b3))
+* validate options and credentials at the public boundary ([#869](https://github.com/sergienko4/israeli-bank-scrapers/issues/869)) ([c299939](https://github.com/sergienko4/israeli-bank-scrapers/commit/c299939f405acbdc8184294dabf1c6baf56a9cf4))
+
+
+### Bug Fixes
+
+* **amex:** restore ring login behind the edge ([#874](https://github.com/sergienko4/israeli-bank-scrapers/issues/874)) ([5830c72](https://github.com/sergienko4/israeli-bank-scrapers/commit/5830c722f1f2b4cf216e89c75ca0d730323339eb))
+* **amex:** send the app's ring request headers ([#879](https://github.com/sergienko4/israeli-bank-scrapers/issues/879)) ([23771f0](https://github.com/sergienko4/israeli-bank-scrapers/commit/23771f08a58cbed9ecc1349f284b8ecb2a4c9e9e))
+* bound response bodies and classify transport failures ([#863](https://github.com/sergienko4/israeli-bank-scrapers/issues/863)) ([6b62c20](https://github.com/sergienko4/israeli-bank-scrapers/commit/6b62c20f36404aadff49659844088c4104ce2a73))
+* **ci:** retain safe capture diagnostics ([#774](https://github.com/sergienko4/israeli-bank-scrapers/issues/774)) ([321c9e3](https://github.com/sergienko4/israeli-bank-scrapers/commit/321c9e3bdd85655856ce1dcca4432fecfe6d490f))
+* close warm-token review gaps ([#872](https://github.com/sergienko4/israeli-bank-scrapers/issues/872)) ([0f55397](https://github.com/sergienko4/israeli-bank-scrapers/commit/0f553977c5c358d5bf3b42395d6429fa3b3ddd48))
+* contain throwing body checks and patches ([#779](https://github.com/sergienko4/israeli-bank-scrapers/issues/779)) ([538e3be](https://github.com/sergienko4/israeli-bank-scrapers/commit/538e3bebadceb3427c668fd24961d5f7850e5835))
+* **fibi:** log in without the portal page ([#776](https://github.com/sergienko4/israeli-bank-scrapers/issues/776)) ([ecee5a0](https://github.com/sergienko4/israeli-bank-scrapers/commit/ecee5a0a2d20d72a1145ce22c93907c3d04facf5))
+* harden graphql, pagination and auth classification ([#862](https://github.com/sergienko4/israeli-bank-scrapers/issues/862)) ([c877264](https://github.com/sergienko4/israeli-bank-scrapers/commit/c8772640cab12c913df73986a065995a1dcd48cb))
+* harden Hapoalim device identity ([#788](https://github.com/sergienko4/israeli-bank-scrapers/issues/788)) ([1312c57](https://github.com/sergienko4/israeli-bank-scrapers/commit/1312c576913fc944c72f6172e6a071577902a1dc))
+* harden run diagnostics against descriptor reuse, last-phase mediators and long fold chains ([#783](https://github.com/sergienko4/israeli-bank-scrapers/issues/783)) ([b81f34b](https://github.com/sergienko4/israeli-bank-scrapers/commit/b81f34bc14bbd9877364dff7cd58a52ac06fea71))
+* isolate run diagnostics per execution ([#782](https://github.com/sergienko4/israeli-bank-scrapers/issues/782)) ([93fbb39](https://github.com/sergienko4/israeli-bank-scrapers/commit/93fbb3922777bf14f86571e779fc6a6f88c23321))
+* release header-only challenge bodies ([#867](https://github.com/sergienko4/israeli-bank-scrapers/issues/867)) ([db532c5](https://github.com/sergienko4/israeli-bank-scrapers/commit/db532c588f07bd6e603b17f5840eab920caaa3fe))
+* scope the Hapoalim note to 10.1.0 ([#787](https://github.com/sergienko4/israeli-bank-scrapers/issues/787)) ([1e8c4ec](https://github.com/sergienko4/israeli-bank-scrapers/commit/1e8c4ec5b89a3f4a85050f0bc6fa27b8d350ce5c))
+* **trace:** bound the run-stamp retention set ([#878](https://github.com/sergienko4/israeli-bank-scrapers/issues/878)) ([d2465ea](https://github.com/sergienko4/israeli-bank-scrapers/commit/d2465ead24c5ce3a2d31c8bcae1253ea2f37c8e5))
+* **trace:** never evict a fold-window stamp ([#880](https://github.com/sergienko4/israeli-bank-scrapers/issues/880)) ([1f346e2](https://github.com/sergienko4/israeli-bank-scrapers/commit/1f346e257821060f146d4923d662d2e1b43bf91f))
+* type expired Discount passwords ([#853](https://github.com/sergienko4/israeli-bank-scrapers/issues/853)) ([8ec5456](https://github.com/sergienko4/israeli-bank-scrapers/commit/8ec5456ade08df47dcd83acff516aebf154b851a))
+
 ## [10.0.1](https://github.com/sergienko4/israeli-bank-scrapers/compare/v10.0.0...v10.0.1) (2026-11-10)
 
 
