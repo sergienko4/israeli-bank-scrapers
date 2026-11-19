@@ -16,6 +16,15 @@ import { pathToFileURL } from 'node:url';
 const REPO_ROOT = process.cwd();
 const SCRIPTS_DIR = join(REPO_ROOT, 'scripts');
 const SENTINEL = 'unreleased';
+const PROPOSED = '10.1.0';
+const RELEASED = '10.0.1';
+const PRIOR = '10.0.0';
+const GUESSED = '10.4.0';
+const HISTORICAL = '8.3.0';
+const OLD = '9.0.0';
+const PENDING_TITLE = 'Pending change';
+const OLD_TITLE = 'Old change';
+const GUESSED_TITLE = 'Guessed';
 
 interface ICompatEntry {
   version: string;
@@ -83,7 +92,7 @@ async function loadScript<T>(name: string): Promise<T> {
  */
 function buildEntry(overrides: Partial<ICompatEntry> = {}): ICompatEntry {
   return {
-    version: '10.0.0',
+    version: PRIOR,
     title: 'A change',
     impact: 'behavior',
     detail: 'The behaviour changed.',
@@ -199,14 +208,14 @@ describe('build-compatibility sentinel', () => {
   });
 
   it('compares numeric versions, not strings', () => {
-    const newer = mod.compareSemver('10.1.0', '9.9.9');
-    const equal = mod.compareSemver('10.0.0', '10.0.0');
+    const newer = mod.compareSemver(PROPOSED, '9.9.9');
+    const equal = mod.compareSemver(PRIOR, PRIOR);
     expect(newer).toBeGreaterThan(0);
     expect(equal).toBe(0);
   });
 
   it.each([
-    ['10.1.0', true],
+    [PROPOSED, true],
     ['10.1', false],
     ['v10.1.0', false],
     [SENTINEL, false],
@@ -218,9 +227,9 @@ describe('build-compatibility sentinel', () => {
 
 describe('upgrade-notes sentinel selection', () => {
   let mod: IUpgradeModule;
-  const pending = buildEntry({ version: SENTINEL, title: 'Pending change' });
-  const current = buildEntry({ version: '10.1.0', title: 'Current change' });
-  const older = buildEntry({ version: '10.0.0', title: 'Old change' });
+  const pending = buildEntry({ version: SENTINEL, title: PENDING_TITLE });
+  const current = buildEntry({ version: PROPOSED, title: 'Current change' });
+  const older = buildEntry({ version: PRIOR, title: OLD_TITLE });
 
   beforeAll(async () => {
     mod = await loadScript<IUpgradeModule>('upgrade-notes.mjs');
@@ -228,23 +237,23 @@ describe('upgrade-notes sentinel selection', () => {
 
   it('includes the sentinel for the newest release', () => {
     const data = buildData([pending, current, older]);
-    const section = mod.renderSection('10.1.0', data, ['10.1.0', '10.0.0']);
-    expect(section).toContain('Pending change');
+    const section = mod.renderSection(PROPOSED, data, [PROPOSED, PRIOR]);
+    expect(section).toContain(PENDING_TITLE);
     expect(section).toContain('Current change');
-    expect(section).not.toContain('Old change');
+    expect(section).not.toContain(OLD_TITLE);
   });
 
   it('excludes the sentinel when a newer release exists', () => {
     const data = buildData([pending, older]);
-    const section = mod.renderSection('10.0.0', data, ['10.1.0', '10.0.0']);
-    expect(section).toContain('Old change');
-    expect(section).not.toContain('Pending change');
+    const section = mod.renderSection(PRIOR, data, [PROPOSED, PRIOR]);
+    expect(section).toContain(OLD_TITLE);
+    expect(section).not.toContain(PENDING_TITLE);
   });
 
   it('includes the sentinel when tags are unavailable', () => {
     const data = buildData([pending]);
-    const section = mod.renderSection('10.1.0', data);
-    expect(section).toContain('Pending change');
+    const section = mod.renderSection(PROPOSED, data);
+    expect(section).toContain(PENDING_TITLE);
   });
 });
 
@@ -258,12 +267,12 @@ describe('stamp-compatibility', () => {
   it('stamps the sentinel and an untagged numeric entry', () => {
     const data = buildData([
       buildEntry({ version: SENTINEL, title: 'Pending' }),
-      buildEntry({ version: '10.4.0', title: 'Guessed' }),
-      buildEntry({ version: '10.0.0', title: 'Released' }),
+      buildEntry({ version: GUESSED, title: GUESSED_TITLE }),
+      buildEntry({ version: PRIOR, title: 'Released' }),
     ]);
-    const result = mod.stampData(data, '10.1.0', ['10.0.0']);
+    const result = mod.stampData(data, PROPOSED, [PRIOR]);
     const versions = result.data.entries.map(entry => entry.version);
-    expect(versions).toEqual(['10.1.0', '10.1.0', '10.0.0']);
+    expect(versions).toEqual([PROPOSED, PROPOSED, PRIOR]);
     expect(result.stamped).toBe(2);
   });
 
@@ -273,20 +282,20 @@ describe('stamp-compatibility', () => {
      * Attempt to stamp the already-released version.
      * @returns The stamp result, which must throw.
      */
-    const act = (): IStampResult => mod.stampData(data, '10.0.1', ['10.0.1']);
+    const act = (): IStampResult => mod.stampData(data, RELEASED, [RELEASED]);
     expect(act).toThrow(/newer/);
   });
 
   it('does not count an entry already equal to the target', () => {
-    const data = buildData([buildEntry({ version: '10.1.0' })]);
-    const result = mod.stampData(data, '10.1.0', ['10.0.0']);
+    const data = buildData([buildEntry({ version: PROPOSED })]);
+    const result = mod.stampData(data, PROPOSED, [PRIOR]);
     expect(result.stamped).toBe(0);
   });
 
   it('leaves an old untagged note alone', () => {
-    const data = buildData([buildEntry({ version: '8.3.0', title: 'Historical' })]);
-    const result = mod.stampData(data, '10.1.0', ['10.0.1']);
-    expect(result.data.entries[0].version).toBe('8.3.0');
+    const data = buildData([buildEntry({ version: HISTORICAL, title: 'Historical' })]);
+    const result = mod.stampData(data, PROPOSED, [RELEASED]);
+    expect(result.data.entries[0].version).toBe(HISTORICAL);
     expect(result.stamped).toBe(0);
   });
 
@@ -306,17 +315,17 @@ describe('stamp-compatibility', () => {
     const root = mkdtempSync(prefix);
     const data = buildData([
       buildEntry({ version: SENTINEL, title: 'Pending' }),
-      buildEntry({ version: '10.0.0', title: 'Released' }),
+      buildEntry({ version: PRIOR, title: 'Released' }),
     ]);
     writeFixture(root, data);
     initRepo(root, 'v10.0.0');
-    const args = ['--version', '10.1.0', '--root', root];
+    const args = ['--version', PROPOSED, '--root', root];
     runScript('stamp-compatibility.mjs', args);
     const stamped = readFixture(root);
-    expect(stamped.entries[0].version).toBe('10.1.0');
+    expect(stamped.entries[0].version).toBe(PROPOSED);
     const pagePath = join(root, 'docs', 'compatibility.md');
     const page = readFileSync(pagePath, 'utf8');
-    expect(page).toContain('### 10.1.0 - Pending');
+    expect(page).toContain(`### ${PROPOSED} - Pending`);
     const second = runScript('stamp-compatibility.mjs', args);
     expect(second).toContain('already stamped');
   });
@@ -324,56 +333,56 @@ describe('stamp-compatibility', () => {
 
 describe('check-compatibility-versions', () => {
   let mod: IGuardModule;
-  const options = { releasedVersions: ['10.0.1'], pendingVersions: ['10.1.0'] };
+  const options = { releasedVersions: [RELEASED], pendingVersions: [PROPOSED] };
 
   beforeAll(async () => {
     mod = await loadScript<IGuardModule>('check-compatibility-versions.mjs');
   });
 
   it('flags a guessed version that is neither tagged nor pending', () => {
-    const entries = [buildEntry({ version: '10.4.0', title: 'Guessed' })];
+    const entries = [buildEntry({ version: GUESSED, title: GUESSED_TITLE })];
     const problems = mod.versionProblems(entries, options);
     expect(problems).toHaveLength(1);
-    expect(problems[0]).toContain('10.4.0');
+    expect(problems[0]).toContain(GUESSED);
     expect(problems[0]).toContain(SENTINEL);
   });
 
   it('accepts a released, a pending and a sentinel entry', () => {
     const entries = [
       buildEntry({ version: SENTINEL }),
-      buildEntry({ version: '10.1.0' }),
-      buildEntry({ version: '10.0.1' }),
+      buildEntry({ version: PROPOSED }),
+      buildEntry({ version: RELEASED }),
     ];
     const problems = mod.versionProblems(entries, options);
     expect(problems).toEqual([]);
   });
 
   it('flags the sentinel when it follows a released entry', () => {
-    const entries = [buildEntry({ version: '10.0.1' }), buildEntry({ version: SENTINEL })];
+    const entries = [buildEntry({ version: RELEASED }), buildEntry({ version: SENTINEL })];
     const problems = mod.versionProblems(entries, options);
     const hasMisplaced = problems.some((problem): boolean => problem.includes('must come first'));
     expect(hasMisplaced).toBe(true);
   });
 
   it('flags a newer version after an older one', () => {
-    const entries = [buildEntry({ version: '9.0.0' }), buildEntry({ version: '10.0.1' })];
+    const entries = [buildEntry({ version: OLD }), buildEntry({ version: RELEASED })];
     const problems = mod.versionProblems(entries, options);
     const isOutOfOrder = problems.some((problem): boolean => problem.includes('newer'));
     expect(isOutOfOrder).toBe(true);
   });
 
   it('rejects a pending version in strict mode', () => {
-    const entries = [buildEntry({ version: '10.1.0' })];
+    const entries = [buildEntry({ version: PROPOSED })];
     const strict = { ...options, strict: true };
     const problems = mod.versionProblems(entries, strict);
-    const hasVersion = problems.some((problem): boolean => problem.includes('10.1.0'));
+    const hasVersion = problems.some((problem): boolean => problem.includes(PROPOSED));
     expect(hasVersion).toBe(true);
   });
 
   it('accepts an old untagged note in strict mode', () => {
-    const entries = [buildEntry({ version: '8.3.0' })];
+    const entries = [buildEntry({ version: HISTORICAL })];
     const strict = {
-      releasedVersions: ['10.0.1', '10.1.0'],
+      releasedVersions: [RELEASED, PROPOSED],
       strict: true,
     };
     const problems = mod.versionProblems(entries, strict);
@@ -384,15 +393,15 @@ describe('check-compatibility-versions', () => {
     const tempDir = tmpdir();
     const prefix = join(tempDir, 'compat-guard-');
     const root = mkdtempSync(prefix);
-    const baseData = buildData([buildEntry({ version: '10.0.1' })]);
+    const baseData = buildData([buildEntry({ version: RELEASED })]);
     writeFixture(root, baseData);
-    writePackage(root, '10.0.1');
+    writePackage(root, RELEASED);
     initRepo(root, 'v10.0.1');
-    const guessedData = buildData([buildEntry({ version: '10.4.0', title: 'Guessed' })]);
+    const guessedData = buildData([buildEntry({ version: GUESSED, title: GUESSED_TITLE })]);
     writeFixture(root, guessedData);
     const args = ['--root', root, '--base', 'HEAD'];
     const failure = failureOf('check-compatibility-versions.mjs', args);
-    expect(failure).toContain('10.4.0');
+    expect(failure).toContain(GUESSED);
     expect(failure).toContain(SENTINEL);
   });
 });
