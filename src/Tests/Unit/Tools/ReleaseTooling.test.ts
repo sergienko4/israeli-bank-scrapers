@@ -262,6 +262,7 @@ describe('upgrade-notes', () => {
     );
     if (!transition) throw new RangeError('Hapoalim compatibility entry is missing');
     const section = mod.renderSection(transition.version, data);
+    expect(section).toContain(`## Upgrading to ${transition.version}`);
     expect(section).toContain('Hapoalim stores the device seed');
     expect(section).toContain('two-SMS enrollment');
     expect(section).not.toContain('No action required');
@@ -279,8 +280,11 @@ describe('upgrade-notes', () => {
     );
     const next = { ...data, entries: moved };
     const section = mod.renderSection('10.2.0', next);
+    expect(section).toContain('## Upgrading to 10.2.0');
     expect(section).toContain('Hapoalim stores the device seed');
     expect(section).toContain('two-SMS enrollment');
+    expect(section).toContain('first run after upgrading');
+    expect(section).not.toContain('10.1.0 run per user');
   });
 
   it('always states the Node requirement and links the full notes', () => {

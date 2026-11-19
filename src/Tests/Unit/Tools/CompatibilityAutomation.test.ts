@@ -49,9 +49,14 @@ interface IBuildModule {
   renderPage: (data: ICompatData) => string;
 }
 
+interface ISectionOptions {
+  releasedVersions?: readonly string[];
+  includePending?: boolean;
+}
+
 interface IUpgradeModule {
   parseVersion: (args: string[]) => unknown;
-  renderSection: (version: string, data: ICompatData, released?: readonly string[]) => string;
+  renderSection: (version: string, data: ICompatData, options?: ISectionOptions) => string;
 }
 
 interface IStampResult {
@@ -237,7 +242,10 @@ describe('upgrade-notes sentinel selection', () => {
 
   it('includes the sentinel for the newest release', () => {
     const data = buildData([pending, current, older]);
-    const section = mod.renderSection(PROPOSED, data, [PROPOSED, PRIOR]);
+    const section = mod.renderSection(PROPOSED, data, {
+      releasedVersions: [PROPOSED, PRIOR],
+      includePending: true,
+    });
     expect(section).toContain(PENDING_TITLE);
     expect(section).toContain('Current change');
     expect(section).not.toContain(OLD_TITLE);
@@ -245,23 +253,49 @@ describe('upgrade-notes sentinel selection', () => {
 
   it('excludes the sentinel when a newer release exists', () => {
     const data = buildData([pending, older]);
-    const section = mod.renderSection(PRIOR, data, [PROPOSED, PRIOR]);
+    const section = mod.renderSection(PRIOR, data, {
+      releasedVersions: [PROPOSED, PRIOR],
+      includePending: true,
+    });
     expect(section).toContain(OLD_TITLE);
     expect(section).not.toContain(PENDING_TITLE);
   });
 
   it('includes the sentinel when tags are unavailable', () => {
     const data = buildData([pending]);
-    const section = mod.renderSection(PROPOSED, data);
+    const section = mod.renderSection(PROPOSED, data, { includePending: true });
     expect(section).toContain(PENDING_TITLE);
   });
 
   it('includes a numeric note left pending by a missed stamp', () => {
     const pendingNumeric = buildEntry({ version: PROPOSED, title: 'Pending numeric' });
     const data = buildData([pendingNumeric, older]);
-    const section = mod.renderSection('10.2.0', data, ['10.2.0', RELEASED]);
+    const section = mod.renderSection('10.2.0', data, {
+      releasedVersions: ['10.2.0', RELEASED],
+      includePending: true,
+    });
     expect(section).toContain('Pending numeric');
     expect(section).not.toContain(OLD_TITLE);
+  });
+
+  it('includes a guessed version above the target when pending is requested', () => {
+    const guessed = buildEntry({ version: GUESSED, title: 'Guessed pending' });
+    const data = buildData([guessed, current]);
+    const section = mod.renderSection(PROPOSED, data, {
+      releasedVersions: [PROPOSED, RELEASED],
+      includePending: true,
+    });
+    expect(section).toContain('Guessed pending');
+    expect(section).toContain('Current change');
+  });
+
+  it('excludes pending work added after the latest tag by default', () => {
+    const nextNumeric = buildEntry({ version: '10.2.0', title: 'Next work' });
+    const data = buildData([pending, nextNumeric, current]);
+    const section = mod.renderSection(PROPOSED, data, { releasedVersions: [PROPOSED, RELEASED] });
+    expect(section).toContain('Current change');
+    expect(section).not.toContain(PENDING_TITLE);
+    expect(section).not.toContain('Next work');
   });
 });
 

@@ -15,6 +15,12 @@
  * Usage:
  *   node scripts/upgrade-notes.mjs --version 8.6.6
  *   node scripts/upgrade-notes.mjs --tag v8.6.6
+ *   node scripts/upgrade-notes.mjs --version 8.6.6 --include-pending
+ *
+ * `--include-pending` is for the release job that just created the tag: it
+ * still renders a note whose stamp was missed. A manual re-render without the
+ * flag is exact-only, so a sentinel added after a release cannot be attributed
+ * to that already published release.
  *
  * Exit codes:
  *   0  - section written to stdout
@@ -127,9 +133,10 @@ function previousRelease(version, releasedVersions) {
 function isPendingFor(entryVersion, version, releasedVersions) {
   if (entryVersion === UNRELEASED) return true;
   if (!isSemanticVersion(entryVersion)) return false;
-  if (compareSemver(entryVersion, version) >= 0) return false;
   const previous = previousRelease(version, releasedVersions);
   if (previous === null) return false;
+  // No upper bound: a guessed 10.4.0 must still reach a 10.1.0 body when the
+  // stamp was missed, rather than silently becoming "No action required".
   return compareSemver(entryVersion, previous) > 0;
 }
 
@@ -140,11 +147,13 @@ function isPendingFor(entryVersion, version, releasedVersions) {
  * one.
  * @param version Target version, without a leading `v`.
  * @param data Parsed compatibility document.
- * @param releasedVersions Versions that already have a `v*` tag.
+ * @param options Released versions and whether to include pending entries.
  * @returns Complete Markdown section.
  */
-export function renderSection(version, data, releasedVersions = []) {
-  const includeUnreleased = isNewestRelease(version, releasedVersions);
+export function renderSection(version, data, options = {}) {
+  const releasedVersions = options.releasedVersions ?? [];
+  const includePending = options.includePending === true;
+  const includeUnreleased = includePending && isNewestRelease(version, releasedVersions);
   const entries = data.entries.filter((entry) => {
     if (entry.version === version) return true;
     if (!includeUnreleased) return false;
@@ -175,7 +184,10 @@ function main() {
     stderr.write('usage: node scripts/upgrade-notes.mjs --version <x.y.z>\n');
     exit(2);
   }
-  stdout.write(renderSection(version, readData(), releasedVersionsOrEmpty()));
+  const releasedVersions = releasedVersionsOrEmpty();
+  const includePending = argv.includes('--include-pending');
+  const options = { releasedVersions, includePending };
+  stdout.write(renderSection(version, readData(), options));
 }
 
 // Only run the CLI when invoked directly, so the renderer above can be

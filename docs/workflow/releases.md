@@ -56,6 +56,11 @@ The release process fills in the number:
 4. After the tag exists, the strict version guard proves no sentinel or
    newer-than-released entry survived.
 
+The release body job passes `--include-pending`, so a note whose stamp was
+missed is still rendered for the release that just shipped. A manual re-render
+without the flag is exact-only: a sentinel added after the release belongs to
+the next one and is never attributed to the published version.
+
 There is no separate version record to maintain. The tags are the release
 record and release-please's `package.json` is the proposed version. A PR that
 types a new number without a tag fails `Compatibility versions are released or

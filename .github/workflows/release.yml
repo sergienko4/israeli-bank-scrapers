@@ -177,7 +177,7 @@ jobs:
             exit 0
           fi
           printf '\n\n' >> body.md
-          node scripts/upgrade-notes.mjs --version "$VERSION" >> body.md
+          node scripts/upgrade-notes.mjs --version "$VERSION" --include-pending >> body.md
           gh release edit "$TAG" --notes-file body.md
 
   publish:
