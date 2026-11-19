@@ -32,6 +32,17 @@ describe('TLS ClientHello profiles — JA4 oracle', () => {
     expect({ ja4, isPinMatched }).toEqual({ ja4, isPinMatched: isSupported });
   });
 
+  it('emits the pinned openssl-http1 JA4 exactly when the runtime supports it', async () => {
+    const bundle = testCertBundle();
+    const agent = buildMtlsAgent(bundle, 'openssl-http1');
+    const ja4 = await captureJa4(agent);
+    agent.destroy();
+    const { expectedJa4 } = getTlsClientProfile('openssl-http1');
+    const isSupported = !warnIfTlsProfileUnsupported('openssl-http1', RUNTIME_OPENSSL);
+    const isPinMatched = ja4 === expectedJa4;
+    expect({ ja4, isPinMatched }).toEqual({ ja4, isPinMatched: isSupported });
+  });
+
   it('keeps the stock Node handshake when no profile is configured', async () => {
     const agent = buildMtlsAgent(false);
     const ja4 = await captureJa4(agent);

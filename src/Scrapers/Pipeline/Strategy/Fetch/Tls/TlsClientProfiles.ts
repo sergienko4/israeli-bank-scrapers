@@ -25,7 +25,7 @@ const UNSUPPORTED_MSG =
   '[tls] runtime OpenSSL cannot emit this TLS profile; the bank edge may block requests';
 
 /** Registered profile names. `node-default` keeps Node's stock handshake. */
-type TlsClientProfileKind = 'node-default' | 'android-11-okhttp';
+type TlsClientProfileKind = 'node-default' | 'android-11-okhttp' | 'openssl-http1';
 
 /**
  * The handshake-shaping subset of `tls.ConnectionOptions` a profile may set.
@@ -131,6 +131,46 @@ const ANDROID_11_OKHTTP: ITlsClientProfile = {
   sessionProtocol: 'TLSv1.3',
 };
 
+/**
+ * OpenSSL's HTTP/1.1 client shape — the ring edge admits this handshake but
+ * challenges Node's stock one. Python's `ssl` default context emits it: the
+ * 17-cipher default list, ALPN `http/1.1`, and no OCSP or renegotiation
+ * extension. The list is deliberately narrower than Node's stock 52 ciphers;
+ * `ecdhCurve` and `sigalgs` stay at the runtime defaults, which already match.
+ */
+const OPENSSL_HTTP1_CIPHERS = [
+  'TLS_AES_256_GCM_SHA384',
+  'TLS_CHACHA20_POLY1305_SHA256',
+  'TLS_AES_128_GCM_SHA256',
+  'ECDHE-ECDSA-AES256-GCM-SHA384',
+  'ECDHE-RSA-AES256-GCM-SHA384',
+  'ECDHE-ECDSA-AES128-GCM-SHA256',
+  'ECDHE-RSA-AES128-GCM-SHA256',
+  'ECDHE-ECDSA-CHACHA20-POLY1305',
+  'ECDHE-RSA-CHACHA20-POLY1305',
+  'ECDHE-ECDSA-AES256-SHA384',
+  'ECDHE-RSA-AES256-SHA384',
+  'ECDHE-ECDSA-AES128-SHA256',
+  'ECDHE-RSA-AES128-SHA256',
+  'DHE-RSA-AES256-GCM-SHA384',
+  'DHE-RSA-AES128-GCM-SHA256',
+  'DHE-RSA-AES256-SHA256',
+  'DHE-RSA-AES128-SHA256',
+].join(':');
+
+/** The OpenSSL HTTP/1.1 ClientHello the ring edge admits. */
+const OPENSSL_HTTP1: ITlsClientProfile = {
+  options: {
+    ciphers: OPENSSL_HTTP1_CIPHERS,
+    minVersion: 'TLSv1.2',
+    maxVersion: 'TLSv1.3',
+    ALPNProtocols: ['http/1.1'],
+  },
+  expectedJa4: 't13d1712h1_ab0a1bf427ad_8e6e362c5eac',
+  minOpenSsl: [3, 5],
+  sessionProtocol: '',
+};
+
 /** Node's stock handshake: no fingerprint, no OpenSSL floor, any protocol. */
 const NODE_DEFAULT: ITlsClientProfile = {
   options: {},
@@ -143,6 +183,7 @@ const NODE_DEFAULT: ITlsClientProfile = {
 const TLS_CLIENT_PROFILES: Readonly<Record<TlsClientProfileKind, ITlsClientProfile>> = {
   'node-default': NODE_DEFAULT,
   'android-11-okhttp': ANDROID_11_OKHTTP,
+  'openssl-http1': OPENSSL_HTTP1,
 };
 
 /** Leading `major.minor` of an OpenSSL version string such as `3.5.9+quic`. */

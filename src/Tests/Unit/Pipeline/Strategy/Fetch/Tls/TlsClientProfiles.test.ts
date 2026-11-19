@@ -47,6 +47,12 @@ describe('isTlsProfileSupported — android-11-okhttp needs OpenSSL 3.5+', () =>
     expect(isSupported).toBe(expected);
   });
 
+  it('openssl-http1 shares the OpenSSL 3.5 floor', () => {
+    const isSupported = !PROFILES.warnIfTlsProfileUnsupported('openssl-http1', '3.5.0');
+    const isTooOld = PROFILES.warnIfTlsProfileUnsupported('openssl-http1', '3.4.1');
+    expect({ isSupported, isTooOld }).toEqual({ isSupported: true, isTooOld: true });
+  });
+
   it.each(['3.0.15', '1.1.1w', '', 'BoringSSL'])(
     'node-default is supported on OpenSSL %p',
     openssl => {

@@ -8,6 +8,7 @@ import {
   assertFailedLogin,
   assertSuccessfulScrape,
   defaultStartDate,
+  innerKeyOf,
   logScrapedTransactions,
   SCRAPE_TIMEOUT,
 } from './Helpers.js';
@@ -24,7 +25,8 @@ const hasCredentials = !!(
  * Amex logs in over the issuer's mobile gateway. A
  * cold login (ID, card digits, password) registers a device key and returns
  * it on `persistentOtpToken`; a warm login signs in with that key alone. The
- * key does not rotate, so a warm run hands the same key back. No step sends
+ * underlying key does not rotate; the envelope is re-wrapped with a fresh
+ * nonce, so compare the decoded values. No step sends
  * an SMS, so a rejected key costs nothing: the pipeline falls back to the
  * cold login by itself. The mocked suite pins which login steps ran; this
  * suite proves the real bank accepts both.
@@ -86,7 +88,15 @@ DESCRIBE_IF('E2E: Amex (real credentials, API-direct)', () => {
     const warmCreds = { ...creds, otpLongTermToken: coldKey };
     const warm = await scrapeAmex(warmCreds);
     const warmKey = assertKeyReturned(warm);
-    expect(warmKey).toBe(coldKey);
+    const expectation = {
+      provider: 'amex',
+      accounts: [creds.id, creds.card6Digits],
+      tagKey: creds.password,
+      maxChars: 16384,
+    } as const;
+    const innerCold = innerKeyOf(coldKey, expectation);
+    const innerWarm = innerKeyOf(warmKey, expectation);
+    expect(innerWarm).toBe(innerCold);
     logScrapedTransactions(warm);
   });
 

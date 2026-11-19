@@ -69,8 +69,9 @@ function buildRingTransport(ring: IRingConstants): ITransportConfig {
   const paths = { 'auth.service': `${ring.base}/service` };
   // The ring has no GraphQL; graphql mirrors identityBase to satisfy the type.
   const graphql = identityBase;
-  // The ring answers a plain Node client; its session rides on cookies.
-  return { identityBase, graphql, paths, nativeFetch: true, sessionCookies: true };
+  // The edge challenges Node's stock handshake and header order, so the
+  // ring presents the OpenSSL HTTP/1.1 ClientHello; its session rides on cookies.
+  return { identityBase, graphql, paths, tlsProfile: 'openssl-http1', sessionCookies: true };
 }
 
 export { buildRingApiDirectCall, buildRingTransport };

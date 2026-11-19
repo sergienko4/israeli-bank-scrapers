@@ -43,6 +43,7 @@ interface IRingIssuer {
   readonly applicationId: string;
   readonly isrdomain: string;
   readonly companyCode: string;
+  readonly sessionWalletId: string;
 }
 
 const ISSUERS: readonly IRingIssuer[] = [
@@ -54,6 +55,7 @@ const ISSUERS: readonly IRingIssuer[] = [
     applicationId: 'mi',
     isrdomain: 'isracard',
     companyCode: '11',
+    sessionWalletId: '216',
   },
   {
     bank: 'Amex',
@@ -63,6 +65,7 @@ const ISSUERS: readonly IRingIssuer[] = [
     applicationId: 'ma',
     isrdomain: 'amex',
     companyCode: '77',
+    sessionWalletId: 'AQ',
   },
 ];
 
@@ -78,9 +81,13 @@ const CARRY = { userName: 'U1', bcKey: 'BC', udid: 'UD', key: 'K' } as const;
 /**
  * What a live login sent at each step, for the values above.
  * @param companyCode - The issuer's company code.
+ * @param sessionWalletId - The issuer's session-token wallet id.
  * @returns Body per step name.
  */
-function expectedBodies(companyCode: string): Readonly<Record<string, JsonValue>> {
+function expectedBodies(
+  companyCode: string,
+  sessionWalletId: string,
+): Readonly<Record<string, JsonValue>> {
   return {
     validate: {
       id: CREDS.id,
@@ -158,7 +165,7 @@ function expectedBodies(companyCode: string): Readonly<Record<string, JsonValue>
       returnMessage: 'true',
       ap: 'MisparZihuy',
       paymentAppInstanceId: '',
-      walletId: '216',
+      walletId: sessionWalletId,
     },
   };
 }
@@ -208,7 +215,7 @@ describe.each(ISSUERS)('ring login config — $bank', issuer => {
     const { call } = await loadModule(issuer);
     for (const step of call.steps) {
       const body = hydrateFixed(step.body?.shape ?? {}, call);
-      expect(body).toEqual(expectedBodies(issuer.companyCode)[step.name]);
+      expect(body).toEqual(expectedBodies(issuer.companyCode, issuer.sessionWalletId)[step.name]);
     }
   });
 
@@ -253,13 +260,31 @@ describe.each(ISSUERS)('ring login config — $bank', issuer => {
     expect(isFreshKey).toBe(true);
   });
 
-  it('sends lowercase headers, plus the session key and a fresh trace id per call', async () => {
+  it('frames the request in the order the edge admits, then adds the session headers', async () => {
     const { call } = await loadModule(issuer);
     const names = Object.keys(call.staticHeaders ?? {});
-    const lowered = names.map(name => name.toLowerCase());
-    expect(names).toEqual(lowered);
-    expect(call.staticHeaders).toMatchObject({ isrdomain: issuer.isrdomain, platform: 'mobile' });
-    const perCall = { bckey: { $ref: 'carry.bcKey' }, traceidentifier: { $ref: 'uuid' } };
+    expect(names).toEqual([
+      'Host',
+      'Accept-Encoding',
+      'Connection',
+      'Accept',
+      'Content-Type',
+      'isrdomain',
+      'Accept-Language',
+      'platform',
+      'User-Agent',
+    ]);
+    expect(call.staticHeaders).toMatchObject({
+      Host: new URL(issuer.origin).host,
+      'Accept-Encoding': 'identity',
+      Connection: 'keep-alive',
+      isrdomain: issuer.isrdomain,
+      platform: 'mobile',
+      'Content-Type': 'application/json',
+    });
+    const userAgent = call.staticHeaders?.['User-Agent'] ?? '';
+    expect(userAgent).toContain('Chrome/83');
+    const perCall = { BCKey: { $ref: 'carry.bcKey' }, TraceIdentifier: { $ref: 'uuid' } };
     for (const step of call.steps) expect(step.headers).toEqual(perCall);
   });
 
@@ -269,10 +294,10 @@ describe.each(ISSUERS)('ring login config — $bank', issuer => {
     expect(call.requiredCreds).toEqual(required);
   });
 
-  it('runs over native fetch, with the session on cookies rather than a header', async () => {
+  it('presents the OpenSSL HTTP/1 handshake, with the session on cookies', async () => {
     const { call, transportConfig } = await loadModule(issuer);
     expect(call.authScheme).toBe('none');
-    expect(transportConfig).toMatchObject({ nativeFetch: true, sessionCookies: true });
+    expect(transportConfig).toMatchObject({ tlsProfile: 'openssl-http1', sessionCookies: true });
     expect(transportConfig.paths).toEqual({ 'auth.service': `${issuer.origin}/service` });
   });
 });

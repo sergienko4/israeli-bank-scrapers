@@ -1,8 +1,24 @@
 import { ScraperErrorTypes } from '../../Scrapers/Base/ErrorTypes.js';
 import type { IScraperScrapingResult } from '../../Scrapers/Base/Interface.js';
+import type { IRawCarryExpectation } from '../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmRawCarry.js';
+import { decodeRawCarry } from '../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmRawCarry.js';
 import type { ITransaction, ITransactionsAccount } from '../../Transactions.js';
 import { maskAccount, maskAmount, maskDesc } from '../Helpers/ResultFormatter.js';
 import { assertWindowCoverage } from './WindowCoverageGate.js';
+
+/**
+ * Decode the inner key of a published `v1.` raw-carry envelope. The envelope
+ * is re-wrapped with a fresh nonce on every publish, so the published string
+ * is not stable; the key inside it is.
+ * @param token - Published token.
+ * @param expectation - Provider, accounts and tag key.
+ * @returns The inner raw key.
+ */
+export function innerKeyOf(token: string, expectation: IRawCarryExpectation): string {
+  const decoded = decodeRawCarry(token, expectation);
+  if (!decoded.success) throw new TypeError(decoded.errorMessage);
+  return decoded.value;
+}
 
 export { SCRAPE_TIMEOUT } from '../Config/TestTimingConfig.js';
 export const isCiEnvironment = !!process.env.CI;

@@ -41,6 +41,7 @@ const RING: RingConstants = {
   base: 'https://ring.example.test',
   applicationId: 'xx',
   isrdomain: 'example',
+  sessionWalletId: '216',
   companyCode: '11',
 };
 
@@ -227,8 +228,8 @@ describe('ring headers', () => {
     const noKey = ctxWithSession({ bcKey: 7 });
     const withoutMediator = headers(noMediator);
     const nonString = headers(noKey);
-    expect(withoutMediator.bckey).toBe('');
-    expect(nonString.bckey).toBe('');
+    expect(withoutMediator.BCKey).toBe('');
+    expect(nonString.BCKey).toBe('');
   });
 
   it('sends the static set, the session bcKey and a fresh trace id per call', () => {
@@ -236,9 +237,15 @@ describe('ring headers', () => {
     const ctx = ctxWithSession({ bcKey: 'bc-1' });
     const first = headers(ctx);
     const second = headers(ctx);
-    expect(first).toMatchObject({ isrdomain: 'example', platform: 'mobile', bckey: 'bc-1' });
-    expect(first.traceidentifier).toMatch(UUID);
-    expect(second.traceidentifier).not.toBe(first.traceidentifier);
+    expect(first).toMatchObject({
+      isrdomain: 'example',
+      platform: 'mobile',
+      BCKey: 'bc-1',
+      'Accept-Encoding': 'identity',
+      Connection: 'keep-alive',
+    });
+    expect(first.TraceIdentifier).toMatch(UUID);
+    expect(second.TraceIdentifier).not.toBe(first.TraceIdentifier);
   });
 });
 

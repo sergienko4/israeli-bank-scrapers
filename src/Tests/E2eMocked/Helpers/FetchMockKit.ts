@@ -7,6 +7,7 @@
  * it is answered.
  */
 
+import type { IMtlsInvokeOptions } from '../../../Scrapers/Pipeline/Types/Domain/MtlsInvokeTypes.js';
 import type { JsonUnknownRecord } from '../../../Scrapers/Pipeline/Types/JsonValue.js';
 
 /** Tally values returned alongside dispose for wiring assertions. */
@@ -23,11 +24,16 @@ export interface IRecordedCall {
   readonly body: string;
 }
 
+/** Per-execution mTLS fallback a mock handle can expose. */
+export type MtlsFallback = NonNullable<IMtlsInvokeOptions['fallback']>;
+
 /** Installer handle — `dispose()` restores the original fetch. */
 export interface IMockHandle {
   readonly dispose: () => boolean;
   readonly callCounts: () => IMockCallCounts;
   readonly calls: () => readonly IRecordedCall[];
+  /** Present when the bank's node:https transport should route through this mock. */
+  readonly mtlsFallback?: MtlsFallback;
 }
 
 /** The tally a call counts toward; `other` counts toward neither. */

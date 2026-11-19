@@ -39,13 +39,18 @@ Isracard's ring constants (`ISRACARD_RING`):
 | `resume`       | `CustomerValidateKeyOtp`   | the device key, the device id       | the session's `bcKey` and user code |
 | `sessionToken` | `performLogonOtp`          | `id`, the user code                 | —                                   |
 
-`sessionToken` and the card list both send the app's wallet id,
-`RING_WALLET_ID`.
+`sessionToken` and the card list both send the app's wallet id, `216`.
+Amex's `sessionToken` instead sends `AQ`; the card list stays `216` for both
+issuers.
 
 The device id is derived from `id`, so every run of one user presents the same
-device. `ISRACARD_TRANSPORT` registers the `service` URL and selects Node's own
-`fetch` (`nativeFetch`) with a cookie jar, so no browser starts. Browser
-options passed to `createScraper` are no longer supported; see the
+device. `ISRACARD_TRANSPORT` registers the `service` URL and selects the
+node:https transport with the `openssl-http1` ClientHello and a cookie jar, so
+no browser starts. The ring edge challenges Node's stock handshake and header
+order; the transport sends `Host`, `Accept-Encoding: identity` and
+`Connection: keep-alive` first, then the app headers, and capitalizes
+`User-Agent`, `BCKey` and `TraceIdentifier`. Browser options passed to
+`createScraper` are no longer supported; see the
 [migration notes](../configuration.md#removed-browser-options).
 
 `validate` succeeds on `returnCode` `1`; `4` fails the run as
