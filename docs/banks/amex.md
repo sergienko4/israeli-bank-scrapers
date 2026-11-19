@@ -1,12 +1,12 @@
 # Amex (American Express)
 
-|                |                                                                                                                                                      |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CompanyTypes` | `Amex`                                                                                                                                               |
-| Engine         | **API-direct** (no browser)                                                                                                                          |
-| Credentials    | `id`, `card6Digits`, `password` (optional `otpLongTermToken`)                                                                                        |
-| OTP            | —                                                                                                                                                    |
-| Phase chain    | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md)                                                |
+|                |                                                                                                                                                        |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `CompanyTypes` | `Amex`                                                                                                                                                 |
+| Engine         | **API-direct** (no browser)                                                                                                                            |
+| Credentials    | `id`, `card6Digits`, `password` (optional `otpLongTermToken`)                                                                                          |
+| OTP            | —                                                                                                                                                      |
+| Phase chain    | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md)                                                  |
 | Source         | [`Banks/BankPipelineTableA.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/BankPipelineTableA.ts) |
 
 ## Quick example
@@ -38,14 +38,22 @@ Amex logs in over its ring mobile gateway, `ring.americanexpress.co.il`, and
 sends no SMS. It is a member of [the Ring family](../phases/api-direct-scrape.md#the-ring-family-isracard-and-amex):
 the login steps, their success codes and the warm start are Isracard's, step for
 step — see [Isracard → Login](isracard.md#login) and
-[Isracard → Warm start](isracard.md#warm-start). Only the ring constants differ.
+[Isracard → Warm start](isracard.md#warm-start). The ring constants differ in
+one more place: Amex's session-token step (`performLogonOtp`) sends
+`walletId: "AQ"`, while Isracard and both issuers' card-list call send `216`.
 `AMEX_API_DIRECT_CALL` (`Registry/Config/PipelineBankConfigAmex.ts`) builds the
 steps from Amex's ring constants (`AMEX_RING`): host
 `ring.americanexpress.co.il`, app id `ma`, domain `amex` and company code `77`.
 
-`AMEX_TRANSPORT` registers the `service` URL and selects Node's own `fetch`
-(`nativeFetch`) with a cookie jar, so no browser starts. Browser options passed
-to `createScraper` are no longer supported; see the
+`AMEX_TRANSPORT` registers the `service` URL and selects the node:https
+transport with the `openssl-http1` ClientHello and a cookie jar, so no browser
+starts. The ring edge challenges Node's stock handshake and its habit of
+placing `Host`/`Connection` after the caller's headers. The transport presents
+OpenSSL's HTTP/1.1 cipher list, sends `Host`, `Accept-Encoding: identity` and
+`Connection: keep-alive` first, and capitalizes `User-Agent`, `BCKey` and
+`TraceIdentifier`. `identity` keeps the response uncompressed, so the
+transport needs no decompressor. Browser options passed to `createScraper` are
+no longer supported; see the
 [migration notes](../configuration.md#removed-browser-options).
 
 ## Scrape

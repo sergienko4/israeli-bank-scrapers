@@ -34,8 +34,8 @@ interface IRingStepSpec {
 
 /** Per-call headers: the bank's session key and a fresh trace id. */
 const RING_STEP_HEADERS: Readonly<Record<string, JsonValueTemplate>> = {
-  bckey: { $ref: 'carry.bcKey' },
-  traceidentifier: { $ref: 'uuid' },
+  BCKey: { $ref: 'carry.bcKey' },
+  TraceIdentifier: { $ref: 'uuid' },
 };
 
 /** Device-key steps report `returnCode` in the same bean. */
@@ -137,7 +137,7 @@ function ringStep(spec: IRingStepSpec, body: IBodyTemplate, applicationId: strin
  * @returns Steps, in order.
  */
 function buildRingSteps(ring: IRingConstants): readonly IStepConfig[] {
-  const bodies = buildRingBodies(ring.companyCode);
+  const bodies = buildRingBodies(ring.companyCode, ring.sessionWalletId);
   return RING_STEP_SPECS.map((spec): IStepConfig =>
     ringStep(spec, bodies[spec.name], ring.applicationId),
   );

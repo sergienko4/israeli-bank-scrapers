@@ -15,6 +15,8 @@ interface IRingConstants {
   readonly isrdomain: string;
   /** Issuer company code sent in login and transactions bodies. */
   readonly companyCode: string;
+  /** Wallet id the session-token step sends; the card list keeps `216`. */
+  readonly sessionWalletId: string;
 }
 
 /** Isracard on the ring gateway. */
@@ -23,6 +25,7 @@ const ISRACARD_RING: IRingConstants = {
   applicationId: 'mi',
   isrdomain: 'isracard',
   companyCode: '11',
+  sessionWalletId: '216',
 };
 
 /** Amex on the ring gateway. */
@@ -31,9 +34,10 @@ const AMEX_RING: IRingConstants = {
   applicationId: 'ma',
   isrdomain: 'amex',
   companyCode: '77',
+  sessionWalletId: 'AQ',
 };
 
-/** The app's wallet id, sent by the session-token login and the card list alike. */
+/** The wallet id the card-list call sends for every issuer. */
 const RING_WALLET_ID = '216';
 
 /** User agent of the issuers' Android app web view. */
@@ -42,22 +46,46 @@ const RING_USER_AGENT =
   '(KHTML, like Gecko) Version/4.0 Chrome/83.0.4103.120 Mobile Safari/537.36';
 
 /**
+ * Framing headers the edge admits before the app's own headers.
+ * @param ring - Issuer constants.
+ * @returns Host, encoding and connection headers.
+ */
+function ringFrameHeaders(ring: IRingConstants): Readonly<Record<string, string>> {
+  const host = new URL(ring.base).host;
+  return { Host: host, 'Accept-Encoding': 'identity', Connection: 'keep-alive' };
+}
+
+/**
+ * The app headers that follow the framing headers.
+ * @param ring - Issuer constants.
+ * @returns Accept, content type, domain, language, platform and agent.
+ */
+function ringAppHeaders(ring: IRingConstants): Readonly<Record<string, string>> {
+  return {
+    Accept: 'application/json; charset=utf-8',
+    'Content-Type': 'application/json',
+    isrdomain: ring.isrdomain,
+    'Accept-Language': 'en',
+    platform: 'mobile',
+    'User-Agent': RING_USER_AGENT,
+  };
+}
+
+/**
  * Headers the app sends on every ring call, login and data alike. The
- * per-call `bckey` and `traceidentifier` are added by the caller. Names are
- * lowercase so they replace, rather than sit beside, the transport's default
- * `content-type`.
+ * per-call `BCKey` and `TraceIdentifier` are added by the caller.
+ *
+ * <p>The edge admits the app's exact order: `Host`, `Accept-Encoding` and
+ * `Connection` frame the request before the app headers. Node adds its own
+ * framing headers after the caller's, which the edge challenges, so these
+ * are placed first here. `User-Agent` is capitalized deliberately; the
+ * app's header name is part of what the edge matches. `identity` keeps the
+ * node:https response plain, so the transport needs no decompressor.
  * @param ring - Issuer constants.
  * @returns Header map.
  */
 function ringStaticHeaders(ring: IRingConstants): Readonly<Record<string, string>> {
-  return {
-    accept: 'application/json; charset=utf-8',
-    'content-type': 'application/json',
-    isrdomain: ring.isrdomain,
-    'accept-language': 'en',
-    platform: 'mobile',
-    'user-agent': RING_USER_AGENT,
-  };
+  return { ...ringFrameHeaders(ring), ...ringAppHeaders(ring) };
 }
 
 export type { IRingConstants };

@@ -26,11 +26,13 @@
  */
 
 import { bankMomentOfInstant } from '../../../Scrapers/Pipeline/Mediator/Scrape/BankCalendar.js';
+import { INVOKE_NATIVE_FETCH } from '../../../Scrapers/Pipeline/Strategy/Fetch/NativeFetchNetwork.js';
 import type { JsonUnknownRecord } from '../../../Scrapers/Pipeline/Types/JsonValue.js';
 import type {
   CallKind,
   IMockHandle,
   IRecordedCall,
+  MtlsFallback,
   NetworkFault,
 } from '../Helpers/FetchMockKit.js';
 import {
@@ -41,12 +43,18 @@ import {
   parseBody,
 } from '../Helpers/FetchMockKit.js';
 
+/** The Ring mock's handle, including the fallback its node:https transport uses. */
+export interface IRingMockHandle extends IMockHandle {
+  readonly mtlsFallback: MtlsFallback;
+}
+
 /** The issuer a mock instance plays. */
 export interface IRingTarget {
   readonly base: string;
   readonly applicationId: string;
   readonly isrdomain: string;
   readonly companyCode: string;
+  readonly sessionWalletId: string;
 }
 
 /** Isracard's ring. */
@@ -55,6 +63,7 @@ export const ISRACARD_RING_TARGET: IRingTarget = {
   applicationId: 'mi',
   isrdomain: 'isracard',
   companyCode: '11',
+  sessionWalletId: '216',
 };
 
 /** Amex's ring. */
@@ -63,6 +72,7 @@ export const AMEX_RING_TARGET: IRingTarget = {
   applicationId: 'ma',
   isrdomain: 'amex',
   companyCode: '77',
+  sessionWalletId: 'AQ',
 };
 
 /**
@@ -414,7 +424,10 @@ function routeSessionToken(req: IRingRequest): Response {
   const bean = 'CustomerLogonBean';
   const session = liveSession(req);
   const isUser = isCustomer(req.body, 'MisparZihuy') && req.body.KodMishtamesh === SYN_USER_NAME;
-  const isAllowed = session !== false && session.isKeyVerified && req.body.walletId === WALLET_ID;
+  const isAllowed =
+    session !== false &&
+    session.isKeyVerified &&
+    req.body.walletId === req.state.target.sessionWalletId;
   if (!isAllowed || !isUser) return beanReply(bean, { returnCode: '0' });
   session.isAuthenticated = true;
   return beanReply(bean, { returnCode: '1' });
@@ -631,9 +644,12 @@ function freshState(target: IRingTarget, fault: RingFault): IRingState {
  * @param fault - Fault the ring answers with; `'none'` behaves normally.
  * @returns Handle with dispose, call counts and the call log.
  */
-export function installRingFetchMock(target: IRingTarget, fault: RingFault = 'none'): IMockHandle {
+export function installRingFetchMock(
+  target: IRingTarget,
+  fault: RingFault = 'none',
+): IRingMockHandle {
   const state = freshState(target, fault);
-  return installFetchMock({
+  const handle = installFetchMock({
     /**
      * Classify one call.
      * @param call - The recorded request.
@@ -647,4 +663,13 @@ export function installRingFetchMock(target: IRingTarget, fault: RingFault = 'no
      */
     answer: (call: IRecordedCall): Promise<Response> => answerRing(state, call),
   });
+  return { ...handle, mtlsFallback: viaMockedFetch() };
+}
+
+/**
+ * Route the node:https transport through the mocked fetch.
+ * @returns The fallback transport.
+ */
+function viaMockedFetch(): MtlsFallback {
+  return request => INVOKE_NATIVE_FETCH(request.url, request.init, { verb: request.verb });
 }

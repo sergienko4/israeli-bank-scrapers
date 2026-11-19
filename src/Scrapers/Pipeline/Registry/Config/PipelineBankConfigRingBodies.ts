@@ -13,7 +13,6 @@ import type {
   IBodyTemplate,
   JsonValueTemplate,
 } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
-import { RING_WALLET_ID } from './PipelineBankConfigRingConstants.js';
 
 const ONE = { $literal: '1' } as const;
 const ZERO = { $literal: '0' } as const;
@@ -97,23 +96,30 @@ const RESUME_FIELDS = {
   key: KEY,
 } as const;
 
-/** Step 5 — open the data session; the same for every issuer. */
-const SESSION_TOKEN_BODY: IBodyTemplate = {
-  shape: {
-    reqName: { $literal: 'performLogonOtp' },
-    MisparZihuy: ID,
-    KodZihuy: ONE,
-    KodEretz: COUNTRY,
-    countryCode: COUNTRY,
-    KodMedina: COUNTRY,
-    KodMishtamesh: USER_NAME,
-    otpSMS: { $literal: false },
-    returnMessage: RETURN_MESSAGE,
-    ap: AP,
-    paymentAppInstanceId: { $literal: '' },
-    walletId: { $literal: RING_WALLET_ID },
-  },
-};
+/** Step 5 fields shared by every issuer. */
+const SESSION_TOKEN_FIELDS = {
+  reqName: { $literal: 'performLogonOtp' },
+  MisparZihuy: ID,
+  KodZihuy: ONE,
+  KodEretz: COUNTRY,
+  countryCode: COUNTRY,
+  KodMedina: COUNTRY,
+  KodMishtamesh: USER_NAME,
+  otpSMS: { $literal: false },
+  returnMessage: RETURN_MESSAGE,
+  ap: AP,
+  paymentAppInstanceId: { $literal: '' },
+} as const;
+
+/**
+ * Step 5 — open the data session. The wallet id differs by issuer: Amex's
+ * app sends `AQ`, while Isracard and the card-list call send `216`.
+ * @param sessionWalletId - The issuer's session-token wallet id.
+ * @returns The step body template.
+ */
+function sessionTokenBody(sessionWalletId: string): IBodyTemplate {
+  return { shape: { ...SESSION_TOKEN_FIELDS, walletId: { $literal: sessionWalletId } } };
+}
 
 /** Login bodies for one issuer. */
 interface IRingBodies {
@@ -141,11 +147,12 @@ function withCompany(
 /**
  * Build the six login bodies for one issuer.
  * @param companyCode - Issuer company code.
+ * @param sessionWalletId - Wallet id the session-token step sends.
  * @returns Login bodies, in step order.
  */
-function buildRingBodies(companyCode: string): IRingBodies {
+function buildRingBodies(companyCode: string, sessionWalletId: string): IRingBodies {
   const company = { $literal: companyCode };
-  const shared = { login: LOGIN_BODY, sessionToken: SESSION_TOKEN_BODY };
+  const shared = { login: LOGIN_BODY, sessionToken: sessionTokenBody(sessionWalletId) };
   const validate = withCompany(VALIDATE_FIELDS, company);
   const deviceKey = withCompany(DEVICE_KEY_FIELDS, company);
   const register = withCompany(REGISTER_FIELDS, company);

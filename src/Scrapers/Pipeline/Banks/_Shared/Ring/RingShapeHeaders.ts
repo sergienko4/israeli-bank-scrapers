@@ -43,6 +43,6 @@ export function buildRingHeaders(ring: IRingConstants): RingHeaders {
   const statics = ringStaticHeaders(ring);
   return (ctx: IActionContext): HeaderMap => {
     const bckey = bcKeyOf(ctx);
-    return { ...statics, bckey, traceidentifier: randomUUID() };
+    return { ...statics, BCKey: bckey, TraceIdentifier: randomUUID() };
   };
 }

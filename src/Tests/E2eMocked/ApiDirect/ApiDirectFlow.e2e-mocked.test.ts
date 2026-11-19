@@ -502,9 +502,10 @@ describe.each(CASES)('API-DIRECT mocked E2E — $displayName', testCase => {
       const handle = testCase.installFetchMock();
       try {
         const scraperOptions = buildScraperOptions(testCase);
+        const fallback = 'mtlsFallback' in handle ? handle.mtlsFallback : undefined;
         const scraper =
-          'mtlsFallback' in handle
-            ? createScraperWithMtls(scraperOptions, { fallback: handle.mtlsFallback })
+          fallback !== undefined
+            ? createScraperWithMtls(scraperOptions, { fallback })
             : createScraper(scraperOptions);
         const result = await scraper.scrape({ ...testCase.mockCreds });
         expect(result.success).toBe(true);

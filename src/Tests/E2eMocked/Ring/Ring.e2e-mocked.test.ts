@@ -20,9 +20,9 @@ import type {
   ScraperCredentials,
 } from '../../../Scrapers/Base/Interface.js';
 import { decodeRawCarry } from '../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmRawCarry.js';
-import createScraper from '../../../Scrapers/Registry/Factory.js';
 import type { IRecordedCall } from '../Helpers/FetchMockKit.js';
 import { parseBody } from '../Helpers/FetchMockKit.js';
+import createScraperWithMtls from '../Helpers/MtlsScraper.js';
 import type { IRingTarget, RingFault } from './RingFetchMock.js';
 import {
   AMEX_RING_TARGET,
@@ -111,7 +111,7 @@ async function runRing(args: IRingRunArgs): Promise<IRingRun> {
   const handle = installRingFetchMock(args.issuer.target, args.fault);
   try {
     const options = { companyId: args.issuer.companyId, startDate: RING_MOCK_START_DATE };
-    const scraper = createScraper(options);
+    const scraper = createScraperWithMtls(options, { fallback: handle.mtlsFallback });
     const result = await scraper.scrape(args.creds);
     const calls = handle.calls();
     return { result, calls, ...splitCalls(calls) };

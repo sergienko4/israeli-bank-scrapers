@@ -8,6 +8,7 @@ import {
   assertFailedLogin,
   assertSuccessfulScrape,
   defaultStartDate,
+  innerKeyOf,
   logScrapedTransactions,
   SCRAPE_TIMEOUT,
 } from './Helpers.js';
@@ -86,7 +87,15 @@ DESCRIBE_IF('E2E: Isracard (real credentials, API-direct)', () => {
     const warmCreds = { ...creds, otpLongTermToken: coldKey };
     const warm = await scrapeIsracard(warmCreds);
     const warmKey = assertKeyReturned(warm);
-    expect(warmKey).toBe(coldKey);
+    const expectation = {
+      provider: 'isracard',
+      accounts: [creds.id, creds.card6Digits],
+      tagKey: creds.password,
+      maxChars: 16384,
+    } as const;
+    const innerCold = innerKeyOf(coldKey, expectation);
+    const innerWarm = innerKeyOf(warmKey, expectation);
+    expect(innerWarm).toBe(innerCold);
     logScrapedTransactions(warm);
   });
 
