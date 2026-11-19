@@ -56,19 +56,33 @@ function ringFrameHeaders(ring: IRingConstants): Readonly<Record<string, string>
 }
 
 /**
- * The app headers that follow the framing headers.
+ * App headers that precede the issuer domain in the app's request order.
+ */
+const RING_APP_HEADERS_BEFORE_DOMAIN = {
+  Accept: 'application/json; charset=utf-8',
+  'Access-Control-Allow-Origin': '*',
+  'Content-Type': 'application/json',
+} as const;
+
+/**
+ * App headers that follow the issuer domain. `X-CLIENT-IP` carries the
+ * app's external-IP value; `0.0.0.0` is its documented lookup fallback.
+ */
+const RING_APP_HEADERS_AFTER_DOMAIN = {
+  'Accept-Language': 'en',
+  platform: 'mobile',
+  'User-Agent': RING_USER_AGENT,
+  'X-CLIENT-IP': '0.0.0.0',
+} as const;
+
+/**
+ * Compose the app headers around the issuer's domain value.
  * @param ring - Issuer constants.
- * @returns Accept, content type, domain, language, platform and agent.
+ * @returns App headers in the order the app emits them.
  */
 function ringAppHeaders(ring: IRingConstants): Readonly<Record<string, string>> {
-  return {
-    Accept: 'application/json; charset=utf-8',
-    'Content-Type': 'application/json',
-    isrdomain: ring.isrdomain,
-    'Accept-Language': 'en',
-    platform: 'mobile',
-    'User-Agent': RING_USER_AGENT,
-  };
+  const domain = { isrdomain: ring.isrdomain };
+  return { ...RING_APP_HEADERS_BEFORE_DOMAIN, ...domain, ...RING_APP_HEADERS_AFTER_DOMAIN };
 }
 
 /**
