@@ -25,6 +25,7 @@ import { pathToFileURL } from 'node:url';
 import {
   compareSemver,
   IMPACT_LABEL,
+  isSemanticVersion,
   readData,
   readReleasedVersions,
   UNRELEASED,
@@ -103,9 +104,40 @@ function isNewestRelease(version, releasedVersions) {
 }
 
 /**
+ * The highest tagged version older than the target.
+ * @param version Target version, without a leading `v`.
+ * @param releasedVersions Versions that already have a `v*` tag.
+ * @returns The previous release, or null when every tag is newer.
+ */
+function previousRelease(version, releasedVersions) {
+  const older = releasedVersions.filter((tagged) => compareSemver(tagged, version) < 0);
+  if (older.length === 0) return null;
+  return older.reduce((highest, tagged) => (compareSemver(tagged, highest) > 0 ? tagged : highest));
+}
+
+/**
+ * Whether an entry belongs to the newest release without naming it exactly:
+ * the sentinel, or a numeric note newer than the previous release that a
+ * failed stamp left behind.
+ * @param entryVersion Entry version.
+ * @param version Target version, without a leading `v`.
+ * @param releasedVersions Versions that already have a `v*` tag.
+ * @returns True when the entry belongs to the target release.
+ */
+function isPendingFor(entryVersion, version, releasedVersions) {
+  if (entryVersion === UNRELEASED) return true;
+  if (!isSemanticVersion(entryVersion)) return false;
+  if (compareSemver(entryVersion, version) >= 0) return false;
+  const previous = previousRelease(version, releasedVersions);
+  if (previous === null) return false;
+  return compareSemver(entryVersion, previous) > 0;
+}
+
+/**
  * Renders the whole section, listing every entry for the version. Sentinel
- * entries are included only for the newest release, so re-rendering an old
- * release cannot pick up notes that belong to the next one.
+ * and still-pending numeric entries are included only for the newest release,
+ * so re-rendering an old release cannot pick up notes that belong to the next
+ * one.
  * @param version Target version, without a leading `v`.
  * @param data Parsed compatibility document.
  * @param releasedVersions Versions that already have a `v*` tag.
@@ -113,9 +145,11 @@ function isNewestRelease(version, releasedVersions) {
  */
 export function renderSection(version, data, releasedVersions = []) {
   const includeUnreleased = isNewestRelease(version, releasedVersions);
-  const entries = data.entries.filter(
-    (e) => e.version === version || (includeUnreleased && e.version === UNRELEASED),
-  );
+  const entries = data.entries.filter((entry) => {
+    if (entry.version === version) return true;
+    if (!includeUnreleased) return false;
+    return isPendingFor(entry.version, version, releasedVersions);
+  });
   const body = entries.length > 0 ? renderActions(entries) : renderNoAction();
   const lines = [`## Upgrading to ${version}`, '', ...body, '', `Requires Node ${data.runtime.node}.`, '', `Full upgrade notes: ${DOCS_URL}`];
   return `${lines.join('\n')}\n`;

@@ -97,6 +97,16 @@ function checkingImpact(mod: IBuildCompatModule, overrides: Partial<ICompatEntry
   return () => mod.assertKnownImpacts(entries);
 }
 
+/**
+ * Reads the real compatibility document.
+ * @returns Parsed document.
+ */
+function readRealData(): ICompatData {
+  const compatPath = join(REPO_ROOT, 'compatibility.json');
+  const raw = readFileSync(compatPath, 'utf8');
+  return JSON.parse(raw) as ICompatData;
+}
+
 describe('check-breaking-note', () => {
   let mod: IBreakingNoteModule;
 
@@ -245,17 +255,32 @@ describe('upgrade-notes', () => {
     expect(section).toContain('No action required');
   });
 
-  it('renders the real 10.1.0 Hapoalim transition instead of a drop-in note', () => {
-    const compatPath = join(REPO_ROOT, 'compatibility.json');
-    const raw = readFileSync(compatPath, 'utf8');
-    const data = JSON.parse(raw) as ICompatData;
-    const section = mod.renderSection('10.1.0', data);
+  it('renders the real Hapoalim transition instead of a drop-in note', () => {
+    const data = readRealData();
+    const transition = data.entries.find(entry =>
+      entry.title.startsWith('Hapoalim stores the device seed'),
+    );
+    if (!transition) throw new RangeError('Hapoalim compatibility entry is missing');
+    const section = mod.renderSection(transition.version, data);
     expect(section).toContain('Hapoalim stores the device seed');
     expect(section).toContain('two-SMS enrollment');
     expect(section).not.toContain('No action required');
     const old = mod.renderSection('10.0.0', data);
     expect(old).toContain("website's API");
     expect(old).not.toContain('device seed');
+  });
+
+  it('follows the Hapoalim entry when the next release changes', () => {
+    const data = readRealData();
+    const moved = data.entries.map(entry =>
+      entry.title.startsWith('Hapoalim stores the device seed')
+        ? { ...entry, version: '10.2.0' }
+        : entry,
+    );
+    const next = { ...data, entries: moved };
+    const section = mod.renderSection('10.2.0', next);
+    expect(section).toContain('Hapoalim stores the device seed');
+    expect(section).toContain('two-SMS enrollment');
   });
 
   it('always states the Node requirement and links the full notes', () => {

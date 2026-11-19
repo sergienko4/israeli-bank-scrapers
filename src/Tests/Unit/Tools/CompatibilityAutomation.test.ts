@@ -255,6 +255,14 @@ describe('upgrade-notes sentinel selection', () => {
     const section = mod.renderSection(PROPOSED, data);
     expect(section).toContain(PENDING_TITLE);
   });
+
+  it('includes a numeric note left pending by a missed stamp', () => {
+    const pendingNumeric = buildEntry({ version: PROPOSED, title: 'Pending numeric' });
+    const data = buildData([pendingNumeric, older]);
+    const section = mod.renderSection('10.2.0', data, ['10.2.0', RELEASED]);
+    expect(section).toContain('Pending numeric');
+    expect(section).not.toContain(OLD_TITLE);
+  });
 });
 
 describe('stamp-compatibility', () => {
