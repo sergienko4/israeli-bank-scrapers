@@ -20,6 +20,7 @@
  *   0  - page written, or already up to date
  *   1  - drift detected under `--check`, or data failed validation
  */
+import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { argv, exit, stderr, stdout } from 'node:process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -29,12 +30,67 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const DATA = join(ROOT, 'compatibility.json');
 const PAGE = join(ROOT, 'docs', 'compatibility.md');
 
+/**
+ * Version sentinel for an entry the next release will ship. Authors write
+ * this instead of guessing a release number; the release process stamps the
+ * version it computed.
+ */
+export const UNRELEASED = 'unreleased';
+
 /** Impact label rendered next to each entry. */
 export const IMPACT_LABEL = {
   breaking: 'Breaking',
   dependency: 'Dependency',
   behavior: 'Behavior',
 };
+
+/**
+ * Whether a value is a plain semantic version the tooling can compare.
+ * @param value Candidate version.
+ * @returns True for `x.y.z` with numeric parts.
+ */
+export function isSemanticVersion(value) {
+  return /^\d+\.\d+\.\d+$/.test(value);
+}
+
+/**
+ * Split a validated semantic version into numeric parts.
+ * @param version A value accepted by {@link isSemanticVersion}.
+ * @returns The three numeric parts.
+ */
+function partsOf(version) {
+  const [major, minor, patch] = version.split('.').map((part) => Number.parseInt(part, 10));
+  return { major, minor, patch };
+}
+
+/**
+ * Compare two semantic versions.
+ * @param left First version.
+ * @param right Second version.
+ * @returns Negative when left is older, positive when newer, zero when equal.
+ */
+export function compareSemver(left, right) {
+  const a = partsOf(left);
+  const b = partsOf(right);
+  return a.major - b.major || a.minor - b.minor || a.patch - b.patch;
+}
+
+/**
+ * Read released versions from the `v*` git tags.
+ * @param root Repository root; defaults to this script's parent.
+ * @returns Version strings without the leading `v`, sorted ascending.
+ * @throws When git cannot list tags.
+ */
+export function readReleasedVersions(root = ROOT) {
+  const output = execFileSync('git', ['-C', root, 'tag', '--list', 'v*'], {
+    encoding: 'utf8',
+  });
+  return output
+    .split('\n')
+    .map((line) => line.trim().replace(/^v/, ''))
+    .filter(isSemanticVersion)
+    .sort(compareSemver);
+}
 
 /**
  * Reads and parses the compatibility data file.
@@ -86,8 +142,9 @@ function renderMigration(entry) {
  * @returns Markdown lines for the entry.
  */
 function renderEntry(entry) {
+  const heading = entry.version === UNRELEASED ? 'Unreleased' : entry.version;
   return [
-    `### ${entry.version} - ${entry.title}`,
+    `### ${heading} - ${entry.title}`,
     '',
     `**Impact:** ${IMPACT_LABEL[entry.impact]}`,
     '',
@@ -145,7 +202,7 @@ function renderFooter() {
  * @param data Parsed data document.
  * @returns Complete Markdown document text.
  */
-function renderPage(data) {
+export function renderPage(data) {
   assertKnownImpacts(data.entries);
   const body = data.entries.flatMap(renderEntry);
   const lines = [...renderHeader(), ...renderRuntime(data.runtime), '## Release notes', '', ...body, ...renderFooter()];

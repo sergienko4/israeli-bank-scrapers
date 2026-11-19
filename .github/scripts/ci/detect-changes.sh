@@ -27,7 +27,11 @@
 #                 that keeps those shell files runnable on macOS and
 #                 Windows, and it sits outside every other group, so it
 #                 could otherwise be weakened and merged without the job
-#                 that runs it ever firing. The scheduled watches —
+#                 that runs it ever firing. The compatibility tooling is
+#                 included for the same reason: its unit tests live under
+#                 `src/Tests/Unit/Tools`, but the scripts themselves sit
+#                 outside `src/`, so a script-only edit would otherwise skip
+#                 the suite that proves it. The scheduled watches —
 #                 `scripts/npm-audit/**`, `scripts/npm-audit-watch.mjs`,
 #                 `scripts/dev-tooling/**`, `scripts/dev-tooling-watch.mjs`,
 #                 `scripts/run-typedoc.mjs` and `typedoc.json`
@@ -236,7 +240,7 @@ if has '^src/'; then src=true; fi
 if has '\.md$'; then md=true; fi
 if has '^docs/|^mkdocs_hooks/|^mkdocs\.yml$|^requirements-docs\.txt$|^typedoc\.json$|^scripts/run-typedoc\.mjs$|^compatibility\.json$|^scripts/build-compatibility\.mjs$'; then docs=true; fi
 if has '^src/Scrapers/Pipeline/.*\.ts$'; then pipeline_ts=true; fi
-if has '^\.github/scripts/ci/|^\.github/workflows/|^\.github/actions/|^\.husky/|^scripts/check-shell-portability\.mjs$|^scripts/npm-audit/|^scripts/npm-audit-watch\.mjs$|^scripts/dev-tooling/|^scripts/dev-tooling-watch\.mjs$|^typedoc\.json$|^scripts/run-typedoc\.mjs$'; then ci_scripts=true; fi
+if has '^\.github/scripts/ci/|^\.github/workflows/|^\.github/actions/|^\.husky/|^scripts/check-shell-portability\.mjs$|^scripts/npm-audit/|^scripts/npm-audit-watch\.mjs$|^scripts/dev-tooling/|^scripts/dev-tooling-watch\.mjs$|^typedoc\.json$|^scripts/run-typedoc\.mjs$|^scripts/(build-compatibility|upgrade-notes|stamp-compatibility|check-compatibility-versions)\.mjs$'; then ci_scripts=true; fi
 if has '^package\.json$|^package-lock\.json$|^\.github/dependabot\.yml$|^renovate\.json$|^\.nvmrc$'; then deps=true; fi
 if has '^jest\..*\.(js|cjs|mjs|ts)$|^jest\.config\.(js|cjs|mjs|ts)$|^scripts/check-jest-scopes\.mjs$'; then test_config=true; fi
 if has '^scripts/decoupling-metrics/'; then metrics=true; fi

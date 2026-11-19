@@ -15,6 +15,12 @@
  * Usage:
  *   node scripts/upgrade-notes.mjs --version 8.6.6
  *   node scripts/upgrade-notes.mjs --tag v8.6.6
+ *   node scripts/upgrade-notes.mjs --version 8.6.6 --include-pending
+ *
+ * `--include-pending` is for the release job that just created the tag: it
+ * still renders a note whose stamp was missed. A manual re-render without the
+ * flag is exact-only, so a sentinel added after a release cannot be attributed
+ * to that already published release.
  *
  * Exit codes:
  *   0  - section written to stdout
@@ -22,7 +28,14 @@
  */
 import { argv, exit, stderr, stdout } from 'node:process';
 import { pathToFileURL } from 'node:url';
-import { IMPACT_LABEL, readData } from './build-compatibility.mjs';
+import {
+  compareSemver,
+  IMPACT_LABEL,
+  isSemanticVersion,
+  readData,
+  readReleasedVersions,
+  UNRELEASED,
+} from './build-compatibility.mjs';
 
 const DOCS_URL = 'https://sergienko4.github.io/israeli-bank-scrapers/compatibility/';
 
@@ -86,16 +99,82 @@ function renderActions(entries) {
 }
 
 /**
- * Renders the whole section, listing every entry for the version.
+ * Whether the requested version is the newest release, so entries still
+ * carrying the sentinel belong to it.
+ * @param version Target version, without a leading `v`.
+ * @param releasedVersions Versions that already have a `v*` tag.
+ * @returns True when no tagged version is newer than the target.
+ */
+function isNewestRelease(version, releasedVersions) {
+  return releasedVersions.every((tagged) => compareSemver(tagged, version) <= 0);
+}
+
+/**
+ * The highest tagged version older than the target.
+ * @param version Target version, without a leading `v`.
+ * @param releasedVersions Versions that already have a `v*` tag.
+ * @returns The previous release, or null when every tag is newer.
+ */
+function previousRelease(version, releasedVersions) {
+  const older = releasedVersions.filter((tagged) => compareSemver(tagged, version) < 0);
+  if (older.length === 0) return null;
+  return older.reduce((highest, tagged) => (compareSemver(tagged, highest) > 0 ? tagged : highest));
+}
+
+/**
+ * Whether an entry belongs to the newest release without naming it exactly:
+ * the sentinel, or a numeric note newer than the previous release that a
+ * failed stamp left behind.
+ * @param entryVersion Entry version.
+ * @param version Target version, without a leading `v`.
+ * @param releasedVersions Versions that already have a `v*` tag.
+ * @returns True when the entry belongs to the target release.
+ */
+function isPendingFor(entryVersion, version, releasedVersions) {
+  if (entryVersion === UNRELEASED) return true;
+  if (!isSemanticVersion(entryVersion)) return false;
+  const previous = previousRelease(version, releasedVersions);
+  if (previous === null) return false;
+  // No upper bound: a guessed 10.4.0 must still reach a 10.1.0 body when the
+  // stamp was missed, rather than silently becoming "No action required".
+  return compareSemver(entryVersion, previous) > 0;
+}
+
+/**
+ * Renders the whole section, listing every entry for the version. Sentinel
+ * and still-pending numeric entries are included only for the newest release,
+ * so re-rendering an old release cannot pick up notes that belong to the next
+ * one.
  * @param version Target version, without a leading `v`.
  * @param data Parsed compatibility document.
+ * @param options Released versions and whether to include pending entries.
  * @returns Complete Markdown section.
  */
-export function renderSection(version, data) {
-  const entries = data.entries.filter((e) => e.version === version);
+export function renderSection(version, data, options = {}) {
+  const releasedVersions = options.releasedVersions ?? [];
+  const includePending = options.includePending === true;
+  const includeUnreleased = includePending && isNewestRelease(version, releasedVersions);
+  const entries = data.entries.filter((entry) => {
+    if (entry.version === version) return true;
+    if (!includeUnreleased) return false;
+    return isPendingFor(entry.version, version, releasedVersions);
+  });
   const body = entries.length > 0 ? renderActions(entries) : renderNoAction();
   const lines = [`## Upgrading to ${version}`, '', ...body, '', `Requires Node ${data.runtime.node}.`, '', `Full upgrade notes: ${DOCS_URL}`];
   return `${lines.join('\n')}\n`;
+}
+
+/**
+ * Read tags without failing the release body when the checkout is shallow.
+ * @returns Released versions, or an empty list when git cannot list tags.
+ */
+function releasedVersionsOrEmpty() {
+  try {
+    return readReleasedVersions();
+  } catch (error) {
+    stderr.write(`warning: could not read release tags (${error.message}); including unreleased notes\n`);
+    return [];
+  }
 }
 
 /** Entry point: resolve the version, then print the section. */
@@ -105,7 +184,10 @@ function main() {
     stderr.write('usage: node scripts/upgrade-notes.mjs --version <x.y.z>\n');
     exit(2);
   }
-  stdout.write(renderSection(version, readData()));
+  const releasedVersions = releasedVersionsOrEmpty();
+  const includePending = argv.includes('--include-pending');
+  const options = { releasedVersions, includePending };
+  stdout.write(renderSection(version, readData(), options));
 }
 
 // Only run the CLI when invoked directly, so the renderer above can be

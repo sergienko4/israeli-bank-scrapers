@@ -111,6 +111,12 @@ scripts/**
 # Generates docs/compatibility.md from compatibility.json; CI runs it with
 # --check, so it has to be in the tree for the docs gate to work.
 !scripts/build-compatibility.mjs
+# Renders the GitHub release body; release.yml runs it.
+!scripts/upgrade-notes.mjs
+# Stamps the release PR and guards a guessed version; both run in CI, so they
+# have to be in the tree for the release and static-check jobs to work.
+!scripts/stamp-compatibility.mjs
+!scripts/check-compatibility-versions.mjs
 # Runs TypeDoc with a minimatch@11 `matchOne` compatibility shim so `npm run docs`
 # works while keeping `minimatch@11.0.5` pinned across the lockfile.
 !scripts/run-typedoc.mjs
