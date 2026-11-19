@@ -248,6 +248,11 @@ PII value` runs the staged-PII guard over the pull request's additions
   (the four grandfathered `10.1.0` notes). Any other number fails and tells the
   author to write `unreleased`. The release run repeats the check in `--strict`
   mode after the tag exists, so a sentinel cannot survive a release.
+
+- **Docs dependency lock.** The docs build installs `requirements-docs.txt`
+  with `pip install --require-hashes`; the lock is generated from
+  `requirements-docs.in`. `DocsDependencyPins.test.ts` fails if a requirement
+  loses its hash or either workflow drops the flag.
 - **No shared writes.** Background steps share the working tree with the
   foreground ones, so none may write a file another step reads. Scorecard
   scans a `git archive` copy in a temporary directory. Decoupling writes its
