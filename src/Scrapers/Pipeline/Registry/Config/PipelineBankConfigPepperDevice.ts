@@ -4,9 +4,10 @@
  */
 
 /**
- * Transmit device-details fingerprint (20 fields). Values captured
- * 2026-04-23 from Pepper 11.5.5 live flow. master_key_generated is
- * hydrated at bind-time via $ref: 'nowMs'.
+ * Transmit device-details fingerprint. Values captured 2026-04-23 from
+ * Pepper 11.5.5 live flow. `device_name` and `master_key_generated` are
+ * per-user / per-bind values and are hydrated at bind time by
+ * PipelineBankConfigPepperFingerprint.ts — never shipped here.
  */
 const DEVICE_DETAILS_LITERAL = {
   hw_type: 'Phone',
@@ -19,7 +20,6 @@ const DEVICE_DETAILS_LITERAL = {
   security_patch: '2024-03-01',
   sim_operator_name: 'T-Mobile',
   frontal_camera: false,
-  device_name: 'e71c2b2f5a0cbd94',
   has_hw_security: false,
   screen_lock: false,
   os_type: 'Android',

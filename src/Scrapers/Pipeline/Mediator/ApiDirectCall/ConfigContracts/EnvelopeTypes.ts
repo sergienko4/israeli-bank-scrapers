@@ -20,9 +20,9 @@ import type { JsonValueTemplate, RefToken } from './TemplateTypes.js';
 /**
  * Fingerprint shape consumed by GenericFingerprintBuilder. The shape
  * is a JsonValueTemplate hydrated at bind-time against a scope that
- * carries only fresh-timestamp tokens ($ref: 'now' / 'nowMs') — no
- * carry/creds/keypair. Banks embed any structure their server
- * requires; dynamic timestamps go in via the tokens.
+ * carries the initial per-user carry (`$ref: 'carry.*'`) plus fresh
+ * timestamps (`$ref: 'now'` / `'nowMs'`) — no creds/keypair. Banks embed
+ * any structure their server requires; dynamic fields go in via the tokens.
  */
 interface IFingerprintConfig {
   readonly shape: JsonValueTemplate;

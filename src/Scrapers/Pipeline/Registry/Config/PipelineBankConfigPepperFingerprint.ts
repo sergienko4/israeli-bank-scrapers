@@ -5,7 +5,10 @@
  * pure data (Rule #11 compliant).
  */
 
-import type { IFingerprintConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
+import type {
+  IFingerprintConfig,
+  JsonValueTemplate,
+} from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import {
   APP_PERMISSIONS_LITERAL,
   CAPABILITIES_LITERAL,
@@ -51,7 +54,24 @@ function extractSdkVersionMetadata(clientVersion: string): string {
  */
 const SDK_VERSION_METADATA = extractSdkVersionMetadata(TS_CLIENT_VERSION);
 
-/** Fingerprint shape — hydrated with $ref: now / nowMs at bind-time. */
+/**
+ * Lift a flat literal record into template nodes so individual fields can be
+ * replaced by dynamic refs without losing the rest of the captured shape.
+ * @param source - Flat device-details literal.
+ * @returns One `$literal` node per field.
+ */
+function asLiteralFields(
+  source: Readonly<Record<string, unknown>>,
+): Readonly<Record<string, JsonValueTemplate>> {
+  const entries = Object.entries(source).map(([key, value]): [string, JsonValueTemplate] => [
+    key,
+    { $literal: value },
+  ]);
+  const fields: Record<string, JsonValueTemplate> = Object.fromEntries(entries);
+  return fields;
+}
+
+/** Fingerprint shape — the initial carry supplies per-user device details. */
 const PEPPER_FINGERPRINT: IFingerprintConfig = {
   shape: {
     metadata: {
@@ -63,7 +83,9 @@ const PEPPER_FINGERPRINT: IFingerprintConfig = {
     content: {
       hw_authenticators: { $literal: HW_AUTHENTICATORS_LITERAL },
       device_details: {
-        $literal: { ...DEVICE_DETAILS_LITERAL, master_key_generated: Date.now() },
+        ...asLiteralFields(DEVICE_DETAILS_LITERAL),
+        device_name: { $ref: 'carry.deviceName' },
+        master_key_generated: { $ref: 'nowMs' },
       },
       app_permissions: { $literal: APP_PERMISSIONS_LITERAL },
       capabilities: { $literal: CAPABILITIES_LITERAL },

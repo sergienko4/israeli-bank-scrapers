@@ -283,6 +283,29 @@ A login step can set cookies the bank expects the client to have written, and re
 
 A step fails before any request, naming no value: `ref cookie.<name> miss` when no required cookie applies or the run has no domain jar; `ref cookie.<name> bad` when the raw value is over 4096 characters or holds a malformed escape; `<step> setCookies <name> invalid` when a ref does not resolve to cookie-octets; `<step> setCookies needs a cookie session` when the run has no cookie jar. The build refuses `setCookies` without `transport.cookieDomains`, a cookie name that is not an HTTP token, and malformed sources (`API_DIRECT_NATIVE_RULES` and `API_DIRECT_COOKIE_RULES`).
 
+## Security posture
+
+The transport and signing layer implements what each bank's own client
+implements. Three protocol-mandated consequences are deliberate: the Yahav
+PKCS#10 request is signed SHA-1 with RSA; the Telebank family's `uidMd5` is an
+MD5 of the composed user id; and PayBox, Leumi and the FIBI family use
+AES-256-CBC in their request signing or Transmit envelopes. Each satisfies
+the bank's wire format. The library does not store or hash a consumer
+password; a bank envelope may encrypt the password field for that request as
+wire encoding. None of these primitives decides whether a scrape result is
+trustworthy. The full statement, with the call sites, is in
+[`SECURITY.md`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/SECURITY.md).
+
+Application-level identity material is documented rather than hidden. OneZero's
+`*.tfd-bank.com` edge requires the Android app's mutual-TLS certificate; the
+bundled certificate and key are extracted from the public APK, identify the app
+rather than the account holder, and rotate roughly annually. The
+`ONEZERO_MTLS_CERT` / `ONEZERO_MTLS_KEY` pair replaces both halves or fails
+closed — see [OneZero](../banks/onezero.md#client-certificate). Pepper's
+Transmit `device_name` is derived per user from `phoneNumber` with the
+`sha256-prefix-16` bootstrap, so the fingerprint carries a stable per-account
+identifier instead of one captured literal shared by every user.
+
 ## Environment boundary
 
 Production Pipeline code reads `process.env` and `process.argv` only in

@@ -6,6 +6,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { ScraperErrorTypes } from '../../../../../Base/ErrorTypes.js';
+import type { IJsonObject } from '../../../../Types/JsonValue.js';
 import type { Procedure } from '../../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../../Types/Procedure.js';
 import type { IApiDirectCallConfig } from '../../ConfigContracts/index.js';
@@ -43,11 +44,15 @@ function prepareKeypairs(config: IApiDirectCallConfig): Procedure<IKeypairBundle
 /**
  * Build the fingerprint collection block when config.fingerprint is set.
  * @param config - API-direct-call config.
+ * @param carry - Initial carry seeded from creds before hydration.
  * @returns Procedure with the collection result (or false when absent).
  */
-function prepareFingerprint(config: IApiDirectCallConfig): Procedure<ICollectionResult | false> {
+function prepareFingerprint(
+  config: IApiDirectCallConfig,
+  carry: IJsonObject,
+): Procedure<ICollectionResult | false> {
   if (config.fingerprint === undefined) return succeed(false);
-  return buildCollectionResult(config.fingerprint, config);
+  return buildCollectionResult(config.fingerprint, config, carry);
 }
 
 /**
@@ -190,31 +195,34 @@ function resolveKeypairs(args: IRunSmsOtpArgs): Procedure<IKeypairBundle> {
 }
 
 /**
- * Prepare the keypairs + fingerprint bundle (no carry build).
+ * Prepare the keypairs + fingerprint bundle against the initial carry.
  * @param args - Flow run args.
+ * @param carry - Initial carry seeded from creds.
  * @returns Core inputs procedure.
  */
-function prepCoreInputs(args: IRunSmsOtpArgs): Procedure<ICoreSmsOtpInputs> {
+function prepCoreInputs(args: IRunSmsOtpArgs, carry: IJsonObject): Procedure<ICoreSmsOtpInputs> {
   const keypairsProc = resolveKeypairs(args);
   if (!isOk(keypairsProc)) return keypairsProc;
-  const fpProc = prepareFingerprint(args.config);
+  const fpProc = prepareFingerprint(args.config, carry);
   if (!isOk(fpProc)) return fpProc;
   return succeed({ keypairs: keypairsProc.value, fingerprint: fpProc.value });
 }
 
 /**
- * Check the required credentials, then prepare keypairs, fingerprint, and
- * initial carry for the flow. Nothing is sent before this returns.
+ * Check the required credentials, then prepare the initial carry, keypairs
+ * and fingerprint for the flow. The carry is built first so the fingerprint
+ * can read per-user seeds (`$ref: 'carry.*'`). Nothing is sent before this
+ * returns.
  * @param args - Flow run args.
  * @returns Prepared bundle procedure.
  */
 function prepareSmsOtpFlow(args: IRunSmsOtpArgs): Procedure<ISmsOtpPrep> {
   const credsProc = checkRequiredCreds(args.config, args.creds);
   if (!isOk(credsProc)) return credsProc;
-  const coreProc = prepCoreInputs(args);
-  if (!isOk(coreProc)) return coreProc;
   const carryProc = buildSmsOtpCarry(args);
   if (!isOk(carryProc)) return carryProc;
+  const coreProc = prepCoreInputs(args, carryProc.value);
+  if (!isOk(coreProc)) return coreProc;
   return succeed({ ...coreProc.value, initialCarry: carryProc.value });
 }
 

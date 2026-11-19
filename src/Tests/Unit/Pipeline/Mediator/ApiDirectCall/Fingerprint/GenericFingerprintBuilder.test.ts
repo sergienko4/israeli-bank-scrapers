@@ -46,6 +46,17 @@ describe('GenericFingerprintBuilder.buildCollectionResult', () => {
     expect(value.content.stamped).toBeGreaterThan(10 ** 12);
   });
 
+  it('hydrates $ref: carry.<name> from the supplied initial carry', () => {
+    const fp: IFingerprintConfig = {
+      shape: { content: { device_name: { $ref: 'carry.deviceName' } } },
+    };
+    const result = buildCollectionResult(fp, CONFIG_STUB, { deviceName: '0123456789abcdef' });
+    expect(result.success).toBe(true);
+    if (!result.success) throw new ScraperError('buildCollectionResult should succeed');
+    const value = result.value as { content: { device_name: string } };
+    expect(value.content.device_name).toBe('0123456789abcdef');
+  });
+
   it('returns literal blobs verbatim when no dynamic refs used', () => {
     const fp: IFingerprintConfig = {
       shape: {
