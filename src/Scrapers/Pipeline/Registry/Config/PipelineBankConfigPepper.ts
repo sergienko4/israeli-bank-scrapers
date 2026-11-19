@@ -61,7 +61,10 @@ const PEPPER_API_DIRECT_CALL: IApiDirectCallConfig = {
   fingerprint: PEPPER_FINGERPRINT,
   probe: { queryTag: 'customer' },
   steps: [BIND_STEP, ASSERT_PWD_STEP, ASSERT_OTP_STEP],
-  seedCarryFromCreds: [{ field: 'clientInstanceId', bootstrap: { kind: 'random-uuid' } }],
+  seedCarryFromCreds: [
+    { field: 'clientInstanceId', bootstrap: { kind: 'random-uuid' } },
+    { field: 'deviceName', bootstrap: { kind: 'sha256-prefix-16', from: 'phoneNumber' } },
+  ],
   persistentAuth: {
     kind: 'bound-device',
     provider: 'pepper',
