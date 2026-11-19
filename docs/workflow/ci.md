@@ -250,9 +250,11 @@ PII value` runs the staged-PII guard over the pull request's additions
   mode after the tag exists, so a sentinel cannot survive a release.
 
 - **Docs dependency lock.** The docs build installs `requirements-docs.txt`
-  with `pip install --require-hashes`; the lock is generated from
-  `requirements-docs.in`. `DocsDependencyPins.test.ts` fails if a requirement
-  loses its hash or either workflow drops the flag.
+  with `pip install --require-hashes --only-binary=:all:`; the lock is
+  generated from `requirements-docs.in`. Both files set `docs` and
+  `ci_scripts`, so a lock or input change builds the docs and runs the policy
+  suite. `DocsDependencyPins.test.ts` fails if a requirement loses its hash,
+  the lock drifts from the input, or an active workflow step drops a flag.
 - **No shared writes.** Background steps share the working tree with the
   foreground ones, so none may write a file another step reads. Scorecard
   scans a `git archive` copy in a temporary directory. Decoupling writes its

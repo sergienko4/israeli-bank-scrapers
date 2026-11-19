@@ -5,27 +5,48 @@
  * every `pip install` that is not hash-pinned. The docs job is the only
  * Python consumer in the repository, and it installs
  * `requirements-docs.txt` in two workflows. Hash-pinning the lock and
- * installing it with `--require-hashes` closes the gap and keeps a
- * compromised package index from substituting a different archive.
+ * installing it with `--require-hashes --only-binary=:all:` closes the gap:
+ * hashes bind the selected archives, and binary-only stops a compromised index
+ * from substituting a source build with unhashed build tooling.
  *
- * <p>This test is the regression guard: a requirement that loses its hashes,
- * or a workflow that drops the flag, fails here before the scheduled scan
- * has to notice.
+ * <p>This test is the regression guard. It reads the active workflow `run`
+ * steps, compares the input pins with the generated lock, and proves the
+ * Scorecard hard-fail parser understands the lock's hash continuation lines.
  */
 
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { parse } from 'yaml';
 
 const THIS_FILE = fileURLToPath(import.meta.url);
 const THIS_DIR = dirname(THIS_FILE);
 const REPO_ROOT = join(THIS_DIR, '../../../');
 const REQUIREMENTS = join(REPO_ROOT, 'requirements-docs.txt');
+const REQUIREMENTS_INPUT = join(REPO_ROOT, 'requirements-docs.in');
+const SCORECARD_HARD_FAIL = join(REPO_ROOT, '.github/workflows/scripts/scorecard-hardfail.sh');
+const DETECT_CHANGES = join(REPO_ROOT, '.github/scripts/ci/detect-changes.sh');
 const WORKFLOWS = [
   join(REPO_ROOT, '.github/workflows/docs.yml'),
   join(REPO_ROOT, '.github/workflows/pr.yml'),
 ] as const;
-const HASHED_INSTALL = 'pip install --require-hashes -r requirements-docs.txt';
+
+/** One workflow step, limited to the field this test reads. */
+interface IWorkflowStep {
+  readonly run?: string;
+}
+
+/** One workflow job, limited to the field this test reads. */
+interface IWorkflowJob {
+  readonly steps?: readonly IWorkflowStep[];
+}
+
+/** Parsed workflow document. */
+interface IWorkflowDoc {
+  readonly jobs?: Readonly<Record<string, IWorkflowJob>>;
+}
 
 /**
  * Join continuation lines into one logical requirement per package.
@@ -51,6 +72,59 @@ function logicalRequirements(raw: string): readonly string[] {
   return logical;
 }
 
+/**
+ * Map every pinned package to its version.
+ * @param raw - Requirements file text.
+ * @returns Lowercase package name → pinned version.
+ */
+function pinsOf(raw: string): ReadonlyMap<string, string> {
+  const pins = new Map<string, string>();
+  for (const requirement of logicalRequirements(raw)) {
+    const match = /^([\w.-]+)==(\S+)/.exec(requirement);
+    if (match === null) continue;
+    const name = match[1];
+    const version = match[2];
+    if (name.length === 0 || version.length === 0) continue;
+    const normalized = name.toLowerCase();
+    pins.set(normalized, version);
+  }
+  return pins;
+}
+
+/**
+ * Read the non-comment command lines from one step's `run` block.
+ * @param step - Workflow step.
+ * @returns Trimmed, active command lines.
+ */
+function runLinesOf(step: IWorkflowStep): readonly string[] {
+  const lines = (step.run ?? '').split(/\r?\n/).map(line => line.trim());
+  return lines.filter(line => line.length > 0 && !line.startsWith('#'));
+}
+
+/**
+ * Collect every active command line from a workflow.
+ * @param raw - Workflow YAML.
+ * @returns Active command lines, comments excluded.
+ */
+function activeRunLines(raw: string): readonly string[] {
+  const doc = parse(raw) as IWorkflowDoc;
+  const jobs = Object.values(doc.jobs ?? {});
+  const steps = jobs.flatMap(job => job.steps ?? []);
+  return steps.flatMap(runLinesOf);
+}
+
+/**
+ * Active commands that install the docs requirements.
+ * @param path - Workflow path.
+ * @returns Matching command lines.
+ */
+function pipDocsCommands(path: string): readonly string[] {
+  const raw = readFileSync(path, 'utf8');
+  return activeRunLines(raw).filter(
+    command => command.includes('pip install') && command.includes('requirements-docs.txt'),
+  );
+}
+
 describe('docs dependency pins', () => {
   it('hash-pins every package in requirements-docs.txt', () => {
     const raw = readFileSync(REQUIREMENTS, 'utf8');
@@ -62,14 +136,52 @@ describe('docs dependency pins', () => {
     }
   });
 
-  it('keeps the direct docs tools in the lock', () => {
-    const raw = readFileSync(REQUIREMENTS, 'utf8');
-    expect(raw).toMatch(/^zensical==/m);
-    expect(raw).toMatch(/^pymdown-extensions==/m);
+  it('keeps the lock in step with requirements-docs.in', () => {
+    const inputRaw = readFileSync(REQUIREMENTS_INPUT, 'utf8');
+    const lockRaw = readFileSync(REQUIREMENTS, 'utf8');
+    const inputPins = pinsOf(inputRaw);
+    const lockPins = pinsOf(lockRaw);
+    expect(inputPins.size).toBeGreaterThan(0);
+    for (const [name, version] of inputPins) {
+      const lockedVersion = lockPins.get(name);
+      expect(lockedVersion).toBe(version);
+    }
   });
 
-  it.each(WORKFLOWS)('installs the docs lock with --require-hashes in %s', path => {
-    const raw = readFileSync(path, 'utf8');
-    expect(raw).toContain(HASHED_INSTALL);
+  it.each(WORKFLOWS)(
+    'installs the lock with hashes and binary-only in active steps of %s',
+    path => {
+      const commands = pipDocsCommands(path);
+      expect(commands.length).toBeGreaterThan(0);
+      for (const command of commands) {
+        expect(command).toContain('--require-hashes');
+        expect(command).toContain('--only-binary=:all:');
+      }
+    },
+  );
+
+  it('parses only requirement headers for the Scorecard lookup', () => {
+    const lockRaw = readFileSync(REQUIREMENTS, 'utf8');
+    const expected = [...pinsOf(lockRaw).keys()].sort();
+    const output = execFileSync('bash', [SCORECARD_HARD_FAIL, '--list-packages'], {
+      cwd: REPO_ROOT,
+      encoding: 'utf8',
+    });
+    const packages = output
+      .trim()
+      .split(/\r?\n/)
+      .filter(line => line.length > 0)
+      .map(line => line.toLowerCase())
+      .sort();
+    expect(packages).toEqual(expected);
+  });
+
+  it('classifies both requirements files into docs and CI scripts', () => {
+    const raw = readFileSync(DETECT_CHANGES, 'utf8');
+    const lines = raw.split(/\r?\n/);
+    const docsLine = lines.find(line => line.includes('then docs=true')) ?? '';
+    const ciLine = lines.find(line => line.includes('then ci_scripts=true')) ?? '';
+    expect(docsLine).toContain('requirements-docs\\.(in|txt)');
+    expect(ciLine).toContain('requirements-docs\\.(in|txt)');
   });
 });

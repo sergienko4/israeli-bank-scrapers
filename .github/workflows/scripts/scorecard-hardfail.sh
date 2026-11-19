@@ -9,6 +9,10 @@
 # array below. Each entry there MUST document the reason and the
 # last-reviewed date.
 #
+# `--list-packages` prints the parsed package names and exits without
+# network access; the docs-pin policy test uses it to prove the hash
+# continuation lines are not mistaken for packages.
+#
 # Why this exists: `actions/dependency-review-action` only warns on
 # Scorecard regressions (it has no fail-on-scorecard input). For
 # production code we want hard failures so a new low-scoring
@@ -29,13 +33,26 @@ declare -A SCORECARD_ACCEPTED=(
   ['mkdocs-mermaid2-plugin']='De-facto standard mkdocs mermaid plugin (fralau/mkdocs-mermaid2-plugin); the docs site renders mermaid diagrams through it (mkdocs.yml plugins entry). Last upstream release 1.2.3 on 2025-10-17 and no newer version exists (verified PyPI 2026-08-19), so no higher-scoring release is available to pin. Score 2.9 (API 2026-08-17: Maintained=0, Code-Review=1) reflects single-maintainer cadence and missing signed releases, not a security advisory; no maintained alternative exists. License: MIT.'
 )
 
+# Only requirement headers are packages. A generated hash lock puts
+# `    --hash=sha256:...` continuation lines under each header; those are
+# not package names and must never reach the PyPI lookup.
+list_packages() {
+  grep -E '^[A-Za-z0-9_.-]+[[:space:]]*([<>=!~]|$)' "$REQ_FILE" \
+    | sed -E 's/[[:space:]]*([<>=!~].*)?$//' \
+    | tr -d '\r'
+}
+
+if [ "${1:-}" = "--list-packages" ]; then
+  list_packages
+  exit 0
+fi
+
 FAIL=0
 CHECKED=0
 SKIPPED=0
 ACCEPTED=0
 
-# Strip comments/blanks/extras; produce one package name per line.
-mapfile -t PKGS < <(grep -vE '^\s*(#|$)' "$REQ_FILE" | sed -E 's/[[:space:]]*([<>=!~].*)?$//' | tr -d '\r')
+mapfile -t PKGS < <(list_packages)
 
 for raw_pkg in "${PKGS[@]}"; do
   pkg="${raw_pkg,,}"  # lowercase for the ACCEPTED key + Scorecard URL casing
