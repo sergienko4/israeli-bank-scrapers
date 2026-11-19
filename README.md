@@ -362,6 +362,23 @@ if (!result.success) {
 Full remedies, including WAF-specific ones, are in
 [Troubleshooting](https://sergienko4.github.io/israeli-bank-scrapers/troubleshooting/).
 
+The runtime enums are exported, so comparisons need no string literals.
+`ScraperErrorTypes`, `TransactionTypes`, `TransactionStatuses` and
+`ScraperProgressTypes` are values; `ITransaction`, `IAuthFlowInfo` and
+`IWafErrorDetails` are exported types.
+
+```typescript
+import { ScraperErrorTypes, TransactionStatuses } from '@sergienko4/israeli-bank-scrapers';
+
+if (result.errorType === ScraperErrorTypes.WafBlocked) {
+  // handle the bank edge refusal
+}
+
+const pending = (result.accounts ?? [])
+  .flatMap(account => account.txns)
+  .filter(txn => txn.status === TransactionStatuses.Pending);
+```
+
 ## How it works
 
 ```mermaid
