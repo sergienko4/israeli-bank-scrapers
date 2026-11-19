@@ -10,7 +10,7 @@
 #          downstream jobs):
 #   src         — any file under `src/` was modified
 #   md          — any `*.md` was modified
-#   docs        — `docs/**`, `mkdocs.yml`, `requirements-docs.txt`,
+#   docs        — `docs/**`, `mkdocs.yml`, `requirements-docs.in|txt`,
 #                 `typedoc.json`, or either half of the compatibility page
 #                 (`compatibility.json` data + `build-compatibility.mjs`
 #                 renderer) was modified. Both halves must be listed: the
@@ -20,8 +20,10 @@
 #   pipeline_ts — `src/Scrapers/Pipeline/**/*.ts` was modified
 #                 (drives the docs-coverage canary)
 #   ci_scripts  — `.github/scripts/ci/**`, `.github/workflows/**`,
-#                 `.github/actions/**` or `.husky/**` was modified (drives
-#                 the CI scripts smoke test, which pins the gate wiring).
+#                 `.github/actions/**`, `.husky/**` or either docs
+#                 requirements file was modified (drives the CI scripts smoke
+#                 test and the docs-pin policy suite, which pinned the gate
+#                 wiring and the docs lock).
 #                 `scripts/check-shell-portability.mjs` is included for the
 #                 same self-testing reason `metrics` exists: it is the gate
 #                 that keeps those shell files runnable on macOS and
@@ -238,9 +240,9 @@ full_suite=false
 
 if has '^src/'; then src=true; fi
 if has '\.md$'; then md=true; fi
-if has '^docs/|^mkdocs_hooks/|^mkdocs\.yml$|^requirements-docs\.txt$|^typedoc\.json$|^scripts/run-typedoc\.mjs$|^compatibility\.json$|^scripts/build-compatibility\.mjs$'; then docs=true; fi
+if has '^docs/|^mkdocs_hooks/|^mkdocs\.yml$|^requirements-docs\.(in|txt)$|^typedoc\.json$|^scripts/run-typedoc\.mjs$|^compatibility\.json$|^scripts/build-compatibility\.mjs$'; then docs=true; fi
 if has '^src/Scrapers/Pipeline/.*\.ts$'; then pipeline_ts=true; fi
-if has '^\.github/scripts/ci/|^\.github/workflows/|^\.github/actions/|^\.husky/|^scripts/check-shell-portability\.mjs$|^scripts/npm-audit/|^scripts/npm-audit-watch\.mjs$|^scripts/dev-tooling/|^scripts/dev-tooling-watch\.mjs$|^typedoc\.json$|^scripts/run-typedoc\.mjs$|^scripts/(build-compatibility|upgrade-notes|stamp-compatibility|check-compatibility-versions)\.mjs$'; then ci_scripts=true; fi
+if has '^\.github/scripts/ci/|^\.github/workflows/|^\.github/actions/|^\.husky/|^scripts/check-shell-portability\.mjs$|^scripts/npm-audit/|^scripts/npm-audit-watch\.mjs$|^scripts/dev-tooling/|^scripts/dev-tooling-watch\.mjs$|^typedoc\.json$|^scripts/run-typedoc\.mjs$|^scripts/(build-compatibility|upgrade-notes|stamp-compatibility|check-compatibility-versions)\.mjs$|^requirements-docs\.(in|txt)$'; then ci_scripts=true; fi
 if has '^package\.json$|^package-lock\.json$|^\.github/dependabot\.yml$|^renovate\.json$|^\.nvmrc$'; then deps=true; fi
 if has '^jest\..*\.(js|cjs|mjs|ts)$|^jest\.config\.(js|cjs|mjs|ts)$|^scripts/check-jest-scopes\.mjs$'; then test_config=true; fi
 if has '^scripts/decoupling-metrics/'; then metrics=true; fi

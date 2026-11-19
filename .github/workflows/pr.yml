@@ -459,7 +459,7 @@ jobs:
       - name: Install mkdocs + plugins
         id: mkdocs_deps
         if: ${{ !cancelled() && steps.ready.outcome == 'success' && (needs.changes.outputs.docs == 'true' && steps.python.outcome == 'success') }}
-        run: pip install -r requirements-docs.txt
+        run: 'pip install --require-hashes --only-binary=:all: -r requirements-docs.txt'
       - name: mkdocs build --strict (catches dead links / undefined refs)
         if: ${{ !cancelled() && steps.ready.outcome == 'success' && (needs.changes.outputs.docs == 'true' && steps.mkdocs_deps.outcome == 'success') }}
         run: PYTHONPATH=. zensical build --clean --strict

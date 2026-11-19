@@ -50,6 +50,10 @@ flowchart LR
 its own trigger — a reusable workflow call cannot take a `paths:` filter, so
 the decision moves into a gate job. The other scans run on every merge.
 
+The `Docs` job installs the hash-pinned Python docs lock with
+`pip install --require-hashes`; `DocsDependencyPins.test.ts` pins the lock and
+both workflow commands.
+
 `Release` is **not** gated on the scans. That preserves the behaviour release
 had as a standalone workflow, where a flaky Sonar run could never block cutting
 a release. The DAG reports both branches; it does not couple them.

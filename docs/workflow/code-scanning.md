@@ -236,6 +236,16 @@ engine, so they apply to the scheduled scan too:
   without emitting `Possibly incomplete results` passes silently.
 - **Commands assembled at runtime** (`eval`, variables).
 
+## Python installs: what Scorecard counts as pinned
+
+Scorecard applies `PinnedDependenciesID` to pip commands too. A
+`pip install -r requirements-docs.txt` is unpinned unless every requirement
+carries a hash. The docs lock is generated from `requirements-docs.in` and
+installed with `pip install --require-hashes` in both `docs.yml` and `pr.yml`;
+`DocsDependencyPins.test.ts` fails if a requirement loses its hash or either
+workflow drops the flag. Regenerate the lock with `pip-compile --generate-hashes`;
+the docs build is its integration check.
+
 ## Standing finding 1: 28 Scorecard `PinnedDependenciesID` alerts — filtered from the SARIF
 
 **Do not "fix" these by changing `uses:` syntax.**
