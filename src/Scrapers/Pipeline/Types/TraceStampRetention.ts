@@ -6,6 +6,12 @@
  * The store's insertion order is slot order: every issued stamp is recorded at
  * a strictly increasing quantized slot. Retention therefore walks from the
  * oldest entry and stops at the first one still inside the window.
+ *
+ * <p>The six-hour window is the correctness bound: a formatted stamp can
+ * recur when the local clock folds (DST) or a wall clock jumps back, so a
+ * stamp is never dropped while it can still collide. A count cap cannot be
+ * enforced inside that window without reopening the fold collision; a burst
+ * above the former 131,072 ceiling is therefore retained until it ages out.
  */
 
 /**
@@ -14,8 +20,6 @@
  * one-hour fold and a one-hour rollback with headroom.
  */
 const STAMP_RETENTION_MS = 6 * 60 * 60 * 1000;
-/** Hard ceiling on retained stamps — bounds a pathological burst. */
-const MAX_RETAINED_STAMPS = 131_072;
 
 /**
  * Drop stamps older than the retention window.
@@ -34,21 +38,6 @@ function evictExpired<TKey extends string>(store: Map<TKey, number>, cutoffMs: n
 }
 
 /**
- * Drop the oldest stamps until the hard ceiling is met.
- * @param store - Stamp store to mutate.
- * @returns True once the retained size is within the ceiling.
- */
-function evictOverflow<TKey extends string>(store: Map<TKey, number>): true {
-  const keys = store.keys();
-  let next = keys.next();
-  while (store.size > MAX_RETAINED_STAMPS && !next.done) {
-    store.delete(next.value);
-    next = keys.next();
-  }
-  return true;
-}
-
-/**
  * Record one issued stamp and apply both retention bounds.
  * @param store - Stamp store to mutate.
  * @param stamp - Formatted stamp to retain.
@@ -62,7 +51,6 @@ function applyRetention<TKey extends string>(
 ): true {
   store.set(stamp, slotMs);
   evictExpired(store, slotMs - STAMP_RETENTION_MS);
-  evictOverflow(store);
   return true;
 }
 
