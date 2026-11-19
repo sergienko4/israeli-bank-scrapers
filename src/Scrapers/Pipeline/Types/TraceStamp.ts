@@ -11,6 +11,7 @@
  */
 
 import type { Brand } from './Brand.js';
+import applyRetention from './TraceStampRetention.js';
 
 /** Zero-padded numeric field (minimum width 2; wider values pass through). */
 type PaddedDigits = Brand<string, 'TraceTwoDigitPad'>;
@@ -21,8 +22,11 @@ type RunStampStr = Brand<string, 'RunStampStr'>;
 const CENTISECOND_MS = 10;
 /** Last quantized epoch-ms slot issued by {@link nextRunStamp}. */
 let lastStampSlotMs = 0;
-/** Formatted stamps already issued in this process (guards DST fall-back folds). */
-const ISSUED_STAMPS = new Set<RunStampStr>();
+/**
+ * Stamps issued in this process, keyed by the slot that produced them.
+ * Insertion order is slot order, so the oldest entries are evicted first.
+ */
+const ISSUED_STAMPS = new Map<RunStampStr, number>();
 
 /**
  * Left-pad a non-negative integer with `'0'` to a minimum width of 2 without
@@ -129,7 +133,7 @@ function claimUniqueStamp(slotMs: number): RunStampStr {
   const freeSlotMs = firstUnusedSlot(slotMs);
   const stamp = stampAtSlot(freeSlotMs);
   lastStampSlotMs = freeSlotMs;
-  ISSUED_STAMPS.add(stamp);
+  applyRetention(ISSUED_STAMPS, stamp, freeSlotMs);
   return stamp;
 }
 
