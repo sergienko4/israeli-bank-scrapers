@@ -10,8 +10,9 @@
  * from substituting a source build with unhashed build tooling.
  *
  * <p>This test is the regression guard. It reads the active workflow `run`
- * steps, compares the input pins with the generated lock, and proves the
- * Scorecard hard-fail parser understands the lock's hash continuation lines.
+ * steps, compares the input pins with the lock's direct-input annotations in
+ * both directions, rejects non-exact input pins, and proves the Scorecard
+ * hard-fail parser understands the lock's hash continuation lines.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -20,6 +21,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { parse } from 'yaml';
+
+import ScraperError from '../../Scrapers/Base/ScraperError.js';
 
 const THIS_FILE = fileURLToPath(import.meta.url);
 const THIS_DIR = dirname(THIS_FILE);
@@ -74,6 +77,21 @@ function logicalRequirements(raw: string): readonly string[] {
 }
 
 /**
+ * Read one exact `name==version` pin.
+ * @param requirement - Logical requirement line.
+ * @returns Lowercase package name and version.
+ * @throws When the line is not an exact pin, so a range cannot hide a stale lock.
+ */
+function pinOf(requirement: string): readonly [string, string] {
+  const match = /^([\w.-]+)==(\S+)/.exec(requirement);
+  if (match === null) throw new ScraperError(`not an exact pin: ${requirement}`);
+  const name = match[1];
+  const version = match[2];
+  const normalized = name.toLowerCase();
+  return [normalized, version];
+}
+
+/**
  * Map every pinned package to its version.
  * @param raw - Requirements file text.
  * @returns Lowercase package name → pinned version.
@@ -81,15 +99,40 @@ function logicalRequirements(raw: string): readonly string[] {
 function pinsOf(raw: string): ReadonlyMap<string, string> {
   const pins = new Map<string, string>();
   for (const requirement of logicalRequirements(raw)) {
-    const match = /^([\w.-]+)==(\S+)/.exec(requirement);
-    if (match === null) continue;
-    const name = match[1];
-    const version = match[2];
-    if (name.length === 0 || version.length === 0) continue;
-    const normalized = name.toLowerCase();
-    pins.set(normalized, version);
+    const [name, version] = pinOf(requirement);
+    pins.set(name, version);
   }
   return pins;
+}
+
+/**
+ * Direct packages the lock annotates with `-r requirements-docs.in`.
+ * Transitive-only packages are deliberately excluded.
+ * @param raw - Generated lock text.
+ * @returns Lowercase direct package name → pinned version.
+ */
+function directLockPins(raw: string): ReadonlyMap<string, string> {
+  const pins = new Map<string, string>();
+  const blocks = raw.split(/\n(?=[\w.-]+==)/);
+  for (const block of blocks) {
+    if (!/#\s+(?:via\s+)?-r requirements-docs\.in/.test(block)) continue;
+    const header = block.split(/\r?\n/).find(line => /^[\w.-]+==/.test(line));
+    if (header === undefined) continue;
+    const [name, version] = pinOf(header);
+    pins.set(name, version);
+  }
+  return pins;
+}
+
+/**
+ * Remove an inline shell comment from one command line.
+ * @param line - Trimmed command line.
+ * @returns The command without its inline comment.
+ */
+function withoutShellComment(line: string): string {
+  const match = /(?:^|\s)#/.exec(line);
+  if (match === null) return line;
+  return line.slice(0, match.index).trimEnd();
 }
 
 /**
@@ -98,8 +141,13 @@ function pinsOf(raw: string): ReadonlyMap<string, string> {
  * @returns Trimmed, active command lines.
  */
 function runLinesOf(step: IWorkflowStep): readonly string[] {
-  const lines = (step.run ?? '').split(/\r?\n/).map(line => line.trim());
-  return lines.filter(line => line.length > 0 && !line.startsWith('#'));
+  const active: string[] = [];
+  for (const line of (step.run ?? '').split(/\r?\n/)) {
+    const trimmed = line.trim();
+    const command = withoutShellComment(trimmed);
+    if (command.length > 0) active.push(command);
+  }
+  return active;
 }
 
 /**
@@ -126,6 +174,15 @@ function pipDocsCommands(path: string): readonly string[] {
   );
 }
 
+/**
+ * Parse a non-exact input line to prove ranges are rejected.
+ * @returns Parsed pins; throws for a range.
+ */
+function parseRangedInput(): ReadonlyMap<string, string> {
+  const pins = pinsOf('zensical>=0.2.0');
+  return pins;
+}
+
 describe('docs dependency pins', () => {
   it('hash-pins every package in requirements-docs.txt', () => {
     const raw = readFileSync(REQUIREMENTS, 'utf8');
@@ -137,20 +194,28 @@ describe('docs dependency pins', () => {
     }
   });
 
+  it('rejects an input requirement that is not an exact pin', () => {
+    expect(parseRangedInput).toThrow('not an exact pin');
+  });
+
   it('keeps a final requirement that ends with a continuation', () => {
     const parsed = logicalRequirements('click==8.5.1 \\\n');
     expect(parsed).toEqual(['click==8.5.1']);
   });
 
-  it('keeps the lock in step with requirements-docs.in', () => {
+  it('keeps the lock in step with requirements-docs.in in both directions', () => {
     const inputRaw = readFileSync(REQUIREMENTS_INPUT, 'utf8');
     const lockRaw = readFileSync(REQUIREMENTS, 'utf8');
     const inputPins = pinsOf(inputRaw);
-    const lockPins = pinsOf(lockRaw);
-    expect(inputPins.size).toBeGreaterThan(0);
+    const directPins = directLockPins(lockRaw);
+    expect(directPins.size).toBe(inputPins.size);
     for (const [name, version] of inputPins) {
-      const lockedVersion = lockPins.get(name);
+      const lockedVersion = directPins.get(name);
       expect(lockedVersion).toBe(version);
+    }
+    for (const [name, version] of directPins) {
+      const inputVersion = inputPins.get(name);
+      expect(inputVersion).toBe(version);
     }
   });
 
@@ -166,10 +231,19 @@ describe('docs dependency pins', () => {
     },
   );
 
-  it('parses only requirement headers for the Scorecard lookup', () => {
+  it('ignores install flags that only appear in a shell comment', () => {
+    const step = {
+      run: 'pip install -r requirements-docs.txt # --require-hashes --only-binary=:all:',
+    };
+    const lines = runLinesOf(step);
+    expect(lines).toEqual(['pip install -r requirements-docs.txt']);
+  });
+
+  it('parses only requirement headers for the Scorecard lookup under Bash 3.2', () => {
     const lockRaw = readFileSync(REQUIREMENTS, 'utf8');
-    const expected = [...pinsOf(lockRaw).keys()].sort();
-    const output = execFileSync('bash', [SCORECARD_HARD_FAIL, '--list-packages'], {
+    const lockPins = pinsOf(lockRaw);
+    const expected = [...lockPins.keys()].sort();
+    const output = execFileSync('/bin/bash', [SCORECARD_HARD_FAIL, '--list-packages'], {
       cwd: REPO_ROOT,
       encoding: 'utf8',
     });
