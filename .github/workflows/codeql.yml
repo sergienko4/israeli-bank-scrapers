@@ -63,6 +63,7 @@ jobs:
   # file<->HTTP flows can be excluded without weakening the pipeline scan.
   analyze-review-agent:
     name: CodeQL Security Scan (review agent)
+    needs: analyze
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
