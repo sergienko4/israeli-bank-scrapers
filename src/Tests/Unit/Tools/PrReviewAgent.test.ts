@@ -10,11 +10,13 @@ import { join } from 'node:path';
 import {
   fetchPrData,
   filterDiff,
+  isSensitiveFile,
   isSensitivePath,
   truncateDiff,
 } from '../../../../.github/scripts/pr-review/fetch-pr.mjs';
 import {
   mapFindings,
+  markCreated,
   parseAddedLines,
   parseReview,
   validateReview,
@@ -160,9 +162,17 @@ function fakeGitHub(): typeof fetch {
     }
     if (url.includes('/collaborators/')) return responseTo({ permission: 'write' });
     if (url.includes('/files')) {
-      return responseTo([{ filename: 'src/a.ts', status: 'modified', additions: 1, deletions: 0 }]);
+      return responseTo([
+        {
+          filename: 'src/a.ts',
+          status: 'modified',
+          sha: 'blob-sha',
+          additions: 1,
+          deletions: 0,
+        },
+      ]);
     }
-    if (url.includes('/contents/')) {
+    if (url.includes('/git/blobs/')) {
       const content = Buffer.from('changed').toString('base64');
       return responseTo({ encoding: 'base64', size: 7, content });
     }
@@ -395,6 +405,30 @@ describe('PR review sensitive data', () => {
     },
   );
 
+  it('marks a renamed file when its previous path was sensitive', () => {
+    const file = { filename: 'src/a.ts', previous_filename: '.env' };
+    const isSensitive = isSensitiveFile(file);
+    expect(isSensitive).toBe(true);
+  });
+
+  it('drops a renamed sensitive file block from the diff', () => {
+    const diff = [
+      'diff --git a/.env b/src/a.ts',
+      'similarity index 100%',
+      'rename from .env',
+      'rename to src/a.ts',
+      'diff --git a/src/b.ts b/src/b.ts',
+      '--- a/src/b.ts',
+      '+++ b/src/b.ts',
+      '@@ -1 +1 @@',
+      '-old',
+      '+new',
+    ].join('\n');
+    const filtered = filterDiff(diff);
+    expect(filtered).not.toContain('rename from .env');
+    expect(filtered).toContain('src/b.ts');
+  });
+
   it('drops sensitive file blocks from the diff', () => {
     const diff = [
       'diff --git a/.env b/.env',
@@ -414,14 +448,64 @@ describe('PR review sensitive data', () => {
     expect(filtered).not.toContain('NEW_SECRET');
     expect(filtered).toContain('src/a.ts');
   });
+
+  it('drops a Git-quoted credential path', () => {
+    const diff = [
+      'diff --git "a/\\056env.local" "b/\\056env.local"',
+      '--- "a/\\056env.local"',
+      '+++ "b/\\056env.local"',
+      '@@ -1 +1 @@',
+      '-OLD_SECRET',
+      '+NEW_SECRET',
+      'diff --git a/src/a.ts b/src/a.ts',
+      '--- a/src/a.ts',
+      '+++ b/src/a.ts',
+      '@@ -1 +1 @@',
+      '-old',
+      '+new',
+    ].join('\n');
+    const filtered = filterDiff(diff);
+    expect(filtered).not.toContain('NEW_SECRET');
+    expect(filtered).toContain('src/a.ts');
+  });
+
+  it('drops a file block whose paths cannot be parsed', () => {
+    const diff = [
+      'diff --git ???',
+      '@@ -1 +1 @@',
+      '-OLD_SECRET',
+      '+NEW_SECRET',
+      'diff --git a/src/a.ts b/src/a.ts',
+      '--- a/src/a.ts',
+      '+++ b/src/a.ts',
+      '@@ -1 +1 @@',
+      '-old',
+      '+new',
+    ].join('\n');
+    const filtered = filterDiff(diff);
+    expect(filtered).not.toContain('NEW_SECRET');
+    expect(filtered).toContain('src/a.ts');
+  });
+
+  it('keeps a deletion whose destination is /dev/null', () => {
+    const diff = [
+      'diff --git a/src/a.ts b/src/a.ts',
+      '--- a/src/a.ts',
+      '+++ /dev/null',
+      '@@ -1 +0,0 @@',
+      '-gone',
+    ].join('\n');
+    const filtered = filterDiff(diff);
+    expect(filtered).toContain('src/a.ts');
+  });
 });
 
 describe('PR review snapshot consistency', () => {
   it('refuses when the head changes while data is fetched', async () => {
     let metadataCalls = 0;
     const catalog = catalogResponse();
-    const files = responseTo([{ filename: 'src/a.ts', status: 'modified' }]);
-    const contents = responseTo({ encoding: 'base64', size: 1, content: 'eA==' });
+    const files = responseTo([{ filename: 'src/a.ts', status: 'modified', sha: 'blob-sha' }]);
+    const blobs = responseTo({ encoding: 'base64', size: 1, content: 'eA==' });
     const diff = Promise.resolve(new Response('diff\n'));
     /**
      * Answer the catalog and change the head on the final metadata call.
@@ -434,7 +518,7 @@ describe('PR review snapshot consistency', () => {
       const accept = acceptOf(init);
       if (url.includes('inference/go/v1/models')) return catalog;
       if (url.includes('/files')) return files;
-      if (url.includes('/contents/')) return contents;
+      if (url.includes('/git/blobs/')) return blobs;
       if (accept.includes('diff')) return diff;
       metadataCalls += 1;
       return metadataResponse(metadataCalls === 1 ? 'head-sha' : 'new-head-sha');
@@ -476,6 +560,23 @@ describe('PR review diff mapping', () => {
     const newFileLines = added.get('src/b.ts');
     expect(firstLines).toEqual(new Set([11]));
     expect(newFileLines).toEqual(new Set([1]));
+  });
+
+  it('does not treat added hunk text as a file header', () => {
+    const diff = [
+      'diff --git a/a.txt b/a.txt',
+      '--- a/a.txt',
+      '+++ b/a.txt',
+      '@@ -1,1 +1,3 @@',
+      ' base',
+      '+++ b/evil.txt',
+      '+next',
+    ].join('\n');
+    const added = parseAddedLines(diff);
+    const addedLines = added.get('a.txt');
+    const hasEvil = added.has('evil.txt');
+    expect(addedLines).toEqual(new Set([2, 3]));
+    expect(hasEvil).toBe(false);
   });
 
   it('moves an unmapped finding into the summary and caps inline findings', () => {
@@ -541,5 +642,22 @@ describe('PR review schema and sanitization', () => {
     const capped = truncateDiff('a\nb\nc\n', 4);
     expect(capped.truncated).toBe(true);
     expect(capped.text).toBe('a\nb\n\n[... diff truncated ...]\n');
+  });
+
+  it('records that a review was created for the workflow', async () => {
+    await mkdir('.review', { recursive: true });
+    const tempPrefix = join('.review', 'pr-review-output-');
+    const dir = await mkdtemp(tempPrefix);
+    const output = join(dir, 'output');
+    const previous = process.env.GITHUB_OUTPUT;
+    process.env.GITHUB_OUTPUT = output;
+    try {
+      await markCreated();
+      expect(await readFile(output, 'utf8')).toBe('created=true\n');
+    } finally {
+      delete process.env.GITHUB_OUTPUT;
+      if (previous !== undefined) process.env.GITHUB_OUTPUT = previous;
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });

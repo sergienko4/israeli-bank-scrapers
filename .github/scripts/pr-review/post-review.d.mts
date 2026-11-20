@@ -25,3 +25,5 @@ export function buildReview(args: Record<string, unknown>): Record<string, unkno
 export function postReview(args: Record<string, unknown>): Promise<Record<string, unknown>>;
 
 export function postFailure(args: Record<string, unknown>): Promise<Record<string, unknown>>;
+
+export function markCreated(): Promise<void>;

@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { appendFile, readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import {
   githubGraphql,
@@ -138,7 +138,24 @@ export function parseAddedLines(diff) {
   const lines = new Map();
   let path = '';
   let newLine = 0;
+  let oldRemaining = 0;
+  let newRemaining = 0;
   for (const text of diff.split('\n')) {
+    if (oldRemaining > 0 || newRemaining > 0) {
+      if (text.startsWith('\\')) continue;
+      if (text.startsWith('+')) {
+        lines.get(path)?.add(newLine);
+        newLine += 1;
+        newRemaining -= 1;
+      } else if (text.startsWith('-')) {
+        oldRemaining -= 1;
+      } else {
+        newLine += 1;
+        oldRemaining -= 1;
+        newRemaining -= 1;
+      }
+      continue;
+    }
     const header = /^\+\+\+ b\/(.+?)(?:\t.*)?$/u.exec(text);
     if (header !== null) {
       path = header[1];
@@ -149,17 +166,12 @@ export function parseAddedLines(diff) {
       path = '';
       continue;
     }
-    const hunk = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/u.exec(text);
+    const hunk = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/u.exec(text);
     if (hunk !== null) {
-      newLine = Number(hunk[1]);
+      oldRemaining = hunk[2] === undefined ? 1 : Number(hunk[2]);
+      newRemaining = hunk[4] === undefined ? 1 : Number(hunk[4]);
+      newLine = Number(hunk[3]);
       continue;
-    }
-    if (path.length === 0 || newLine === 0) continue;
-    if (text.startsWith('+')) {
-      lines.get(path)?.add(newLine);
-      newLine += 1;
-    } else if (!text.startsWith('-') && !text.startsWith('\\')) {
-      newLine += 1;
     }
   }
   return lines;
@@ -340,6 +352,16 @@ export async function postFailure(args) {
 }
 
 /**
+ * Record that a review was created so the workflow does not post a duplicate
+ * failure notice.
+ * @returns {Promise<void>} Resolves when the output is written.
+ */
+export async function markCreated() {
+  if (!process.env.GITHUB_OUTPUT) return;
+  await appendFile(process.env.GITHUB_OUTPUT, 'created=true\n');
+}
+
+/**
  * Read and validate the agent result.
  * @param {string} path - Result file.
  * @param {number} maxFindings - Finding cap.
@@ -368,6 +390,7 @@ async function main() {
       headSha: env.REVIEW_HEAD_SHA ?? '',
       message: 'The review run did not finish. Check the workflow log.',
     });
+    await markCreated();
     return;
   }
   const diff = await readFile(env.REVIEW_DIFF || '.review/pr/diff.patch', 'utf8');
@@ -388,6 +411,7 @@ async function main() {
       headSha: env.REVIEW_HEAD_SHA ?? '',
       message: safeError(error),
     });
+    await markCreated();
     process.exitCode = 1;
     return;
   }
@@ -416,6 +440,7 @@ async function main() {
     inline: split.inline,
     overflow: split.overflow,
   });
+  await markCreated();
   console.log(JSON.stringify(posted));
 }
 

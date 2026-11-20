@@ -72,16 +72,17 @@ async function listFiles(args) {
 }
 
 /**
- * Fetch one changed file at the PR head.
+ * Fetch one changed file's exact blob from the Git data API. Reading the blob
+ * by SHA never follows a repository symlink.
  * @param {object} args - Request arguments.
- * @param {string} args.path - Repository path.
+ * @param {string} args.blobSha - Blob SHA from the changed-file entry.
  * @param {number} args.maxChars - Largest accepted file.
  * @returns {Promise<string | false>} Text, or false when skipped.
  */
 async function fetchFile(args) {
   const response = await githubRequest({
     token: args.token,
-    path: `/repos/${args.repo}/contents/${encodeURIComponent(args.path).replaceAll('%2F', '/')}?ref=${args.headSha}`,
+    path: `/repos/${args.repo}/git/blobs/${args.blobSha}`,
     fetchImpl: args.fetchImpl,
   });
   if (!response.ok) return false;
@@ -117,7 +118,173 @@ export function isSensitivePath(path) {
 }
 
 /**
- * Drop diff blocks for credential-shaped paths.
+ * Whether a changed file is, or was, a credential-shaped path.
+ * @param {Record<string, unknown>} file - GitHub changed-file entry.
+ * @returns {boolean} True for a sensitive current or previous path.
+ */
+export function isSensitiveFile(file) {
+  return (
+    isSensitivePath(String(file.filename ?? '')) ||
+    isSensitivePath(String(file.previous_filename ?? ''))
+  );
+}
+
+/** C-style escapes Git uses inside a quoted path. */
+const GIT_ESCAPES = new Map([
+  ['a', 0x07],
+  ['b', 0x08],
+  ['t', 0x09],
+  ['n', 0x0a],
+  ['v', 0x0b],
+  ['f', 0x0c],
+  ['r', 0x0d],
+  ['"', 0x22],
+  ['\\', 0x5c],
+]);
+
+/**
+ * Read one C-quoted token.
+ * @param {string} text - Text beginning with a quote.
+ * @returns {string | undefined} Quoted token, or undefined when unterminated.
+ */
+function readQuotedToken(text) {
+  if (!text.startsWith('"')) return undefined;
+  for (let index = 1; index < text.length; index += 1) {
+    if (text[index] === '\\') {
+      index += 1;
+      continue;
+    }
+    if (text[index] === '"') return text.slice(0, index + 1);
+  }
+  return undefined;
+}
+
+/**
+ * Decode a C-quoted Git path, including octal UTF-8 bytes.
+ * @param {string} token - Quoted token.
+ * @returns {string | undefined} Decoded path, or undefined when malformed.
+ */
+function decodeQuotedPath(token) {
+  const chunks = [];
+  let text = '';
+  for (let index = 1; index < token.length; index += 1) {
+    const char = token[index];
+    if (char === '"') {
+      chunks.push(Buffer.from(text, 'utf8'));
+      return Buffer.concat(chunks).toString('utf8');
+    }
+    if (char !== '\\') {
+      text += char;
+      continue;
+    }
+    const next = token[index + 1];
+    if (next === undefined) return undefined;
+    chunks.push(Buffer.from(text, 'utf8'));
+    text = '';
+    if (/[0-7]/u.test(next)) {
+      const octal = token.slice(index + 1, index + 4);
+      if (!/^[0-3][0-7]{2}$/u.test(octal)) return undefined;
+      chunks.push(Buffer.from([Number.parseInt(octal, 8)]));
+      index += 3;
+      continue;
+    }
+    const escaped = GIT_ESCAPES.get(next);
+    if (escaped === undefined) return undefined;
+    chunks.push(Buffer.from([escaped]));
+    index += 1;
+  }
+  return undefined;
+}
+
+/**
+ * Parse one `a/` or `b/` patch path.
+ * @param {string} value - Header value.
+ * @param {'a' | 'b'} prefix - Expected side.
+ * @returns {string | null | undefined} Path, null for `/dev/null`, or undefined.
+ */
+function parsePatchPath(value, prefix) {
+  const token = value.startsWith('"') ? readQuotedToken(value) : value.split('\t', 1)[0];
+  if (token === undefined) return undefined;
+  if (token === '/dev/null') return null;
+  const decoded = token.startsWith('"') ? decodeQuotedPath(token) : token;
+  if (decoded === undefined) return undefined;
+  const expected = `${prefix}/`;
+  if (!decoded.startsWith(expected) || decoded.length === expected.length) return undefined;
+  return decoded.slice(expected.length);
+}
+
+/**
+ * Parse both paths from a `diff --git` line.
+ * @param {string} line - Header line.
+ * @returns {string[]} Parsed paths; empty when the line is unparsable.
+ */
+function parseDiffGitPaths(line) {
+  const rest = line.slice('diff --git '.length);
+  if (rest.startsWith('"')) {
+    const source = readQuotedToken(rest);
+    if (source === undefined) return [];
+    const afterSource = rest.slice(source.length);
+    if (!afterSource.startsWith(' ')) return [];
+    const destination = readQuotedToken(afterSource.slice(1));
+    if (destination === undefined) return [];
+    return [parsePatchPath(source, 'a'), parsePatchPath(destination, 'b')].filter(
+      path => typeof path === 'string',
+    );
+  }
+  if (!rest.startsWith('a/')) return [];
+  const paths = [];
+  for (let index = rest.indexOf(' b/'); index !== -1; index = rest.indexOf(' b/', index + 1)) {
+    const source = rest.slice(2, index);
+    const destination = rest.slice(index + 3);
+    if (source.length > 0 && destination.length > 0) paths.push(source, destination);
+  }
+  return paths;
+}
+
+/**
+ * Parse one loose path, such as `rename from`.
+ * @param {string} value - Raw value.
+ * @returns {string | undefined} Decoded path.
+ */
+function parseLoosePath(value) {
+  const token = value.startsWith('"') ? readQuotedToken(value) : value;
+  if (token === undefined) return undefined;
+  return token.startsWith('"') ? decodeQuotedPath(token) : token;
+}
+
+/**
+ * Collect both sides of every path in one file block.
+ * @param {string} block - Diff block.
+ * @returns {string[]} Parsed paths.
+ */
+function blockPaths(block) {
+  const paths = [];
+  /**
+   * Add a parsed path when it is a real repository path.
+   * @param {string | null | undefined} path - Parsed path.
+   * @returns {void}
+   */
+  const add = path => {
+    if (typeof path === 'string' && path.length > 0) paths.push(path);
+  };
+  for (const line of block.split('\n')) {
+    if (line.startsWith('@@') || line.startsWith('GIT binary patch')) break;
+    if (line.startsWith('diff --git ')) {
+      for (const path of parseDiffGitPaths(line)) paths.push(path);
+    } else if (line.startsWith('--- ')) {
+      add(parsePatchPath(line.slice(4), 'a'));
+    } else if (line.startsWith('+++ ')) {
+      add(parsePatchPath(line.slice(4), 'b'));
+    } else if (line.startsWith('rename from ') || line.startsWith('copy from ')) {
+      add(parseLoosePath(line.slice(line.indexOf(' from ') + 6)));
+    }
+  }
+  return paths;
+}
+
+/**
+ * Drop diff blocks whose source or destination is credential-shaped. A file
+ * block with unparsable paths is dropped rather than trusted.
  * @param {string} diff - Unified diff.
  * @returns {string} Diff without sensitive blocks.
  */
@@ -125,8 +292,10 @@ export function filterDiff(diff) {
   return diff
     .split(/(?=^diff --git )/mu)
     .filter(block => {
-      const path = /^\+\+\+ b\/(.+)$/mu.exec(block)?.[1] ?? '';
-      return path.length === 0 || !isSensitivePath(path);
+      const paths = blockPaths(block);
+      if (!block.startsWith('diff --git ')) return true;
+      if (paths.length === 0) return false;
+      return !paths.some(isSensitivePath);
     })
     .join('');
 }
@@ -153,19 +322,26 @@ export async function fetchPrData(args) {
   assertSnapshot(base, head, args);
   const filteredDiff = filterDiff(await fetchDiff(args));
   const changed = await listFiles(args);
-  const sensitive = changed.map(file => String(file.filename ?? '')).filter(isSensitivePath);
+  const sensitive = changed.filter(isSensitiveFile).map(file => String(file.filename ?? ''));
   const capped = truncateDiff(filteredDiff, args.maxDiffChars);
   await writeTextFile(`${outDir}/diff.patch`, capped.text);
   const skipped = [];
   const dataFiles = new Map();
   for (const [index, file] of changed.entries()) {
     const path = String(file.filename ?? '');
-    if (path.length === 0 || file.status === 'removed' || isSensitivePath(path)) continue;
+    const blobSha = String(file.sha ?? '');
+    if (
+      path.length === 0 ||
+      blobSha.length === 0 ||
+      file.status === 'removed' ||
+      isSensitiveFile(file)
+    ) {
+      continue;
+    }
     const text = await fetchFile({
       repo: args.repo,
       token: args.token,
-      headSha: String(head.sha ?? ''),
-      path,
+      blobSha,
       maxChars: args.maxFileChars,
       fetchImpl: args.fetchImpl,
     });
@@ -201,7 +377,7 @@ export async function fetchPrData(args) {
       additions: Number(file.additions ?? 0),
       deletions: Number(file.deletions ?? 0),
       dataFile: dataFiles.get(String(file.filename ?? '')) ?? null,
-      sensitive: isSensitivePath(String(file.filename ?? '')),
+      sensitive: isSensitiveFile(file),
     })),
     skippedFiles: skipped,
     sensitiveFiles: sensitive,
