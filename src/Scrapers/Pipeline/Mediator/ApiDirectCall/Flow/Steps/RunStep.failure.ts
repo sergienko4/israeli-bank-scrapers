@@ -20,9 +20,10 @@
  * that got no reply and a policy refusal keep their type.
  *
  * <p>A step whose refused redirect can only be the bank's auth portal opts
- * into `redirectRefusalIsAuthRejected`; the sanitised failure then carries
- * `authRejected: true`, so a warm start may fall back to one cold login.
- * No other step, status or reason gains that marker.
+ * into `redirectRefusalIsAuthRejected` with the exact status, origin and path;
+ * the sanitised failure then carries `authRejected: true`, so a warm start may
+ * fall back to one cold login. No other step, status, target or reason gains
+ * that marker.
  *
  * <p>A WAF block passes through unchanged: the transport already swapped the
  * edge page for a fixed reason, and that reason is a documented contract.
@@ -147,24 +148,19 @@ function typeByStatus(step: FailedStep, failure: IProcedureFailure): ScraperErro
 }
 
 /**
- * Whether a failure is the transport refusing a redirect.
- * @param failure - Failure returned by the transport.
- * @returns True for the fixed `redirect refused` tail.
- */
-function isRedirectRefusal(failure: IProcedureFailure): boolean {
-  return readRefusal(failure.errorMessage).endsWith(REDIRECT_REFUSED_REASON);
-}
-
-/**
  * Whether the step's refused redirect means the bank rejected the session.
  * @param step - The failed step.
  * @param failure - The transport's original failure.
- * @returns True when the step opted in and the original failure is a refused
- *   redirect.
+ * @returns True when the step opted in and the refusal is the exact status,
+ *   origin and path the step names.
  */
 function isRefusedSession(step: FailedStep, failure: IProcedureFailure): boolean {
-  if (step.redirectRefusalIsAuthRejected !== true) return false;
-  return isRedirectRefusal(failure);
+  const rule = step.redirectRefusalIsAuthRejected;
+  if (rule === undefined) return false;
+  const refusal = failure.redirectRefusal;
+  if (refusal === undefined) return false;
+  if (!rule.statuses.includes(refusal.status)) return false;
+  return refusal.origin === rule.origin && refusal.path === rule.path;
 }
 
 /**

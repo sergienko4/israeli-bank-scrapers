@@ -12,6 +12,16 @@ interface IProcedureSuccess<T> {
   readonly value: T;
 }
 
+/** A refused redirect's status and same-origin target, without its query. */
+interface IRedirectRefusal {
+  /** The 3xx status the bank answered. */
+  readonly status: number;
+  /** Exact `scheme://host[:port]` of the redirect target, or '' when no Location parsed. */
+  readonly origin: string;
+  /** Path of the redirect target, or '' when no Location parsed. */
+  readonly path: string;
+}
+
 /** Failed procedure outcome with structured error. */
 interface IProcedureFailure {
   readonly success: false;
@@ -26,6 +36,8 @@ interface IProcedureFailure {
   readonly messageOnlyFailure?: true;
   /** Set when a successful-looking response still rejected the session. */
   readonly authRejected?: true;
+  /** Set when the transport refused a 3xx; carries no query, body or headers. */
+  readonly redirectRefusal?: IRedirectRefusal;
 }
 
 /** Discriminated union — every pipeline step returns this. */
@@ -157,5 +169,5 @@ function toLegacy<T>(proc: Procedure<T>): IScraperScrapingResult {
   return legacyBase(proc);
 }
 
-export type { IProcedureFailure, IProcedureSuccess, Procedure };
+export type { IProcedureFailure, IProcedureSuccess, IRedirectRefusal, Procedure };
 export { fail, isOk, isTerminalFailure, isWafBlocked, preferTerminalFailure, succeed, toLegacy };
