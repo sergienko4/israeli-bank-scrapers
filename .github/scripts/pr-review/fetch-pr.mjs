@@ -113,6 +113,7 @@ export function truncateDiff(diff, maxChars) {
  * @param {number} args.maxDiffChars - Diff cap.
  * @param {number} args.maxFileChars - File cap.
  * @param {string} [args.expectedHeadSha] - SHA resolved before the fetch.
+ * @param {string} [args.expectedBaseSha] - Base SHA resolved before the fetch.
  * @param {typeof fetch} [args.fetchImpl] - Test double.
  * @returns {Promise<Record<string, unknown>>} Fetch summary.
  */
@@ -121,17 +122,16 @@ export async function fetchPrData(args) {
   const metadata = await fetchMetadata(args);
   const base = /** @type {Record<string, unknown>} */ (metadata.base ?? {});
   const head = /** @type {Record<string, unknown>} */ (metadata.head ?? {});
-  if (args.expectedHeadSha && head.sha !== args.expectedHeadSha) {
-    throw new Error('pull request changed during review');
-  }
+  assertSnapshot(base, head, args);
   const diff = await fetchDiff(args);
   const changed = await listFiles(args);
   const capped = truncateDiff(diff, args.maxDiffChars);
   await writeTextFile(`${outDir}/diff.patch`, capped.text);
   const skipped = [];
-  for (const file of changed) {
+  const dataFiles = new Map();
+  for (const [index, file] of changed.entries()) {
     const path = String(file.filename ?? '');
-    if (path.length === 0) continue;
+    if (path.length === 0 || file.status === 'removed') continue;
     const text = await fetchFile({
       repo: args.repo,
       token: args.token,
@@ -144,8 +144,16 @@ export async function fetchPrData(args) {
       skipped.push(path);
       continue;
     }
-    await writeTextFile(safeJoin(`${outDir}/files`, path), text);
+    const dataFile = `file-${String(index).padStart(3, '0')}.txt`;
+    dataFiles.set(path, dataFile);
+    await writeTextFile(safeJoin(`${outDir}/files`, dataFile), text);
   }
+  const final = await fetchMetadata(args);
+  assertSnapshot(
+    /** @type {Record<string, unknown>} */ (final.base ?? {}),
+    /** @type {Record<string, unknown>} */ (final.head ?? {}),
+    args,
+  );
   const body = String(metadata.body ?? '').slice(0, MAX_BODY_CHARS);
   await writeJsonFile(`${outDir}/metadata.json`, {
     number: args.pr,
@@ -163,11 +171,28 @@ export async function fetchPrData(args) {
       status: String(file.status ?? ''),
       additions: Number(file.additions ?? 0),
       deletions: Number(file.deletions ?? 0),
+      dataFile: dataFiles.get(String(file.filename ?? '')) ?? null,
     })),
     skippedFiles: skipped,
     diffTruncated: capped.truncated,
   });
   return { files: changed.length, skipped: skipped.length, diffTruncated: capped.truncated };
+}
+
+/**
+ * Refuse a metadata snapshot that no longer matches the resolved request.
+ * @param {Record<string, unknown>} base - Current base.
+ * @param {Record<string, unknown>} head - Current head.
+ * @param {Record<string, unknown>} expected - Resolved SHAs.
+ * @returns {void}
+ */
+function assertSnapshot(base, head, expected) {
+  if (expected.expectedHeadSha && head.sha !== expected.expectedHeadSha) {
+    throw new Error('pull request changed during review');
+  }
+  if (expected.expectedBaseSha && base.sha !== expected.expectedBaseSha) {
+    throw new Error('pull request changed during review');
+  }
 }
 
 /**
@@ -186,6 +211,7 @@ async function main() {
     maxDiffChars: Number(config.maxDiffChars),
     maxFileChars: Number(config.maxFileChars),
     expectedHeadSha: env.REVIEW_HEAD_SHA ?? '',
+    expectedBaseSha: env.REVIEW_BASE_SHA ?? '',
   });
   console.log(JSON.stringify(summary));
 }

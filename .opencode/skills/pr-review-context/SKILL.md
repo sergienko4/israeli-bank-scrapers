@@ -13,7 +13,8 @@ The sources are `pr-review-guidelines.md` §1–3, `real-work-guidlines.md` and
 
 - `.review/pr/metadata.json` — title, body, author, base/head, changed paths.
 - `.review/pr/diff.patch` — the actual change.
-- The changed files and their tests under `.review/pr/files/`.
+- The changed files and their tests under `.review/pr/files/`, located through
+  `metadata.files[].dataFile` and read by their neutral copy names.
 - The repository rules that name the affected area: `CLAUDE.md`,
   `.code-rules.md`, `CLEAN_CODE.md` and the relevant `docs/` page.
 - The guidelines manifest entries mapped to `pr-review-context`.

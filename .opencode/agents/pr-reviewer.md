@@ -13,7 +13,31 @@ permissions:
     resource: '**/.env*'
     effect: deny
   - action: read
+    resource: '.env*'
+    effect: deny
+  - action: read
     resource: '**/*.pem'
+    effect: deny
+  - action: read
+    resource: '*.pem'
+    effect: deny
+  - action: read
+    resource: '*.key'
+    effect: deny
+  - action: read
+    resource: '*.p12'
+    effect: deny
+  - action: read
+    resource: '*.pfx'
+    effect: deny
+  - action: read
+    resource: 'id_rsa*'
+    effect: deny
+  - action: read
+    resource: '.npmrc'
+    effect: deny
+  - action: read
+    resource: '.netrc'
     effect: deny
   - action: glob
     resource: '**'
@@ -32,7 +56,10 @@ files, never use the network, and never ask for or reveal secrets.
 1. Load the `pr-review-orchestrator` skill. It defines the review order, the
    severity rubric and the only output shape.
 2. Read the review request and the data directory named in the prompt:
-   `.review/pr/metadata.json`, `.review/pr/diff.patch` and `.review/pr/files/`.
+   `.review/pr/metadata.json`, `.review/pr/diff.patch` and the changed-file
+   copies under `.review/pr/files/`. Use `metadata.files[].dataFile` for the
+   copy of each path; never assume a path from the diff exists under its
+   original name.
 3. Read `.review-guidelines/manifest.json` and the guidelines it maps to.
    Read only the files the manifest names for the changed paths; do not scan
    the whole guidelines directory.

@@ -311,8 +311,13 @@ describe('PR review data fetch', () => {
       const metadataPath = join(dir, 'metadata.json');
       const metadataText = await readFile(metadataPath, 'utf8');
       const metadata: unknown = JSON.parse(metadataText);
-      expect(metadata).toMatchObject({ number: 886, headSha: 'head-sha', changedFiles: 1 });
-      const changedPath = join(dir, 'files/src/a.ts');
+      expect(metadata).toMatchObject({
+        number: 886,
+        headSha: 'head-sha',
+        changedFiles: 1,
+        files: [{ path: 'src/a.ts', dataFile: 'file-000.txt' }],
+      });
+      const changedPath = join(dir, 'files/file-000.txt');
       const changedFile = await readFile(changedPath, 'utf8');
       expect(changedFile).toBe('changed');
     } finally {
@@ -332,6 +337,59 @@ describe('PR review data consistency', () => {
       maxFileChars: 1000,
       expectedHeadSha: 'older-sha',
       fetchImpl: fakeGitHub(),
+    });
+    await expect(pending).rejects.toThrow('pull request changed during review');
+  });
+});
+
+describe('PR review snapshot consistency', () => {
+  it('refuses when the head changes while data is fetched', async () => {
+    let metadataCalls = 0;
+    /**
+     * Answer the catalog and change the head on the final metadata call.
+     * @param input - Fetch input.
+     * @param init - Fetch options.
+     * @returns Fake response.
+     */
+    const fetchImpl: typeof fetch = (input, init) => {
+      const url = urlOf(input);
+      const accept = new Headers(init?.headers).get('Accept') ?? '';
+      if (url.includes('inference/go/v1/models')) {
+        return responseTo({
+          data: [
+            {
+              id: 'deepseek-v4.1-flash',
+              release_date: '2026-10-17',
+              capabilities: { reasoning: { effort: ['high'] } },
+            },
+          ],
+        });
+      }
+      if (url.includes('/files')) {
+        return responseTo([{ filename: 'src/a.ts', status: 'modified' }]);
+      }
+      if (url.includes('/contents/')) {
+        return responseTo({ encoding: 'base64', size: 1, content: 'eA==' });
+      }
+      if (accept.includes('diff')) return Promise.resolve(new Response('diff\n'));
+      metadataCalls += 1;
+      const sha = metadataCalls === 1 ? 'head-sha' : 'new-head-sha';
+      return responseTo({
+        state: 'open',
+        base: { sha: 'base-sha' },
+        head: { sha, ref: 'feature', repo: { full_name: 'sergienko4/repo' } },
+      });
+    };
+    const pending = fetchPrData({
+      repo: 'sergienko4/repo',
+      pr: 886,
+      token: 'token',
+      outDir: '.review/pr-changed-fetch',
+      maxDiffChars: 1000,
+      maxFileChars: 1000,
+      expectedHeadSha: 'head-sha',
+      expectedBaseSha: 'base-sha',
+      fetchImpl,
     });
     await expect(pending).rejects.toThrow('pull request changed during review');
   });

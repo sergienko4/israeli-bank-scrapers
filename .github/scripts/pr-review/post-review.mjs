@@ -360,6 +360,7 @@ async function main() {
     await readFile(new URL('../../review-agent/config.json', import.meta.url), 'utf8'),
   );
   if (process.argv.includes('--failure')) {
+    if (process.argv.includes('--dry-run')) return;
     await postFailure({
       repo: env.GITHUB_REPOSITORY ?? '',
       pr: Number(env.PR_NUMBER),
@@ -375,6 +376,11 @@ async function main() {
   try {
     review = await readReview(env.REVIEW_RESULT || '.review/pr/result.json', config.maxFindings);
   } catch (error) {
+    if (process.argv.includes('--dry-run')) {
+      console.error(safeError(error));
+      process.exitCode = 1;
+      return;
+    }
     await postFailure({
       repo: env.GITHUB_REPOSITORY ?? '',
       pr: Number(env.PR_NUMBER),

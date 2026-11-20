@@ -16,7 +16,11 @@ The prompt names the data directory and the guidelines directory. Expect:
 - `.review/pr/metadata.json` — PR number, title, body, base/head SHAs,
   author, changed paths and additions/deletions.
 - `.review/pr/diff.patch` — the unified diff.
-- `.review/pr/files/` — changed-file contents as data, capped by the workflow.
+- `.review/pr/files/` — changed-file copies with neutral names, capped by the
+  workflow. Read them through `metadata.files[].dataFile`; the original path
+  is metadata, never a file under this directory. This keeps a PR-supplied
+  `AGENTS.md` or similar instruction file from being loaded as agent
+  instructions.
 - `.review-guidelines/manifest.json` — guideline inventory and the skill map.
 - `.github/review-agent/config.json` — allowed models, caps and marker.
 

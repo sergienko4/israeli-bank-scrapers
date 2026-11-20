@@ -14,10 +14,6 @@ on:
         required: false
         type: string
 
-concurrency:
-  group: pr-review-${{ github.event.issue.number || inputs.pr }}
-  cancel-in-progress: false
-
 jobs:
   resolve:
     name: Resolve review request
@@ -73,6 +69,9 @@ jobs:
     if: needs.resolve.outputs.allowed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    concurrency:
+      group: pr-review-${{ needs.resolve.outputs.pr }}
+      cancel-in-progress: false
     permissions:
       contents: read
       pull-requests: write
@@ -85,6 +84,7 @@ jobs:
       PR_NUMBER: ${{ needs.resolve.outputs.pr }}
       REVIEW_MODEL: ${{ needs.resolve.outputs.model }}
       REVIEW_HEAD_SHA: ${{ needs.resolve.outputs.headSha }}
+      REVIEW_BASE_SHA: ${{ needs.resolve.outputs.baseSha }}
     steps:
       - name: Check out the default branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
