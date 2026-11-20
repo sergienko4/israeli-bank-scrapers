@@ -30,6 +30,12 @@ interface IStepFailureTyping {
   readonly bankErrorTypeByCode?: Readonly<Record<string, ScraperErrorTypes>>;
   /** Failure type per 4xx reply status of `<step> HTTP <status>`; default the transport's. */
   readonly httpFailureMap?: Readonly<Record<string, ScraperErrorTypes>>;
+  /**
+   * Treat a policy-refused redirect from this step as the bank rejecting the
+   * session. Only a step whose redirect target is the bank's auth portal sets
+   * this; every other step keeps a refused 3xx as a plain transport failure.
+   */
+  readonly redirectRefusalIsAuthRejected?: true;
 }
 
 export type { IStepFailureTyping };

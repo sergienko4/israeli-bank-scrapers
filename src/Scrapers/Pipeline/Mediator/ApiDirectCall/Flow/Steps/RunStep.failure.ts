@@ -19,6 +19,11 @@
  * the transport's `<VERB> <url> <status>: ` reply prefix counts, so a request
  * that got no reply and a policy refusal keep their type.
  *
+ * <p>A step whose refused redirect can only be the bank's auth portal opts
+ * into `redirectRefusalIsAuthRejected`; the sanitised failure then carries
+ * `authRejected: true`, so a warm start may fall back to one cold login.
+ * No other step, status or reason gains that marker.
+ *
  * <p>A WAF block passes through unchanged: the transport already swapped the
  * edge page for a fixed reason, and that reason is a documented contract.
  */
@@ -42,7 +47,9 @@ import { isWafBlocked } from '../../../../Types/Procedure.js';
 import type { IStepConfig } from '../../ConfigContracts/index.js';
 
 /** What a failure is rebuilt from: a login step, or a scrape call by its name. */
-type FailedStep = Pick<IStepConfig, 'httpFailureMap'> & { readonly name: string };
+type FailedStep = Pick<IStepConfig, 'httpFailureMap' | 'redirectRefusalIsAuthRejected'> & {
+  readonly name: string;
+};
 
 /**
  * The transport's reply prefix `<VERB> <safeUrl> NNN: ` (`HttpFailureClassifier`),
@@ -140,17 +147,40 @@ function typeByStatus(step: FailedStep, failure: IProcedureFailure): ScraperErro
 }
 
 /**
+ * Whether a failure is the transport refusing a redirect.
+ * @param failure - Failure returned by the transport.
+ * @returns True for the fixed `redirect refused` tail.
+ */
+function isRedirectRefusal(failure: IProcedureFailure): boolean {
+  return readRefusal(failure.errorMessage).endsWith(REDIRECT_REFUSED_REASON);
+}
+
+/**
+ * Whether the step's refused redirect means the bank rejected the session.
+ * @param step - The failed step.
+ * @param failure - The transport's original failure.
+ * @returns True when the step opted in and the original failure is a refused
+ *   redirect.
+ */
+function isRefusedSession(step: FailedStep, failure: IProcedureFailure): boolean {
+  if (step.redirectRefusalIsAuthRejected !== true) return false;
+  return isRedirectRefusal(failure);
+}
+
+/**
  * Rebuild a failed step's message from its name and status only.
  * @param step - The failed step.
  * @param failure - Failure returned by the transport.
  * @returns The same failure, typed by the step's status map, with a safe
- *   message; a fixed reason as is.
+ *   message; a fixed reason as is. An opted-in refused redirect also carries
+ *   `authRejected: true`.
  */
 function sanitiseStepFailure(step: FailedStep, failure: IProcedureFailure): IProcedureFailure {
   if (isFixedReason(failure)) return failure;
   const detail = describeFailure(failure);
   const errorType = typeByStatus(step, failure);
-  return { ...failure, errorType, errorMessage: `${step.name} ${detail}` };
+  const sanitised = { ...failure, errorType, errorMessage: `${step.name} ${detail}` };
+  return isRefusedSession(step, failure) ? { ...sanitised, authRejected: true } : sanitised;
 }
 
 export default sanitiseStepFailure;

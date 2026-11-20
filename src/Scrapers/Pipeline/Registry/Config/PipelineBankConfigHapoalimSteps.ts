@@ -115,12 +115,18 @@ const OTP_VERIFY_STEP: IStepConfig = {
  * <p>The answer is read as text, so `failIfPresent` cannot see a JSON
  * `error` key. An `absent` text capture refuses it instead, while an empty
  * success body passes.</p>
+ *
+ * <p>An expired session is answered `302 /invalid_session`, which the
+ * transport refuses. This step is the warm-start check, so that refusal is
+ * the bank rejecting the session and may buy one cold login; no other step1
+ * failure does.</p>
  */
 const STEP1_STEP: IStepConfig = {
   name: 'step1',
   urlTag: 'auth.step1',
   method: 'GET',
   response: 'text',
+  redirectRefusalIsAuthRejected: true,
   textCaptures: { bankError: { pattern: String.raw`"[Ee]rrors?"\s*:`, group: 0, absent: true } },
   extractsToCarry: {},
 };

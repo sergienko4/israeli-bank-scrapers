@@ -72,6 +72,15 @@ describe('Hapoalim warm start', () => {
     expect(coldBootstrapCookie).toBeNull();
   });
 
+  it('falls back to one cold run when step1 refuses the session with the bank 302', async () => {
+    const run = await runWarm(cold.token, 'step1Redirect');
+    expect(run.result.success).toBe(true);
+    expect(run.trail).toEqual([...LANDING_TRAIL, ...SIGNED_IN_TRAIL, ...SCRAPE_TRAIL]);
+    expect(run.hints).toEqual([HP_PHONE]);
+    const coldBootstrapCookie = run.calls[1]?.headers.get('cookie');
+    expect(coldBootstrapCookie).toBeNull();
+  });
+
   it.each(SKIPPABLE_TOKENS)('skips $label and signs in cold', async stale => {
     const token = stale.build(cold.token);
     const run = await runWarm(token);

@@ -14,7 +14,7 @@
 import type { JsonUnknown, JsonUnknownRecord } from '../../../Scrapers/Pipeline/Types/JsonValue.js';
 import type { IRecordedCall } from '../Helpers/FetchMockKit.js';
 import { errorReply, parseForm } from '../Helpers/FetchMockKit.js';
-import { bodiless, hasCookies, json } from '../Helpers/MockReplies.js';
+import { bodiless, hasCookies, json, redirectTo } from '../Helpers/MockReplies.js';
 import type { HapoalimFault, IMockRun, Route } from './HapoalimFaults.js';
 import { authCookieOf, HP_BANK_NOTICE } from './HapoalimFaults.js';
 import {
@@ -276,13 +276,19 @@ function routeStepupVerify(call: IRecordedCall): Response {
  * step1 — the device registration that proves the session.
  * @param call - The recorded request.
  * @param run - The run's fault.
- * @returns 200 with the registration cookie, an app error body, or 401
- *   without the run's session.
+ * @returns 200 with the registration cookie, a 302 to the bank's session
+ *   refusal page, an app error body, or 401 without the run's session.
  */
 function routeStep1(call: IRecordedCall, run: IMockRun): Response {
   const session = authCookieOf(run);
   if (!hasCookies(call, [session])) {
     const refused = scoped(HP_REFUSED_COOKIE);
+    if (run.fault === 'step1Redirect') {
+      return redirectTo(
+        `/invalid_session?SMAUTHREASON=0&TARGET=${HP_ORIGIN}/ServerServices/step1-mobile`,
+        [refused],
+      );
+    }
     return bodiless(401, { setCookies: [refused] });
   }
   if (run.fault === 'step1Errors') {
