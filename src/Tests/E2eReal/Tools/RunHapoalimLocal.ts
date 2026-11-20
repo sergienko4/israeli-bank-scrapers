@@ -16,19 +16,18 @@
  * selects where the token is cached.
  */
 
-import { randomUUID } from 'node:crypto';
-import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
 import * as dotenv from 'dotenv';
 
 import { CompanyTypes, createScraper } from '../../../index.js';
-import type { IAuthFlowInfo, IScraperScrapingResult } from '../../../Scrapers/Base/Interface.js';
+import type { IScraperScrapingResult } from '../../../Scrapers/Base/Interface.js';
 import ScraperError from '../../../Scrapers/Base/ScraperError.js';
 import { getDebug } from '../../../Scrapers/Pipeline/Logging/Debug.js';
 import { defaultStartDate } from '../Helpers.js';
 import { createOtpPoller } from '../OtpPoller.js';
+import { makeTokenSaver, readToken } from './HapoalimLocalTokenCache.js';
 
 dotenv.config();
 
@@ -37,7 +36,6 @@ const LOG = getDebug(import.meta.url);
 const TMP_DIR = os.tmpdir();
 const DEFAULT_TOKEN_FILE = path.join(TMP_DIR, 'hapoalim-token.cache');
 const OTP_FILE = path.join(TMP_DIR, 'hapoalim-otp.txt');
-const FILE_MODE = 0o600;
 const EXIT_FAILURE = 1;
 
 /** Parsed command line. */
@@ -71,32 +69,6 @@ function parseArgs(argv: readonly string[]): IArgs {
     cold: argv.includes('--cold'),
     tokenFile: tokenFile.length > 0 ? tokenFile : DEFAULT_TOKEN_FILE,
   };
-}
-
-/**
- * Read a cached token, or '' when none exists.
- * @param file - Cache path.
- * @returns The trimmed token.
- */
-async function readToken(file: string): Promise<string> {
-  try {
-    return (await fs.readFile(file, 'utf8')).trim();
-  } catch {
-    return '';
-  }
-}
-
-/**
- * Publish a token atomically in an owner-only file.
- * @param file - Cache path.
- * @param token - Token to write.
- * @returns The cache path.
- */
-async function writeToken(file: string, token: string): Promise<string> {
-  const temp = `${file}.${randomUUID()}.tmp`;
-  await fs.writeFile(temp, token, { encoding: 'utf8', mode: FILE_MODE });
-  await fs.rename(temp, file);
-  return file;
 }
 
 /**
@@ -145,38 +117,16 @@ function summaryOf(result: IScraperScrapingResult, warm: boolean, elapsedMs: num
 }
 
 /**
- * Build the token sink for one cache path.
- * @param file - Cache path.
- * @returns A callback the scraper invokes after a successful flow.
- */
-function makeTokenSaver(file: string): (info: IAuthFlowInfo) => Promise<void> {
-  /**
-   * Save the token this flow published.
-   * @param info - Auth-flow info from the scraper.
-   * @returns Nothing once the token is written, or when there is none.
-   */
-  async function saveToken(info: IAuthFlowInfo): Promise<void> {
-    if (info.longTermToken.length > 0) {
-      const saved = await writeToken(file, info.longTermToken);
-      LOG.info(
-        { tokenFile: saved, tokenLength: info.longTermToken.length },
-        'Hapoalim token cached',
-      );
-    }
-  }
-  return saveToken;
-}
-
-/**
  * Run one scrape and persist any published token.
  * @param args - Parsed command line.
- * @returns True for a successful scrape.
+ * @returns True for a successful scrape and a saved token.
  */
 async function run(args: IArgs): Promise<boolean> {
   const userCode = requireEnv('HAPOALIM_USER_CODE');
   const password = requireEnv('HAPOALIM_PASSWORD');
   const cached = args.cold ? '' : await readToken(args.tokenFile);
   const signature = (process.env.HAPOALIM_DEVICE_SIGNATURE ?? '').trim();
+  const tokenSaver = makeTokenSaver(args.tokenFile);
   const retrieve = createOtpPoller({
     envVar: 'HAPOALIM_OTP',
     fileName: 'hapoalim-otp.txt',
@@ -189,7 +139,7 @@ async function run(args: IArgs): Promise<boolean> {
     companyId: CompanyTypes.Hapoalim,
     startDate: defaultStartDate(),
     otpCodeRetriever: retrieve,
-    onAuthFlowComplete: makeTokenSaver(args.tokenFile),
+    onAuthFlowComplete: tokenSaver.save,
   });
   const creds = {
     userCode,
@@ -211,6 +161,11 @@ async function run(args: IArgs): Promise<boolean> {
   const elapsedMs = Date.now() - started;
   const summary = summaryOf(result, cached.length > 0, elapsedMs);
   console.log(summary);
+  const saveFailure = tokenSaver.failure();
+  if (saveFailure.length > 0) {
+    console.error(saveFailure);
+    return false;
+  }
   return result.success;
 }
 
