@@ -91,6 +91,45 @@ function responseTo(body: unknown, status = 200): Promise<Response> {
 }
 
 /**
+ * Read the Accept header from fetch options.
+ * @param init - Fetch options.
+ * @returns Header value, or empty.
+ */
+function acceptOf(init?: RequestInit): string {
+  const headers = new Headers(init?.headers);
+  return headers.get('Accept') ?? '';
+}
+
+/**
+ * A one-model catalog response.
+ * @returns Resolved response.
+ */
+function catalogResponse(): Promise<Response> {
+  return responseTo({
+    data: [
+      {
+        id: 'deepseek-v4.1-flash',
+        release_date: '2026-10-17',
+        capabilities: { reasoning: { effort: ['high'] } },
+      },
+    ],
+  });
+}
+
+/**
+ * A pull request metadata response for one head SHA.
+ * @param sha - Head SHA.
+ * @returns Resolved response.
+ */
+function metadataResponse(sha: string): Promise<Response> {
+  return responseTo({
+    state: 'open',
+    base: { sha: 'base-sha' },
+    head: { sha, ref: 'feature', repo: { full_name: 'sergienko4/repo' } },
+  });
+}
+
+/**
  * A fake GitHub API for one same-repo PR.
  * @returns Fake fetch.
  */
@@ -345,6 +384,10 @@ describe('PR review data consistency', () => {
 describe('PR review snapshot consistency', () => {
   it('refuses when the head changes while data is fetched', async () => {
     let metadataCalls = 0;
+    const catalog = catalogResponse();
+    const files = responseTo([{ filename: 'src/a.ts', status: 'modified' }]);
+    const contents = responseTo({ encoding: 'base64', size: 1, content: 'eA==' });
+    const diff = Promise.resolve(new Response('diff\n'));
     /**
      * Answer the catalog and change the head on the final metadata call.
      * @param input - Fetch input.
@@ -353,32 +396,13 @@ describe('PR review snapshot consistency', () => {
      */
     const fetchImpl: typeof fetch = (input, init) => {
       const url = urlOf(input);
-      const accept = new Headers(init?.headers).get('Accept') ?? '';
-      if (url.includes('inference/go/v1/models')) {
-        return responseTo({
-          data: [
-            {
-              id: 'deepseek-v4.1-flash',
-              release_date: '2026-10-17',
-              capabilities: { reasoning: { effort: ['high'] } },
-            },
-          ],
-        });
-      }
-      if (url.includes('/files')) {
-        return responseTo([{ filename: 'src/a.ts', status: 'modified' }]);
-      }
-      if (url.includes('/contents/')) {
-        return responseTo({ encoding: 'base64', size: 1, content: 'eA==' });
-      }
-      if (accept.includes('diff')) return Promise.resolve(new Response('diff\n'));
+      const accept = acceptOf(init);
+      if (url.includes('inference/go/v1/models')) return catalog;
+      if (url.includes('/files')) return files;
+      if (url.includes('/contents/')) return contents;
+      if (accept.includes('diff')) return diff;
       metadataCalls += 1;
-      const sha = metadataCalls === 1 ? 'head-sha' : 'new-head-sha';
-      return responseTo({
-        state: 'open',
-        base: { sha: 'base-sha' },
-        head: { sha, ref: 'feature', repo: { full_name: 'sergienko4/repo' } },
-      });
+      return metadataResponse(metadataCalls === 1 ? 'head-sha' : 'new-head-sha');
     };
     const pending = fetchPrData({
       repo: 'sergienko4/repo',
