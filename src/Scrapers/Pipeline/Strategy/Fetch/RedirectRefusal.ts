@@ -16,7 +16,7 @@ import { safeUrlForLog } from './SafeUrlForLog.js';
 
 /** What a refusal reports: status, parsed target and whether the message names the status. */
 interface IRefusalOptions {
-  readonly status?: number;
+  readonly status: number;
   readonly target?: URL;
   /** Manual-policy refusals keep the old status-free message. */
   readonly isStatusInMessage?: boolean;
@@ -41,9 +41,9 @@ function redirectTargetOf(response: Response, baseUrl: string): Option<URL> {
  * @param status - Refusal status, when known.
  * @returns The fixed message.
  */
-function refusalMessage(run: IRedirectRun, isStatusInMessage: boolean, status?: number): string {
+function refusalMessage(run: IRedirectRun, isStatusInMessage: boolean, status: number): string {
   const safeUrl = safeUrlForLog(run.url, run.redactUrlValues);
-  const statusText = status === undefined || !isStatusInMessage ? '' : `HTTP ${String(status)} `;
+  const statusText = isStatusInMessage ? `HTTP ${String(status)} ` : '';
   return `${run.verb} ${safeUrl} ${statusText}${REDIRECT_REFUSED_REASON}`;
 }
 
@@ -66,11 +66,10 @@ function redirectRefusalOf(status: number, target?: URL): IRedirectRefusal {
  * @returns Generic failure naming only the request URL, with the target's
  *   origin and path for the step's opt-in classification.
  */
-function refused(run: IRedirectRun, options: IRefusalOptions = {}): Procedure<IRunEnd> {
+function refused(run: IRedirectRun, options: IRefusalOptions): Procedure<IRunEnd> {
   const { status, target } = options;
   const message = refusalMessage(run, options.isStatusInMessage !== false, status);
   const failure = fail(ScraperErrorTypes.Generic, message);
-  if (status === undefined) return failure;
   return { ...failure, redirectRefusal: redirectRefusalOf(status, target) };
 }
 

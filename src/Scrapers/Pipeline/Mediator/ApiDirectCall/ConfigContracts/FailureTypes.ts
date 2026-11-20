@@ -49,4 +49,4 @@ interface IStepFailureTyping {
   readonly redirectRefusalIsAuthRejected?: IRedirectAuthRejection;
 }
 
-export type { IRedirectAuthRejection, IStepFailureTyping };
+export type { IStepFailureTyping };

@@ -158,6 +158,34 @@ describe('sendUnderPolicy — reject', () => {
     const errorType = isOk(result) ? 'none' : result.errorType;
     expect(errorType).toBe(ScraperErrorTypes.Generic);
   });
+
+  it('passes a transport failure through unchanged', async () => {
+    const failure = fail(ScraperErrorTypes.Generic, 'GET start network error: ECONNRESET');
+    const invoke = serve([failure]);
+    const run = makeRun(invoke, { policy: 'reject' });
+    const result = await sendUnderPolicy(run);
+    expect(result).toEqual(failure);
+  });
+
+  it('carries the refused target status, origin and path', async () => {
+    const invoke = serve([redirect(302, HOP_1)]);
+    const run = makeRun(invoke, { policy: 'reject' });
+    const result = await sendUnderPolicy(run);
+    if (isOk(result)) throw new RangeError('expected a refusal');
+    expect(result.redirectRefusal).toEqual({
+      status: 302,
+      origin: 'https://mto.bank.example',
+      path: '/Online/Default.aspx',
+    });
+  });
+
+  it('carries an empty target when the 3xx has no Location', async () => {
+    const invoke = serve([redirect(307)]);
+    const run = makeRun(invoke, { policy: 'reject' });
+    const result = await sendUnderPolicy(run);
+    if (isOk(result)) throw new RangeError('expected a refusal');
+    expect(result.redirectRefusal).toEqual({ status: 307, origin: '', path: '' });
+  });
 });
 
 describe('sendUnderPolicy — manual hops', () => {
