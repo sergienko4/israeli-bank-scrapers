@@ -107,8 +107,18 @@ jobs:
           check-latest: false
 
       - name: Install the pinned OpenCode CLI
-        # zizmor: ignore[adhoc-packages] — exact version pinned; no lockfile for a global CLI.
-        run: npm install --global @opencode/cli@2.2.5
+        env:
+          OPENCODE_VERSION: 2.2.5
+          OPENCODE_SHA256: 09f44302c10fd036912f59c81fd1aef5df45dd06f649197f9dfc9bbe2a79614e
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/opencode.tar.gz"
+          base="https://github.com/anomalyco/opencode/releases/download/v${OPENCODE_VERSION}"
+          curl -fsSL "$base/opencode-linux-x64.tar.gz" -o "$archive"
+          echo "${OPENCODE_SHA256}  ${archive}" | sha256sum -c -
+          mkdir -p "$HOME/.opencode/bin"
+          tar -xzf "$archive" -C "$HOME/.opencode/bin"
+          echo "$HOME/.opencode/bin" >> "$GITHUB_PATH"
 
       - name: Fetch pull request data
         id: fetch
