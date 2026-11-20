@@ -75,7 +75,6 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-      issues: write
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
@@ -145,5 +144,5 @@ jobs:
         run: node .github/scripts/pr-review/post-review.mjs
 
       - name: Post a failure notice
-        if: failure() && steps.post.outcome == 'skipped'
+        if: failure() && steps.post.outputs.created != 'true'
         run: node .github/scripts/pr-review/post-review.mjs --failure

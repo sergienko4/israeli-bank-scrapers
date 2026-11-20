@@ -52,9 +52,9 @@ Add these repository settings once:
 | Secret   | `REVIEW_GUIDELINES_TOKEN` | Fine-grained PAT, Contents: Read-only on `sergienko4/review-guidelines` |
 | Variable | `REVIEW_GUIDELINES_REPO`  | `sergienko4/review-guidelines`                                          |
 
-`GITHUB_TOKEN` is built in; the workflow grants it `contents: read`,
-`pull-requests: write` and `issues: write` and posts as `github-actions[bot]`.
-No service account or OpenCode GitHub App is needed.
+`GITHUB_TOKEN` is built in; the workflow grants it `contents: read` and
+`pull-requests: write` and posts as `github-actions[bot]`. No service account or
+OpenCode GitHub App is needed.
 
 ## What the agent reviews
 
@@ -111,7 +111,7 @@ builds or pull-request code were executed.
 | PR edits the reviewer or workflow   | Base branch is the working tree; PR content only under `.review/pr/`         |
 | Comment-trigger abuse               | PR-only, exact `/review`, association allow-list, API permission re-check    |
 | Cost or runaway run                 | Per-PR concurrency, 20-minute timeout, diff and comment caps, 30 model steps |
-| Token scope                         | `contents: read`, `pull-requests: write`, `issues: write`; no `id-token`     |
+| Token scope                         | `contents: read`, `pull-requests: write`; no `id-token`                      |
 | Guidelines repo compromise          | Fine-grained read-only token for that one repository                         |
 
 Fork PRs are out of scope for the first version. A fork trigger would need a
