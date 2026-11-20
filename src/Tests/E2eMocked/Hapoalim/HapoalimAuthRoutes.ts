@@ -99,6 +99,11 @@ const VERIFY_REPLY: Replies = {
     state: 'landpage',
     result: { deviceID: HP_DEVICE_ID, reason: 'None' },
   },
+  step1RedirectRegistered: {
+    flow: 'AUTHENTICATE',
+    state: 'landpage',
+    result: { deviceID: HP_DEVICE_ID, reason: 'None' },
+  },
   locked: { state: 'Locked' },
   reissue: { state: 'reissue' },
   unknownState: { state: 'SYN-unknown' },
@@ -171,7 +176,8 @@ function isVerifyRequest(call: IRecordedCall): boolean {
  */
 function verifyCookiesOf(fault: HapoalimFault): readonly string[] {
   const csrf = CSRF_COOKIES[fault] ?? [HP_CSRF_COOKIE];
-  const auth = fault === 'landpage' ? [authCookieOf({ fault })] : [];
+  const isRegistered = fault === 'landpage' || fault === 'step1RedirectRegistered';
+  const auth = isRegistered ? [authCookieOf({ fault })] : [];
   return [...csrf, ...auth].map(scoped);
 }
 
@@ -283,7 +289,7 @@ function routeStep1(call: IRecordedCall, run: IMockRun): Response {
   const session = authCookieOf(run);
   if (!hasCookies(call, [session])) {
     const refused = scoped(HP_REFUSED_COOKIE);
-    if (run.fault === 'step1Redirect') {
+    if (run.fault === 'step1Redirect' || run.fault === 'step1RedirectRegistered') {
       return redirectTo(
         `/invalid_session?SMAUTHREASON=0&TARGET=${HP_ORIGIN}/ServerServices/step1-mobile`,
         [refused],

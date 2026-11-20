@@ -26,7 +26,9 @@ export type OtpVerifyFault = 'otpVerifyLocked' | 'otpVerifyReissue' | 'otpVerify
  * opens and accepts only a fresh session and answers a refused `step1` with
  * `401`. `step1Redirect`: the same refusal in the bank's real shape, a `302`
  * to `/invalid_session` that names the step1 URL as its target.
- * `step1Errors`: the registration call answers 200 with an app error body.
+ * `step1RedirectRegistered`: the same 302, but the cold verify lands without
+ * an OTP because the device is already enrolled. `step1Errors`: the
+ * registration call answers 200 with an app error body.
  */
 export type DataFault =
   | 'txns204'
@@ -35,6 +37,7 @@ export type DataFault =
   | 'expire401'
   | 'sessionExpired'
   | 'step1Redirect'
+  | 'step1RedirectRegistered'
   | 'step1Errors';
 
 /** How the mock misbehaves: a wire fault, or a bank answer. */
@@ -64,6 +67,7 @@ export const HP_BANK_NOTICE = 'SYNTHETIC bank notice 5512';
 const AUTH_COOKIES: Readonly<Partial<Record<HapoalimFault, string>>> = {
   sessionExpired: HP_FRESH_AUTH_COOKIE,
   step1Redirect: HP_FRESH_AUTH_COOKIE,
+  step1RedirectRegistered: HP_FRESH_AUTH_COOKIE,
 };
 
 /**
