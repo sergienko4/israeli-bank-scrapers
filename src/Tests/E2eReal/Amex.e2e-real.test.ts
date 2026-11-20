@@ -93,7 +93,7 @@ DESCRIBE_IF('E2E: Amex (real credentials, API-direct)', () => {
       provider: 'amex',
       accounts: [creds.id, creds.card6Digits],
       tagKey: creds.password,
-      slots: ['key'],
+      slots: ['key', 'bcKey'],
       hasCookies: true,
       maxChars: 16384,
     } as const;

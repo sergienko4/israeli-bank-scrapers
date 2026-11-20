@@ -45,6 +45,7 @@ import {
   RING_MOCK_CARDS,
   RING_MOCK_CREDS,
   RING_MOCK_START_DATE,
+  ringBcKey,
   SYN_ISSUED_KEY,
   SYN_STORED_KEY,
 } from '../Ring/RingFetchMock.js';
@@ -290,7 +291,7 @@ function ringWarmToken(provider: string, key: string): string {
       accounts: [RING_MOCK_CREDS.id, RING_MOCK_CREDS.card6Digits],
       tagKey: RING_MOCK_CREDS.password,
     },
-    { carry: { key }, cookies: [] },
+    { carry: { key, bcKey: ringBcKey(1) }, cookies: [] },
   );
   expect(encoded.success).toBe(true);
   if (!encoded.success) return '';
@@ -547,7 +548,7 @@ function decodeBundleKey(token: string, binding: IEnvelopeBinding): string {
     provider: binding.provider,
     accounts: binding.accounts,
     tagKey: binding.password,
-    slots: ['key'],
+    slots: ['key', 'bcKey'],
     hasCookies: true,
     maxChars: 16384,
   });
