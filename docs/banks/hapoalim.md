@@ -129,15 +129,18 @@ rejected at the boundary before any login step: discard it and retry without
 
 The bank's expired-session answer is `302 /invalid_session`, not `401`.
 `step1` opts into auth rejection only for that exact same-origin `302`, so the
-one cold login runs; any other status, target, 5xx or timeout still never buys
-an SMS. **The token is a device credential, not a session that must stay
-alive.** The cookies are a burst cache; the durable part is the `deviceSeed`.
-When the cookie session expires, the cold fallback reuses that seed, the bank
-recognizes the enrolled device, and `verify` answers `LANDPAGE` without an SMS.
-The app gets the same seamless behaviour by keeping the username + password in
-its Keystore-backed vault and signing in silently; this library does not store
-the password, so the caller supplies it on every run. A lost seed or a device
-the bank revokes still requires the OTP enrollment again.
+one cold login runs. A 5xx, a timeout or a redirect to any other target stays
+a plain failure and does not trigger the fallback. A `401`/`403` still uses
+the existing auth-rejected fallback, which can spend the enrollment OTPs when
+the device is not registered. **The token is a device credential, not a
+session that must stay alive.** The cookies are a burst cache; the durable
+part is the `deviceSeed`. When the cookie session expires on an enrolled
+device, the cold fallback reuses that seed, the bank recognizes the device,
+and `verify` answers `LANDPAGE` without an SMS. The app gets the same seamless
+behaviour by keeping the username + password in its Keystore-backed vault and
+signing in silently; this library does not store the password, so the caller
+supplies it on every run. A lost seed or a device the bank revokes still
+requires the OTP enrollment again.
 
 A warm session lost mid-scrape resumes `step1-mobile` once without SMS and
 retries the scrape; a persistent rejection then ends the run. A cold run that
