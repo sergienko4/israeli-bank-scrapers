@@ -161,7 +161,10 @@ async function run(args: IArgs): Promise<boolean> {
   const started = Date.now();
   const result = await scraper.scrape(creds);
   const elapsedMs = Date.now() - started;
-  const saveFailure = await tokenSaver.settle(TOKEN_SETTLE_TIMEOUT_MS);
+  const saveFailure = await tokenSaver.settle(
+    TOKEN_SETTLE_TIMEOUT_MS,
+    result.success && cached.length === 0,
+  );
   const isSuccessful = result.success && saveFailure.length === 0;
   const summary = summaryOf(result, { warm: cached.length > 0, elapsedMs, saveFailure });
   console.log(summary);

@@ -16,6 +16,7 @@ import {
   readTokenState,
   TOKEN_CACHE_FAILURE,
   TOKEN_CACHE_PENDING,
+  TOKEN_NOT_PERSISTED,
   TOKEN_READ_FAILURE,
   type TokenWriter,
   writeToken,
@@ -119,9 +120,18 @@ describe('Hapoalim local token cache', () => {
     const file = join(dir, 'token.cache');
     const saver = makeTokenSaver(file, writer);
     const saving = saver.save({ longTermToken: 'syn-token-value', bearer: '' });
-    const failure = await saver.settle(1_000);
+    const failure = await saver.settle(1_000, true);
     await saving;
     expect(failure).toBe(TOKEN_CACHE_FAILURE);
+  });
+
+  it('fails closed when a cold success publishes no token', async (): Promise<void> => {
+    const file = join(dir, 'token.cache');
+    const saver = makeTokenSaver(file);
+    const failure = await saver.settle(5, true);
+    expect(failure).toBe(TOKEN_NOT_PERSISTED);
+    const didSave = saver.hasSaved();
+    expect(didSave).toBe(false);
   });
 
   it('fails closed when a save does not settle', async (): Promise<void> => {
@@ -155,6 +165,10 @@ describe('Hapoalim local token cache', () => {
     expect(failure).toBe('');
     const saved = await readTokenState(file);
     expect(saved).toEqual({ kind: 'present', token: 'syn-token-value' });
+    const requiredFailure = await saver.settle(5, true);
+    expect(requiredFailure).toBe('');
+    const didSave = saver.hasSaved();
+    expect(didSave).toBe(true);
   });
 
   it('does not write when the flow publishes no token', async (): Promise<void> => {

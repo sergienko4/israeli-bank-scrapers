@@ -26,6 +26,10 @@ const TOKEN_CACHE_FAILURE = 'Hapoalim token cache write failed — the next run 
 /** Fixed diagnostic when a save does not settle before the runner's deadline. */
 const TOKEN_CACHE_PENDING = 'Hapoalim token cache did not settle — the next run cannot warm-start';
 
+/** Fixed diagnostic when a cold success publishes no token at all. */
+const TOKEN_NOT_PERSISTED =
+  'Hapoalim cold scrape did not publish a token — the next run would need OTP enrollment';
+
 /** The one file writer the sink uses; injectable for delayed-save tests. */
 type TokenWriter = (file: string, token: string) => Promise<string>;
 
@@ -45,8 +49,10 @@ interface ITokenSaver {
   readonly save: (info: IAuthFlowInfo) => Promise<void>;
   /** The fixed failure text, or '' after a successful save. */
   readonly failure: () => string;
+  /** Whether at least one token was written. */
+  readonly hasSaved: () => boolean;
   /** Await every queued save, failing closed at the deadline. */
-  readonly settle: (timeoutMs: number) => Promise<string>;
+  readonly settle: (timeoutMs: number, isTokenRequired?: boolean) => Promise<string>;
 }
 
 /**
@@ -125,6 +131,7 @@ async function writeToken(file: string, token: string): Promise<string> {
  */
 function makeTokenSaver(file: string, write: TokenWriter = writeToken): ITokenSaver {
   let lastFailure = '';
+  let hasSavedToken = false;
   let queue: Promise<void> = Promise.resolve();
 
   /**
@@ -135,6 +142,7 @@ function makeTokenSaver(file: string, write: TokenWriter = writeToken): ITokenSa
   async function persist(info: IAuthFlowInfo): Promise<void> {
     try {
       const saved = await write(file, info.longTermToken);
+      hasSavedToken = true;
       lastFailure = '';
       LOG.info(
         { tokenFile: saved, tokenLength: info.longTermToken.length },
@@ -159,13 +167,19 @@ function makeTokenSaver(file: string, write: TokenWriter = writeToken): ITokenSa
   }
 
   /**
-   * Await every queued save, failing closed when the deadline passes.
+   * Await every queued save, failing closed when the deadline passes or a
+   * cold success required a token that was never published.
    * @param timeoutMs - Runner-owned deadline.
+   * @param isTokenRequired - True when a successful cold scrape must publish one.
    * @returns The fixed failure, or '' when all saves succeeded.
    */
-  async function settle(timeoutMs: number): Promise<string> {
+  async function settle(timeoutMs: number, isTokenRequired = false): Promise<string> {
     const isCompleted = await raceWithTimeout(queue, timeoutMs);
-    if (!isCompleted) lastFailure = TOKEN_CACHE_PENDING;
+    if (!isCompleted) {
+      lastFailure = TOKEN_CACHE_PENDING;
+    } else if (isTokenRequired && lastFailure.length === 0 && !hasSavedToken) {
+      lastFailure = TOKEN_NOT_PERSISTED;
+    }
     return lastFailure;
   }
 
@@ -175,7 +189,13 @@ function makeTokenSaver(file: string, write: TokenWriter = writeToken): ITokenSa
    */
   const failure = (): string => lastFailure;
 
-  return { save, failure, settle };
+  /**
+   * Whether at least one token was written.
+   * @returns True after a successful save.
+   */
+  const hasSaved = (): boolean => hasSavedToken;
+
+  return { save, failure, hasSaved, settle };
 }
 
 export type { ITokenSaver, TokenReadResult, TokenWriter };
@@ -184,6 +204,7 @@ export {
   readTokenState,
   TOKEN_CACHE_FAILURE,
   TOKEN_CACHE_PENDING,
+  TOKEN_NOT_PERSISTED,
   TOKEN_READ_FAILURE,
   writeToken,
 };
