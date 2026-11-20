@@ -142,11 +142,13 @@ signing in silently; this library does not store the password, so the caller
 supplies it on every run. A lost seed or a device the bank revokes still
 requires the OTP enrollment again.
 
-A warm session lost mid-scrape resumes `step1-mobile` once without SMS and
-retries the scrape; a persistent rejection then ends the run. A cold run that
-loses its session mid-scrape fails, and the next run logs in again.
+A warm session lost mid-scrape first retries `step1-mobile` without a login
+call. If that retry is refused, the run takes the same one-cold-login
+fallback described above; the SMS count again depends on whether the device is
+enrolled. A persistent rejection then ends the run. A cold run that loses its
+session mid-scrape fails, and the next run logs in again.
 
-### Device-bound login (zero SMS, no expiry window)
+### Device-bound login (zero SMS once the signature is enrolled)
 
 The app also carries a **RiskMinder device signature** that the bank accepts
 as a known device. Sent as the `mfp` form field on `authenticate/verify`, it
