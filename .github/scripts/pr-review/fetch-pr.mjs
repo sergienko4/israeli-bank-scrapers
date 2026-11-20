@@ -17,6 +17,10 @@ const FILES_PER_PAGE = 100;
 /** Most changed files copied as review data. */
 const MAX_FILES = 300;
 
+/** Credential-shaped paths never copied into review data. */
+const SENSITIVE_PATH_RE =
+  /(?:^|\/)(?:\.env(?:\..*)?|id_rsa[^/]*|[^/]+\.(?:pem|key|p12|pfx|crt|cer|jks|keystore)|\.npmrc|\.netrc)$/iu;
+
 /**
  * Fetch the pull request metadata.
  * @param {object} args - Request arguments.
@@ -104,6 +108,30 @@ export function truncateDiff(diff, maxChars) {
 }
 
 /**
+ * Whether a changed path looks like a credential file.
+ * @param {string} path - Repository path.
+ * @returns {boolean} True when the file must never reach the model.
+ */
+export function isSensitivePath(path) {
+  return SENSITIVE_PATH_RE.test(path);
+}
+
+/**
+ * Drop diff blocks for credential-shaped paths.
+ * @param {string} diff - Unified diff.
+ * @returns {string} Diff without sensitive blocks.
+ */
+export function filterDiff(diff) {
+  return diff
+    .split(/(?=^diff --git )/mu)
+    .filter(block => {
+      const path = /^\+\+\+ b\/(.+)$/mu.exec(block)?.[1] ?? '';
+      return path.length === 0 || !isSensitivePath(path);
+    })
+    .join('');
+}
+
+/**
  * Fetch PR metadata, diff and changed files into `.review/pr`.
  * @param {object} args - Fetch arguments.
  * @param {string} args.repo - `owner/name`.
@@ -123,15 +151,16 @@ export async function fetchPrData(args) {
   const base = /** @type {Record<string, unknown>} */ (metadata.base ?? {});
   const head = /** @type {Record<string, unknown>} */ (metadata.head ?? {});
   assertSnapshot(base, head, args);
-  const diff = await fetchDiff(args);
+  const filteredDiff = filterDiff(await fetchDiff(args));
   const changed = await listFiles(args);
-  const capped = truncateDiff(diff, args.maxDiffChars);
+  const sensitive = changed.map(file => String(file.filename ?? '')).filter(isSensitivePath);
+  const capped = truncateDiff(filteredDiff, args.maxDiffChars);
   await writeTextFile(`${outDir}/diff.patch`, capped.text);
   const skipped = [];
   const dataFiles = new Map();
   for (const [index, file] of changed.entries()) {
     const path = String(file.filename ?? '');
-    if (path.length === 0 || file.status === 'removed') continue;
+    if (path.length === 0 || file.status === 'removed' || isSensitivePath(path)) continue;
     const text = await fetchFile({
       repo: args.repo,
       token: args.token,
@@ -172,8 +201,10 @@ export async function fetchPrData(args) {
       additions: Number(file.additions ?? 0),
       deletions: Number(file.deletions ?? 0),
       dataFile: dataFiles.get(String(file.filename ?? '')) ?? null,
+      sensitive: isSensitivePath(String(file.filename ?? '')),
     })),
     skippedFiles: skipped,
+    sensitiveFiles: sensitive,
     diffTruncated: capped.truncated,
   });
   return { files: changed.length, skipped: skipped.length, diffTruncated: capped.truncated };

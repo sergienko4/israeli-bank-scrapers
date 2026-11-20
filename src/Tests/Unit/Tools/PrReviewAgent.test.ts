@@ -7,7 +7,12 @@
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { fetchPrData, truncateDiff } from '../../../../.github/scripts/pr-review/fetch-pr.mjs';
+import {
+  fetchPrData,
+  filterDiff,
+  isSensitivePath,
+  truncateDiff,
+} from '../../../../.github/scripts/pr-review/fetch-pr.mjs';
 import {
   mapFindings,
   parseAddedLines,
@@ -378,6 +383,36 @@ describe('PR review data consistency', () => {
       fetchImpl: fakeGitHub(),
     });
     await expect(pending).rejects.toThrow('pull request changed during review');
+  });
+});
+
+describe('PR review sensitive data', () => {
+  it.each(['.env', 'nested/.env.local', 'certs/service.pem', 'id_rsa', '.npmrc'])(
+    'marks %s as sensitive',
+    path => {
+      const isSensitive = isSensitivePath(path);
+      expect(isSensitive).toBe(true);
+    },
+  );
+
+  it('drops sensitive file blocks from the diff', () => {
+    const diff = [
+      'diff --git a/.env b/.env',
+      '--- a/.env',
+      '+++ b/.env',
+      '@@ -1 +1 @@',
+      '-OLD_SECRET',
+      '+NEW_SECRET',
+      'diff --git a/src/a.ts b/src/a.ts',
+      '--- a/src/a.ts',
+      '+++ b/src/a.ts',
+      '@@ -1 +1 @@',
+      '-old',
+      '+new',
+    ].join('\n');
+    const filtered = filterDiff(diff);
+    expect(filtered).not.toContain('NEW_SECRET');
+    expect(filtered).toContain('src/a.ts');
   });
 });
 
