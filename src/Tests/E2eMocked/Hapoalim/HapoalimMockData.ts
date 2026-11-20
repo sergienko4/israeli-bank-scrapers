@@ -28,10 +28,10 @@ export const HP_DEVICE_SIGNATURE = JSON.stringify({
 export const HP_DEVICE_ID = 'syn-hp-kdi-41c2';
 
 /** The code the synthetic login SMS carries. */
-export const HP_OTP = '24680';
+export const HP_OTP = '246800';
 
 /** The code the synthetic device step-up SMS carries; distinct from the login code. */
-export const HP_STEPUP_OTP = '97531';
+export const HP_STEPUP_OTP = '975310';
 
 /** The masked phone otp init reports, passed to the retriever as its hint. */
 export const HP_PHONE = 'SYN-***-4321';

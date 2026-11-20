@@ -95,7 +95,7 @@ const OTP_VERIFY_STEP: IStepConfig = {
     intoCarryField: 'otp',
     hintFrom: 'carry.phone',
     requires: ['cookie.csrfcookie'],
-    valuePattern: String.raw`^\d{5}$`,
+    valuePattern: String.raw`^\d{4,8}$`,
   },
   extractsToCarry: {},
   optionalExtractsToCarry: { target: { pointer: '/target' } },

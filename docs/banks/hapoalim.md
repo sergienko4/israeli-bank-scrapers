@@ -26,7 +26,8 @@ const result = await scraper.scrape({
 
 The retriever may also be passed in the credentials, beside `userCode` and
 `password`. Either way it receives the masked phone number the bank texted and
-must answer the five-digit code.
+must answer the code the bank texts (four to eight digits; the live bank has
+sent six- and five-digit codes).
 
 The library derives the user's device identity at runtime: it takes the
 carry-bundle token's `deviceSeed` (or a fresh random seed when no token has
