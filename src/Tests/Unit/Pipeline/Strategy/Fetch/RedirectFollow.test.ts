@@ -167,6 +167,17 @@ describe('sendUnderPolicy — reject', () => {
     expect(result).toEqual(failure);
   });
 
+  it('classifies a header-marked challenge as WAF, not a refusal', async () => {
+    const headers = new Headers({ location: HOP_1, 'cf-mitigated': 'challenge' });
+    const response = new Response(null, { status: 302, headers });
+    const invoke = serve([response]);
+    const run = makeRun(invoke, { policy: 'reject' });
+    const result = await sendUnderPolicy(run);
+    if (isOk(result)) throw new RangeError('expected a failure');
+    expect(result.errorType).toBe(ScraperErrorTypes.WafBlocked);
+    expect(result).not.toHaveProperty('redirectRefusal');
+  });
+
   it('carries the refused target status, origin and path', async () => {
     const invoke = serve([redirect(302, HOP_1)]);
     const run = makeRun(invoke, { policy: 'reject' });

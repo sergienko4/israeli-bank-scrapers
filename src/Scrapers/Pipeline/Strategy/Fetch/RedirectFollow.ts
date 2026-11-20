@@ -22,8 +22,8 @@ import { isOk, succeed } from '../../Types/Procedure.js';
 import type { HttpVerb, IFetchInvokePolicy, ISessionHeaders } from './FetchStrategy.js';
 import sendAccept from './RedirectAccept.js';
 import { droppedOnHop, followedAfter, hopHeaders, postStatusesOf } from './RedirectHopRules.js';
-import type { IRefusalOptions } from './RedirectRefusal.js';
-import { redirectTargetOf, refused } from './RedirectRefusal.js';
+import refused from './RedirectRefusal.js';
+import sendReject from './RedirectReject.js';
 import type { IRedirectRun, IRunEnd } from './RedirectShared.js';
 import { answeredUrl, emitSetCookies, isRedirectStatus } from './RedirectShared.js';
 import cancelResponseBody from './ResponseBody.js';
@@ -62,38 +62,6 @@ async function sendFollow(run: IRedirectRun): Promise<Procedure<IRunEnd>> {
   const sent = await run.invoke(run.url, run.init, run);
   if (!isOk(sent)) return sent;
   return succeed({ response: sent.value, responseUrl: answeredUrl(sent.value, run.url) });
-}
-
-/**
- * File a refused redirect's cookies, then refuse it with its typed target.
- * @param run - The run.
- * @param end - The redirect and the URL it answered.
- * @param status - The 3xx status.
- * @returns The refusal.
- */
-async function refuseRejected(
-  run: IRedirectRun,
-  end: IRunEnd,
-  status: number,
-): Promise<Procedure<IRunEnd>> {
-  emitSetCookies(end.response, end.responseUrl, run.onSetCookie);
-  await cancelResponseBody(end.response, run);
-  const target = redirectTargetOf(end.response, end.responseUrl);
-  return target.has ? refused(run, { status, target: target.value }) : refused(run, { status });
-}
-
-/**
- * Send the request without following, and refuse any 3xx.
- * @param run - The run.
- * @returns The response, a refusal, or the transport failure.
- */
-async function sendReject(run: IRedirectRun): Promise<Procedure<IRunEnd>> {
-  const sent = await run.invoke(run.url, { ...run.init, redirect: 'manual' }, run);
-  if (!isOk(sent)) return sent;
-  const { status } = sent.value;
-  const responseUrl = answeredUrl(sent.value, run.url);
-  if (!isRedirectStatus(status)) return succeed({ response: sent.value, responseUrl });
-  return refuseRejected(run, { response: sent.value, responseUrl }, status);
 }
 
 /** Sender per fixed policy. */
@@ -207,11 +175,13 @@ async function prepareHop(
  * @returns The refusal.
  */
 function refuseManualHop(ctx: IManualRun, end: IRunEnd): Procedure<IRunEnd> {
-  const target = redirectTargetOf(end.response, end.responseUrl);
-  const options: IRefusalOptions = { status: end.response.status, isStatusInMessage: false };
-  return target.has
-    ? refused(ctx.run, { ...options, target: target.value })
-    : refused(ctx.run, options);
+  const options = {
+    status: end.response.status,
+    response: end.response,
+    responseUrl: end.responseUrl,
+    isStatusInMessage: false,
+  };
+  return refused(ctx.run, options);
 }
 
 /**

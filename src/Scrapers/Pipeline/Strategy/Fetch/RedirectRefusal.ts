@@ -9,21 +9,22 @@ import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { REDIRECT_REFUSED_REASON } from '../../Types/Domain/FetchPolicy.js';
 import type { Option } from '../../Types/Option.js';
 import { none, some } from '../../Types/Option.js';
-import type { IRedirectRefusal, Procedure } from '../../Types/Procedure.js';
+import type { Procedure } from '../../Types/Procedure.js';
 import { fail } from '../../Types/Procedure.js';
 import type { IRedirectRun, IRunEnd } from './RedirectShared.js';
 import { safeUrlForLog } from './SafeUrlForLog.js';
 
-/** What a refusal reports: status, parsed target and whether the message names the status. */
+/** What a refusal reports: status, response and whether the message names the status. */
 interface IRefusalOptions {
   readonly status: number;
-  readonly target?: URL;
+  readonly response: Response;
+  readonly responseUrl: string;
   /** Manual-policy refusals keep the old status-free message. */
   readonly isStatusInMessage?: boolean;
 }
 
 /**
- * Resolve a redirect's target for classification, without following it.
+ * Resolve a redirect's target, without following it.
  * @param response - The redirect response.
  * @param baseUrl - URL the response answered.
  * @returns The parsed target, or none when no Location parses.
@@ -38,7 +39,7 @@ function redirectTargetOf(response: Response, baseUrl: string): Option<URL> {
  * Build the body-free refusal message.
  * @param run - The run.
  * @param isStatusInMessage - Whether the message names the status.
- * @param status - Refusal status, when known.
+ * @param status - Refusal status.
  * @returns The fixed message.
  */
 function refusalMessage(run: IRedirectRun, isStatusInMessage: boolean, status: number): string {
@@ -49,29 +50,31 @@ function refusalMessage(run: IRedirectRun, isStatusInMessage: boolean, status: n
 
 /**
  * Describe a refused redirect without its query or headers.
- * @param status - Refusal status.
- * @param target - Parsed target, when known.
+ * @param options - Refusal status, response and answered URL.
  * @returns The typed refusal.
  */
-function redirectRefusalOf(status: number, target?: URL): IRedirectRefusal {
-  const origin = target === undefined ? '' : target.origin;
-  const path = target === undefined ? '' : target.pathname;
-  return { status, origin, path };
+function redirectRefusalOf(options: IRefusalOptions): {
+  readonly status: number;
+  readonly origin: string;
+  readonly path: string;
+} {
+  const target = redirectTargetOf(options.response, options.responseUrl);
+  const origin = target.has ? target.value.origin : '';
+  const path = target.has ? target.value.pathname : '';
+  return { status: options.status, origin, path };
 }
 
 /**
  * Refuse a redirect without naming the refused target in the message.
  * @param run - The run.
- * @param options - Status, parsed target and whether the message names the status.
+ * @param options - Status, response and whether the message names the status.
  * @returns Generic failure naming only the request URL, with the target's
  *   origin and path for the step's opt-in classification.
  */
 function refused(run: IRedirectRun, options: IRefusalOptions): Procedure<IRunEnd> {
-  const { status, target } = options;
-  const message = refusalMessage(run, options.isStatusInMessage !== false, status);
+  const message = refusalMessage(run, options.isStatusInMessage !== false, options.status);
   const failure = fail(ScraperErrorTypes.Generic, message);
-  return { ...failure, redirectRefusal: redirectRefusalOf(status, target) };
+  return { ...failure, redirectRefusal: redirectRefusalOf(options) };
 }
 
-export type { IRefusalOptions };
-export { redirectTargetOf, refused };
+export default refused;
