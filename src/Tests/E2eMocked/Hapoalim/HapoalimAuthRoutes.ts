@@ -92,18 +92,18 @@ const NEW_DEVICE_OTP: JsonUnknownRecord = {
   result: { deviceID: HP_DEVICE_ID, reason: 'newDevice' },
 };
 
+/** The registered-device verify answer shared by the LP and 302 paths. */
+const LANDPAGE_REPLY: JsonUnknownRecord = {
+  flow: 'AUTHENTICATE',
+  state: 'landpage',
+  result: { deviceID: HP_DEVICE_ID, reason: 'None' },
+};
+
+/** Verify answers keyed by fault; the default is a pending OTP. */
 const VERIFY_REPLY: Replies = {
   newDevice: NEW_DEVICE_OTP,
-  landpage: {
-    flow: 'AUTHENTICATE',
-    state: 'landpage',
-    result: { deviceID: HP_DEVICE_ID, reason: 'None' },
-  },
-  step1RedirectRegistered: {
-    flow: 'AUTHENTICATE',
-    state: 'landpage',
-    result: { deviceID: HP_DEVICE_ID, reason: 'None' },
-  },
+  landpage: LANDPAGE_REPLY,
+  step1RedirectRegistered: LANDPAGE_REPLY,
   locked: { state: 'Locked' },
   reissue: { state: 'reissue' },
   unknownState: { state: 'SYN-unknown' },

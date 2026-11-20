@@ -149,22 +149,22 @@ async function fileHop(ctx: IManualRun, hop: IHop, end: IRunEnd): Promise<Option
   return hopTarget(end.response, hop, ctx);
 }
 
+/** The result of preparing a manual hop: the policy refused, or the next hop. */
+type HopPreparation =
+  { readonly kind: 'refused' } | { readonly kind: 'next'; readonly procedure: Procedure<IHop> };
+
 /**
  * File a redirect's cookies and build the next hop, or report that the
  * manual policy refused the target.
  * @param ctx - The run and its rules.
  * @param hop - The request that redirected.
  * @param end - The redirect and the URL it answered.
- * @returns The next hop, false when the policy refused, or a header failure.
+ * @returns A refusal marker, or the next hop's procedure.
  */
-async function prepareHop(
-  ctx: IManualRun,
-  hop: IHop,
-  end: IRunEnd,
-): Promise<Procedure<IHop> | false> {
+async function prepareHop(ctx: IManualRun, hop: IHop, end: IRunEnd): Promise<HopPreparation> {
   const target = await fileHop(ctx, hop, end);
-  if (!target.has) return false;
-  return nextHop(ctx.run, hop, target.value);
+  if (!target.has) return { kind: 'refused' };
+  return { kind: 'next', procedure: nextHop(ctx.run, hop, target.value) };
 }
 
 /**
@@ -194,10 +194,10 @@ function refuseManualHop(ctx: IManualRun, end: IRunEnd): Procedure<IRunEnd> {
  * @returns The final response, a refusal, or the transport or header failure.
  */
 async function continueHop(ctx: IManualRun, hop: IHop, end: IRunEnd): Promise<Procedure<IRunEnd>> {
-  const next = await prepareHop(ctx, hop, end);
-  if (next === false) return refuseManualHop(ctx, end);
-  if (!isOk(next)) return next;
-  return sendHop(ctx, next.value);
+  const prepared = await prepareHop(ctx, hop, end);
+  if (prepared.kind === 'refused') return refuseManualHop(ctx, end);
+  if (!isOk(prepared.procedure)) return prepared.procedure;
+  return sendHop(ctx, prepared.procedure.value);
 }
 
 /**

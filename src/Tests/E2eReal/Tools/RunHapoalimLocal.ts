@@ -82,26 +82,33 @@ function txnCountOf(result: IScraperScrapingResult): number {
   return accounts.reduce((total, account): number => total + account.txns.length, 0);
 }
 
+/** The redacted facts one run summary reports. */
+interface IRunSummary {
+  readonly warm: boolean;
+  readonly elapsedMs: number;
+  readonly saveFailure: string;
+}
+
 /**
  * Describe one run without any value that identifies an account or session.
  * @param result - Scrape result.
- * @param warm - Whether the run started from a cached token.
- * @param elapsedMs - Wall-clock duration.
+ * @param summary - Warm flag, duration and token-cache failure.
  * @returns The redacted summary text.
  */
-function summaryOf(result: IScraperScrapingResult, warm: boolean, elapsedMs: number): string {
+function summaryOf(result: IScraperScrapingResult, summary: IRunSummary): string {
   const tokenLength = result.persistentOtpToken?.length ?? 0;
-  const summary = {
-    warm,
-    success: result.success,
+  const body = {
+    warm: summary.warm,
+    success: result.success && summary.saveFailure.length === 0,
     errorType: result.errorType ?? '',
     errorMessage: result.errorMessage ?? '',
     accounts: result.accounts?.length ?? 0,
     transactions: txnCountOf(result),
     tokenLength,
-    elapsedMs,
+    tokenCacheFailure: summary.saveFailure,
+    elapsedMs: summary.elapsedMs,
   };
-  return JSON.stringify(summary, null, 2);
+  return JSON.stringify(body, null, 2);
 }
 
 /**
@@ -154,14 +161,12 @@ async function run(args: IArgs): Promise<boolean> {
   const started = Date.now();
   const result = await scraper.scrape(creds);
   const elapsedMs = Date.now() - started;
-  const summary = summaryOf(result, cached.length > 0, elapsedMs);
-  console.log(summary);
   const saveFailure = await tokenSaver.settle(TOKEN_SETTLE_TIMEOUT_MS);
-  if (saveFailure.length > 0) {
-    console.error(saveFailure);
-    return false;
-  }
-  return result.success;
+  const isSuccessful = result.success && saveFailure.length === 0;
+  const summary = summaryOf(result, { warm: cached.length > 0, elapsedMs, saveFailure });
+  console.log(summary);
+  if (saveFailure.length > 0) console.error(saveFailure);
+  return isSuccessful;
 }
 
 /**
