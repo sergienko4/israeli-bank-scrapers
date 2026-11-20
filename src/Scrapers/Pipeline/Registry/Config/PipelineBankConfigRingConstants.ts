@@ -17,6 +17,8 @@ interface IRingConstants {
   readonly companyCode: string;
   /** Wallet id the session-token step sends; the card list keeps `216`. */
   readonly sessionWalletId: string;
+  /** Registrable domain whose cookies the warm session keeps. */
+  readonly cookieDomain: string;
 }
 
 /** Isracard on the ring gateway. */
@@ -26,6 +28,7 @@ const ISRACARD_RING: IRingConstants = {
   isrdomain: 'isracard',
   companyCode: '11',
   sessionWalletId: '216',
+  cookieDomain: 'isracard.co.il',
 };
 
 /** Amex on the ring gateway. */
@@ -35,6 +38,7 @@ const AMEX_RING: IRingConstants = {
   isrdomain: 'amex',
   companyCode: '77',
   sessionWalletId: 'AQ',
+  cookieDomain: 'americanexpress.co.il',
 };
 
 /** The wallet id the card-list call sends for every issuer. */

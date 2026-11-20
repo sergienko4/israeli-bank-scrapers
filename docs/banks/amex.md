@@ -29,7 +29,7 @@ const result = await scraper.scrape({
   otpLongTermToken: storedKey, // optional — the previous run's persistentOtpToken
 });
 
-storedKey = result.persistentOtpToken; // the same key every run — keep it
+storedKey = result.persistentOtpToken; // opaque — keep it and pass it back
 ```
 
 ## Login

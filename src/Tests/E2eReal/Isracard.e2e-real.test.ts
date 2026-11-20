@@ -24,8 +24,9 @@ const hasCredentials = !!(
 /**
  * Isracard logs in over the bank's mobile gateway. A
  * cold login (ID, card digits, password) registers a device key and returns
- * it on `persistentOtpToken`; a warm login signs in with that key alone. The
- * key does not rotate, so a warm run hands the same key back. No step sends
+ * a carry bundle on `persistentOtpToken`; a warm login signs in with the
+ * bundle, which also restores the session cookies. The key does not rotate,
+ * so a warm run hands the same key back. No step sends
  * an SMS, so a rejected key costs nothing: the pipeline falls back to the
  * cold login by itself. The mocked suite pins which login steps ran; this
  * suite proves the real bank accepts both.
@@ -91,6 +92,8 @@ DESCRIBE_IF('E2E: Isracard (real credentials, API-direct)', () => {
       provider: 'isracard',
       accounts: [creds.id, creds.card6Digits],
       tagKey: creds.password,
+      slots: ['key'],
+      hasCookies: true,
       maxChars: 16384,
     } as const;
     const innerCold = innerKeyOf(coldKey, expectation);

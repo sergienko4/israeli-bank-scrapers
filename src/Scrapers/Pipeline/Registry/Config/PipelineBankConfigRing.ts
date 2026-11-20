@@ -10,13 +10,15 @@
  * replaced when the bank issues one. `userName` starts empty and is filled
  * when a response supplies it — a warm run skips the step that would.
  *
- * Warm path: `creds.otpLongTermToken` is the device key from a past run.
- * The run resumes at the key sign-in, which the bank itself validates. The
- * key does not rotate, so it is returned as `result.persistentOtpToken`.
+ * Warm path: `creds.otpLongTermToken` is the carry bundle from a past run —
+ * the device key plus the session jar. The run resumes at the key sign-in,
+ * which the bank itself validates. The key does not rotate, so it is
+ * returned inside the next bundle as `result.persistentOtpToken`.
  */
 
 import type {
   IApiDirectCallConfig,
+  ICarryBundleWarmStart,
   ISeedCarrySource,
 } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { type IRingConstants, ringStaticHeaders } from './PipelineBankConfigRingConstants.js';
@@ -29,6 +31,41 @@ const RING_SEEDS: readonly ISeedCarrySource[] = [
   { field: 'bcKey', bootstrap: { kind: 'random-uuid' } },
 ];
 
+/** Transport settings every ring issuer shares. */
+const RING_TRANSPORT_PROFILE = {
+  tlsProfile: 'openssl-http1',
+  sessionCookies: true,
+} as const;
+
+/**
+ * Largest warm token the ring publishes. A cookie bundle is larger than a
+ * bare key but stays well under this cap; the same 16 KiB ceiling guards
+ * every stored API token.
+ */
+const RING_MAX_TOKEN_CHARS = 16_384;
+
+/**
+ * The warm token is the device key plus the session jar the cold login
+ * earned. The ring edge challenges a key-only resume on some Cloudflare
+ * PoPs; the app keeps the same cookies between launches, so the token does
+ * too. A token from an older release fails the bundle check and falls back
+ * to one cold login, which re-registers the same device key.
+ */
+const RING_WARM: Omit<ICarryBundleWarmStart, 'provider'> = {
+  kind: 'carry-bundle',
+  credsField: 'otpLongTermToken',
+  fromStepIndex: RING_WARM_STEP_INDEX,
+  validation: 'bank-call',
+  accountFields: ['id', 'card6Digits'],
+  slots: ['key'],
+  maxTokenChars: RING_MAX_TOKEN_CHARS,
+  cookies: true,
+  coldFallback: 'any',
+};
+
+/** What a Ring warm config looks like before the provider tag is added. */
+type RingWarmStart = Omit<ICarryBundleWarmStart, 'provider'>;
+
 /** The parts of the login config every issuer shares. */
 const RING_SHARED = {
   flow: 'sms-otp',
@@ -37,14 +74,10 @@ const RING_SHARED = {
   requiredCreds: { id: 'digits', card6Digits: 'sixDigits', password: 'nonEmpty' },
   seedCarryFromCreds: RING_SEEDS,
   derivedCarry: [{ into: 'userName', parts: [] }],
-  warmStart: {
-    credsField: 'otpLongTermToken',
-    carryField: 'key',
-    fromStepIndex: RING_WARM_STEP_INDEX,
-    validation: 'bank-call',
-    accountFields: ['id', 'card6Digits'],
-  },
-} as const satisfies Omit<IApiDirectCallConfig, 'steps'>;
+  warmStart: RING_WARM,
+} as const satisfies Omit<IApiDirectCallConfig, 'steps' | 'warmStart'> & {
+  warmStart: RingWarmStart;
+};
 
 /**
  * Build an issuer's login config — passed to `.withApiDirect(...)`.
@@ -69,9 +102,9 @@ function buildRingTransport(ring: IRingConstants): ITransportConfig {
   const paths = { 'auth.service': `${ring.base}/service` };
   // The ring has no GraphQL; graphql mirrors identityBase to satisfy the type.
   const graphql = identityBase;
-  // The edge challenges Node's stock handshake and header order, so the
-  // ring presents the OpenSSL HTTP/1.1 ClientHello; its session rides on cookies.
-  return { identityBase, graphql, paths, tlsProfile: 'openssl-http1', sessionCookies: true };
+  // The domain jar lets the warm bundle keep the session cookies.
+  const cookieDomains = [ring.cookieDomain];
+  return { identityBase, graphql, paths, ...RING_TRANSPORT_PROFILE, cookieDomains };
 }
 
 export { buildRingApiDirectCall, buildRingTransport };

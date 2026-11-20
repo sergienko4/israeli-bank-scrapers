@@ -19,7 +19,7 @@ const result = await scraper.scrape({
   otpLongTermToken: storedKey, // optional — the previous run's persistentOtpToken
 });
 
-storedKey = result.persistentOtpToken; // the same key every run — keep it
+storedKey = result.persistentOtpToken; // opaque — keep it and pass it back
 ```
 
 ## Login
@@ -65,17 +65,23 @@ itself is never logged.
 ## Warm start
 
 Pass the previous run's `result.persistentOtpToken` as `otpLongTermToken` and
-the run starts at `resume`, skipping the password. The key carries no readable
-expiry, so the bank's answer is the check (`validation: 'bank-call'`); a
-rejected key falls back to a cold login with `id`, `card6Digits` and
-`password`, which are therefore always required. The underlying bank key does
-not rotate; a warm run re-publishes the same key inside a newly encoded `v1.`
-string, so do not compare the returned string byte-for-byte with the input.
+the run starts at `resume`, skipping the password. The stored token is a
+carry bundle: the device key plus the session cookies the cold login earned.
+The app keeps the same cookies between launches, and the ring edge challenges
+a key-only resume on some Cloudflare PoPs, so the warm request restores them
+before it posts. The key carries no readable expiry, so the bank's answer is
+the check (`validation: 'bank-call'`); a rejected or unreadable bundle falls
+back to a cold login with `id`, `card6Digits` and `password`, which are
+therefore always required. The underlying bank key does not rotate; a warm run
+re-publishes the same key and its refreshed cookies inside a newly encoded
+`v1.` string, so do not compare the returned string byte-for-byte with the
+input.
 
-The token is opaque: a new run publishes a `v1.` envelope bound to the issuer,
-`id` and `card6Digits`, with an account tag keyed by the caller's password. A
-password change therefore costs one cold login. Tokens issued before this
-envelope are raw keys and are still accepted; do not parse either form.
+The token is opaque: a new run publishes a `v1.` carry bundle bound to the
+issuer, `id` and `card6Digits`, with an account tag keyed by the caller's
+password. A password change therefore costs one cold login. A raw key token
+from an older release is refused by the bundle check and costs one cold login;
+the next run stores the bundle.
 
 ## Scrape
 

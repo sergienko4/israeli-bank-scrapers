@@ -44,6 +44,7 @@ interface IRingIssuer {
   readonly isrdomain: string;
   readonly companyCode: string;
   readonly sessionWalletId: string;
+  readonly cookieDomain: string;
 }
 
 const ISSUERS: readonly IRingIssuer[] = [
@@ -56,6 +57,7 @@ const ISSUERS: readonly IRingIssuer[] = [
     isrdomain: 'isracard',
     companyCode: '11',
     sessionWalletId: '216',
+    cookieDomain: 'isracard.co.il',
   },
   {
     bank: 'Amex',
@@ -66,6 +68,7 @@ const ISSUERS: readonly IRingIssuer[] = [
     isrdomain: 'amex',
     companyCode: '77',
     sessionWalletId: 'AQ',
+    cookieDomain: 'americanexpress.co.il',
   },
 ];
 
@@ -229,11 +232,18 @@ describe.each(ISSUERS)('ring login config — $bank', issuer => {
     expect([...tags]).toEqual(['auth.service']);
   });
 
-  it('starts the warm path at the key sign-in, which reads the stored key', async () => {
+  it('starts the warm path at the key sign-in, keeping the key and session jar', async () => {
     const { call } = await loadModule(issuer);
     const warm = call.warmStart;
     const entry = call.steps[warm?.fromStepIndex ?? -1];
-    expect(warm).toMatchObject({ fromStepIndex: 4, carryField: 'key', validation: 'bank-call' });
+    expect(warm).toMatchObject({
+      kind: 'carry-bundle',
+      fromStepIndex: 4,
+      slots: ['key'],
+      cookies: true,
+      validation: 'bank-call',
+      coldFallback: 'any',
+    });
     expect(entry.name).toBe('resume');
     expect(entry.body?.shape).toMatchObject({ key: { $ref: 'carry.key' } });
   });
@@ -301,7 +311,11 @@ describe.each(ISSUERS)('ring login config — $bank', issuer => {
   it('presents the OpenSSL HTTP/1 handshake, with the session on cookies', async () => {
     const { call, transportConfig } = await loadModule(issuer);
     expect(call.authScheme).toBe('none');
-    expect(transportConfig).toMatchObject({ tlsProfile: 'openssl-http1', sessionCookies: true });
+    expect(transportConfig).toMatchObject({
+      tlsProfile: 'openssl-http1',
+      sessionCookies: true,
+      cookieDomains: [issuer.cookieDomain],
+    });
     expect(transportConfig.paths).toEqual({ 'auth.service': `${issuer.origin}/service` });
   });
 });
