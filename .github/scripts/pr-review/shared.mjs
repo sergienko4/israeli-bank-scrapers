@@ -7,6 +7,22 @@ const API_VERSION = '2022-11-28';
 /** Maximum characters quoted from any file. */
 const MAX_QUOTE_CHARS = 20000;
 
+/** Root the review scripts may write under. */
+const REVIEW_ROOT = resolve('.review');
+
+/**
+ * Refuse a write outside the review data root.
+ * @param {string} path - Candidate path.
+ * @returns {string} Absolute path under `.review/`.
+ */
+export function reviewPath(path) {
+  const target = resolve(path);
+  if (target !== REVIEW_ROOT && !target.startsWith(`${REVIEW_ROOT}${sep}`)) {
+    throw new Error('write escapes the review data directory');
+  }
+  return target;
+}
+
 /**
  * Read a JSON file.
  * @param {string} path - File path.
@@ -23,8 +39,9 @@ export async function readJsonFile(path) {
  * @returns {Promise<void>} Resolves when written.
  */
 export async function writeTextFile(path, text) {
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, text, 'utf8');
+  const target = reviewPath(path);
+  await mkdir(dirname(target), { recursive: true });
+  await writeFile(target, text, 'utf8');
 }
 
 /**

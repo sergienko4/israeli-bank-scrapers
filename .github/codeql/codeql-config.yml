@@ -9,6 +9,11 @@ paths-ignore:
   - 'src/Tests/**/fixtures/**'
   - 'src/Tests/E2eMocked/**/snapshots/**'
   - 'src/Tests/Tools/**'
+  # The review-agent scripts intentionally write fetched PR data under
+  # `.review/pr/` and send a sanitized review back to the GitHub API. CodeQL's
+  # file->HTTP and HTTP->file taint queries model those two flows as findings;
+  # the workflow's threat model, path guard and unit tests cover them instead.
+  - '.github/scripts/pr-review/**'
 
 queries:
   - uses: security-extended

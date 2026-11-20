@@ -8,6 +8,12 @@ const REVIEW_COMMAND = /^\/review(?:\s+model=(?<model>[A-Za-z0-9./#_-]+))?\s*$/u
 /** Effort order used when a model has no configured default. */
 const VARIANT_PRIORITY = ['high', 'max', 'low'];
 
+/** Public OpenCode Go model catalog; constants keep file data out of the URL. */
+const MODELS_URL = 'https://opencode.ai/inference/go/v1/models';
+
+/** Catalog deadline; the pinned fallback matters more than a slow lookup. */
+const CATALOG_TIMEOUT_MS = 5000;
+
 /**
  * Read the event payload from the path GitHub supplies.
  * @param {NodeJS.ProcessEnv} env - Process environment.
@@ -98,10 +104,10 @@ function fallbackCatalog(config) {
  * @returns {Promise<Array<Record<string, unknown>>>} Models.
  */
 export async function loadCatalog(args) {
-  const url = String(args.config.modelsUrl ?? '');
   try {
-    const response = await (args.fetchImpl ?? fetch)(url, {
+    const response = await (args.fetchImpl ?? fetch)(MODELS_URL, {
       headers: { Accept: 'application/json', 'User-Agent': 'israeli-bank-scrapers-review-agent' },
+      signal: AbortSignal.timeout(CATALOG_TIMEOUT_MS),
     });
     if (!response.ok) throw new Error('model catalog unavailable');
     const body = /** @type {Record<string, unknown>} */ (await response.json());
@@ -244,7 +250,7 @@ export async function resolveRequest(args) {
     if (request.source === 'issue_comment' && !canRequest(permission)) {
       return denied('actor is not a maintainer');
     }
-    const pr = await openSameRepoPr(args);
+    const pr = await openSameRepoPr({ ...args, pr: request.pr });
     const base = /** @type {Record<string, unknown>} */ (pr.base ?? {});
     const head = /** @type {Record<string, unknown>} */ (pr.head ?? {});
     return {

@@ -4,8 +4,7 @@
  * output sanitization. No network or GitHub call is made.
  */
 
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { fetchPrData, truncateDiff } from '../../../../.github/scripts/pr-review/fetch-pr.mjs';
@@ -25,7 +24,6 @@ import { sanitizeText } from '../../../../.github/scripts/pr-review/shared.mjs';
 const CONFIG = {
   provider: 'opencode-go',
   modelPrefix: 'deepseek',
-  modelsUrl: 'https://opencode.ai/inference/go/v1/models',
   defaultModel: 'auto',
   defaultVariant: 'high',
   variantPriority: ['high', 'max', 'low'],
@@ -211,13 +209,26 @@ describe('PR review trigger', () => {
 
 describe('PR review request resolution', () => {
   it('accepts a maintainer same-repo open PR', async () => {
+    const requests: string[] = [];
+    const baseFetch = fakeGitHub();
+    /**
+     * Record each requested URL and delegate to the fake.
+     * @param input - Fetch input.
+     * @param init - Fetch options.
+     * @returns Fake response.
+     */
+    const fetchImpl: typeof fetch = (input, init) => {
+      const url = urlOf(input);
+      requests.push(url);
+      return baseFetch(input, init);
+    };
     const result = await resolveRequest({
       eventName: 'issue_comment',
       event: REVIEW_EVENT,
       repo: 'sergienko4/repo',
       token: 'token',
       config: CONFIG,
-      fetchImpl: fakeGitHub(),
+      fetchImpl,
     });
     expect(result).toMatchObject({
       allowed: true,
@@ -225,6 +236,7 @@ describe('PR review request resolution', () => {
       model: 'opencode-go/deepseek-v4.1-flash#high',
       headSha: 'head-sha',
     });
+    expect(requests).toContain('https://api.github.com/repos/sergienko4/repo/pulls/886');
   });
 
   it('refuses an association outside the allow-list before any API call', async () => {
@@ -280,8 +292,9 @@ describe('PR review request resolution', () => {
 
 describe('PR review data fetch', () => {
   it('writes metadata, diff and changed file contents', async () => {
-    const tempRoot = tmpdir();
-    const tempPath = join(tempRoot, 'pr-review-');
+    const reviewRoot = '.review';
+    await mkdir(reviewRoot, { recursive: true });
+    const tempPath = join(reviewRoot, 'pr-review-');
     const dir = await mkdtemp(tempPath);
     try {
       const summary = await fetchPrData({
@@ -291,6 +304,7 @@ describe('PR review data fetch', () => {
         outDir: dir,
         maxDiffChars: 1000,
         maxFileChars: 1000,
+        expectedHeadSha: 'head-sha',
         fetchImpl: fakeGitHub(),
       });
       expect(summary).toEqual({ files: 1, skipped: 0, diffTruncated: false });
@@ -304,6 +318,22 @@ describe('PR review data fetch', () => {
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('PR review data consistency', () => {
+  it('refuses when the PR head changed after resolution', async () => {
+    const pending = fetchPrData({
+      repo: 'sergienko4/repo',
+      pr: 886,
+      token: 'token',
+      outDir: '.review/pr-changed',
+      maxDiffChars: 1000,
+      maxFileChars: 1000,
+      expectedHeadSha: 'older-sha',
+      fetchImpl: fakeGitHub(),
+    });
+    await expect(pending).rejects.toThrow('pull request changed during review');
   });
 });
 
@@ -355,6 +385,7 @@ describe('PR review schema and sanitization', () => {
 
   it.each([
     [{ summary: '', findings: [] }, 'summary length'],
+    [{ summary: 'ok', findings: {} }, 'findings is not an array'],
     [
       {
         summary: 'ok',
@@ -364,6 +395,22 @@ describe('PR review schema and sanitization', () => {
     ],
   ])('refuses invalid review %#', (value, message) => {
     expect(() => validateReview(value, 10)).toThrow(message);
+  });
+
+  it('keeps the most severe findings when the cap applies', () => {
+    const review = validateReview(
+      {
+        summary: 'ok',
+        findings: [
+          { severity: 'suggestion', path: 'a', line: 1, title: 'low', body: 'b' },
+          { severity: 'critical', path: 'a', line: 2, title: 'high', body: 'b' },
+          { severity: 'important', path: 'a', line: 3, title: 'mid', body: 'b' },
+        ],
+      },
+      2,
+    );
+    const titles = review.findings.map(finding => finding.title);
+    expect(titles).toEqual(['high', 'mid']);
   });
 
   it('escapes HTML and blocks dangerous links', () => {

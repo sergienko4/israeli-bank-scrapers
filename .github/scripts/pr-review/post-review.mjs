@@ -11,6 +11,12 @@ import {
 /** Ordered severities. */
 const SEVERITIES = ['critical', 'important', 'suggestion'];
 
+/** Largest expanded overflow section. */
+const MAX_OVERFLOW_CHARS = 12000;
+
+/** Longest one overflow body before it is clipped. */
+const MAX_OVERFLOW_BODY_CHARS = 1200;
+
 /** Maximum summary characters accepted from the model. */
 const MAX_SUMMARY_CHARS = 20000;
 
@@ -77,9 +83,21 @@ export function validateReview(value, maxFindings) {
   const guidelines = Array.isArray(value.guidelines_read)
     ? value.guidelines_read.filter(item => typeof item === 'string').slice(0, 100)
     : [];
-  const rawFindings = Array.isArray(value.findings) ? value.findings : [];
-  const findings = rawFindings.slice(0, maxFindings).map(validateFinding);
+  if (!Array.isArray(value.findings)) throw new ReviewFormatError('findings is not an array');
+  const findings = value.findings
+    .map(validateFinding)
+    .sort((left, right) => severityRank(left) - severityRank(right))
+    .slice(0, maxFindings);
   return { summary, guidelines_read: guidelines, findings };
+}
+
+/**
+ * Rank one finding by severity.
+ * @param {Record<string, unknown>} finding - Finding.
+ * @returns {number} Lower is more severe.
+ */
+function severityRank(finding) {
+  return SEVERITIES.indexOf(String(finding.severity));
 }
 
 /**
@@ -186,14 +204,29 @@ function commentBody(finding) {
  * @returns {string} Review body.
  */
 function summaryBody(args) {
-  const overflow = args.overflow
-    .map(
-      finding =>
-        `- **${sanitizeText(finding.severity)}** \`${sanitizeText(finding.path)}:${finding.line}\` ${sanitizeText(finding.title)}`,
-    )
-    .join('\n');
+  const overflow = overflowBlock(args.overflow);
   const extra = overflow.length > 0 ? `\n\n### Findings not attached inline\n\n${overflow}\n` : '';
   return `${MARKER}\n\n${sanitizeText(args.summary)}${extra}`;
+}
+
+/**
+ * Render overflow findings with enough detail to act on, within a budget.
+ * @param {Array<Record<string, unknown>>} findings - Findings not inline.
+ * @returns {string} Markdown block, or ''.
+ */
+function overflowBlock(findings) {
+  const blocks = [];
+  let used = 0;
+  for (const finding of findings) {
+    const body = sanitizeText(finding.body).slice(0, MAX_OVERFLOW_BODY_CHARS);
+    const rule = String(finding.rule ?? '');
+    const ruleLine = rule.length > 0 ? `\n  Rule: ${sanitizeText(rule)}` : '';
+    const block = `- **${sanitizeText(finding.severity)}** \`${sanitizeText(finding.path)}:${finding.line}\` **${sanitizeText(finding.title)}**\n  ${body}${ruleLine}`;
+    if (used + block.length > MAX_OVERFLOW_CHARS) break;
+    blocks.push(block);
+    used += block.length;
+  }
+  return blocks.join('\n');
 }
 
 /**
@@ -201,21 +234,41 @@ function summaryBody(args) {
  * @param {object} args - Request arguments.
  * @returns {Promise<void>} Resolves when done.
  */
-async function minimizeEarlier(args) {
-  const response = await githubRequest({
-    token: args.token,
-    path: `/repos/${args.repo}/pulls/${args.pr}/reviews?per_page=100`,
-    fetchImpl: args.fetchImpl,
-  });
-  if (!response.ok) return;
-  const reviews = /** @type {Array<Record<string, unknown>>} */ (await readResponseJson(response));
-  const earlier = reviews.find(
-    review =>
-      String((review.user ?? {}).login ?? '') === 'github-actions[bot]' &&
-      String(review.body ?? '').includes(MARKER),
-  );
-  if (earlier === undefined) return;
-  const nodeId = String(earlier.node_id ?? '');
+async function latestEarlier(args) {
+  const reviews = [];
+  for (let page = 1; page <= 5; page += 1) {
+    const response = await githubRequest({
+      token: args.token,
+      path: `/repos/${args.repo}/pulls/${args.pr}/reviews?per_page=100&page=${page}`,
+      fetchImpl: args.fetchImpl,
+    });
+    if (!response.ok) break;
+    const batch = /** @type {Array<Record<string, unknown>>} */ (await readResponseJson(response));
+    reviews.push(...batch);
+    if (batch.length < 100) break;
+  }
+  const earlier = reviews
+    .filter(
+      review =>
+        String((review.user ?? {}).login ?? '') === 'github-actions[bot]' &&
+        String(review.body ?? '').includes(MARKER),
+    )
+    .sort(
+      (left, right) =>
+        Date.parse(String(left.submitted_at ?? '')) - Date.parse(String(right.submitted_at ?? '')),
+    )
+    .at(-1);
+  return earlier;
+}
+
+/**
+ * Minimize one earlier review.
+ * @param {object} args - Request arguments.
+ * @param {Record<string, unknown>} review - Earlier review.
+ * @returns {Promise<void>} Resolves when done.
+ */
+async function minimizeReview(args, review) {
+  const nodeId = String(review.node_id ?? '');
   if (nodeId.length === 0) return;
   await githubGraphql({
     token: args.token,
@@ -256,7 +309,7 @@ export function buildReview(args) {
 }
 
 export async function postReview(args) {
-  await minimizeEarlier(args);
+  const earlier = await latestEarlier(args);
   const payload = buildReview(args);
   const response = await githubRequest({
     token: args.token,
@@ -266,6 +319,7 @@ export async function postReview(args) {
     fetchImpl: args.fetchImpl,
   });
   const review = /** @type {Record<string, unknown>} */ (await readResponseJson(response));
+  if (earlier !== undefined) await minimizeReview(args, earlier);
   return { id: review.id, htmlUrl: review.html_url, inline: payload.comments?.length ?? 0 };
 }
 

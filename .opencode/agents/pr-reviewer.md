@@ -18,9 +18,6 @@ permissions:
   - action: glob
     resource: '**'
     effect: allow
-  - action: grep
-    resource: '**'
-    effect: allow
   - action: skill
     resource: 'pr-review-*'
     effect: allow

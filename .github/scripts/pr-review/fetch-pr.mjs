@@ -112,16 +112,20 @@ export function truncateDiff(diff, maxChars) {
  * @param {string} [args.outDir] - Data directory.
  * @param {number} args.maxDiffChars - Diff cap.
  * @param {number} args.maxFileChars - File cap.
+ * @param {string} [args.expectedHeadSha] - SHA resolved before the fetch.
  * @param {typeof fetch} [args.fetchImpl] - Test double.
  * @returns {Promise<Record<string, unknown>>} Fetch summary.
  */
 export async function fetchPrData(args) {
   const outDir = args.outDir ?? '.review/pr';
   const metadata = await fetchMetadata(args);
-  const diff = await fetchDiff(args);
-  const changed = await listFiles(args);
   const base = /** @type {Record<string, unknown>} */ (metadata.base ?? {});
   const head = /** @type {Record<string, unknown>} */ (metadata.head ?? {});
+  if (args.expectedHeadSha && head.sha !== args.expectedHeadSha) {
+    throw new Error('pull request changed during review');
+  }
+  const diff = await fetchDiff(args);
+  const changed = await listFiles(args);
   const capped = truncateDiff(diff, args.maxDiffChars);
   await writeTextFile(`${outDir}/diff.patch`, capped.text);
   const skipped = [];
@@ -181,6 +185,7 @@ async function main() {
     token: env.GITHUB_TOKEN ?? '',
     maxDiffChars: Number(config.maxDiffChars),
     maxFileChars: Number(config.maxFileChars),
+    expectedHeadSha: env.REVIEW_HEAD_SHA ?? '',
   });
   console.log(JSON.stringify(summary));
 }

@@ -1,7 +1,6 @@
 {
   "provider": "opencode-go",
   "modelPrefix": "deepseek",
-  "modelsUrl": "https://opencode.ai/inference/go/v1/models",
   "defaultModel": "auto",
   "defaultVariant": "high",
   "variantPriority": ["high", "max", "low"],
