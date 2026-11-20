@@ -8,6 +8,8 @@ import { mkdir, mkdtemp, readdir, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { jest } from '@jest/globals';
+
 import ScraperError from '../../../Scrapers/Base/ScraperError.js';
 import {
   makeTokenSaver,
@@ -117,6 +119,20 @@ describe('Hapoalim local token cache', () => {
     const failure = await saver.settle(5);
     expect(failure).toBe(TOKEN_CACHE_PENDING);
     saving.catch(() => true);
+  });
+
+  it('clears the settle timer when the queue is already empty', async (): Promise<void> => {
+    jest.useFakeTimers();
+    try {
+      const file = join(dir, 'token.cache');
+      const saver = makeTokenSaver(file);
+      const failure = await saver.settle(5_000);
+      expect(failure).toBe('');
+      const timerCount = jest.getTimerCount();
+      expect(timerCount).toBe(0);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('clears a prior failure after a successful save', async (): Promise<void> => {

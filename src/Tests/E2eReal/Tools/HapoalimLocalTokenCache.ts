@@ -40,15 +40,22 @@ interface ITokenSaver {
 }
 
 /**
- * Resolve false after a timeout, so a stuck save cannot hang the runner.
+ * Race a completion signal against a timeout, clearing the owned timer when
+ * either side settles.
+ * @param completion - The queued saves.
  * @param ms - Deadline in milliseconds.
- * @returns False once the deadline elapses.
+ * @returns True when the saves completed, false on timeout.
  */
-function timeoutFalse(ms: number): Promise<boolean> {
-  return new Promise(resolve => {
-    globalThis.setTimeout(() => {
+function raceWithTimeout(completion: Promise<void>, ms: number): Promise<boolean> {
+  let timer: ReturnType<typeof globalThis.setTimeout> | false = false;
+  const timeout = new Promise<boolean>(resolve => {
+    timer = globalThis.setTimeout(() => {
       resolve(false);
     }, ms);
+  });
+  const race = Promise.race([completion.then(() => true), timeout]);
+  return race.finally(() => {
+    if (timer !== false) globalThis.clearTimeout(timer);
   });
 }
 
@@ -145,7 +152,7 @@ function makeTokenSaver(file: string, write: TokenWriter = writeToken): ITokenSa
    * @returns The fixed failure, or '' when all saves succeeded.
    */
   async function settle(timeoutMs: number): Promise<string> {
-    const isCompleted = await Promise.race([queue.then(() => true), timeoutFalse(timeoutMs)]);
+    const isCompleted = await raceWithTimeout(queue, timeoutMs);
     if (!isCompleted) lastFailure = TOKEN_CACHE_PENDING;
     return lastFailure;
   }
