@@ -8,7 +8,11 @@
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { IStepConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
-import { HAPOALIM_ERRORS, HAPOALIM_TARGETS } from './PipelineBankConfigHapoalimConstants.js';
+import {
+  HAPOALIM_ERRORS,
+  HAPOALIM_ORIGIN,
+  HAPOALIM_TARGETS,
+} from './PipelineBankConfigHapoalimConstants.js';
 import HAPOALIM_DEVICE_STEPS from './PipelineBankConfigHapoalimDeviceSteps.js';
 import { OTP_INIT_FORM, OTP_VERIFY_FORM, VERIFY_FORM } from './PipelineBankConfigHapoalimForms.js';
 import { AUTH_HEADERS, REFUSED_STATES } from './PipelineBankConfigHapoalimStepShared.js';
@@ -95,7 +99,7 @@ const OTP_VERIFY_STEP: IStepConfig = {
     intoCarryField: 'otp',
     hintFrom: 'carry.phone',
     requires: ['cookie.csrfcookie'],
-    valuePattern: String.raw`^\d{5}$`,
+    valuePattern: String.raw`^\d{4,8}$`,
   },
   extractsToCarry: {},
   optionalExtractsToCarry: { target: { pointer: '/target' } },
@@ -115,12 +119,22 @@ const OTP_VERIFY_STEP: IStepConfig = {
  * <p>The answer is read as text, so `failIfPresent` cannot see a JSON
  * `error` key. An `absent` text capture refuses it instead, while an empty
  * success body passes.</p>
+ *
+ * <p>An expired session is answered `302 /invalid_session`, which the
+ * transport refuses. This step is the warm-start check, so that exact
+ * same-origin refusal is the bank rejecting the session and may buy one cold
+ * login; no other status, target or step1 failure does.</p>
  */
 const STEP1_STEP: IStepConfig = {
   name: 'step1',
   urlTag: 'auth.step1',
   method: 'GET',
   response: 'text',
+  redirectRefusalIsAuthRejected: {
+    statuses: [302],
+    origin: HAPOALIM_ORIGIN,
+    path: '/invalid_session',
+  },
   textCaptures: { bankError: { pattern: String.raw`"[Ee]rrors?"\s*:`, group: 0, absent: true } },
   extractsToCarry: {},
 };

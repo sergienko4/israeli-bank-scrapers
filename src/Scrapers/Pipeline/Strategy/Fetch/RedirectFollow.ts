@@ -14,20 +14,19 @@
  * values are never logged and never put in a failure message.
  */
 
-import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { IManualRedirect, IUrlRule } from '../../Types/Domain/FetchPolicy.js';
-import { REDIRECT_REFUSED_REASON } from '../../Types/Domain/FetchPolicy.js';
 import type { Option } from '../../Types/Option.js';
 import { none, some } from '../../Types/Option.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { fail, isOk, succeed } from '../../Types/Procedure.js';
+import { isOk, succeed } from '../../Types/Procedure.js';
 import type { HttpVerb, IFetchInvokePolicy, ISessionHeaders } from './FetchStrategy.js';
 import sendAccept from './RedirectAccept.js';
 import { droppedOnHop, followedAfter, hopHeaders, postStatusesOf } from './RedirectHopRules.js';
+import refused from './RedirectRefusal.js';
+import sendReject from './RedirectReject.js';
 import type { IRedirectRun, IRunEnd } from './RedirectShared.js';
 import { answeredUrl, emitSetCookies, isRedirectStatus } from './RedirectShared.js';
 import cancelResponseBody from './ResponseBody.js';
-import { safeUrlForLog } from './SafeUrlForLog.js';
 import matchesAnyUrlRule from './UrlRule.js';
 
 /** One request of a manual run and the hops still allowed after it. */
@@ -55,19 +54,6 @@ type Sender = (run: IRedirectRun) => Promise<Procedure<IRunEnd>>;
 const NO_SESSION: ISessionHeaders = { owned: ['cookie'], values: {} };
 
 /**
- * Refuse a redirect without naming the refused target.
- * @param run - The run.
- * @param status - Fixed-policy refusal status; manual refusals omit it.
- * @returns Generic failure naming only the request URL.
- */
-function refused(run: IRedirectRun, status?: number): Procedure<IRunEnd> {
-  const safeUrl = safeUrlForLog(run.url, run.redactUrlValues);
-  const statusText = status === undefined ? '' : `HTTP ${String(status)} `;
-  const message = `${run.verb} ${safeUrl} ${statusText}${REDIRECT_REFUSED_REASON}`;
-  return fail(ScraperErrorTypes.Generic, message);
-}
-
-/**
  * Send the request as-is; fetch follows any redirect itself.
  * @param run - The run.
  * @returns The response, or the transport failure.
@@ -76,22 +62,6 @@ async function sendFollow(run: IRedirectRun): Promise<Procedure<IRunEnd>> {
   const sent = await run.invoke(run.url, run.init, run);
   if (!isOk(sent)) return sent;
   return succeed({ response: sent.value, responseUrl: answeredUrl(sent.value, run.url) });
-}
-
-/**
- * Send the request without following, and refuse any 3xx.
- * @param run - The run.
- * @returns The response, a refusal, or the transport failure.
- */
-async function sendReject(run: IRedirectRun): Promise<Procedure<IRunEnd>> {
-  const sent = await run.invoke(run.url, { ...run.init, redirect: 'manual' }, run);
-  if (!isOk(sent)) return sent;
-  const { status } = sent.value;
-  const responseUrl = answeredUrl(sent.value, run.url);
-  if (!isRedirectStatus(status)) return succeed({ response: sent.value, responseUrl });
-  emitSetCookies(sent.value, responseUrl, run.onSetCookie);
-  await cancelResponseBody(sent.value, run);
-  return refused(run, status);
 }
 
 /** Sender per fixed policy. */
@@ -166,6 +136,55 @@ async function sendHop(ctx: IManualRun, hop: IHop): Promise<Procedure<IRunEnd>> 
 }
 
 /**
+ * File a redirect's cookies and return the target the hop policy sees.
+ * @param ctx - The run and its rules.
+ * @param hop - The request that redirected.
+ * @param end - The redirect and the URL it answered.
+ * @returns The allowed target, or none.
+ */
+async function fileHop(ctx: IManualRun, hop: IHop, end: IRunEnd): Promise<Option<URL>> {
+  emitSetCookies(end.response, end.responseUrl, ctx.run.onSetCookie);
+  const hopContext = { verb: hop.verb, url: hop.url, redactUrlValues: ctx.run.redactUrlValues };
+  await cancelResponseBody(end.response, hopContext);
+  return hopTarget(end.response, hop, ctx);
+}
+
+/** The result of preparing a manual hop: the policy refused, or the next hop. */
+type HopPreparation =
+  { readonly kind: 'refused' } | { readonly kind: 'next'; readonly procedure: Procedure<IHop> };
+
+/**
+ * File a redirect's cookies and build the next hop, or report that the
+ * manual policy refused the target.
+ * @param ctx - The run and its rules.
+ * @param hop - The request that redirected.
+ * @param end - The redirect and the URL it answered.
+ * @returns A refusal marker, or the next hop's procedure.
+ */
+async function prepareHop(ctx: IManualRun, hop: IHop, end: IRunEnd): Promise<HopPreparation> {
+  const target = await fileHop(ctx, hop, end);
+  if (!target.has) return { kind: 'refused' };
+  return { kind: 'next', procedure: nextHop(ctx.run, hop, target.value) };
+}
+
+/**
+ * Refuse a manual hop, keeping the target's typed metadata but the old
+ * status-free message.
+ * @param ctx - The run and its rules.
+ * @param end - The redirect and the URL it answered.
+ * @returns The refusal.
+ */
+function refuseManualHop(ctx: IManualRun, end: IRunEnd): Procedure<IRunEnd> {
+  const options = {
+    status: end.response.status,
+    response: end.response,
+    responseUrl: end.responseUrl,
+    isStatusInMessage: false,
+  };
+  return refused(ctx.run, options);
+}
+
+/**
  * File a redirect's cookies, then send the next hop or refuse the run. A
  * failure of the hop's session headers stops the run before the hop is sent,
  * after the redirect's own cookies are filed.
@@ -175,14 +194,10 @@ async function sendHop(ctx: IManualRun, hop: IHop): Promise<Procedure<IRunEnd>> 
  * @returns The final response, a refusal, or the transport or header failure.
  */
 async function continueHop(ctx: IManualRun, hop: IHop, end: IRunEnd): Promise<Procedure<IRunEnd>> {
-  emitSetCookies(end.response, end.responseUrl, ctx.run.onSetCookie);
-  const hopContext = { verb: hop.verb, url: hop.url, redactUrlValues: ctx.run.redactUrlValues };
-  await cancelResponseBody(end.response, hopContext);
-  const target = hopTarget(end.response, hop, ctx);
-  if (!target.has) return refused(ctx.run);
-  const next = nextHop(ctx.run, hop, target.value);
-  if (!isOk(next)) return next;
-  return sendHop(ctx, next.value);
+  const prepared = await prepareHop(ctx, hop, end);
+  if (prepared.kind === 'refused') return refuseManualHop(ctx, end);
+  if (!isOk(prepared.procedure)) return prepared.procedure;
+  return sendHop(ctx, prepared.procedure.value);
 }
 
 /**

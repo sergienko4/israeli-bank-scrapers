@@ -26,6 +26,15 @@ interface IProcedureFailure {
   readonly messageOnlyFailure?: true;
   /** Set when a successful-looking response still rejected the session. */
   readonly authRejected?: true;
+  /** Set when the transport refused a 3xx; carries no query, body or headers. */
+  readonly redirectRefusal?: {
+    /** The 3xx status the bank answered. */
+    readonly status: number;
+    /** Exact `scheme://host[:port]` of the redirect target, or '' when no Location parsed. */
+    readonly origin: string;
+    /** Path of the redirect target, or '' when no Location parsed. */
+    readonly path: string;
+  };
 }
 
 /** Discriminated union — every pipeline step returns this. */

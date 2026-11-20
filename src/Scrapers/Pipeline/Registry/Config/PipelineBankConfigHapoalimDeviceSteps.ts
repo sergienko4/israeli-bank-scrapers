@@ -59,7 +59,7 @@ const STEPUP_VERIFY_STEP: IStepConfig = {
     intoCarryField: 'stepupOtp',
     hintFrom: 'carry.stepupPhone',
     reuse: 'per-step',
-    valuePattern: String.raw`^\d{5}$`,
+    valuePattern: String.raw`^\d{4,8}$`,
   },
   extractsToCarry: {},
   outcome: {

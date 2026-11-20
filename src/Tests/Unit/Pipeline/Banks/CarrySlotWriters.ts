@@ -245,6 +245,7 @@ const STEP_WRITERS = {
   bankErrorCodePointers: none,
   bankErrorTypeByCode: none,
   httpFailureMap: none,
+  redirectRefusalIsAuthRejected: none,
   extractRules: none,
   runIf: none,
   urlFromCarry: none,

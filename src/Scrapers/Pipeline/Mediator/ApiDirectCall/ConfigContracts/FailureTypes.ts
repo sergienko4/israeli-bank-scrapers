@@ -12,6 +12,16 @@
 
 import type { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 
+/** A refused redirect that can only be the bank's auth portal. */
+interface IRedirectAuthRejection {
+  /** Statuses that may carry the refusal, e.g. `[302]`. */
+  readonly statuses: readonly number[];
+  /** Exact `scheme://host[:port]` the redirect must target. */
+  readonly origin: string;
+  /** Exact target path, e.g. `/invalid_session`. */
+  readonly path: string;
+}
+
 /** How a step types the failures its bank answers. */
 interface IStepFailureTyping {
   /** Body pointers that, present and truthy, fail the step `<step> bank error`. */
@@ -30,6 +40,13 @@ interface IStepFailureTyping {
   readonly bankErrorTypeByCode?: Readonly<Record<string, ScraperErrorTypes>>;
   /** Failure type per 4xx reply status of `<step> HTTP <status>`; default the transport's. */
   readonly httpFailureMap?: Readonly<Record<string, ScraperErrorTypes>>;
+  /**
+   * Treat a refused redirect from this step as the bank rejecting the
+   * session, but only when its status, origin and path match this rule. Only
+   * a step whose redirect target is the bank's auth portal sets this; every
+   * other step keeps a refused 3xx as a plain transport failure.
+   */
+  readonly redirectRefusalIsAuthRejected?: IRedirectAuthRejection;
 }
 
 export type { IStepFailureTyping };

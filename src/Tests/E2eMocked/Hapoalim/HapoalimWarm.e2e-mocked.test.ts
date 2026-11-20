@@ -22,6 +22,7 @@ import {
   runHapoalim,
   SCRAPE_TRAIL,
   SIGNED_IN_TRAIL,
+  VERIFY_TRAIL,
 } from './HapoalimRun.js';
 import { oversizeToken, SKIPPABLE_TOKENS } from './HapoalimWarmTokens.js';
 
@@ -70,6 +71,27 @@ describe('Hapoalim warm start', () => {
     expect(run.trail).toEqual([...LANDING_TRAIL, ...SIGNED_IN_TRAIL, ...SCRAPE_TRAIL]);
     expect(run.hints).toEqual([HP_PHONE]);
     expect(coldBootstrapCookie).toBeNull();
+  });
+
+  it('falls back to one cold run when step1 refuses the session with the bank 302', async () => {
+    const run = await runWarm(cold.token, 'step1Redirect');
+    expect(run.result.success).toBe(true);
+    expect(run.trail).toEqual([...LANDING_TRAIL, ...SIGNED_IN_TRAIL, ...SCRAPE_TRAIL]);
+    expect(run.hints).toEqual([HP_PHONE]);
+    const coldBootstrapCookie = run.calls[1]?.headers.get('cookie');
+    expect(coldBootstrapCookie).toBeNull();
+  });
+
+  it('recovers a 302 with no SMS when the device is already registered', async () => {
+    const run = await runWarm(cold.token, 'step1RedirectRegistered');
+    expect(run.result.success).toBe(true);
+    expect(run.trail).toEqual([
+      ...LANDING_TRAIL,
+      ...VERIFY_TRAIL,
+      ...LANDING_TRAIL,
+      ...SCRAPE_TRAIL,
+    ]);
+    expect(run.hints).toEqual([]);
   });
 
   it.each(SKIPPABLE_TOKENS)('skips $label and signs in cold', async stale => {

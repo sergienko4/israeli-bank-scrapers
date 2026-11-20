@@ -14,7 +14,7 @@
 import type { JsonUnknown, JsonUnknownRecord } from '../../../Scrapers/Pipeline/Types/JsonValue.js';
 import type { IRecordedCall } from '../Helpers/FetchMockKit.js';
 import { errorReply, parseForm } from '../Helpers/FetchMockKit.js';
-import { bodiless, hasCookies, json } from '../Helpers/MockReplies.js';
+import { bodiless, hasCookies, json, redirectTo } from '../Helpers/MockReplies.js';
 import type { HapoalimFault, IMockRun, Route } from './HapoalimFaults.js';
 import { authCookieOf, HP_BANK_NOTICE } from './HapoalimFaults.js';
 import {
@@ -92,13 +92,18 @@ const NEW_DEVICE_OTP: JsonUnknownRecord = {
   result: { deviceID: HP_DEVICE_ID, reason: 'newDevice' },
 };
 
+/** The registered-device verify answer shared by the LP and 302 paths. */
+const LANDPAGE_REPLY: JsonUnknownRecord = {
+  flow: 'AUTHENTICATE',
+  state: 'landpage',
+  result: { deviceID: HP_DEVICE_ID, reason: 'None' },
+};
+
+/** Verify answers keyed by fault; the default is a pending OTP. */
 const VERIFY_REPLY: Replies = {
   newDevice: NEW_DEVICE_OTP,
-  landpage: {
-    flow: 'AUTHENTICATE',
-    state: 'landpage',
-    result: { deviceID: HP_DEVICE_ID, reason: 'None' },
-  },
+  landpage: LANDPAGE_REPLY,
+  step1RedirectRegistered: LANDPAGE_REPLY,
   locked: { state: 'Locked' },
   reissue: { state: 'reissue' },
   unknownState: { state: 'SYN-unknown' },
@@ -171,7 +176,8 @@ function isVerifyRequest(call: IRecordedCall): boolean {
  */
 function verifyCookiesOf(fault: HapoalimFault): readonly string[] {
   const csrf = CSRF_COOKIES[fault] ?? [HP_CSRF_COOKIE];
-  const auth = fault === 'landpage' ? [authCookieOf({ fault })] : [];
+  const isRegistered = fault === 'landpage' || fault === 'step1RedirectRegistered';
+  const auth = isRegistered ? [authCookieOf({ fault })] : [];
   return [...csrf, ...auth].map(scoped);
 }
 
@@ -276,13 +282,19 @@ function routeStepupVerify(call: IRecordedCall): Response {
  * step1 — the device registration that proves the session.
  * @param call - The recorded request.
  * @param run - The run's fault.
- * @returns 200 with the registration cookie, an app error body, or 401
- *   without the run's session.
+ * @returns 200 with the registration cookie, a 302 to the bank's session
+ *   refusal page, an app error body, or 401 without the run's session.
  */
 function routeStep1(call: IRecordedCall, run: IMockRun): Response {
   const session = authCookieOf(run);
   if (!hasCookies(call, [session])) {
     const refused = scoped(HP_REFUSED_COOKIE);
+    if (run.fault === 'step1Redirect' || run.fault === 'step1RedirectRegistered') {
+      return redirectTo(
+        `/invalid_session?SMAUTHREASON=0&TARGET=${HP_ORIGIN}/ServerServices/step1-mobile`,
+        [refused],
+      );
+    }
     return bodiless(401, { setCookies: [refused] });
   }
   if (run.fault === 'step1Errors') {

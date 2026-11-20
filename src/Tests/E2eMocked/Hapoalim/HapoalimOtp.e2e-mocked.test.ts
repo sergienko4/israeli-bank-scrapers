@@ -56,9 +56,9 @@ const OTP_REFUSALS: readonly IOtpRefusal[] = [
     hints: ASKED,
   },
   {
-    name: 'a 4-digit code, never sent',
+    name: 'a 3-digit code, never sent',
     fault: 'none',
-    setup: { otp: '1357' },
+    setup: { otp: '135' },
     errorType: ScraperErrorTypes.InvalidOtp,
     message: 'otpVerify preHook value invalid',
     trail: SENT_TRAIL,

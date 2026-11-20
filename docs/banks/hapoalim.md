@@ -7,7 +7,7 @@
 | Credentials    | `userCode`, `password`, plus an `otpCodeRetriever` callback; optional `otpLongTermToken` ([warm start](#warm-start)) and `deviceSignature` (a per-user override; the library derives one when omitted) |
 | OTP            | **Conditional**: an SMS code, only when the bank asks for one                                                                                                                                          |
 | Phase chain    | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md)                                                                                                  |
-| Source         | [`Banks/BankPipelineTableA.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/BankPipelineTableA.ts)                                   |
+| Source         | [`Banks/BankPipelineTableA.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/BankPipelineTableA.ts)                                                 |
 
 ## Quick example
 
@@ -26,7 +26,8 @@ const result = await scraper.scrape({
 
 The retriever may also be passed in the credentials, beside `userCode` and
 `password`. Either way it receives the masked phone number the bank texted and
-must answer the five-digit code.
+must answer the code the bank texts (four to eight digits; the live bank has
+sent six- and five-digit codes).
 
 The library derives the user's device identity at runtime: it takes the
 carry-bundle token's `deviceSeed` (or a fresh random seed when no token has
@@ -109,10 +110,11 @@ takes the new-device step-up redirect, each filing the redirect's cookies
 A run that signs in returns its session as `result.persistentOtpToken`: a
 `v1.` carry bundle holding the session cookies and the per-user `deviceSeed`,
 bound to the user code. Pass it back as `otpLongTermToken` and the next run
-starts at `step1-mobile` (`HAPOALIM_RESUME_STEP_INDEX`), with no login call and
-no SMS. The device identity is derived from the seed inside the token, so the
-caller stores only the token; the token holds a live session, so store it as a
-secret.
+starts at `step1-mobile` (`HAPOALIM_RESUME_STEP_INDEX`). While the stored
+session is still accepted, that start makes no login call and sends no SMS; a
+refused session takes the one cold login described below. The device identity
+is derived from the seed inside the token, so the caller stores only the
+token; the token holds a live session, so store it as a secret.
 
 The cookies carry no readable expiry, so the bank's answer to `step1-mobile`
 is the check (`validation: 'bank-call'`). A refused session falls back to one
@@ -126,11 +128,28 @@ the reason, never the token. A token longer than `MAX_ACCESS_TOKEN_CHARS` is
 rejected at the boundary before any login step: discard it and retry without
 `otpLongTermToken`, with `otpCodeRetriever` available for the cold login.
 
-A warm session lost mid-scrape resumes `step1-mobile` once without SMS and
-retries the scrape; a persistent rejection then ends the run. A cold run that
-loses its session mid-scrape fails, and the next run logs in again.
+The bank's expired-session answer is `302 /invalid_session`, not `401`.
+`step1` opts into auth rejection only for that exact same-origin `302`, so the
+one cold login runs. A 5xx, a timeout or a redirect to any other target stays
+a plain failure and does not trigger the fallback. A `401`/`403` still uses
+the existing auth-rejected fallback, which can spend the enrollment OTPs when
+the device is not registered. **The token is a device credential, not a
+session that must stay alive.** The cookies are a burst cache; the durable
+part is the `deviceSeed`. When the cookie session expires on an enrolled
+device, the cold fallback reuses that seed, the bank recognizes the device,
+and `verify` answers `LANDPAGE` without an SMS. The app gets the same seamless
+behaviour by keeping the username + password in its Keystore-backed vault and
+signing in silently; this library does not store the password, so the caller
+supplies it on every run. A lost seed or a device the bank revokes still
+requires the OTP enrollment again.
 
-### Device-bound login (zero SMS, no expiry window)
+A warm session lost mid-scrape first retries `step1-mobile` without a login
+call. If that retry is refused, the run takes the same one-cold-login
+fallback described above; the SMS count again depends on whether the device is
+enrolled. A persistent rejection then ends the run. A cold run that loses its
+session mid-scrape fails, and the next run logs in again.
+
+### Device-bound login (zero SMS once the signature is enrolled)
 
 The app also carries a **RiskMinder device signature** that the bank accepts
 as a known device. Sent as the `mfp` form field on `authenticate/verify`, it

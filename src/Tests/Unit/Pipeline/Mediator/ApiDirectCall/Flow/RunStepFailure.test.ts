@@ -26,7 +26,10 @@ import type { ITemplateScope } from '../../../../../../Scrapers/Pipeline/Mediato
 import type GraphQLFetchStrategy from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/GraphQLFetchStrategy.js';
 import type { ITokenBus } from '../../../../../../Scrapers/Pipeline/Types/Domain/TokenBus.js';
 import type { IPipelineContext } from '../../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
-import type { Procedure } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import type {
+  IProcedureFailure,
+  Procedure,
+} from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed, toLegacy } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import {
   ENVELOPE_KEY_TEXT,
@@ -100,6 +103,19 @@ const BIND_STEP: IStepConfig = {
   urlTag: 'auth.bind',
   body: { shape: {} },
   extractsToCarry: { token: '/access_token' },
+};
+
+/** The origin the bind URL lives on. */
+const AUTH_ORIGIN = 'https://example.test';
+
+/** A step whose refused redirect is the bank's rejected-session answer. */
+const REDIRECT_AUTH_BIND_STEP: IStepConfig = {
+  ...BIND_STEP,
+  redirectRefusalIsAuthRejected: {
+    statuses: [302],
+    origin: AUTH_ORIGIN,
+    path: '/invalid_session',
+  },
 };
 
 const SEALED_BIND_STEP: IStepConfig = {
@@ -226,6 +242,36 @@ function runBind(bus: ITokenBus): Promise<Procedure<ITemplateScope>> {
 }
 
 /**
+ * Run one step on a stub bus.
+ * @param step - Step under test.
+ * @param bus - Stub mediator.
+ * @returns The step result.
+ */
+function runOn(step: IStepConfig, bus: ITokenBus): Promise<Procedure<ITemplateScope>> {
+  const scope = makeScope();
+  return RUN_STEP.runStep({ step, bus, scope, companyId: HINT });
+}
+
+/**
+ * Build a transport redirect refusal with its typed target.
+ * @param status - HTTP status.
+ * @param origin - Target origin.
+ * @param path - Target path.
+ * @returns The failure.
+ */
+function redirectRefusal(
+  status: number,
+  origin = AUTH_ORIGIN,
+  path = '/invalid_session',
+): IProcedureFailure {
+  const base = fail(
+    ScraperErrorTypes.Generic,
+    `GET ${BIND_URL} HTTP ${String(status)} redirect refused`,
+  );
+  return { ...base, redirectRefusal: { status, origin, path } };
+}
+
+/**
  * List the echoed secrets a text quotes.
  * @param text - Error message or log output.
  * @returns Secrets found in the text.
@@ -291,6 +337,62 @@ describe('login-step failure message', () => {
     const result = await runBind(bus);
     expect(result).toMatchObject({ success: false, errorType: row.type });
     expect(result).toMatchObject({ errorMessage: row.expected });
+  });
+
+  it('marks an opted-in same-origin 302 to /invalid_session as auth rejected', async () => {
+    const bus = STUB.makeStubMediator({ responses: [redirectRefusal(302)], captures: [] });
+    const result = await runOn(REDIRECT_AUTH_BIND_STEP, bus);
+    expect(result).toMatchObject({
+      success: false,
+      errorMessage: 'bind HTTP 302 redirect refused',
+      authRejected: true,
+    });
+  });
+
+  it.each([301, 303, 307, 308])(
+    'does not mark an opted-in %s redirect as auth rejected',
+    async status => {
+      const bus = STUB.makeStubMediator({ responses: [redirectRefusal(status)], captures: [] });
+      const result = await runOn(REDIRECT_AUTH_BIND_STEP, bus);
+      expect(result).not.toHaveProperty('authRejected');
+    },
+  );
+
+  it.each([
+    ['another path', AUTH_ORIGIN, '/other'],
+    ['another origin', 'https://evil.test', '/invalid_session'],
+  ])('does not mark an opted-in 302 to %s as auth rejected', async (_label, origin, path) => {
+    const bus = STUB.makeStubMediator({
+      responses: [redirectRefusal(302, origin, path)],
+      captures: [],
+    });
+    const result = await runOn(REDIRECT_AUTH_BIND_STEP, bus);
+    expect(result).not.toHaveProperty('authRejected');
+  });
+
+  it('does not mark a refused redirect without a parsed target as auth rejected', async () => {
+    const refusal = fail(ScraperErrorTypes.Generic, `GET ${BIND_URL} HTTP 302 redirect refused`);
+    const bus = STUB.makeStubMediator({ responses: [refusal], captures: [] });
+    const result = await runOn(REDIRECT_AUTH_BIND_STEP, bus);
+    expect(result).not.toHaveProperty('authRejected');
+  });
+
+  it('leaves a refused redirect plain on a step that did not opt in', async (): Promise<void> => {
+    const bus = STUB.makeStubMediator({ responses: [redirectRefusal(302)], captures: [] });
+    const result = await runBind(bus);
+    expect(result).toMatchObject({
+      success: false,
+      errorMessage: 'bind HTTP 302 redirect refused',
+    });
+    expect(result).not.toHaveProperty('authRejected');
+  });
+
+  it('does not mark a 500 as auth rejected even on an opted-in step', async (): Promise<void> => {
+    const responses = [fail(ScraperErrorTypes.Generic, `GET ${BIND_URL} 500: ${ECHO_BODY}`)];
+    const bus = STUB.makeStubMediator({ responses, captures: [] });
+    const result = await runOn(REDIRECT_AUTH_BIND_STEP, bus);
+    expect(result).toMatchObject({ success: false, errorMessage: 'bind HTTP 500' });
+    expect(result).not.toHaveProperty('authRejected');
   });
 
   it('passes a WAF-blocked step through with its fixed reason', async (): Promise<void> => {
