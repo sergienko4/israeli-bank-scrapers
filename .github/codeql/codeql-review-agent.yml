@@ -1,0 +1,16 @@
+name: "CodeQL config — review agent"
+
+# Analyze the review-agent scripts on their own so the two deliberate
+# file<->HTTP taint queries can be excluded without disabling them for the
+# banking pipeline. Every other security-extended query still runs here.
+paths:
+  - '.github/scripts/pr-review/**'
+
+queries:
+  - uses: security-extended
+
+query-filters:
+  - exclude:
+      id: js/file-access-to-http
+  - exclude:
+      id: js/http-to-file-access

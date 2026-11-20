@@ -9,16 +9,11 @@ paths-ignore:
   - 'src/Tests/**/fixtures/**'
   - 'src/Tests/E2eMocked/**/snapshots/**'
   - 'src/Tests/Tools/**'
+  # The review-agent scripts intentionally write fetched PR data under
+  # `.review/pr/` and send a sanitized review back to the GitHub API. They are
+  # analyzed by the scoped review-agent job instead, so the banking pipeline
+  # keeps every security-extended query.
+  - '.github/scripts/pr-review/**'
 
 queries:
   - uses: security-extended
-
-query-filters:
-  # The review-agent scripts intentionally fetch PR data into files and send a
-  # sanitized review back to the GitHub API. These two taint queries model that
-  # deliberate flow; the workflow threat model, path guard and unit tests cover
-  # it instead. Keep the scripts in analysis for every other query.
-  - exclude:
-      id: js/file-access-to-http
-  - exclude:
-      id: js/http-to-file-access
