@@ -108,21 +108,35 @@ describe('Hapoalim local token cache', () => {
     expect(order).toEqual(['start:old', 'end:old', 'start:new', 'end:new']);
   });
 
-  it('awaits a pending save and reports its failure', async (): Promise<void> => {
+  it('recovers after a failed save and satisfies a required token', async (): Promise<void> => {
+    let attempts = 0;
     /**
-     * Reject after a short delay so the runner must await a pending save.
-     * @returns Never a path; the save fails.
+     * Reject the first save after a delay, then accept the second.
+     * @param cacheFile - Cache path.
+     * @returns The cache path on success.
      */
-    const writer: TokenWriter = async () => {
-      await humanDelay(20, 21);
-      throw new ScraperError('write failed');
+    const writer: TokenWriter = async cacheFile => {
+      attempts += 1;
+      if (attempts === 1) {
+        await humanDelay(20, 21);
+        throw new ScraperError('write failed');
+      }
+      return cacheFile;
     };
     const file = join(dir, 'token.cache');
     const saver = makeTokenSaver(file, writer);
-    const saving = saver.save({ longTermToken: 'syn-token-value', bearer: '' });
-    const failure = await saver.settle(1_000, true);
-    await saving;
-    expect(failure).toBe(TOKEN_CACHE_FAILURE);
+    const firstSave = saver.save({ longTermToken: 'first', bearer: '' });
+    const firstFailure = await saver.settle(1_000, true);
+    await firstSave;
+    expect(firstFailure).toBe(TOKEN_CACHE_FAILURE);
+    const secondSave = saver.save({ longTermToken: 'second', bearer: '' });
+    await secondSave;
+    const secondFailure = await saver.settle(5, true);
+    const finalFailure = saver.failure();
+    expect(secondFailure).toBe('');
+    expect(finalFailure).toBe('');
+    const didSave = saver.hasSaved();
+    expect(didSave).toBe(true);
   });
 
   it('fails closed when a cold success publishes no token', async (): Promise<void> => {
