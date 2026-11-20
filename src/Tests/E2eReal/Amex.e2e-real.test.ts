@@ -24,9 +24,10 @@ const hasCredentials = !!(
 /**
  * Amex logs in over the issuer's mobile gateway. A
  * cold login (ID, card digits, password) registers a device key and returns
- * it on `persistentOtpToken`; a warm login signs in with that key alone. The
- * underlying key does not rotate; the envelope is re-wrapped with a fresh
- * nonce, so compare the decoded values. No step sends
+ * a carry bundle on `persistentOtpToken`; a warm login signs in with the
+ * bundle, which also restores the session cookies. The underlying key does
+ * not rotate; the envelope is re-wrapped with a fresh nonce, so compare the
+ * decoded values. No step sends
  * an SMS, so a rejected key costs nothing: the pipeline falls back to the
  * cold login by itself. The mocked suite pins which login steps ran; this
  * suite proves the real bank accepts both.
@@ -92,6 +93,8 @@ DESCRIBE_IF('E2E: Amex (real credentials, API-direct)', () => {
       provider: 'amex',
       accounts: [creds.id, creds.card6Digits],
       tagKey: creds.password,
+      slots: ['key'],
+      hasCookies: true,
       maxChars: 16384,
     } as const;
     const innerCold = innerKeyOf(coldKey, expectation);

@@ -569,9 +569,10 @@ describe('warm-start contract — policy exemptions', () => {
     const configs = await loadWarmStartConfigs();
     const bundleBanks = configs.filter(([, config]) => isBundleToken(config));
     const bundleLabels = bundleBanks.map(([label]) => label);
-    // Hapoalim carries its device seed with the jar; Yahav its device
-    // certificate and client; each token call is the check.
-    expect(bundleLabels).toEqual(['Hapoalim', 'Yahav']);
+    // The ring issuers carry the device key with the session jar; Hapoalim
+    // its device seed; Yahav its device certificate and client. Each token
+    // call is the check.
+    expect(bundleLabels).toEqual(['Isracard', 'Amex', 'Hapoalim', 'Yahav']);
   });
 
   it('the fixture is exempt from both policy-dependent invariants', () => {

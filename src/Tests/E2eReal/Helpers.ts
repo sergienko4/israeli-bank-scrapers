@@ -1,23 +1,25 @@
 import { ScraperErrorTypes } from '../../Scrapers/Base/ErrorTypes.js';
 import type { IScraperScrapingResult } from '../../Scrapers/Base/Interface.js';
-import type { IRawCarryExpectation } from '../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmRawCarry.js';
-import { decodeRawCarry } from '../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmRawCarry.js';
+import { decodeWarmBundle } from '../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmCarryBundle.js';
 import type { ITransaction, ITransactionsAccount } from '../../Transactions.js';
 import { maskAccount, maskAmount, maskDesc } from '../Helpers/ResultFormatter.js';
 import { assertWindowCoverage } from './WindowCoverageGate.js';
 
+/** What a Ring warm bundle is checked against. */
+type WarmBundleExpectation = Parameters<typeof decodeWarmBundle>[1];
+
 /**
- * Decode the inner key of a published `v1.` raw-carry envelope. The envelope
- * is re-wrapped with a fresh nonce on every publish, so the published string
- * is not stable; the key inside it is.
+ * Decode the device key inside a published `v1.` carry bundle. The bundle is
+ * re-wrapped with a fresh nonce on every publish, so the published string is
+ * not stable; the key inside it is.
  * @param token - Published token.
- * @param expectation - Provider, accounts and tag key.
- * @returns The inner raw key.
+ * @param expectation - Provider, accounts, slots, jar flag and size limit.
+ * @returns The inner device key.
  */
-export function innerKeyOf(token: string, expectation: IRawCarryExpectation): string {
-  const decoded = decodeRawCarry(token, expectation);
+export function innerKeyOf(token: string, expectation: WarmBundleExpectation): string {
+  const decoded = decodeWarmBundle(token, expectation);
   if (!decoded.success) throw new TypeError(decoded.errorMessage);
-  return decoded.value;
+  return decoded.value.carry.key;
 }
 
 export { SCRAPE_TIMEOUT } from '../Config/TestTimingConfig.js';

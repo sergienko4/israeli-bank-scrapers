@@ -19,7 +19,10 @@ import type {
   IScraperScrapingResult,
   ScraperCredentials,
 } from '../../../Scrapers/Base/Interface.js';
-import { decodeRawCarry } from '../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmRawCarry.js';
+import {
+  decodeWarmBundle,
+  encodeWarmBundle,
+} from '../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmCarryBundle.js';
 import type { IRecordedCall } from '../Helpers/FetchMockKit.js';
 import { parseBody } from '../Helpers/FetchMockKit.js';
 import createScraperWithMtls from '../Helpers/MtlsScraper.js';
@@ -50,6 +53,9 @@ const ISSUERS: readonly IRingIssuer[] = [
   { bank: 'Isracard', companyId: CompanyTypes.Isracard, target: ISRACARD_RING_TARGET },
   { bank: 'Amex', companyId: CompanyTypes.Amex, target: AMEX_RING_TARGET },
 ];
+
+/** A decoded warm carry bundle. */
+type PersistedBundle = Extract<ReturnType<typeof decodeWarmBundle>, { success: true }>['value'];
 
 /** What one mocked run produced. */
 interface IRingRun {
@@ -197,23 +203,69 @@ const STEP_ZERO_FAULTS: readonly (readonly [RingFault, ScraperErrorTypes, string
 ];
 
 /**
- * The raw key inside a run's published token.
+ * The carry bundle inside a run's published token.
+ * @param run - A finished mocked run.
+ * @param issuer - The issuer under test.
+ * @returns The decoded key and jar.
+ */
+function persistedBundle(run: IRingRun, issuer: IRingIssuer): PersistedBundle {
+  const token = run.result.persistentOtpToken ?? '';
+  const provider = issuer.bank.toLowerCase();
+  const decoded = decodeWarmBundle(token, {
+    provider,
+    accounts: [RING_MOCK_CREDS.id, RING_MOCK_CREDS.card6Digits],
+    tagKey: RING_MOCK_CREDS.password,
+    slots: ['key'],
+    hasCookies: true,
+    maxChars: 16384,
+  });
+  expect(decoded.success).toBe(true);
+  if (!decoded.success) throw new TypeError(decoded.errorMessage);
+  return decoded.value;
+}
+
+/**
+ * The device key inside a run's published carry bundle.
  * @param run - A finished mocked run.
  * @param issuer - The issuer under test.
  * @returns The key the caller would store.
  */
-function persistedRaw(run: IRingRun, issuer: IRingIssuer): string {
-  const token = run.result.persistentOtpToken ?? '';
+function persistedKey(run: IRingRun, issuer: IRingIssuer): string {
+  return persistedBundle(run, issuer).carry.key;
+}
+
+/**
+ * A warm token carrying a stored key and one session cookie.
+ * @param issuer - The issuer under test.
+ * @param key - The device key.
+ * @returns An encoded carry bundle.
+ */
+function warmToken(issuer: IRingIssuer, key: string): string {
   const provider = issuer.bank.toLowerCase();
-  const decoded = decodeRawCarry(token, {
-    provider,
-    accounts: [RING_MOCK_CREDS.id, RING_MOCK_CREDS.card6Digits],
-    tagKey: RING_MOCK_CREDS.password,
-    maxChars: 16384,
-  });
-  expect(decoded.success).toBe(true);
-  if (!decoded.success) return '';
-  return decoded.value;
+  const encoded = encodeWarmBundle(
+    {
+      provider,
+      accounts: [RING_MOCK_CREDS.id, RING_MOCK_CREDS.card6Digits],
+      tagKey: RING_MOCK_CREDS.password,
+    },
+    {
+      carry: { key },
+      cookies: [
+        {
+          name: 'RingSession',
+          value: 'syn-warm-cookie',
+          domain: new URL(issuer.target.base).host,
+          path: '/',
+          hostOnly: true,
+          secure: true,
+          expiresEpochS: 0,
+        },
+      ],
+    },
+  );
+  expect(encoded.success).toBe(true);
+  if (!encoded.success) return '';
+  return encoded.value;
 }
 
 describe.each(ISSUERS)('$bank browserless login', issuer => {
@@ -231,8 +283,14 @@ describe.each(ISSUERS)('$bank browserless login', issuer => {
     expect(sent).toEqual(required);
     const udid = registeredUdid(run.calls);
     expect(udid).toBe(SYN_DEVICE_UDID);
-    const persisted = persistedRaw(run, issuer);
+    const persisted = persistedKey(run, issuer);
     expect(persisted).toBe(SYN_ISSUED_KEY);
+    const bundle = persistedBundle(run, issuer);
+    expect(bundle.cookies).not.toBe(false);
+    if (bundle.cookies !== false) {
+      const names = bundle.cookies.map(cookie => cookie.name);
+      expect(names).toContain('RingSession');
+    }
   });
 
   it('reports each card with its own rows and statement total', async () => {
@@ -252,32 +310,34 @@ describe.each(ISSUERS)('$bank browserless login', issuer => {
   });
 
   it('resumes with the stored key without sending the password', async () => {
-    const creds = { ...RING_MOCK_CREDS, otpLongTermToken: SYN_STORED_KEY };
+    const creds = { ...RING_MOCK_CREDS, otpLongTermToken: warmToken(issuer, SYN_STORED_KEY) };
     const run = await runRing({ issuer, creds });
     expect(run.result.success).toBe(true);
     expect(run.steps).toEqual(WARM_STEPS);
     const isPasswordSent = isSent(run.calls, RING_MOCK_CREDS.password);
     expect(isPasswordSent).toBe(false);
-    const persisted = persistedRaw(run, issuer);
+    const cookie = run.calls[0]?.headers.get('cookie') ?? '';
+    expect(cookie).toContain('RingSession=syn-warm-cookie');
+    const persisted = persistedKey(run, issuer);
     expect(persisted).toBe(SYN_STORED_KEY);
   });
 
   it('falls back to exactly one cold login when the stored key is stale', async () => {
-    const creds = { ...RING_MOCK_CREDS, otpLongTermToken: 'syn-ring-stale-key' };
+    const creds = { ...RING_MOCK_CREDS, otpLongTermToken: warmToken(issuer, 'syn-ring-stale-key') };
     const run = await runRing({ issuer, creds });
     expect(run.result.success).toBe(true);
     expect(run.steps).toEqual([RESUME, ...COLD_STEPS]);
-    const persisted = persistedRaw(run, issuer);
+    const persisted = persistedKey(run, issuer);
     expect(persisted).toBe(SYN_ISSUED_KEY);
   });
 
   it('logs in cold once when the warm session expires before the card list', async () => {
-    const creds = { ...RING_MOCK_CREDS, otpLongTermToken: SYN_STORED_KEY };
+    const creds = { ...RING_MOCK_CREDS, otpLongTermToken: warmToken(issuer, SYN_STORED_KEY) };
     const run = await runRing({ issuer, creds, fault: 'expireOnce' });
     expect(run.result.success).toBe(true);
-    expect(run.steps).toEqual([...WARM_STEPS, ...COLD_STEPS]);
+    expect(run.steps).toEqual([...WARM_STEPS, RESUME, ...COLD_STEPS]);
     expect(run.result.accounts).toHaveLength(RING_MOCK_CARDS.length);
-    const persisted = persistedRaw(run, issuer);
+    const persisted = persistedKey(run, issuer);
     expect(persisted).toBe(SYN_ISSUED_KEY);
     const [expired, ...retried] = run.data.map(call => call.headers.get('bckey'));
     const warmKey = ringBcKey(1);
@@ -304,7 +364,7 @@ describe.each(ISSUERS)('$bank browserless login', issuer => {
   });
 
   it('fails without a cold re-login when the gateway refuses a warm run', async () => {
-    const creds = { ...RING_MOCK_CREDS, otpLongTermToken: SYN_STORED_KEY };
+    const creds = { ...RING_MOCK_CREDS, otpLongTermToken: warmToken(issuer, SYN_STORED_KEY) };
     const run = await runRing({ issuer, creds, fault: 'refuseMonth' });
     expect(run.result.success).toBe(false);
     expect(run.result.errorType).toBe(ScraperErrorTypes.Generic);

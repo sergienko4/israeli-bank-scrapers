@@ -43,6 +43,7 @@ const RING: RingConstants = {
   isrdomain: 'example',
   sessionWalletId: '216',
   companyCode: '11',
+  cookieDomain: 'example.test',
 };
 
 const CARD: IRingCard = { card4Number: '1234', paymentDay: 10, companyCode: 11 };

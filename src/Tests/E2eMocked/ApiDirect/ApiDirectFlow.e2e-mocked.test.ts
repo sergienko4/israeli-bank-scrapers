@@ -10,6 +10,10 @@
 
 import { CompanyTypes } from '../../../Definitions.js';
 import type { ScraperCredentials } from '../../../Scrapers/Base/Interface.js';
+import {
+  decodeWarmBundle,
+  encodeWarmBundle,
+} from '../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmCarryBundle.js';
 import { decodeRawCarry } from '../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmRawCarry.js';
 import createScraper from '../../../Scrapers/Registry/Factory.js';
 import type { IMockHandle as IKitMockHandle } from '../Helpers/FetchMockKit.js';
@@ -103,6 +107,8 @@ interface IApiDirectFlowCase {
   readonly expectsWarmStart?: boolean;
   /** Exact raw token the caller must receive back inside the envelope. */
   readonly expectedPersistentToken?: string;
+  /** Whether the published envelope is a carry bundle rather than a raw carry. */
+  readonly expectedBundle?: boolean;
   /** Provider tag the published envelope must carry. */
   readonly expectedProvider?: string;
   /** Credential fields the published envelope is bound to. */
@@ -266,14 +272,38 @@ const ISRACARD_COLD_CASE: IApiDirectFlowCase = {
   expectsWarmStart: false,
   // The device key the ring issued and registered; the caller stores it.
   expectedPersistentToken: SYN_ISSUED_KEY,
+  expectedBundle: true,
   expectedProvider: 'isracard',
   expectedAccountFields: ['id', 'card6Digits'],
 };
 
+/**
+ * A ring warm token carrying a stored device key.
+ * @param provider - The issuer's ring domain tag.
+ * @param key - The stored device key.
+ * @returns An encoded carry bundle.
+ */
+function ringWarmToken(provider: string, key: string): string {
+  const encoded = encodeWarmBundle(
+    {
+      provider,
+      accounts: [RING_MOCK_CREDS.id, RING_MOCK_CREDS.card6Digits],
+      tagKey: RING_MOCK_CREDS.password,
+    },
+    { carry: { key }, cookies: [] },
+  );
+  expect(encoded.success).toBe(true);
+  if (!encoded.success) return '';
+  return encoded.value;
+}
+
 const ISRACARD_WARM_CASE: IApiDirectFlowCase = {
   ...ISRACARD_COLD_CASE,
   displayName: 'Isracard (warm)',
-  mockCreds: { ...RING_MOCK_CREDS, otpLongTermToken: SYN_STORED_KEY },
+  mockCreds: {
+    ...RING_MOCK_CREDS,
+    otpLongTermToken: ringWarmToken('isracard', SYN_STORED_KEY),
+  },
   // Key sign-in and session alone: the stored key replaces the password steps.
   minIdentityCalls: 2,
   maxIdentityCalls: 2,
@@ -299,6 +329,10 @@ const AMEX_WARM_CASE: IApiDirectFlowCase = {
   displayName: 'Amex (warm)',
   companyId: CompanyTypes.Amex,
   installFetchMock: AMEX_COLD_CASE.installFetchMock,
+  mockCreds: {
+    ...RING_MOCK_CREDS,
+    otpLongTermToken: ringWarmToken('amex', SYN_STORED_KEY),
+  },
   expectedProvider: 'amex',
 };
 
@@ -462,15 +496,64 @@ function decodeEnvelope(token: string, testCase: IApiDirectFlowCase): string {
   const provider = testCase.expectedProvider;
   const fields = testCase.expectedAccountFields;
   if (provider === undefined || fields === undefined) return token;
+  const binding = bindingOf(testCase, provider, fields);
+  if (testCase.expectedBundle === true) return decodeBundleKey(token, binding);
+  const decoded = decodeRawCarry(token, {
+    provider: binding.provider,
+    accounts: binding.accounts,
+    tagKey: binding.password,
+    maxChars: 16384,
+  });
+  expect(decoded.success).toBe(true);
+  if (!decoded.success) return '';
+  return decoded.value;
+}
+
+/** Provider, accounts and password a published envelope is bound to. */
+interface IEnvelopeBinding {
+  readonly provider: string;
+  readonly accounts: readonly string[];
+  readonly password: string;
+}
+
+/**
+ * Read the case's binding values.
+ * @param testCase - Bank case with a declared binding.
+ * @param provider - Expected provider tag.
+ * @param fields - Credential fields the accounts come from.
+ * @returns Provider, account values and password.
+ */
+function bindingOf(
+  testCase: IApiDirectFlowCase,
+  provider: string,
+  fields: readonly string[],
+): IEnvelopeBinding {
   const creds = testCase.mockCreds as unknown as Record<string, unknown>;
   const accounts = fields.map((field): string =>
     typeof creds[field] === 'string' ? creds[field] : '',
   );
   const password = typeof creds.password === 'string' ? creds.password : '';
-  const decoded = decodeRawCarry(token, { provider, accounts, tagKey: password, maxChars: 16384 });
+  return { provider, accounts, password };
+}
+
+/**
+ * Read the device key from a published carry bundle.
+ * @param token - Published token.
+ * @param binding - Expected provider, accounts and tag key.
+ * @returns The inner device key, or '' when it does not open.
+ */
+function decodeBundleKey(token: string, binding: IEnvelopeBinding): string {
+  const decoded = decodeWarmBundle(token, {
+    provider: binding.provider,
+    accounts: binding.accounts,
+    tagKey: binding.password,
+    slots: ['key'],
+    hasCookies: true,
+    maxChars: 16384,
+  });
   expect(decoded.success).toBe(true);
   if (!decoded.success) return '';
-  return decoded.value;
+  return decoded.value.carry.key;
 }
 
 /**
