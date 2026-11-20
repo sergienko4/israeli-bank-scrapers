@@ -1,17 +1,18 @@
 {
-  "defaultModel": "opencode-go/deepseek-v4.1-flash#high",
-  "models": [
+  "provider": "opencode-go",
+  "modelPrefix": "deepseek",
+  "modelsUrl": "https://opencode.ai/inference/go/v1/models",
+  "defaultModel": "auto",
+  "defaultVariant": "high",
+  "variantPriority": ["high", "max", "low"],
+  "fallbackModels": [
     {
-      "id": "opencode-go/deepseek-v4.1-flash",
-      "label": "DeepSeek V4.1 Flash",
-      "variants": ["low", "high", "max"],
-      "defaultVariant": "high"
+      "id": "deepseek-v4.1-flash",
+      "variants": ["low", "high", "max"]
     },
     {
-      "id": "opencode-go/deepseek-v4-pro",
-      "label": "DeepSeek V4 Pro",
-      "variants": ["high", "max"],
-      "defaultVariant": "high"
+      "id": "deepseek-v4-pro",
+      "variants": ["high", "max"]
     }
   ],
   "reviewEvent": "COMMENT",

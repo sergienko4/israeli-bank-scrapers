@@ -58,6 +58,10 @@ typings/
 # dotenv environment variables file
 .env
 
+# On-demand PR review data and private guidelines checkout
+.review/
+.review-guidelines/
+
 # NPM package build output
 lib/
 

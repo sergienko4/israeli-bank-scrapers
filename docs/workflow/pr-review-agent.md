@@ -11,12 +11,12 @@ summary and, where a finding maps to an added line, an inline comment.
 
 ## Request a review
 
-The plan supports two entry points once the workflow is enabled:
+The workflow has two entry points:
 
 - **PR comment** — a maintainer comments `/review` on the pull request.
   `/review model=deepseek-v4-pro` selects the alternate model.
-- **Manual dispatch** — run **PR review agent** from the Actions tab with a PR
-  number and an optional model.
+- **Manual dispatch** — run **On-demand PR review** from the Actions tab with a
+  PR number and an optional model.
 
 Automatic `pull_request` reviews are deliberately not enabled. The comment
 path is gated to `OWNER`, `MEMBER` and `COLLABORATOR`, re-checks the actor's
@@ -24,17 +24,37 @@ repository permission through the API, and accepts same-repository PRs only.
 
 ## Models
 
-Only DeepSeek models on OpenCode Go are allowed:
+Only DeepSeek models on OpenCode Go are allowed. The workflow discovers the
+current catalog from `https://opencode.ai/inference/go/v1/models` and keeps
+every model whose ID starts with `deepseek`. It reads each model's supported
+reasoning efforts from the catalog, so a new DeepSeek release works without
+editing the repository:
 
-| Model                             | Variants             | Use                                       |
-| --------------------------------- | -------------------- | ----------------------------------------- |
-| `opencode-go/deepseek-v4.1-flash` | `low`, `high`, `max` | Default; `high` balances depth and cost   |
-| `opencode-go/deepseek-v4-pro`     | `high`, `max`        | Deeper review for a large or risky change |
+```text
+/review model=deepseek-v5-flash
+/review model=deepseek-v5-flash#max
+/review model=deepseek-v4-pro#high
+```
 
-The workflow passes the selected model to `opencode run`. The agent file does
-not pin a model, so the repository config remains the single allow-list.
-See [`.github/review-agent/config.json`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/.github/review-agent/config.json)
-for the current default and caps.
+With no selector, the workflow picks the newest DeepSeek release and its
+preferred effort (`high`, then `max`, then `low`). A pinned fallback list in
+[`.github/review-agent/config.json`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/.github/review-agent/config.json)
+keeps reviews working if the catalog is unreachable. The agent file does not
+pin a model.
+
+## Setup
+
+Add these repository settings once:
+
+| Kind     | Name                      | Value                                                                   |
+| -------- | ------------------------- | ----------------------------------------------------------------------- |
+| Secret   | `OPENCODE_API_KEY`        | OpenCode Go API key; no GitHub App setup                                |
+| Secret   | `REVIEW_GUIDELINES_TOKEN` | Fine-grained PAT, Contents: Read-only on `sergienko4/review-guidelines` |
+| Variable | `REVIEW_GUIDELINES_REPO`  | `sergienko4/review-guidelines`                                          |
+
+`GITHUB_TOKEN` is built in; the workflow grants it `contents: read`,
+`pull-requests: write` and `issues: write` and posts as `github-actions[bot]`.
+No service account or OpenCode GitHub App is needed.
 
 ## What the agent reviews
 
