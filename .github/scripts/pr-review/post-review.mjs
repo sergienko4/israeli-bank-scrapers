@@ -3,6 +3,7 @@ import { pathToFileURL } from 'node:url';
 import {
   githubGraphql,
   githubRequest,
+  parsePatchPath,
   readResponseJson,
   safeError,
   sanitizeText,
@@ -156,14 +157,10 @@ export function parseAddedLines(diff) {
       }
       continue;
     }
-    const header = /^\+\+\+ b\/(.+?)(?:\t.*)?$/u.exec(text);
-    if (header !== null) {
-      path = header[1];
-      lines.set(path, lines.get(path) ?? new Set());
-      continue;
-    }
-    if (text.startsWith('+++ /dev/null')) {
-      path = '';
+    if (text.startsWith('+++ ')) {
+      const parsed = parsePatchPath(text.slice(4), 'b');
+      path = parsed ?? '';
+      if (path.length > 0) lines.set(path, lines.get(path) ?? new Set());
       continue;
     }
     const hunk = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/u.exec(text);

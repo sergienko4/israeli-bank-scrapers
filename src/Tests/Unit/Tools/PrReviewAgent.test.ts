@@ -487,6 +487,17 @@ describe('PR review sensitive data', () => {
     expect(filtered).toContain('src/a.ts');
   });
 
+  it('drops a copy whose destination is sensitive', () => {
+    const diff = [
+      'diff --git a/src/a.ts b/.env',
+      'similarity index 100%',
+      'copy from src/a.ts',
+      'copy to .env',
+    ].join('\n');
+    const filtered = filterDiff(diff);
+    expect(filtered).not.toContain('copy from');
+  });
+
   it('keeps a deletion whose destination is /dev/null', () => {
     const diff = [
       'diff --git a/src/a.ts b/src/a.ts',
@@ -560,6 +571,22 @@ describe('PR review diff mapping', () => {
     const newFileLines = added.get('src/b.ts');
     expect(firstLines).toEqual(new Set([11]));
     expect(newFileLines).toEqual(new Set([1]));
+  });
+
+  it('attributes added lines to a Git-quoted file path', () => {
+    const diff = [
+      'diff --git "a/src/old name.ts" "b/src/new name.ts"',
+      '--- "a/src/old name.ts"',
+      '+++ "b/src/new name.ts"',
+      '@@ -1,1 +1,2 @@',
+      ' base',
+      '+added',
+    ].join('\n');
+    const added = parseAddedLines(diff);
+    const newLines = added.get('src/new name.ts');
+    const hasOld = added.has('src/old name.ts');
+    expect(newLines).toEqual(new Set([2]));
+    expect(hasOld).toBe(false);
   });
 
   it('does not treat added hunk text as a file header', () => {

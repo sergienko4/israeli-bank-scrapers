@@ -10,6 +10,90 @@ const MAX_QUOTE_CHARS = 20000;
 /** Root the review scripts may write under. */
 const REVIEW_ROOT = resolve('.review');
 
+/** C-style escapes Git uses inside a quoted path. */
+const GIT_ESCAPES = new Map([
+  ['a', 0x07],
+  ['b', 0x08],
+  ['t', 0x09],
+  ['n', 0x0a],
+  ['v', 0x0b],
+  ['f', 0x0c],
+  ['r', 0x0d],
+  ['"', 0x22],
+  ['\\', 0x5c],
+]);
+
+/**
+ * Read one C-quoted token.
+ * @param {string} text - Text beginning with a quote.
+ * @returns {string | undefined} Quoted token, or undefined when unterminated.
+ */
+export function readQuotedToken(text) {
+  if (!text.startsWith('"')) return undefined;
+  for (let index = 1; index < text.length; index += 1) {
+    if (text[index] === '\\') {
+      index += 1;
+      continue;
+    }
+    if (text[index] === '"') return text.slice(0, index + 1);
+  }
+  return undefined;
+}
+
+/**
+ * Decode a C-quoted Git path, including octal UTF-8 bytes.
+ * @param {string} token - Quoted token.
+ * @returns {string | undefined} Decoded path, or undefined when malformed.
+ */
+export function decodeQuotedPath(token) {
+  const chunks = [];
+  let text = '';
+  for (let index = 1; index < token.length; index += 1) {
+    const char = token[index];
+    if (char === '"') {
+      chunks.push(Buffer.from(text, 'utf8'));
+      return Buffer.concat(chunks).toString('utf8');
+    }
+    if (char !== '\\') {
+      text += char;
+      continue;
+    }
+    const next = token[index + 1];
+    if (next === undefined) return undefined;
+    chunks.push(Buffer.from(text, 'utf8'));
+    text = '';
+    if (/[0-7]/u.test(next)) {
+      const octal = token.slice(index + 1, index + 4);
+      if (!/^[0-3][0-7]{2}$/u.test(octal)) return undefined;
+      chunks.push(Buffer.from([Number.parseInt(octal, 8)]));
+      index += 3;
+      continue;
+    }
+    const escaped = GIT_ESCAPES.get(next);
+    if (escaped === undefined) return undefined;
+    chunks.push(Buffer.from([escaped]));
+    index += 1;
+  }
+  return undefined;
+}
+
+/**
+ * Parse one `a/` or `b/` patch path.
+ * @param {string} value - Header value.
+ * @param {'a' | 'b'} prefix - Expected side.
+ * @returns {string | null | undefined} Path, null for `/dev/null`, or undefined.
+ */
+export function parsePatchPath(value, prefix) {
+  const token = value.startsWith('"') ? readQuotedToken(value) : value.split('\t', 1)[0];
+  if (token === undefined) return undefined;
+  if (token === '/dev/null') return null;
+  const decoded = token.startsWith('"') ? decodeQuotedPath(token) : token;
+  if (decoded === undefined) return undefined;
+  const expected = `${prefix}/`;
+  if (!decoded.startsWith(expected) || decoded.length === expected.length) return undefined;
+  return decoded.slice(expected.length);
+}
+
 /**
  * Refuse a write outside the review data root.
  * @param {string} path - Candidate path.
