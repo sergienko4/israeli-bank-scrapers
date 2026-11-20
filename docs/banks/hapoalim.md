@@ -7,7 +7,7 @@
 | Credentials    | `userCode`, `password`, plus an `otpCodeRetriever` callback; optional `otpLongTermToken` ([warm start](#warm-start)) and `deviceSignature` (a per-user override; the library derives one when omitted) |
 | OTP            | **Conditional**: an SMS code, only when the bank asks for one                                                                                                                                          |
 | Phase chain    | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md)                                                                                                  |
-| Source         | [`Banks/BankPipelineTableA.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/BankPipelineTableA.ts)                                   |
+| Source         | [`Banks/BankPipelineTableA.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/BankPipelineTableA.ts)                                                 |
 
 ## Quick example
 
@@ -110,10 +110,11 @@ takes the new-device step-up redirect, each filing the redirect's cookies
 A run that signs in returns its session as `result.persistentOtpToken`: a
 `v1.` carry bundle holding the session cookies and the per-user `deviceSeed`,
 bound to the user code. Pass it back as `otpLongTermToken` and the next run
-starts at `step1-mobile` (`HAPOALIM_RESUME_STEP_INDEX`), with no login call and
-no SMS. The device identity is derived from the seed inside the token, so the
-caller stores only the token; the token holds a live session, so store it as a
-secret.
+starts at `step1-mobile` (`HAPOALIM_RESUME_STEP_INDEX`). While the stored
+session is still accepted, that start makes no login call and sends no SMS; a
+refused session takes the one cold login described below. The device identity
+is derived from the seed inside the token, so the caller stores only the
+token; the token holds a live session, so store it as a secret.
 
 The cookies carry no readable expiry, so the bank's answer to `step1-mobile`
 is the check (`validation: 'bank-call'`). A refused session falls back to one
