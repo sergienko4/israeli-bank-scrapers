@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { pathToFileURL } from 'node:url';
 import { writeTextFile } from './shared.mjs';
 
 /**
@@ -33,7 +34,9 @@ async function main() {
   await writeTextFile(output, `${text}\n`);
 }
 
-main().catch(error => {
-  console.error(`pr-review extract failed: ${error.name}`);
-  process.exitCode = 1;
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch(error => {
+    console.error(`pr-review extract failed: ${error.name}`);
+    process.exitCode = 1;
+  });
+}

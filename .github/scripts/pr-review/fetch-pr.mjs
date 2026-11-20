@@ -24,6 +24,20 @@ const MAX_FILES = 300;
 const SENSITIVE_PATH_RE =
   /(?:^|\/)(?:\.env(?:\..*)?|id_rsa[^/]*|[^/]+\.(?:pem|key|p12|pfx|crt|cer|jks|keystore)|\.npmrc|\.netrc)$/iu;
 
+/** Credential material that must never reach the model. */
+const CREDENTIAL_CONTENT_RE = new RegExp(
+  [
+    '-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----',
+    '\\bAKIA[0-9A-Z]{16}\\b',
+    '\\bgh[pousr]_[A-Za-z0-9]{36,}\\b',
+    '\\bgithub_pat_[A-Za-z0-9_]{22,}\\b',
+    '\\bxox[abprs]-[A-Za-z0-9-]{10,}\\b',
+    '\\bsk-[A-Za-z0-9]{20,}\\b',
+    '\\beyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\b',
+  ].join('|'),
+  'u',
+);
+
 /**
  * Fetch the pull request metadata.
  * @param {object} args - Request arguments.
@@ -121,6 +135,15 @@ export function isSensitivePath(path) {
 }
 
 /**
+ * Whether text contains known credential material.
+ * @param {string} text - File or diff text.
+ * @returns {boolean} True when the text must not reach the model.
+ */
+export function hasCredentialContent(text) {
+  return CREDENTIAL_CONTENT_RE.test(text);
+}
+
+/**
  * Whether a changed file is, or was, a credential-shaped path.
  * @param {Record<string, unknown>} file - GitHub changed-file entry.
  * @returns {boolean} True for a sensitive current or previous path.
@@ -213,6 +236,7 @@ export function filterDiff(diff) {
   return diff
     .split(/(?=^diff --git )/mu)
     .filter(block => {
+      if (hasCredentialContent(block)) return false;
       const paths = blockPaths(block);
       if (!block.startsWith('diff --git ')) return true;
       if (paths.length === 0) return false;
@@ -241,7 +265,8 @@ export async function fetchPrData(args) {
   const base = /** @type {Record<string, unknown>} */ (metadata.base ?? {});
   const head = /** @type {Record<string, unknown>} */ (metadata.head ?? {});
   assertSnapshot(base, head, args);
-  const filteredDiff = filterDiff(await fetchDiff(args));
+  const rawDiff = await fetchDiff(args);
+  const filteredDiff = filterDiff(rawDiff);
   const changed = await listFiles(args);
   const sensitive = changed.filter(isSensitiveFile).map(file => String(file.filename ?? ''));
   const capped = truncateDiff(filteredDiff, args.maxDiffChars);
@@ -268,6 +293,10 @@ export async function fetchPrData(args) {
     });
     if (text === false) {
       skipped.push(path);
+      continue;
+    }
+    if (hasCredentialContent(text)) {
+      sensitive.push(path);
       continue;
     }
     const dataFile = `file-${String(index).padStart(3, '0')}.txt`;
@@ -301,7 +330,8 @@ export async function fetchPrData(args) {
       sensitive: isSensitiveFile(file),
     })),
     skippedFiles: skipped,
-    sensitiveFiles: sensitive,
+    sensitiveFiles: [...new Set(sensitive)],
+    credentialContent: hasCredentialContent(rawDiff),
     diffTruncated: capped.truncated,
   });
   return { files: changed.length, skipped: skipped.length, diffTruncated: capped.truncated };

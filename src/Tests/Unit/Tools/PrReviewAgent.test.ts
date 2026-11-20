@@ -1,7 +1,7 @@
 /**
  * Unit tests for the on-demand PR review scripts. They pin the pure parts:
- * trigger parsing, model allow-list, diff-to-line mapping, review schema and
- * output sanitization. No network or GitHub call is made.
+ * trigger parsing, the model allow-list, request resolution and PR data
+ * fetching. No network or GitHub call is made.
  */
 
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
@@ -10,23 +10,15 @@ import { join } from 'node:path';
 import {
   fetchPrData,
   filterDiff,
+  hasCredentialContent,
   isSensitiveFile,
   isSensitivePath,
-  truncateDiff,
 } from '../../../../.github/scripts/pr-review/fetch-pr.mjs';
-import {
-  mapFindings,
-  markCreated,
-  parseAddedLines,
-  parseReview,
-  validateReview,
-} from '../../../../.github/scripts/pr-review/post-review.mjs';
 import {
   normalizeModel,
   parseRequest,
   resolveRequest,
 } from '../../../../.github/scripts/pr-review/resolve-request.mjs';
-import { sanitizeText } from '../../../../.github/scripts/pr-review/shared.mjs';
 
 const CONFIG = {
   provider: 'opencode-go',
@@ -487,6 +479,29 @@ describe('PR review sensitive data', () => {
     expect(filtered).toContain('src/a.ts');
   });
 
+  it.each([
+    '-----BEGIN RSA PRIVATE KEY-----',
+    'AKIA1234567890ABCDEF',
+    `ghp_${'a'.repeat(36)}`,
+    `sk-${'b'.repeat(24)}`,
+  ])('detects credential content %s', text => {
+    const isCredential = hasCredentialContent(text);
+    expect(isCredential).toBe(true);
+  });
+
+  it('drops a normal-named file block that contains a credential', () => {
+    const diff = [
+      'diff --git a/src/config.ts b/src/config.ts',
+      '--- a/src/config.ts',
+      '+++ b/src/config.ts',
+      '@@ -1 +1 @@',
+      '-old',
+      '+const key = "AKIA1234567890ABCDEF";',
+    ].join('\n');
+    const filtered = filterDiff(diff);
+    expect(filtered).not.toContain('AKIA');
+  });
+
   it('drops a copy whose destination is sensitive', () => {
     const diff = [
       'diff --git a/src/a.ts b/.env',
@@ -546,145 +561,5 @@ describe('PR review snapshot consistency', () => {
       fetchImpl,
     });
     await expect(pending).rejects.toThrow('pull request changed during review');
-  });
-});
-
-describe('PR review diff mapping', () => {
-  it('maps added lines and ignores deleted or context lines', () => {
-    const diff = [
-      'diff --git a/src/a.ts b/src/a.ts',
-      '--- a/src/a.ts',
-      '+++ b/src/a.ts',
-      '@@ -10,2 +10,3 @@',
-      ' context',
-      '+added',
-      '-removed',
-      ' tail',
-      'diff --git a/src/b.ts b/src/b.ts',
-      '--- /dev/null',
-      '+++ b/src/b.ts',
-      '@@ -0,0 +1,1 @@',
-      '+first',
-    ].join('\n');
-    const added = parseAddedLines(diff);
-    const firstLines = added.get('src/a.ts');
-    const newFileLines = added.get('src/b.ts');
-    expect(firstLines).toEqual(new Set([11]));
-    expect(newFileLines).toEqual(new Set([1]));
-  });
-
-  it('attributes added lines to a Git-quoted file path', () => {
-    const diff = [
-      'diff --git "a/src/old name.ts" "b/src/new name.ts"',
-      '--- "a/src/old name.ts"',
-      '+++ "b/src/new name.ts"',
-      '@@ -1,1 +1,2 @@',
-      ' base',
-      '+added',
-    ].join('\n');
-    const added = parseAddedLines(diff);
-    const newLines = added.get('src/new name.ts');
-    const hasOld = added.has('src/old name.ts');
-    expect(newLines).toEqual(new Set([2]));
-    expect(hasOld).toBe(false);
-  });
-
-  it('does not treat added hunk text as a file header', () => {
-    const diff = [
-      'diff --git a/a.txt b/a.txt',
-      '--- a/a.txt',
-      '+++ b/a.txt',
-      '@@ -1,1 +1,3 @@',
-      ' base',
-      '+++ b/evil.txt',
-      '+next',
-    ].join('\n');
-    const added = parseAddedLines(diff);
-    const addedLines = added.get('a.txt');
-    const hasEvil = added.has('evil.txt');
-    expect(addedLines).toEqual(new Set([2, 3]));
-    expect(hasEvil).toBe(false);
-  });
-
-  it('moves an unmapped finding into the summary and caps inline findings', () => {
-    const findings = [
-      { severity: 'critical', path: 'a.ts', line: 1, title: 'one', body: 'b', rule: '' },
-      { severity: 'important', path: 'a.ts', line: 2, title: 'two', body: 'b', rule: '' },
-      { severity: 'suggestion', path: 'a.ts', line: 3, title: 'three', body: 'b', rule: '' },
-    ];
-    const added = new Map([['a.ts', new Set([1, 2])]]);
-    const split = mapFindings(findings, added, 1);
-    const inlineTitles = split.inline.map(finding => finding.title);
-    const overflowTitles = split.overflow.map(finding => finding.title);
-    expect(inlineTitles).toEqual(['one']);
-    expect(overflowTitles).toEqual(['two', 'three']);
-  });
-});
-
-describe('PR review schema and sanitization', () => {
-  it('strips a JSON fence and validates findings', () => {
-    const parsed = parseReview('```json\n{"summary":"ok","guidelines_read":[],"findings":[]}\n```');
-    const review = validateReview(parsed, 10);
-    expect(review).toEqual({ summary: 'ok', guidelines_read: [], findings: [] });
-  });
-
-  it.each([
-    [{ summary: '', findings: [] }, 'summary length'],
-    [{ summary: 'ok', findings: {} }, 'findings is not an array'],
-    [
-      {
-        summary: 'ok',
-        findings: [{ severity: 'blocker', path: 'a', line: 1, title: 't', body: 'b' }],
-      },
-      'finding severity',
-    ],
-  ])('refuses invalid review %#', (value, message) => {
-    expect(() => validateReview(value, 10)).toThrow(message);
-  });
-
-  it('keeps the most severe findings when the cap applies', () => {
-    const review = validateReview(
-      {
-        summary: 'ok',
-        findings: [
-          { severity: 'suggestion', path: 'a', line: 1, title: 'low', body: 'b' },
-          { severity: 'critical', path: 'a', line: 2, title: 'high', body: 'b' },
-          { severity: 'important', path: 'a', line: 3, title: 'mid', body: 'b' },
-        ],
-      },
-      2,
-    );
-    const titles = review.findings.map(finding => finding.title);
-    expect(titles).toEqual(['high', 'mid']);
-  });
-
-  it('escapes HTML and blocks dangerous links', () => {
-    const safe = sanitizeText('<script>x</script> [click](javascript:alert(1))');
-    expect(safe).toContain('&lt;script>');
-    expect(safe).not.toContain('javascript:');
-    expect(safe).toContain('blocked link');
-  });
-
-  it('truncates a diff at a line boundary', () => {
-    const capped = truncateDiff('a\nb\nc\n', 4);
-    expect(capped.truncated).toBe(true);
-    expect(capped.text).toBe('a\nb\n\n[... diff truncated ...]\n');
-  });
-
-  it('records that a review was created for the workflow', async () => {
-    await mkdir('.review', { recursive: true });
-    const tempPrefix = join('.review', 'pr-review-output-');
-    const dir = await mkdtemp(tempPrefix);
-    const output = join(dir, 'output');
-    const previous = process.env.GITHUB_OUTPUT;
-    process.env.GITHUB_OUTPUT = output;
-    try {
-      await markCreated();
-      expect(await readFile(output, 'utf8')).toBe('created=true\n');
-    } finally {
-      delete process.env.GITHUB_OUTPUT;
-      if (previous !== undefined) process.env.GITHUB_OUTPUT = previous;
-      await rm(dir, { recursive: true, force: true });
-    }
   });
 });

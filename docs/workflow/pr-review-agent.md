@@ -71,8 +71,10 @@ The private `sergienko4/review-guidelines` repository supplies the guideline
 text and a `manifest.json` that maps each file to a skill. The workflow checks
 it out read-only beside the base branch. The PR working tree is never checked
 out, and the agent gets no shell, edit, web or subagent tools. Credential-shaped
-files (`.env*`, private keys, certificates, `.npmrc`, `.netrc`) are excluded
-from the changed-file copies and diff hunks before the reviewer reads them.
+files (`.env*`, private keys, certificates, `.npmrc`, `.netrc`) and content
+matching known credential formats (private-key blocks, cloud, GitHub, Slack and
+API tokens) are excluded from changed-file copies and diff hunks before the
+reviewer reads them.
 Changed files are stored under neutral names mapped by `metadata.files[].dataFile`,
 so a PR-supplied `AGENTS.md` cannot become reviewer instructions.
 
