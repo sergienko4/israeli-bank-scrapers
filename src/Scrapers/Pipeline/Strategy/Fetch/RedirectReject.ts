@@ -25,6 +25,22 @@ function isChallenge(response: Response): boolean {
   return hasCloudflareChallengeHeader(headers);
 }
 
+/** The classifier input shape for a challenge response. */
+type ChallengeInput = Parameters<typeof classifyHttpFailure>[0];
+
+/**
+ * Build the classifier input for a challenge response.
+ * @param run - The run.
+ * @param response - The challenge response.
+ * @param status - The 3xx status.
+ * @returns The classifier input, including explicit URL redaction values.
+ */
+function challengeInput(run: IRedirectRun, response: Response, status: number): ChallengeInput {
+  const headers = Object.fromEntries(response.headers);
+  const redactUrlValues = run.redactUrlValues;
+  return { verb: run.verb, url: run.url, status, body: '', headers, redactUrlValues };
+}
+
 /**
  * Classify a header-marked challenge with the shared WAF rules.
  * @param run - The run.
@@ -37,9 +53,8 @@ function challengeFailure(
   response: Response,
   status: number,
 ): Procedure<IRunEnd> {
-  const headers = Object.fromEntries(response.headers);
-  const failure = { verb: run.verb, url: run.url, status, body: '', headers };
-  return classifyHttpFailure<IRunEnd>(failure);
+  const input = challengeInput(run, response, status);
+  return classifyHttpFailure<IRunEnd>(input);
 }
 
 /** The inputs one rejected-response refusal needs. */

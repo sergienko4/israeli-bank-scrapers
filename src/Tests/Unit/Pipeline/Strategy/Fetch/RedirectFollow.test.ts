@@ -129,6 +129,14 @@ describe('sendUnderPolicy — follow', () => {
     expect(invoke).toHaveBeenCalledTimes(1);
     expect(invoke.mock.calls[0][1]).toBe(run.init);
   });
+
+  it('passes a transport failure through unchanged', async () => {
+    const failure = fail(ScraperErrorTypes.Generic, 'GET start network error: ECONNRESET');
+    const invoke = serve([failure]);
+    const run = makeRun(invoke, { policy: 'follow' });
+    const result = await sendUnderPolicy(run);
+    expect(result).toEqual(failure);
+  });
 });
 
 describe('sendUnderPolicy — reject', () => {
@@ -176,6 +184,22 @@ describe('sendUnderPolicy — reject', () => {
     if (isOk(result)) throw new RangeError('expected a failure');
     expect(result.errorType).toBe(ScraperErrorTypes.WafBlocked);
     expect(result).not.toHaveProperty('redirectRefusal');
+  });
+
+  it('redacts an explicit account id in a challenge failure', async () => {
+    const protectedUrl = 'https://www.bank.example/start/ACCT_1-a';
+    const headers = new Headers({ location: HOP_1, 'cf-mitigated': 'challenge' });
+    const response = new Response(null, { status: 302, headers });
+    const invoke = serve([response]);
+    const run = makeRun(invoke, {
+      policy: 'reject',
+      url: protectedUrl,
+      redactUrlValues: ['ACCT_1-a'],
+    });
+    const result = await sendUnderPolicy(run);
+    if (isOk(result)) throw new RangeError('expected a failure');
+    expect(result.errorMessage).not.toContain('ACCT_1-a');
+    expect(result.errorMessage).toContain('[REDACTED]');
   });
 
   it('carries the refused target status, origin and path', async () => {
