@@ -23,10 +23,10 @@ import * as dotenv from 'dotenv';
 
 import { CompanyTypes, createScraper } from '../../../index.js';
 import type { IScraperScrapingResult } from '../../../Scrapers/Base/Interface.js';
-import ScraperError from '../../../Scrapers/Base/ScraperError.js';
 import { getDebug } from '../../../Scrapers/Pipeline/Logging/Debug.js';
 import { defaultStartDate } from '../Helpers.js';
 import { createOtpPoller } from '../OtpPoller.js';
+import readRequiredEnv from './HapoalimLocalCredentials.js';
 import { makeTokenSaver, readTokenState, TOKEN_READ_FAILURE } from './HapoalimLocalTokenCache.js';
 
 dotenv.config();
@@ -73,19 +73,6 @@ function parseArgs(argv: readonly string[]): IArgs {
 }
 
 /**
- * Require one non-empty environment value without echoing it.
- * @param name - Environment variable name.
- * @returns The value.
- */
-function requireEnv(name: string): string {
-  const value = (process.env[name] ?? '').trim();
-  if (value.length === 0) {
-    throw new ScraperError(`${name} is not set — fill it in .env`);
-  }
-  return value;
-}
-
-/**
  * Count transactions across the returned accounts.
  * @param result - Scrape result.
  * @returns Total transaction rows.
@@ -123,8 +110,8 @@ function summaryOf(result: IScraperScrapingResult, warm: boolean, elapsedMs: num
  * @returns True for a successful scrape and a saved token.
  */
 async function run(args: IArgs): Promise<boolean> {
-  const userCode = requireEnv('HAPOALIM_USER_CODE');
-  const password = requireEnv('HAPOALIM_PASSWORD');
+  const userCode = readRequiredEnv('HAPOALIM_USER_CODE', true);
+  const password = readRequiredEnv('HAPOALIM_PASSWORD', false);
   const readResult = args.cold
     ? { kind: 'missing' as const }
     : await readTokenState(args.tokenFile);
