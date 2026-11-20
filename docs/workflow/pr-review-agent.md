@@ -73,8 +73,8 @@ it out read-only beside the base branch. The PR working tree is never checked
 out, and the agent gets no shell, edit, web or subagent tools. Credential-shaped
 files (`.env*`, private keys, certificates, `.npmrc`, `.netrc`) and content
 matching known credential formats (private-key blocks, cloud, GitHub, Slack and
-API tokens) are excluded from changed-file copies and diff hunks before the
-reviewer reads them.
+API tokens) are excluded from changed-file copies, diff hunks and PR metadata
+before the reviewer reads them.
 Changed files are stored under neutral names mapped by `metadata.files[].dataFile`,
 so a PR-supplied `AGENTS.md` cannot become reviewer instructions.
 

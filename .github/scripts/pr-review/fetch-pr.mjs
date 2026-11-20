@@ -144,6 +144,16 @@ export function hasCredentialContent(text) {
 }
 
 /**
+ * Redact one metadata field when it contains credential material.
+ * @param {unknown} value - Field value.
+ * @returns {string} Safe field text.
+ */
+function safeMetadata(value) {
+  const text = String(value ?? '');
+  return hasCredentialContent(text) ? '[REDACTED]' : text;
+}
+
+/**
  * Whether a changed file is, or was, a credential-shaped path.
  * @param {Record<string, unknown>} file - GitHub changed-file entry.
  * @returns {boolean} True for a sensitive current or previous path.
@@ -310,28 +320,30 @@ export async function fetchPrData(args) {
     args,
   );
   const body = String(metadata.body ?? '').slice(0, MAX_BODY_CHARS);
+  const title = String(metadata.title ?? '');
   await writeJsonFile(`${outDir}/metadata.json`, {
     number: args.pr,
-    title: String(metadata.title ?? ''),
-    body,
-    author: String((metadata.user ?? {}).login ?? ''),
+    title: safeMetadata(title),
+    body: safeMetadata(body),
+    author: safeMetadata((metadata.user ?? {}).login),
     baseSha: String(base.sha ?? ''),
     headSha: String(head.sha ?? ''),
-    headRef: String(head.ref ?? ''),
+    headRef: safeMetadata(head.ref),
     additions: Number(metadata.additions ?? 0),
     deletions: Number(metadata.deletions ?? 0),
     changedFiles: Number(metadata.changed_files ?? 0),
     files: changed.map(file => ({
-      path: String(file.filename ?? ''),
+      path: safeMetadata(file.filename),
       status: String(file.status ?? ''),
       additions: Number(file.additions ?? 0),
       deletions: Number(file.deletions ?? 0),
       dataFile: dataFiles.get(String(file.filename ?? '')) ?? null,
       sensitive: isSensitiveFile(file),
     })),
-    skippedFiles: skipped,
-    sensitiveFiles: [...new Set(sensitive)],
-    credentialContent: hasCredentialContent(rawDiff),
+    skippedFiles: skipped.map(safeMetadata),
+    sensitiveFiles: [...new Set(sensitive)].map(safeMetadata),
+    credentialContent:
+      hasCredentialContent(rawDiff) || hasCredentialContent(title) || hasCredentialContent(body),
     diffTruncated: capped.truncated,
   });
   return { files: changed.length, skipped: skipped.length, diffTruncated: capped.truncated };

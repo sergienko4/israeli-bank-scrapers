@@ -130,48 +130,88 @@ function validateFinding(value) {
   };
 }
 
+/** Old and new line deltas for each hunk line prefix. */
+const HUNK_DELTAS = {
+  '+': { old: 0, new: 1 },
+  '-': { old: 1, new: 0 },
+  ' ': { old: 1, new: 1 },
+};
+
+/**
+ * Fresh parser state.
+ * @returns {object} Empty path map and counters.
+ */
+function initialState() {
+  return { lines: new Map(), path: '', newLine: 0, oldRemaining: 0, newRemaining: 0 };
+}
+
+/**
+ * Consume one line inside a hunk, recording additions.
+ * @param {string} text - Diff line.
+ * @param {object} state - Parser state.
+ * @returns {boolean} True when the line belonged to a hunk.
+ */
+function consumeHunkLine(text, state) {
+  if (state.oldRemaining <= 0 && state.newRemaining <= 0) return false;
+  if (text.startsWith('\\')) return true;
+  const delta = HUNK_DELTAS[text[0]] ?? HUNK_DELTAS[' '];
+  if (text.startsWith('+')) state.lines.get(state.path)?.add(state.newLine);
+  state.newLine += delta.new;
+  state.oldRemaining -= delta.old;
+  state.newRemaining -= delta.new;
+  return true;
+}
+
+/**
+ * Start a destination file when the line is a `+++` header.
+ * @param {string} text - Diff line.
+ * @param {object} state - Parser state.
+ * @returns {boolean} True when the line was a file header.
+ */
+function startFile(text, state) {
+  if (!text.startsWith('+++ ')) return false;
+  const parsed = parsePatchPath(text.slice(4), 'b');
+  state.path = parsed ?? '';
+  if (state.path.length > 0) state.lines.set(state.path, state.lines.get(state.path) ?? new Set());
+  return true;
+}
+
+/**
+ * Start a hunk when the line is a hunk header.
+ * @param {string} text - Diff line.
+ * @param {object} state - Parser state.
+ * @returns {boolean} True when the line was a hunk header.
+ */
+function startHunk(text, state) {
+  const hunk = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/u.exec(text);
+  if (hunk === null) return false;
+  state.oldRemaining = hunk[2] === undefined ? 1 : Number(hunk[2]);
+  state.newRemaining = hunk[4] === undefined ? 1 : Number(hunk[4]);
+  state.newLine = Number(hunk[3]);
+  return true;
+}
+
+/**
+ * Feed one diff line to the active parser stage.
+ * @param {string} text - Diff line.
+ * @param {object} state - Parser state.
+ * @returns {void}
+ */
+function processLine(text, state) {
+  if (consumeHunkLine(text, state)) return;
+  if (startFile(text, state)) return;
+  startHunk(text, state);
+}
+
 /**
  * Map each changed path to its added line numbers.
  * @param {string} diff - Unified diff.
  * @returns {Map<string, Set<number>>} Added lines by path.
  */
 export function parseAddedLines(diff) {
-  const lines = new Map();
-  let path = '';
-  let newLine = 0;
-  let oldRemaining = 0;
-  let newRemaining = 0;
-  for (const text of diff.split('\n')) {
-    if (oldRemaining > 0 || newRemaining > 0) {
-      if (text.startsWith('\\')) continue;
-      if (text.startsWith('+')) {
-        lines.get(path)?.add(newLine);
-        newLine += 1;
-        newRemaining -= 1;
-      } else if (text.startsWith('-')) {
-        oldRemaining -= 1;
-      } else {
-        newLine += 1;
-        oldRemaining -= 1;
-        newRemaining -= 1;
-      }
-      continue;
-    }
-    if (text.startsWith('+++ ')) {
-      const parsed = parsePatchPath(text.slice(4), 'b');
-      path = parsed ?? '';
-      if (path.length > 0) lines.set(path, lines.get(path) ?? new Set());
-      continue;
-    }
-    const hunk = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/u.exec(text);
-    if (hunk !== null) {
-      oldRemaining = hunk[2] === undefined ? 1 : Number(hunk[2]);
-      newRemaining = hunk[4] === undefined ? 1 : Number(hunk[4]);
-      newLine = Number(hunk[3]);
-      continue;
-    }
-  }
-  return lines;
+  const state = initialState();
+  for (const text of diff.split('\n')) processLine(text, state);
+  return state.lines;
 }
 
 /**
@@ -320,6 +360,8 @@ export function buildReview(args) {
 export async function postReview(args) {
   const earlier = await latestEarlier(args);
   const payload = buildReview(args);
+  // A request that rejects before a response has an unknown outcome; leave
+  // `created` unset so the failure notice still runs.
   const response = await githubRequest({
     token: args.token,
     path: `/repos/${args.repo}/pulls/${args.pr}/reviews`,
@@ -327,6 +369,8 @@ export async function postReview(args) {
     body: payload,
     fetchImpl: args.fetchImpl,
   });
+  if (!response.ok) throw new Error(`GitHub review POST answered ${response.status}`);
+  await markCreated();
   const review = /** @type {Record<string, unknown>} */ (await readResponseJson(response));
   if (earlier !== undefined) await minimizeReview(args, earlier);
   return { id: review.id, htmlUrl: review.html_url, inline: payload.comments?.length ?? 0 };
@@ -387,7 +431,6 @@ async function main() {
       headSha: env.REVIEW_HEAD_SHA ?? '',
       message: 'The review run did not finish. Check the workflow log.',
     });
-    await markCreated();
     return;
   }
   const diff = await readFile(env.REVIEW_DIFF || '.review/pr/diff.patch', 'utf8');
@@ -408,7 +451,6 @@ async function main() {
       headSha: env.REVIEW_HEAD_SHA ?? '',
       message: safeError(error),
     });
-    await markCreated();
     process.exitCode = 1;
     return;
   }
@@ -437,7 +479,6 @@ async function main() {
     inline: split.inline,
     overflow: split.overflow,
   });
-  await markCreated();
   console.log(JSON.stringify(posted));
 }
 

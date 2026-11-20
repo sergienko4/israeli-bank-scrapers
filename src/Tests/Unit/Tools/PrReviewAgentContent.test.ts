@@ -7,63 +7,7 @@ import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { fetchPrData } from '../../../../.github/scripts/pr-review/fetch-pr.mjs';
-
-/**
- * Read a fetch input URL without the `[object Object]` default.
- * @param input - Fetch input.
- * @returns URL text.
- */
-function urlOf(input: RequestInfo | URL): string {
-  if (typeof input === 'string') return input;
-  return input instanceof URL ? input.href : input.url;
-}
-
-/**
- * Build a JSON API response.
- * @param body - Response body.
- * @param status - HTTP status.
- * @returns Fake response.
- */
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'content-type': 'application/json' },
-  });
-}
-
-/**
- * Wrap one JSON body as a resolved fetch response.
- * @param body - Response body.
- * @param status - HTTP status.
- * @returns Resolved response.
- */
-function responseTo(body: unknown, status = 200): Promise<Response> {
-  const response = jsonResponse(body, status);
-  return Promise.resolve(response);
-}
-
-/**
- * Read the Accept header from fetch options.
- * @param init - Fetch options.
- * @returns Header value, or empty.
- */
-function acceptOf(init?: RequestInit): string {
-  const headers = new Headers(init?.headers);
-  return headers.get('Accept') ?? '';
-}
-
-/**
- * A pull request metadata response for one head SHA.
- * @param sha - Head SHA.
- * @returns Resolved response.
- */
-function metadataResponse(sha: string): Promise<Response> {
-  return responseTo({
-    state: 'open',
-    base: { sha: 'base-sha' },
-    head: { sha, ref: 'feature', repo: { full_name: 'sergienko4/repo' } },
-  });
-}
+import { acceptOf, metadataResponse, responseTo, urlOf } from './PrReviewAgentTestUtils.js';
 
 describe('PR review credential content', () => {
   it('skips a normal-named file that contains a credential', async () => {
@@ -118,6 +62,55 @@ describe('PR review credential content', () => {
       expect(metadata.credentialContent).toBe(true);
       expect(metadata.sensitiveFiles).toContain('src/config.ts');
       expect(metadata.files[0].dataFile).toBeNull();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('redacts credential-bearing pull request metadata', async () => {
+    await mkdir('.review', { recursive: true });
+    const tempPrefix = join('.review', 'pr-review-metadata-');
+    const dir = await mkdtemp(tempPrefix);
+    const secret = 'AKIA1234567890ABCDEF';
+    const metadata = {
+      state: 'open',
+      title: 'safe title',
+      body: `token ${secret}`,
+      user: { login: 'author' },
+      base: { sha: 'base-sha' },
+      head: { sha: 'head-sha', ref: 'feature', repo: { full_name: 'sergienko4/repo' } },
+      additions: 0,
+      deletions: 0,
+      changed_files: 0,
+    };
+    /**
+     * Answer the metadata, file-list and diff requests.
+     * @param input - Fetch input.
+     * @param init - Fetch options.
+     * @returns Fake response.
+     */
+    const fetchImpl: typeof fetch = (input, init) => {
+      const url = urlOf(input);
+      if (url.includes('/files')) return responseTo([]);
+      if (acceptOf(init).includes('diff')) return Promise.resolve(new Response(''));
+      return responseTo(metadata);
+    };
+    try {
+      await fetchPrData({
+        repo: 'sergienko4/repo',
+        pr: 886,
+        token: 'token',
+        outDir: dir,
+        maxDiffChars: 1000,
+        maxFileChars: 1000,
+        expectedHeadSha: 'head-sha',
+        fetchImpl,
+      });
+      const metadataPath = join(dir, 'metadata.json');
+      const metadataText = await readFile(metadataPath, 'utf8');
+      const parsed = JSON.parse(metadataText) as { body: string };
+      expect(metadataText).not.toContain(secret);
+      expect(parsed.body).toBe('[REDACTED]');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

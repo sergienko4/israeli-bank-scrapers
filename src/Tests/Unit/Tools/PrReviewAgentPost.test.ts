@@ -18,40 +18,7 @@ import {
   validateReview,
 } from '../../../../.github/scripts/pr-review/post-review.mjs';
 import { sanitizeText } from '../../../../.github/scripts/pr-review/shared.mjs';
-
-/**
- * Read a fetch input URL without the `[object Object]` default.
- * @param input - Fetch input.
- * @returns URL text.
- */
-function urlOf(input: RequestInfo | URL): string {
-  if (typeof input === 'string') return input;
-  return input instanceof URL ? input.href : input.url;
-}
-
-/**
- * Build a JSON API response.
- * @param body - Response body.
- * @param status - HTTP status.
- * @returns Fake response.
- */
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'content-type': 'application/json' },
-  });
-}
-
-/**
- * Wrap one JSON body as a resolved fetch response.
- * @param body - Response body.
- * @param status - HTTP status.
- * @returns Resolved response.
- */
-function responseTo(body: unknown, status = 200): Promise<Response> {
-  const response = jsonResponse(body, status);
-  return Promise.resolve(response);
-}
+import { responseTo, urlOf } from './PrReviewAgentTestUtils.js';
 
 describe('PR review diff mapping', () => {
   it('maps added lines and ignores deleted or context lines', () => {
@@ -185,6 +152,46 @@ describe('PR review extraction and posting', () => {
     });
     expect(bodies).toHaveLength(1);
     expect(bodies[0].event).toBe('COMMENT');
+  });
+
+  it('records creation before reading the review response', async () => {
+    await mkdir('.review', { recursive: true });
+    const tempPrefix = join('.review', 'pr-review-created-');
+    const dir = await mkdtemp(tempPrefix);
+    const output = join(dir, 'output');
+    const previous = process.env.GITHUB_OUTPUT;
+    process.env.GITHUB_OUTPUT = output;
+    /**
+     * Answer the earlier-review list and an unreadable review POST.
+     * @param _input - Fetch input (unused).
+     * @param init - Fetch options.
+     * @returns Fake response.
+     */
+    const fetchImpl: typeof fetch = (_input, init) => {
+      if (init?.method === 'POST') {
+        return Promise.resolve(new Response('not json', { status: 201 }));
+      }
+      return responseTo([]);
+    };
+    try {
+      const pending = postReview({
+        repo: 'sergienko4/repo',
+        pr: 886,
+        token: 'token',
+        headSha: 'head',
+        summary: 'ok',
+        inline: [],
+        overflow: [],
+        fetchImpl,
+      });
+      await expect(pending).rejects.toThrow();
+      const outputText = await readFile(output, 'utf8');
+      expect(outputText).toBe('created=true\n');
+    } finally {
+      delete process.env.GITHUB_OUTPUT;
+      if (previous !== undefined) process.env.GITHUB_OUTPUT = previous;
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });
 
