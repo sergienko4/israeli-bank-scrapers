@@ -1,0 +1,26 @@
+{
+  "defaultModel": "opencode-go/deepseek-v4.1-flash#high",
+  "models": [
+    {
+      "id": "opencode-go/deepseek-v4.1-flash",
+      "label": "DeepSeek V4.1 Flash",
+      "variants": ["low", "high", "max"],
+      "defaultVariant": "high"
+    },
+    {
+      "id": "opencode-go/deepseek-v4-pro",
+      "label": "DeepSeek V4 Pro",
+      "variants": ["high", "max"],
+      "defaultVariant": "high"
+    }
+  ],
+  "reviewEvent": "COMMENT",
+  "marker": "<!-- opencode-review-agent -->",
+  "maxInlineComments": 10,
+  "maxFindings": 30,
+  "maxDiffChars": 120000,
+  "maxFileChars": 60000,
+  "timeoutMinutes": 20,
+  "maxSteps": 30,
+  "summarySections": ["verdict", "context", "what-was-read", "not-executed", "guidelines-read"]
+}
