@@ -116,14 +116,76 @@ interface IRingRunArgs {
 async function runRing(args: IRingRunArgs): Promise<IRingRun> {
   const handle = installRingFetchMock(args.issuer.target, args.fault);
   try {
-    const options = { companyId: args.issuer.companyId, startDate: RING_MOCK_START_DATE };
-    const scraper = createScraperWithMtls(options, { fallback: handle.mtlsFallback });
-    const result = await scraper.scrape(args.creds);
+    const result = await scrapeRing(handle, args.issuer.companyId, args.creds);
     const calls = handle.calls();
     return { result, calls, ...splitCalls(calls) };
   } finally {
     handle.dispose();
   }
+}
+
+/**
+ * Run one scrape against an installed ring mock.
+ * @param handle - Installed mock.
+ * @param companyId - Issuer to scrape.
+ * @param creds - Synthetic credentials.
+ * @returns The scrape result.
+ */
+async function scrapeRing(
+  handle: ReturnType<typeof installRingFetchMock>,
+  companyId: CompanyTypes,
+  creds: ScraperCredentials,
+): Promise<IScraperScrapingResult> {
+  const options = { companyId, startDate: RING_MOCK_START_DATE };
+  const scraper = createScraperWithMtls(options, { fallback: handle.mtlsFallback });
+  return scraper.scrape(creds);
+}
+
+/**
+ * Run a cold scrape, then a warm scrape with its token on the same mock.
+ * @param issuer - Issuer under test.
+ * @returns Both runs, each with its own call log.
+ */
+async function runColdThenWarm(
+  issuer: IRingIssuer,
+): Promise<{ readonly cold: IRingRun; readonly warm: IRingRun }> {
+  const handle = installRingFetchMock(issuer.target);
+  try {
+    return await runPair(handle, issuer);
+  } finally {
+    handle.dispose();
+  }
+}
+
+/**
+ * Run cold then warm on one installed mock.
+ * @param handle - Installed mock.
+ * @param issuer - Issuer under test.
+ * @returns Both packed runs.
+ */
+async function runPair(
+  handle: ReturnType<typeof installRingFetchMock>,
+  issuer: IRingIssuer,
+): Promise<{ readonly cold: IRingRun; readonly warm: IRingRun }> {
+  const coldResult = await scrapeRing(handle, issuer.companyId, { ...RING_MOCK_CREDS });
+  const splitAt = handle.calls().length;
+  const token = coldResult.persistentOtpToken ?? '';
+  const warmCreds = { ...RING_MOCK_CREDS, otpLongTermToken: token };
+  const warmResult = await scrapeRing(handle, issuer.companyId, warmCreds);
+  const calls = handle.calls();
+  const coldCalls = calls.slice(0, splitAt);
+  const warmCalls = calls.slice(splitAt);
+  return { cold: packRun(coldResult, coldCalls), warm: packRun(warmResult, warmCalls) };
+}
+
+/**
+ * Pack one result and its calls into a run record.
+ * @param result - Scrape result.
+ * @param calls - Calls made by that run.
+ * @returns The packed run.
+ */
+function packRun(result: IScraperScrapingResult, calls: readonly IRecordedCall[]): IRingRun {
+  return { result, calls, ...splitCalls(calls) };
 }
 
 /**
@@ -215,7 +277,7 @@ function persistedBundle(run: IRingRun, issuer: IRingIssuer): PersistedBundle {
     provider,
     accounts: [RING_MOCK_CREDS.id, RING_MOCK_CREDS.card6Digits],
     tagKey: RING_MOCK_CREDS.password,
-    slots: ['key'],
+    slots: ['key', 'bcKey'],
     hasCookies: true,
     maxChars: 16384,
   });
@@ -235,10 +297,10 @@ function persistedKey(run: IRingRun, issuer: IRingIssuer): string {
 }
 
 /**
- * A warm token carrying a stored key and one session cookie.
+ * A warm token carrying a stored key and its session bcKey.
  * @param issuer - The issuer under test.
  * @param key - The device key.
- * @returns An encoded carry bundle.
+ * @returns An encoded carry bundle with no cookies.
  */
 function warmToken(issuer: IRingIssuer, key: string): string {
   const provider = issuer.bank.toLowerCase();
@@ -248,20 +310,7 @@ function warmToken(issuer: IRingIssuer, key: string): string {
       accounts: [RING_MOCK_CREDS.id, RING_MOCK_CREDS.card6Digits],
       tagKey: RING_MOCK_CREDS.password,
     },
-    {
-      carry: { key },
-      cookies: [
-        {
-          name: 'RingSession',
-          value: 'syn-warm-cookie',
-          domain: new URL(issuer.target.base).host,
-          path: '/',
-          hostOnly: true,
-          secure: true,
-          expiresEpochS: 0,
-        },
-      ],
-    },
+    { carry: { key, bcKey: ringBcKey(1) }, cookies: [] },
   );
   expect(encoded.success).toBe(true);
   if (!encoded.success) return '';
@@ -309,17 +358,22 @@ describe.each(ISSUERS)('$bank browserless login', issuer => {
     expect(summary).toEqual(expected);
   });
 
-  it('resumes with the stored key without sending the password', async () => {
-    const creds = { ...RING_MOCK_CREDS, otpLongTermToken: warmToken(issuer, SYN_STORED_KEY) };
-    const run = await runRing({ issuer, creds });
-    expect(run.result.success).toBe(true);
-    expect(run.steps).toEqual(WARM_STEPS);
-    const isPasswordSent = isSent(run.calls, RING_MOCK_CREDS.password);
+  it('restores the cold session cookies and bcKey on a warm run', async () => {
+    const { cold, warm } = await runColdThenWarm(issuer);
+    expect(cold.result.success).toBe(true);
+    expect(warm.result.success).toBe(true);
+    expect(warm.steps).toEqual(WARM_STEPS);
+    const isPasswordSent = isSent(warm.calls, RING_MOCK_CREDS.password);
     expect(isPasswordSent).toBe(false);
-    const cookie = run.calls[0]?.headers.get('cookie') ?? '';
-    expect(cookie).toContain('RingSession=syn-warm-cookie');
-    const persisted = persistedKey(run, issuer);
-    expect(persisted).toBe(SYN_STORED_KEY);
+    const cookie = warm.calls[0]?.headers.get('cookie') ?? '';
+    expect(cookie).toContain('RingSession=');
+    const coldBcKey = cold.calls
+      .find(call => ringStepOf(call) === SESSION_TOKEN)
+      ?.headers.get('bckey');
+    const warmBcKey = warm.calls[0]?.headers.get('bckey');
+    expect(warmBcKey).toBe(coldBcKey);
+    const persisted = persistedKey(warm, issuer);
+    expect(persisted).toBe(SYN_ISSUED_KEY);
   });
 
   it('falls back to exactly one cold login when the stored key is stale', async () => {
@@ -331,20 +385,19 @@ describe.each(ISSUERS)('$bank browserless login', issuer => {
     expect(persisted).toBe(SYN_ISSUED_KEY);
   });
 
-  it('logs in cold once when the warm session expires before the card list', async () => {
+  it('resumes once when the warm session expires before the card list', async () => {
     const creds = { ...RING_MOCK_CREDS, otpLongTermToken: warmToken(issuer, SYN_STORED_KEY) };
     const run = await runRing({ issuer, creds, fault: 'expireOnce' });
     expect(run.result.success).toBe(true);
-    expect(run.steps).toEqual([...WARM_STEPS, RESUME, ...COLD_STEPS]);
+    expect(run.steps).toEqual([...WARM_STEPS, RESUME, SESSION_TOKEN]);
     expect(run.result.accounts).toHaveLength(RING_MOCK_CARDS.length);
     const persisted = persistedKey(run, issuer);
-    expect(persisted).toBe(SYN_ISSUED_KEY);
+    expect(persisted).toBe(SYN_STORED_KEY);
     const [expired, ...retried] = run.data.map(call => call.headers.get('bckey'));
-    const warmKey = ringBcKey(1);
-    const coldKey = ringBcKey(2);
-    const coldKeys = retried.map(() => coldKey);
-    expect(expired).toBe(warmKey);
-    expect(retried).toEqual(coldKeys);
+    const firstKey = ringBcKey(1);
+    const recoveredKeys = retried.map(() => firstKey);
+    expect(expired).toBe(firstKey);
+    expect(retried).toEqual(recoveredKeys);
   });
 
   it('fails a run whose card list has a row with no card number, before any month', async () => {

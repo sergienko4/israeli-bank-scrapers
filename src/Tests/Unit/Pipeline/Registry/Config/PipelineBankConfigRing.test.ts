@@ -239,7 +239,7 @@ describe.each(ISSUERS)('ring login config — $bank', issuer => {
     expect(warm).toMatchObject({
       kind: 'carry-bundle',
       fromStepIndex: 4,
-      slots: ['key'],
+      slots: ['key', 'bcKey'],
       cookies: true,
       validation: 'bank-call',
       coldFallback: 'any',
