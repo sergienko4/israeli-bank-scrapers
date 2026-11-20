@@ -20,8 +20,14 @@ const LOG = getDebug(import.meta.url);
 /** Owner-only file mode for the token cache. */
 const FILE_MODE = 0o600;
 
-/** Fixed diagnostic that cannot quote the token or its contents. */
+/** Fixed diagnostic for a write or rename failure. */
 const TOKEN_CACHE_FAILURE = 'Hapoalim token cache write failed — the next run cannot warm-start';
+
+/** Fixed diagnostic when a save does not settle before the runner's deadline. */
+const TOKEN_CACHE_PENDING = 'Hapoalim token cache did not settle — the next run cannot warm-start';
+
+/** The one file writer the sink uses; injectable for delayed-save tests. */
+type TokenWriter = (file: string, token: string) => Promise<string>;
 
 /** A token sink that reports whether the last save succeeded. */
 interface ITokenSaver {
@@ -29,6 +35,21 @@ interface ITokenSaver {
   readonly save: (info: IAuthFlowInfo) => Promise<void>;
   /** The fixed failure text, or '' after a successful save. */
   readonly failure: () => string;
+  /** Await every queued save, failing closed at the deadline. */
+  readonly settle: (timeoutMs: number) => Promise<string>;
+}
+
+/**
+ * Resolve false after a timeout, so a stuck save cannot hang the runner.
+ * @param ms - Deadline in milliseconds.
+ * @returns False once the deadline elapses.
+ */
+function timeoutFalse(ms: number): Promise<boolean> {
+  return new Promise(resolve => {
+    globalThis.setTimeout(() => {
+      resolve(false);
+    }, ms);
+  });
 }
 
 /**
@@ -80,30 +101,53 @@ async function writeToken(file: string, token: string): Promise<string> {
 /**
  * Build the token sink for one cache path.
  * @param file - Cache path.
- * @returns A callback plus its last fixed failure.
+ * @param write - File writer; defaults to the owner-only atomic writer.
+ * @returns A callback, its last fixed failure and a settle step.
  */
-function makeTokenSaver(file: string): ITokenSaver {
+function makeTokenSaver(file: string, write: TokenWriter = writeToken): ITokenSaver {
   let lastFailure = '';
+  let queue: Promise<void> = Promise.resolve();
 
   /**
-   * Save the token this flow published.
+   * Persist one token and record any fixed failure.
    * @param info - Auth-flow info from the scraper.
-   * @returns Nothing once the token is written, or when there is none.
+   * @returns Nothing once the write succeeds or fails.
    */
-  async function save(info: IAuthFlowInfo): Promise<void> {
-    if (info.longTermToken.length > 0) {
-      try {
-        const saved = await writeToken(file, info.longTermToken);
-        lastFailure = '';
-        LOG.info(
-          { tokenFile: saved, tokenLength: info.longTermToken.length },
-          'Hapoalim token cached',
-        );
-      } catch {
-        lastFailure = TOKEN_CACHE_FAILURE;
-        LOG.warn({ tokenFile: file }, TOKEN_CACHE_FAILURE);
-      }
+  async function persist(info: IAuthFlowInfo): Promise<void> {
+    try {
+      const saved = await write(file, info.longTermToken);
+      lastFailure = '';
+      LOG.info(
+        { tokenFile: saved, tokenLength: info.longTermToken.length },
+        'Hapoalim token cached',
+      );
+    } catch {
+      lastFailure = TOKEN_CACHE_FAILURE;
+      LOG.warn({ tokenFile: file }, TOKEN_CACHE_FAILURE);
     }
+  }
+
+  /**
+   * Queue a save in invocation order, so an older bundle cannot finish last.
+   * @param info - Auth-flow info from the scraper.
+   * @returns The save's completion.
+   */
+  function save(info: IAuthFlowInfo): Promise<void> {
+    if (info.longTermToken.length === 0) return Promise.resolve();
+    const next = queue.then(() => persist(info));
+    queue = next;
+    return next;
+  }
+
+  /**
+   * Await every queued save, failing closed when the deadline passes.
+   * @param timeoutMs - Runner-owned deadline.
+   * @returns The fixed failure, or '' when all saves succeeded.
+   */
+  async function settle(timeoutMs: number): Promise<string> {
+    const isCompleted = await Promise.race([queue.then(() => true), timeoutFalse(timeoutMs)]);
+    if (!isCompleted) lastFailure = TOKEN_CACHE_PENDING;
+    return lastFailure;
   }
 
   /**
@@ -112,8 +156,8 @@ function makeTokenSaver(file: string): ITokenSaver {
    */
   const failure = (): string => lastFailure;
 
-  return { save, failure };
+  return { save, failure, settle };
 }
 
-export type { ITokenSaver };
-export { makeTokenSaver, readToken, TOKEN_CACHE_FAILURE, writeToken };
+export type { ITokenSaver, TokenWriter };
+export { makeTokenSaver, readToken, TOKEN_CACHE_FAILURE, TOKEN_CACHE_PENDING, writeToken };

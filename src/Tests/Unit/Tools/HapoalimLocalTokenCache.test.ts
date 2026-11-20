@@ -8,12 +8,26 @@ import { mkdir, mkdtemp, readdir, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import ScraperError from '../../../Scrapers/Base/ScraperError.js';
 import {
   makeTokenSaver,
   readToken,
   TOKEN_CACHE_FAILURE,
+  TOKEN_CACHE_PENDING,
+  type TokenWriter,
   writeToken,
 } from '../../E2eReal/Tools/HapoalimLocalTokenCache.js';
+import humanDelay from '../../Helpers/HumanDelay.js';
+
+/**
+ * A writer that never settles, for the timeout test.
+ * @returns A promise that stays pending.
+ */
+function neverWriter(): Promise<string> {
+  return new Promise<string>(() => {
+    // Deliberately never settles.
+  });
+}
 
 describe('Hapoalim local token cache', () => {
   let dir = '';
@@ -55,6 +69,54 @@ describe('Hapoalim local token cache', () => {
     const scratch = entries.filter(name => name.endsWith('.tmp'));
     expect(scratch).toEqual([]);
     expect(entries).toContain('token.cache');
+  });
+
+  it('serializes saves so an older bundle cannot finish last', async (): Promise<void> => {
+    const order: string[] = [];
+    /**
+     * Delay the older token so an unserialized newer save would overtake it.
+     * @param _file - Cache path.
+     * @param token - Token to write.
+     * @returns The cache path.
+     */
+    const writer: TokenWriter = async (_file, token) => {
+      order.push(`start:${token}`);
+      if (token === 'old') await humanDelay(20, 21);
+      order.push(`end:${token}`);
+      return _file;
+    };
+    const file = join(dir, 'token.cache');
+    const saver = makeTokenSaver(file, writer);
+    const oldSave = saver.save({ longTermToken: 'old', bearer: '' });
+    const newSave = saver.save({ longTermToken: 'new', bearer: '' });
+    await Promise.all([oldSave, newSave]);
+    expect(order).toEqual(['start:old', 'end:old', 'start:new', 'end:new']);
+  });
+
+  it('awaits a pending save and reports its failure', async (): Promise<void> => {
+    /**
+     * Reject after a short delay so the runner must await a pending save.
+     * @returns Never a path; the save fails.
+     */
+    const writer: TokenWriter = async () => {
+      await humanDelay(20, 21);
+      throw new ScraperError('write failed');
+    };
+    const file = join(dir, 'token.cache');
+    const saver = makeTokenSaver(file, writer);
+    const saving = saver.save({ longTermToken: 'syn-token-value', bearer: '' });
+    const failure = await saver.settle(1_000);
+    await saving;
+    expect(failure).toBe(TOKEN_CACHE_FAILURE);
+  });
+
+  it('fails closed when a save does not settle', async (): Promise<void> => {
+    const file = join(dir, 'token.cache');
+    const saver = makeTokenSaver(file, neverWriter);
+    const saving = saver.save({ longTermToken: 'syn-token-value', bearer: '' });
+    const failure = await saver.settle(5);
+    expect(failure).toBe(TOKEN_CACHE_PENDING);
+    saving.catch(() => true);
   });
 
   it('clears a prior failure after a successful save', async (): Promise<void> => {

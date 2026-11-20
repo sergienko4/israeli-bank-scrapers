@@ -37,6 +37,7 @@ const TMP_DIR = os.tmpdir();
 const DEFAULT_TOKEN_FILE = path.join(TMP_DIR, 'hapoalim-token.cache');
 const OTP_FILE = path.join(TMP_DIR, 'hapoalim-otp.txt');
 const EXIT_FAILURE = 1;
+const TOKEN_SETTLE_TIMEOUT_MS = 5_000;
 
 /** Parsed command line. */
 interface IArgs {
@@ -161,7 +162,7 @@ async function run(args: IArgs): Promise<boolean> {
   const elapsedMs = Date.now() - started;
   const summary = summaryOf(result, cached.length > 0, elapsedMs);
   console.log(summary);
-  const saveFailure = tokenSaver.failure();
+  const saveFailure = await tokenSaver.settle(TOKEN_SETTLE_TIMEOUT_MS);
   if (saveFailure.length > 0) {
     console.error(saveFailure);
     return false;
