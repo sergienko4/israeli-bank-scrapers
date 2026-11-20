@@ -13,9 +13,10 @@ import { jest } from '@jest/globals';
 import ScraperError from '../../../Scrapers/Base/ScraperError.js';
 import {
   makeTokenSaver,
-  readToken,
+  readTokenState,
   TOKEN_CACHE_FAILURE,
   TOKEN_CACHE_PENDING,
+  TOKEN_READ_FAILURE,
   type TokenWriter,
   writeToken,
 } from '../../E2eReal/Tools/HapoalimLocalTokenCache.js';
@@ -47,10 +48,21 @@ describe('Hapoalim local token cache', () => {
   it('writes the token owner-only and reads it back', async (): Promise<void> => {
     const file = join(dir, 'token.cache');
     await writeToken(file, 'syn-token-value');
-    const saved = await readToken(file);
-    expect(saved).toBe('syn-token-value');
+    const saved = await readTokenState(file);
+    expect(saved).toEqual({ kind: 'present', token: 'syn-token-value' });
     const mode = (await stat(file)).mode & 0o777;
     expect(mode).toBe(0o600);
+  });
+
+  it('distinguishes a missing cache from an unreadable one', async (): Promise<void> => {
+    const missing = join(dir, 'missing.cache');
+    const missingResult = await readTokenState(missing);
+    expect(missingResult).toEqual({ kind: 'missing' });
+    const unreadable = join(dir, 'unreadable.cache');
+    await mkdir(unreadable);
+    const errorResult = await readTokenState(unreadable);
+    expect(errorResult).toEqual({ kind: 'error' });
+    expect(TOKEN_READ_FAILURE).not.toContain('syn-token-value');
   });
 
   it('reports an unwritable cache without leaking the token', async (): Promise<void> => {
@@ -141,8 +153,8 @@ describe('Hapoalim local token cache', () => {
     await saver.save({ longTermToken: 'syn-token-value', bearer: '' });
     const failure = saver.failure();
     expect(failure).toBe('');
-    const saved = await readToken(file);
-    expect(saved).toBe('syn-token-value');
+    const saved = await readTokenState(file);
+    expect(saved).toEqual({ kind: 'present', token: 'syn-token-value' });
   });
 
   it('does not write when the flow publishes no token', async (): Promise<void> => {
@@ -151,7 +163,7 @@ describe('Hapoalim local token cache', () => {
     await saver.save({ longTermToken: '', bearer: '' });
     const failure = saver.failure();
     expect(failure).toBe('');
-    const saved = await readToken(file);
-    expect(saved).toBe('');
+    const saved = await readTokenState(file);
+    expect(saved).toEqual({ kind: 'missing' });
   });
 });

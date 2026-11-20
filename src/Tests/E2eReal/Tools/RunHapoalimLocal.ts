@@ -27,7 +27,7 @@ import ScraperError from '../../../Scrapers/Base/ScraperError.js';
 import { getDebug } from '../../../Scrapers/Pipeline/Logging/Debug.js';
 import { defaultStartDate } from '../Helpers.js';
 import { createOtpPoller } from '../OtpPoller.js';
-import { makeTokenSaver, readToken } from './HapoalimLocalTokenCache.js';
+import { makeTokenSaver, readTokenState, TOKEN_READ_FAILURE } from './HapoalimLocalTokenCache.js';
 
 dotenv.config();
 
@@ -125,7 +125,14 @@ function summaryOf(result: IScraperScrapingResult, warm: boolean, elapsedMs: num
 async function run(args: IArgs): Promise<boolean> {
   const userCode = requireEnv('HAPOALIM_USER_CODE');
   const password = requireEnv('HAPOALIM_PASSWORD');
-  const cached = args.cold ? '' : await readToken(args.tokenFile);
+  const readResult = args.cold
+    ? { kind: 'missing' as const }
+    : await readTokenState(args.tokenFile);
+  if (readResult.kind === 'error') {
+    console.error(TOKEN_READ_FAILURE);
+    return false;
+  }
+  const cached = readResult.kind === 'present' ? readResult.token : '';
   const signature = (process.env.HAPOALIM_DEVICE_SIGNATURE ?? '').trim();
   const tokenSaver = makeTokenSaver(args.tokenFile);
   const retrieve = createOtpPoller({

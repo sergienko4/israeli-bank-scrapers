@@ -29,6 +29,16 @@ const TOKEN_CACHE_PENDING = 'Hapoalim token cache did not settle — the next ru
 /** The one file writer the sink uses; injectable for delayed-save tests. */
 type TokenWriter = (file: string, token: string) => Promise<string>;
 
+/** Fixed diagnostic when the cache exists but cannot be read. */
+const TOKEN_READ_FAILURE =
+  'Hapoalim token cache could not be read — refusing a cold login that would replace it';
+
+/** The cache's state: absent, readable, or present but unreadable. */
+type TokenReadResult =
+  | { readonly kind: 'missing' }
+  | { readonly kind: 'present'; readonly token: string }
+  | { readonly kind: 'error' };
+
 /** A token sink that reports whether the last save succeeded. */
 interface ITokenSaver {
   /** The scraper's auth-flow callback. */
@@ -60,15 +70,17 @@ function raceWithTimeout(completion: Promise<void>, ms: number): Promise<boolean
 }
 
 /**
- * Read a cached token, or '' when none exists.
+ * Read the cache and distinguish absence from a read failure.
  * @param file - Cache path.
- * @returns The trimmed token.
+ * @returns Missing, present with its token, or unreadable.
  */
-async function readToken(file: string): Promise<string> {
+async function readTokenState(file: string): Promise<TokenReadResult> {
   try {
-    return (await fs.readFile(file, 'utf8')).trim();
-  } catch {
-    return '';
+    const token = (await fs.readFile(file, 'utf8')).trim();
+    return token.length > 0 ? { kind: 'present', token } : { kind: 'missing' };
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    return code === 'ENOENT' ? { kind: 'missing' } : { kind: 'error' };
   }
 }
 
@@ -166,5 +178,12 @@ function makeTokenSaver(file: string, write: TokenWriter = writeToken): ITokenSa
   return { save, failure, settle };
 }
 
-export type { ITokenSaver, TokenWriter };
-export { makeTokenSaver, readToken, TOKEN_CACHE_FAILURE, TOKEN_CACHE_PENDING, writeToken };
+export type { ITokenSaver, TokenReadResult, TokenWriter };
+export {
+  makeTokenSaver,
+  readTokenState,
+  TOKEN_CACHE_FAILURE,
+  TOKEN_CACHE_PENDING,
+  TOKEN_READ_FAILURE,
+  writeToken,
+};
