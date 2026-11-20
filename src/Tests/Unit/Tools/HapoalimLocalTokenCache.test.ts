@@ -4,7 +4,7 @@
  * and could cost an unnecessary OTP enrollment.
  */
 
-import { mkdtemp, rm, stat } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -44,6 +44,17 @@ describe('Hapoalim local token cache', () => {
     const failure = saver.failure();
     expect(failure).toBe(TOKEN_CACHE_FAILURE);
     expect(failure).not.toContain('syn-token-value');
+  });
+
+  it('removes the scratch file when rename fails', async (): Promise<void> => {
+    const file = join(dir, 'token.cache');
+    await mkdir(file);
+    const attempt = writeToken(file, 'syn-token-value');
+    await expect(attempt).rejects.toThrow();
+    const entries = await readdir(dir);
+    const scratch = entries.filter(name => name.endsWith('.tmp'));
+    expect(scratch).toEqual([]);
+    expect(entries).toContain('token.cache');
   });
 
   it('clears a prior failure after a successful save', async (): Promise<void> => {

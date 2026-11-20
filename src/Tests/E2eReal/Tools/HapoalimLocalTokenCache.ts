@@ -45,6 +45,21 @@ async function readToken(file: string): Promise<string> {
 }
 
 /**
+ * Remove a scratch file after a failed publish, never masking the original
+ * write or rename error.
+ * @param temp - Scratch path.
+ * @returns True once the path is gone or the removal failed.
+ */
+async function discardTemp(temp: string): Promise<true> {
+  try {
+    await fs.rm(temp, { force: true });
+  } catch {
+    // Best-effort cleanup; the caller rethrows the original failure.
+  }
+  return true;
+}
+
+/**
  * Publish a token atomically in an owner-only file.
  * @param file - Cache path.
  * @param token - Token to write.
@@ -52,9 +67,14 @@ async function readToken(file: string): Promise<string> {
  */
 async function writeToken(file: string, token: string): Promise<string> {
   const temp = `${file}.${randomUUID()}.tmp`;
-  await fs.writeFile(temp, token, { encoding: 'utf8', mode: FILE_MODE });
-  await fs.rename(temp, file);
-  return file;
+  try {
+    await fs.writeFile(temp, token, { encoding: 'utf8', mode: FILE_MODE });
+    await fs.rename(temp, file);
+    return file;
+  } catch (error) {
+    await discardTemp(temp);
+    throw error;
+  }
 }
 
 /**
