@@ -428,6 +428,7 @@ describe('PR review sensitive data', () => {
     'AKIA1234567890ABCDEF',
     `ghp_${'a'.repeat(36)}`,
     `sk-${'b'.repeat(24)}`,
+    `sk-proj-${'c'.repeat(24)}`,
   ])('detects credential content %s', text => {
     const isCredential = hasCredentialContent(text);
     expect(isCredential).toBe(true);

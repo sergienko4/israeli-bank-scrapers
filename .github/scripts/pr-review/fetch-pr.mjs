@@ -32,7 +32,7 @@ const CREDENTIAL_CONTENT_RE = new RegExp(
     '\\bgh[pousr]_[A-Za-z0-9]{36,}\\b',
     '\\bgithub_pat_[A-Za-z0-9_]{22,}\\b',
     '\\bxox[abprs]-[A-Za-z0-9-]{10,}\\b',
-    '\\bsk-[A-Za-z0-9]{20,}\\b',
+    '\\bsk-[A-Za-z0-9_-]{20,}\\b',
     '\\beyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\b',
   ].join('|'),
   'u',
@@ -319,12 +319,14 @@ export async function fetchPrData(args) {
     /** @type {Record<string, unknown>} */ (final.head ?? {}),
     args,
   );
-  const body = String(metadata.body ?? '').slice(0, MAX_BODY_CHARS);
-  const title = String(metadata.title ?? '');
+  const rawBody = String(metadata.body ?? '');
+  const rawTitle = String(metadata.title ?? '');
+  const body = safeMetadata(rawBody).slice(0, MAX_BODY_CHARS);
+  const title = safeMetadata(rawTitle);
   await writeJsonFile(`${outDir}/metadata.json`, {
     number: args.pr,
-    title: safeMetadata(title),
-    body: safeMetadata(body),
+    title,
+    body,
     author: safeMetadata((metadata.user ?? {}).login),
     baseSha: String(base.sha ?? ''),
     headSha: String(head.sha ?? ''),
@@ -343,7 +345,9 @@ export async function fetchPrData(args) {
     skippedFiles: skipped.map(safeMetadata),
     sensitiveFiles: [...new Set(sensitive)].map(safeMetadata),
     credentialContent:
-      hasCredentialContent(rawDiff) || hasCredentialContent(title) || hasCredentialContent(body),
+      hasCredentialContent(rawDiff) ||
+      hasCredentialContent(rawTitle) ||
+      hasCredentialContent(rawBody),
     diffTruncated: capped.truncated,
   });
   return { files: changed.length, skipped: skipped.length, diffTruncated: capped.truncated };

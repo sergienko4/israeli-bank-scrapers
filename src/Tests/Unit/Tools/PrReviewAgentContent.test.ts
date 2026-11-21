@@ -71,11 +71,11 @@ describe('PR review credential content', () => {
     await mkdir('.review', { recursive: true });
     const tempPrefix = join('.review', 'pr-review-metadata-');
     const dir = await mkdtemp(tempPrefix);
-    const secret = 'AKIA1234567890ABCDEF';
+    const secret = `ghp_${'a'.repeat(36)}`;
     const metadata = {
       state: 'open',
       title: 'safe title',
-      body: `token ${secret}`,
+      body: `${' '.repeat(19961)}${secret}`,
       user: { login: 'author' },
       base: { sha: 'base-sha' },
       head: { sha: 'head-sha', ref: 'feature', repo: { full_name: 'sergienko4/repo' } },
@@ -108,9 +108,10 @@ describe('PR review credential content', () => {
       });
       const metadataPath = join(dir, 'metadata.json');
       const metadataText = await readFile(metadataPath, 'utf8');
-      const parsed = JSON.parse(metadataText) as { body: string };
+      const parsed = JSON.parse(metadataText) as { body: string; credentialContent: boolean };
       expect(metadataText).not.toContain(secret);
       expect(parsed.body).toBe('[REDACTED]');
+      expect(parsed.credentialContent).toBe(true);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
