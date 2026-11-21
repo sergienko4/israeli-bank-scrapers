@@ -27,6 +27,7 @@
 
 import { bankMomentOfInstant } from '../../../Scrapers/Pipeline/Mediator/Scrape/BankCalendar.js';
 import { INVOKE_NATIVE_FETCH } from '../../../Scrapers/Pipeline/Strategy/Fetch/NativeFetchNetwork.js';
+import type { IStoredCookie } from '../../../Scrapers/Pipeline/Types/Domain/CookieSession.js';
 import type { JsonUnknownRecord } from '../../../Scrapers/Pipeline/Types/JsonValue.js';
 import type {
   CallKind,
@@ -113,6 +114,23 @@ export const SYN_STORED_KEY = 'syn-ring-stored-key-7c2e';
 
 /** The key a cold login has the ring issue and register. */
 export const SYN_ISSUED_KEY = 'syn-ring-issued-key-3d9a';
+
+/**
+ * The session cookie a cold run stores for one ring target.
+ * @param target - The synthetic ring target.
+ * @returns A host-only session cookie matching the first opened session.
+ */
+export function ringSessionCookie(target: IRingTarget): IStoredCookie {
+  return {
+    name: SESSION_COOKIE,
+    value: 'syn-ring-session-1',
+    domain: new URL(target.base).hostname,
+    path: '/',
+    hostOnly: true,
+    secure: true,
+    expiresEpochS: 0,
+  };
+}
 
 /** The stem of every session's bcKey. */
 const SYN_BC_KEY = 'syn-ring-bckey-6f1b';

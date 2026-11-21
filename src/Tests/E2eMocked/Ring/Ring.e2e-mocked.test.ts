@@ -36,6 +36,7 @@ import {
   RING_MOCK_CREDS,
   RING_MOCK_START_DATE,
   ringBcKey,
+  ringSessionCookie,
   ringStepOf,
   SYN_DEVICE_UDID,
   SYN_ISSUED_KEY,
@@ -297,10 +298,10 @@ function persistedKey(run: IRingRun, issuer: IRingIssuer): string {
 }
 
 /**
- * A warm token carrying a stored key and its session bcKey.
+ * A warm token carrying a stored key, its session bcKey and its cookie.
  * @param issuer - The issuer under test.
  * @param key - The device key.
- * @returns An encoded carry bundle with no cookies.
+ * @returns An encoded carry bundle with the session jar.
  */
 function warmToken(issuer: IRingIssuer, key: string): string {
   const provider = issuer.bank.toLowerCase();
@@ -310,7 +311,10 @@ function warmToken(issuer: IRingIssuer, key: string): string {
       accounts: [RING_MOCK_CREDS.id, RING_MOCK_CREDS.card6Digits],
       tagKey: RING_MOCK_CREDS.password,
     },
-    { carry: { key, bcKey: ringBcKey(1) }, cookies: [] },
+    {
+      carry: { key, bcKey: ringBcKey(1) },
+      cookies: [ringSessionCookie(issuer.target)],
+    },
   );
   expect(encoded.success).toBe(true);
   if (!encoded.success) return '';
@@ -365,8 +369,10 @@ describe.each(ISSUERS)('$bank browserless login', issuer => {
     expect(warm.steps).toEqual(WARM_STEPS);
     const isPasswordSent = isSent(warm.calls, RING_MOCK_CREDS.password);
     expect(isPasswordSent).toBe(false);
-    const cookie = warm.calls[0]?.headers.get('cookie') ?? '';
-    expect(cookie).toContain('RingSession=');
+    const coldCookie = cold.data[0]?.headers.get('cookie') ?? '';
+    const warmCookie = warm.calls[0]?.headers.get('cookie') ?? '';
+    expect(coldCookie).toContain('RingSession=');
+    expect(warmCookie).toBe(coldCookie);
     const coldBcKey = cold.calls
       .find(call => ringStepOf(call) === SESSION_TOKEN)
       ?.headers.get('bckey');
