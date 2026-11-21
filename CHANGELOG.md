@@ -1,5 +1,14 @@
 # Changelog
 
+## [10.1.1](https://github.com/sergienko4/israeli-bank-scrapers/compare/v10.1.0...v10.1.1) (2026-11-21)
+
+
+### Bug Fixes
+
+* **hapoalim:** recover an expired warm session ([#883](https://github.com/sergienko4/israeli-bank-scrapers/issues/883)) ([f34f19b](https://github.com/sergienko4/israeli-bank-scrapers/commit/f34f19b99f6b3f260a4662a42652dee4ab621721))
+* **ring:** keep warm bcKey with cookies ([#886](https://github.com/sergienko4/israeli-bank-scrapers/issues/886)) ([e71cf7b](https://github.com/sergienko4/israeli-bank-scrapers/commit/e71cf7b250ccb708df2f7b921ffd5127d635e6f0))
+* **ring:** keep warm session cookies ([#885](https://github.com/sergienko4/israeli-bank-scrapers/issues/885)) ([b093ad9](https://github.com/sergienko4/israeli-bank-scrapers/commit/b093ad97e9ccd0de8cd21522c93c34a9538261d7))
+
 ## [10.1.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v10.0.1...v10.1.0) (2026-11-19)
 
 
