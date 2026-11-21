@@ -35,6 +35,7 @@ function ecdhOf(publicInto: string, privateInto: string): ICarryGenerator {
 const ECDH_KEY = ecdhOf('ecdhPublic', 'ecdhPrivate');
 const RANDOM_HEX_MSG = 'seedCarryFromCreds: random-hex needs integer bytes from 1 to 64';
 const FRESH_SEED_MSG = 'seedCarryFromCreds: alwaysBootstrap needs a random bootstrap';
+const CONFLICT_MSG = 'seedCarryFromCreds: ifAbsent cannot be combined with alwaysBootstrap';
 
 /**
  * Rule input seeding `flowId` from a `random-hex` bootstrap of some length.
@@ -182,6 +183,15 @@ describe('validateApiDirectConfig — carry generators', () => {
     const input = alwaysSeededOf(bootstrap);
     const result = validateApiDirectConfig(input);
     expect(result).toEqual({ success: true, value: true });
+  });
+
+  it('rejects ifAbsent combined with alwaysBootstrap', () => {
+    const input = alwaysSeededOf({ kind: 'random-hex', bytes: 16, isUpperCase: true });
+    const seed = input.call.seedCarryFromCreds?.[0];
+    if (typeof seed !== 'object') throw new TypeError('missing seed');
+    Reflect.set(seed, 'ifAbsent', true);
+    const result = validateApiDirectConfig(input);
+    expect(result).toMatchObject({ success: false, errorMessage: CONFLICT_MSG });
   });
 
   it('rejects an untyped false unconditional-bootstrap flag', () => {

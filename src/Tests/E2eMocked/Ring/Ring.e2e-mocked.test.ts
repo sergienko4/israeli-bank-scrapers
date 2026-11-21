@@ -377,9 +377,12 @@ describe.each(ISSUERS)('$bank browserless login', issuer => {
       .find(call => ringStepOf(call) === SESSION_TOKEN)
       ?.headers.get('bckey');
     const warmBcKey = warm.calls[0]?.headers.get('bckey');
+    const expectedBcKey = ringBcKey(1);
+    expect(coldBcKey).toBe(expectedBcKey);
     expect(warmBcKey).toBe(coldBcKey);
-    const persisted = persistedKey(warm, issuer);
-    expect(persisted).toBe(SYN_ISSUED_KEY);
+    const warmBundle = persistedBundle(warm, issuer);
+    expect(warmBundle.carry.key).toBe(SYN_ISSUED_KEY);
+    expect(warmBundle.carry.bcKey).toBe(coldBcKey);
   });
 
   it('falls back to exactly one cold login when the stored key is stale', async () => {
