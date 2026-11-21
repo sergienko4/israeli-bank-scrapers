@@ -1,0 +1,148 @@
+name: On-demand PR review
+
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Pull request number
+        required: true
+        type: string
+      model:
+        description: Optional DeepSeek model and variant
+        required: false
+        type: string
+
+jobs:
+  resolve:
+    name: Resolve review request
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.issue.pull_request != null &&
+       (github.event.comment.body == '/review' ||
+        startsWith(github.event.comment.body, '/review model=')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      allowed: ${{ steps.request.outputs.allowed }}
+      pr: ${{ steps.request.outputs.pr }}
+      model: ${{ steps.request.outputs.model }}
+      baseSha: ${{ steps.request.outputs.baseSha }}
+      headSha: ${{ steps.request.outputs.headSha }}
+      headRef: ${{ steps.request.outputs.headRef }}
+    steps:
+      - name: Check out the default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        with:
+          node-version: 24.22.0
+          check-latest: false
+
+      - name: Resolve the request
+        id: request
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node .github/scripts/pr-review/resolve-request.mjs
+
+      - name: Report the decision
+        env:
+          ALLOWED: ${{ steps.request.outputs.allowed }}
+          REASON: ${{ steps.request.outputs.reason }}
+        run: |
+          if [ "$ALLOWED" = "true" ]; then
+            echo "Review request accepted."
+          else
+            echo "Review request ignored: $REASON"
+          fi
+
+  review:
+    name: Review pull request
+    needs: resolve
+    if: needs.resolve.outputs.allowed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: pr-review-${{ needs.resolve.outputs.pr }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+      REVIEW_GUIDELINES_REPO: ${{ vars.REVIEW_GUIDELINES_REPO }}
+      REVIEW_GUIDELINES_TOKEN: ${{ secrets.REVIEW_GUIDELINES_TOKEN }}
+      PR_NUMBER: ${{ needs.resolve.outputs.pr }}
+      REVIEW_MODEL: ${{ needs.resolve.outputs.model }}
+      REVIEW_HEAD_SHA: ${{ needs.resolve.outputs.headSha }}
+      REVIEW_BASE_SHA: ${{ needs.resolve.outputs.baseSha }}
+    steps:
+      - name: Check out the default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Check out the private guidelines
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ vars.REVIEW_GUIDELINES_REPO }}
+          token: ${{ secrets.REVIEW_GUIDELINES_TOKEN }}
+          path: .review-guidelines
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        with:
+          node-version: 24.22.0
+          check-latest: false
+
+      - name: Install the pinned OpenCode CLI
+        env:
+          OPENCODE_VERSION: 2.2.5
+          OPENCODE_SHA256: 09f44302c10fd036912f59c81fd1aef5df45dd06f649197f9dfc9bbe2a79614e
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/opencode.tar.gz"
+          base="https://github.com/anomalyco/opencode/releases/download/v${OPENCODE_VERSION}"
+          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+            --retry 3 --max-time 180 -o "$archive" "$base/opencode-linux-x64.tar.gz"
+          echo "${OPENCODE_SHA256}  ${archive}" | sha256sum -c -
+          mkdir -p "$HOME/.opencode/bin"
+          tar -xzf "$archive" -C "$HOME/.opencode/bin"
+          echo "$HOME/.opencode/bin" >> "$GITHUB_PATH"
+
+      - name: Fetch pull request data
+        id: fetch
+        run: node .github/scripts/pr-review/fetch-pr.mjs
+
+      - name: Run the read-only reviewer
+        id: agent
+        run: |
+          set -euo pipefail
+          timeout 15m opencode run \
+            --agent pr-reviewer \
+            --model "$REVIEW_MODEL" \
+            --format json \
+            "Review pull request #$PR_NUMBER. Read .review/pr/metadata.json, .review/pr/diff.patch, .review/pr/files and .review-guidelines/manifest.json. Load pr-review-orchestrator and the review skills it names. Return only the review JSON object. Do not execute any command, test or pull-request code." \
+            > .review/pr/agent.jsonl
+
+      - name: Extract the review JSON
+        id: extract
+        run: node .github/scripts/pr-review/extract-review.mjs
+
+      - name: Post the review
+        id: post
+        run: node .github/scripts/pr-review/post-review.mjs
+
+      - name: Post a failure notice
+        if: failure() && steps.post.outputs.created != 'true'
+        run: node .github/scripts/pr-review/post-review.mjs --failure
