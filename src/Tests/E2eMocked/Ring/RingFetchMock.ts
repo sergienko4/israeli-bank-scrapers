@@ -203,6 +203,7 @@ interface IRingSession {
   pendingUdid: string;
   isKeyVerified: boolean;
   isAuthenticated: boolean;
+  isExpired: boolean;
 }
 
 /** A session just opened, with the cookie that names it. */
@@ -273,6 +274,7 @@ function openSession(state: IRingState): IOpenedSession<IRingSession> {
     pendingUdid: '',
     isKeyVerified: false,
     isAuthenticated: false,
+    isExpired: false,
   };
   state.sessions.set(id, session);
   return { session, cookie: `${SESSION_COOKIE}=${id}; Path=/; HttpOnly; Secure` };
@@ -284,7 +286,7 @@ function openSession(state: IRingState): IOpenedSession<IRingSession> {
  * @returns The session, or false without one or with the wrong bcKey.
  */
 function liveSession(req: IRingRequest): IRingSession | false {
-  if (req.session === false) return false;
+  if (req.session === false || req.session.isExpired) return false;
   const isEchoed = req.call.headers.get('bckey') === req.session.bcKey;
   return isEchoed ? req.session : false;
 }
@@ -462,13 +464,15 @@ function isAuthenticated(req: IRingRequest): boolean {
 }
 
 /**
- * Whether this card list must answer as an expired session, once.
- * @param state - Mock state, updated in place.
+ * Whether this card list must answer as an expired session, once. Expiring
+ * marks the session unusable so a resume on the same cookie is refused.
+ * @param req - The request, whose session may be expired.
  * @returns True on the first card list under `expireOnce`.
  */
-function consumeExpiry(state: IRingState): boolean {
-  if (!state.isExpiryPending) return false;
-  state.isExpiryPending = false;
+function consumeExpiry(req: IRingRequest): boolean {
+  if (!req.state.isExpiryPending) return false;
+  req.state.isExpiryPending = false;
+  if (req.session !== false) req.session.isExpired = true;
   return true;
 }
 
@@ -483,7 +487,7 @@ const UNNAMED_CARD_ROW: JsonUnknownRecord = { cardNumber: null, paymentDate: PAY
  */
 function routeCards(req: IRingRequest): Response {
   const isListed = isAuthenticated(req) && req.body.walletId === WALLET_ID;
-  if (!isListed || consumeExpiry(req.state)) return jsonReply({ Header: { Status: '-2' } });
+  if (!isListed || consumeExpiry(req)) return jsonReply({ Header: { Status: '-2' } });
   const cards = RING_MOCK_CARDS.map(card => ({
     cardNumber: card.last4,
     paymentDate: PAYMENT_DAY,

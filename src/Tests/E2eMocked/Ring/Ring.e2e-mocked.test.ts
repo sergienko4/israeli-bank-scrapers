@@ -394,19 +394,20 @@ describe.each(ISSUERS)('$bank browserless login', issuer => {
     expect(persisted).toBe(SYN_ISSUED_KEY);
   });
 
-  it('resumes once when the warm session expires before the card list', async () => {
+  it('logs in cold once when the warm session expires before the card list', async () => {
     const creds = { ...RING_MOCK_CREDS, otpLongTermToken: warmToken(issuer, SYN_STORED_KEY) };
     const run = await runRing({ issuer, creds, fault: 'expireOnce' });
     expect(run.result.success).toBe(true);
-    expect(run.steps).toEqual([...WARM_STEPS, RESUME, SESSION_TOKEN]);
+    expect(run.steps).toEqual([...WARM_STEPS, RESUME, ...COLD_STEPS]);
     expect(run.result.accounts).toHaveLength(RING_MOCK_CARDS.length);
     const persisted = persistedKey(run, issuer);
-    expect(persisted).toBe(SYN_STORED_KEY);
+    expect(persisted).toBe(SYN_ISSUED_KEY);
     const [expired, ...retried] = run.data.map(call => call.headers.get('bckey'));
-    const firstKey = ringBcKey(1);
-    const recoveredKeys = retried.map(() => firstKey);
-    expect(expired).toBe(firstKey);
-    expect(retried).toEqual(recoveredKeys);
+    const warmKey = ringBcKey(1);
+    const coldKey = ringBcKey(2);
+    expect(expired).toBe(warmKey);
+    const coldKeys = retried.map(() => coldKey);
+    expect(retried).toEqual(coldKeys);
   });
 
   it('fails a run whose card list has a row with no card number, before any month', async () => {

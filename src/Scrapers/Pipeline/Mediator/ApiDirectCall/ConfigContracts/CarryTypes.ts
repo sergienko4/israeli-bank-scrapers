@@ -203,7 +203,7 @@ interface ISeedCarrySource {
   readonly bootstrap?: SeedCarryBootstrapKind;
   /** Draw a fresh random bootstrap even when credentials supply this field. */
   readonly alwaysBootstrap?: true;
-  /** Keep a value already in carry (a restored warm slot) instead of reseeding. */
+  /** Keep a non-empty string already in carry (a restored warm slot) instead of reseeding. */
   readonly ifAbsent?: true;
 }
 
