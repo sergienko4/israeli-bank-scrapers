@@ -81,7 +81,9 @@ The token is opaque: a new run publishes a `v1.` carry bundle bound to the
 issuer, `id` and `card6Digits`, with an account tag keyed by the caller's
 password. A password change therefore costs one cold login. A raw key token
 from an older release is refused by the bundle check and costs one cold login;
-the next run stores the bundle.
+the next run stores the bundle. A bundle from the release before `bcKey` was
+added (slots `key` only) is also refused by the slot check and costs one cold
+login; the next run stores the new bundle.
 
 ## Scrape
 

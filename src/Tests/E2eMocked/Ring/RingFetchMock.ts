@@ -79,9 +79,10 @@ export const AMEX_RING_TARGET: IRingTarget = {
 /**
  * A fault the ring answers with instead of its normal reply: a transport
  * fault on step 0, a password the ring wants changed (validate code '4' or
- * logon status '3'), one expired-session answer on the first card list, a
- * card list with one row that has no card number, or a GatewayV2 that
- * refuses every month inside an HTTP 200 (`isSuccess: false`).
+ * logon status '3'), a first card list that answers as an expired session and
+ * leaves that session unusable, a card list with one row that has no card
+ * number, or a GatewayV2 that refuses every month inside an HTTP 200
+ * (`isSuccess: false`).
  */
 export type RingFault =
   | 'none'

@@ -81,6 +81,17 @@ describe('FlowInitCarry.buildInitialCarry', () => {
     if (result.success) expect(result.value.bcKey).toMatch(UUID_V4);
   });
 
+  it('keeps an ifAbsent carry value ahead of supplied credentials', () => {
+    const seed = {
+      field: 'bcKey',
+      bootstrap: { kind: 'random-uuid' },
+      ifAbsent: true,
+    } as const;
+    const config = makeConfig({ seedCarryFromCreds: [seed] });
+    const result = buildInitialCarry(config, { bcKey: 'from-creds' }, { bcKey: 'restored' });
+    expect(result).toEqual({ success: true, value: { bcKey: 'restored' } });
+  });
+
   it('draws a fresh random-hex value for each flow init', () => {
     const first = seedRandomHex(32, true);
     const second = seedRandomHex(32, true);
