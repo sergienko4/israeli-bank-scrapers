@@ -28,7 +28,7 @@ import type { ITransportConfig } from './PipelineBankConfigTypes.js';
 /** Carry slots seeded before the first step. */
 const RING_SEEDS: readonly ISeedCarrySource[] = [
   { field: 'udid', bootstrap: { kind: 'sha256-prefix-16', from: 'id' } },
-  { field: 'bcKey', bootstrap: { kind: 'random-uuid' } },
+  { field: 'bcKey', bootstrap: { kind: 'random-uuid' }, ifAbsent: true },
 ];
 
 /** Transport settings every ring issuer shares. */
@@ -45,11 +45,12 @@ const RING_TRANSPORT_PROFILE = {
 const RING_MAX_TOKEN_CHARS = 16_384;
 
 /**
- * The warm token is the device key plus the session jar the cold login
- * earned. The ring edge challenges a key-only resume on some Cloudflare
- * PoPs; the app keeps the same cookies between launches, so the token does
- * too. A token from an older release fails the bundle check and falls back
- * to one cold login, which re-registers the same device key.
+ * The warm token is the device key, its session `bcKey` and the session jar
+ * the cold login earned. The ring edge challenges a key-only resume on some
+ * Cloudflare PoPs; the app keeps the same cookies and device key between
+ * launches, so the token does too. A token from an older release fails the
+ * bundle check and falls back to one cold login, which re-registers the same
+ * device key.
  */
 const RING_WARM: Omit<ICarryBundleWarmStart, 'provider'> = {
   kind: 'carry-bundle',
@@ -57,7 +58,7 @@ const RING_WARM: Omit<ICarryBundleWarmStart, 'provider'> = {
   fromStepIndex: RING_WARM_STEP_INDEX,
   validation: 'bank-call',
   accountFields: ['id', 'card6Digits'],
-  slots: ['key'],
+  slots: ['key', 'bcKey'],
   maxTokenChars: RING_MAX_TOKEN_CHARS,
   cookies: true,
   coldFallback: 'any',

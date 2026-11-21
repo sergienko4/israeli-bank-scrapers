@@ -92,7 +92,7 @@ DESCRIBE_IF('E2E: Isracard (real credentials, API-direct)', () => {
       provider: 'isracard',
       accounts: [creds.id, creds.card6Digits],
       tagKey: creds.password,
-      slots: ['key'],
+      slots: ['key', 'bcKey'],
       hasCookies: true,
       maxChars: 16384,
     } as const;

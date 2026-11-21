@@ -99,12 +99,22 @@ function normaliseSeedEntry(entry: SeedSourceEntry): ISeedCarrySource {
 }
 
 /**
+ * Whether a carry slot already holds a usable seed value.
+ * @param value - Current carry value.
+ * @returns True for a non-empty string.
+ */
+function hasSeedValue(value: JsonValue): boolean {
+  return typeof value === 'string' && value.length > 0;
+}
+
+/**
  * Apply one normalised seed entry to the carry accumulator.
  * @param ctx - Seed context (entry, creds, carry).
  * @returns Procedure with the mutated carry.
  */
 function applyOneSeed(ctx: IReduceSeedCtx): Procedure<CarryMut> {
   const entry = normaliseSeedEntry(ctx.entry);
+  if (entry.ifAbsent === true && hasSeedValue(ctx.carry[entry.field])) return succeed(ctx.carry);
   const proc = evalSeedSource(entry, ctx.creds, ctx.config);
   if (!isOk(proc)) return proc;
   ctx.carry[entry.field] = proc.value;

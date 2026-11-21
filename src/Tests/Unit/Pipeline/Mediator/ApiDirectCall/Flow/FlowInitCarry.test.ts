@@ -55,6 +55,43 @@ describe('FlowInitCarry.buildInitialCarry', () => {
     expect(value).toMatch(pattern);
   });
 
+  it('keeps a restored carry value when the seed is marked ifAbsent', () => {
+    const seed = {
+      field: 'bcKey',
+      bootstrap: { kind: 'random-uuid' },
+      ifAbsent: true,
+    } as const;
+    const config = makeConfig({ seedCarryFromCreds: [seed] });
+    const result = buildInitialCarry(config, {}, { bcKey: 'restored-session-key' });
+    expect(result).toEqual({ success: true, value: { bcKey: 'restored-session-key' } });
+  });
+
+  it.each<[string, Readonly<Record<string, string>>]>([
+    ['an empty carry', {}],
+    ['an empty string slot', { bcKey: '' }],
+  ])('draws a fresh UUID when ifAbsent starts with %s', (_label, initialCarry) => {
+    const seed = {
+      field: 'bcKey',
+      bootstrap: { kind: 'random-uuid' },
+      ifAbsent: true,
+    } as const;
+    const config = makeConfig({ seedCarryFromCreds: [seed] });
+    const result = buildInitialCarry(config, {}, initialCarry);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.value.bcKey).toMatch(UUID_V4);
+  });
+
+  it('keeps an ifAbsent carry value ahead of supplied credentials', () => {
+    const seed = {
+      field: 'bcKey',
+      bootstrap: { kind: 'random-uuid' },
+      ifAbsent: true,
+    } as const;
+    const config = makeConfig({ seedCarryFromCreds: [seed] });
+    const result = buildInitialCarry(config, { bcKey: 'from-creds' }, { bcKey: 'restored' });
+    expect(result).toEqual({ success: true, value: { bcKey: 'restored' } });
+  });
+
   it('draws a fresh random-hex value for each flow init', () => {
     const first = seedRandomHex(32, true);
     const second = seedRandomHex(32, true);

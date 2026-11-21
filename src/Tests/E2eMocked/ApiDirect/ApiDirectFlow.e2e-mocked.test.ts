@@ -45,6 +45,8 @@ import {
   RING_MOCK_CARDS,
   RING_MOCK_CREDS,
   RING_MOCK_START_DATE,
+  ringBcKey,
+  ringSessionCookie,
   SYN_ISSUED_KEY,
   SYN_STORED_KEY,
 } from '../Ring/RingFetchMock.js';
@@ -278,19 +280,23 @@ const ISRACARD_COLD_CASE: IApiDirectFlowCase = {
 };
 
 /**
- * A ring warm token carrying a stored device key.
+ * A ring warm token carrying a stored device key and its session jar.
  * @param provider - The issuer's ring domain tag.
  * @param key - The stored device key.
  * @returns An encoded carry bundle.
  */
 function ringWarmToken(provider: string, key: string): string {
+  const target = provider === 'amex' ? AMEX_RING_TARGET : ISRACARD_RING_TARGET;
   const encoded = encodeWarmBundle(
     {
       provider,
       accounts: [RING_MOCK_CREDS.id, RING_MOCK_CREDS.card6Digits],
       tagKey: RING_MOCK_CREDS.password,
     },
-    { carry: { key }, cookies: [] },
+    {
+      carry: { key, bcKey: ringBcKey(1) },
+      cookies: [ringSessionCookie(target)],
+    },
   );
   expect(encoded.success).toBe(true);
   if (!encoded.success) return '';
@@ -547,7 +553,7 @@ function decodeBundleKey(token: string, binding: IEnvelopeBinding): string {
     provider: binding.provider,
     accounts: binding.accounts,
     tagKey: binding.password,
-    slots: ['key'],
+    slots: ['key', 'bcKey'],
     hasCookies: true,
     maxChars: 16384,
   });

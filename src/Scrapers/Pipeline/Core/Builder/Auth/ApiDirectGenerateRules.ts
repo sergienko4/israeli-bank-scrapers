@@ -168,6 +168,25 @@ function hasBadFreshSeed(input: IApiDirectRuleInput): boolean {
   return (input.call.seedCarryFromCreds ?? []).some(isBadFreshSeed);
 }
 
+/**
+ * Whether one seed asks both to keep a restored value and to redraw it.
+ * @param entry - Seed declaration.
+ * @returns True when `ifAbsent` and `alwaysBootstrap` are both set.
+ */
+function isConflictingSeed(entry: string | ISeedCarrySource): boolean {
+  if (typeof entry === 'string') return false;
+  return entry.ifAbsent === true && entry.alwaysBootstrap === true;
+}
+
+/**
+ * Whether the call contains a seed with conflicting keep/fresh modes.
+ * @param input - Rule input.
+ * @returns True for a conflicting seed.
+ */
+function hasConflictingSeed(input: IApiDirectRuleInput): boolean {
+  return (input.call.seedCarryFromCreds ?? []).some(isConflictingSeed);
+}
+
 /** Carry-generator rules, checked after the step-guard rules. */
 const API_DIRECT_GENERATE_RULES: readonly IApiDirectRule[] = [
   {
@@ -193,6 +212,10 @@ const API_DIRECT_GENERATE_RULES: readonly IApiDirectRule[] = [
   {
     message: 'seedCarryFromCreds: alwaysBootstrap needs a random bootstrap',
     isBroken: hasBadFreshSeed,
+  },
+  {
+    message: 'seedCarryFromCreds: ifAbsent cannot be combined with alwaysBootstrap',
+    isBroken: hasConflictingSeed,
   },
   ...API_DIRECT_DERIVE_RULES,
   ...API_DIRECT_CODEC_RULES,
