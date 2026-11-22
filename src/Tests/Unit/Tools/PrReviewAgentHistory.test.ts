@@ -73,6 +73,7 @@ describe('PR review history and duplicate triggers', () => {
           {
             id: 7,
             state: 'CHANGES_REQUESTED',
+            commit_id: 'older',
             user: { login: 'review-agent[bot]' },
             body: '<!-- opencode-review-agent event=REQUEST_CHANGES comment=old -->',
             submitted_at: '2026-01-01T00:00:00Z',
@@ -155,6 +156,7 @@ describe('PR review history and duplicate triggers', () => {
           {
             id: 7,
             state: 'CHANGES_REQUESTED',
+            commit_id: 'older',
             user: { login: 'review-agent[bot]' },
             body: '<!-- opencode-review-agent event=REQUEST_CHANGES comment=old -->',
             submitted_at: '2026-01-01T00:00:00Z',
@@ -164,7 +166,7 @@ describe('PR review history and duplicate triggers', () => {
             state: 'CHANGES_REQUESTED',
             commit_id: 'head',
             user: { login: 'review-agent[bot]' },
-            body: '<!-- opencode-review-agent event=REQUEST_CHANGES comment=99 -->',
+            body: '<!-- opencode-review-agent event=REQUEST_CHANGES comment=99 complete=false -->',
             submitted_at: '2026-01-02T00:00:00Z',
           },
         ]);
@@ -183,11 +185,11 @@ describe('PR review history and duplicate triggers', () => {
       summary: 'ok',
       inline: [],
       overflow: [],
-      event: 'COMMENT',
+      event: 'REQUEST_CHANGES',
       appLogin: 'review-agent[bot]',
       commentId: '99',
       dismissBlocking: true,
-      reviewComplete: true,
+      reviewComplete: false,
       fetchImpl,
     });
     expect(posted).toMatchObject({ id: 38 });
@@ -209,6 +211,7 @@ describe('PR review history and duplicate triggers', () => {
           {
             id: 7,
             state: 'CHANGES_REQUESTED',
+            commit_id: 'older',
             user: { login: 'review-agent[bot]' },
             body: '<!-- opencode-review-agent event=REQUEST_CHANGES comment=old -->',
             submitted_at: '2026-01-02T00:00:00Z',
@@ -277,6 +280,7 @@ describe('PR review history and duplicate triggers', () => {
           {
             id: 7,
             state: 'CHANGES_REQUESTED',
+            commit_id: 'older',
             user: { login: 'review-agent[bot]' },
             body: '<!-- opencode-review-agent event=REQUEST_CHANGES comment=old -->',
             submitted_at: '2026-01-01T00:00:00Z',
@@ -320,18 +324,15 @@ describe('PR review history and duplicate triggers', () => {
     expect(dismissals).toEqual([]);
   });
 
-  it('does not dismiss when the duplicate marker is incomplete', async () => {
+  it('posts a new review when the duplicate marker is incomplete', async () => {
     const dismissals: string[] = [];
     /**
-     * Serve an incomplete duplicate and an earlier block.
-     * @param input - Fetch input.
-     * @param init - Fetch options.
+     * Serve the review history and live head.
+     * @param url - Request URL.
      * @returns Fake response.
      */
-    const fetchImpl: typeof fetch = (input, init) => {
-      const url = urlOf(input);
-      const method = init?.method ?? 'GET';
-      if (url.includes('/reviews?') && method === 'GET') {
+    const getResponse = (url: string): Promise<Response> => {
+      if (url.includes('/reviews?')) {
         return responseTo([
           {
             id: 7,
@@ -351,14 +352,37 @@ describe('PR review history and duplicate triggers', () => {
           },
         ]);
       }
-      if (url.endsWith('/pulls/886') && method === 'GET') {
+      if (url.endsWith('/pulls/886')) {
         return responseTo({ state: 'open', head: { sha: 'head' } });
+      }
+      return responseTo([]);
+    };
+    /**
+     * Serve the review post and dismissal.
+     * @param url - Request URL.
+     * @returns Fake response.
+     */
+    const postResponse = (url: string): Promise<Response> => {
+      if (url.endsWith('/reviews')) {
+        return responseTo({ id: 36, html_url: 'https://example.test/review' });
       }
       if (url.includes('/dismissals')) {
         dismissals.push(url);
         return responseTo({});
       }
       return responseTo([]);
+    };
+    /**
+     * Route the request by method.
+     * @param input - Fetch input.
+     * @param init - Fetch options.
+     * @returns Fake response.
+     */
+    const fetchImpl: typeof fetch = (input, init) => {
+      const url = urlOf(input);
+      const method = init?.method ?? 'GET';
+      if (method === 'GET') return getResponse(url);
+      return postResponse(url);
     };
     const posted = await postReview({
       repo: 'sergienko4/repo',
@@ -375,8 +399,10 @@ describe('PR review history and duplicate triggers', () => {
       reviewComplete: true,
       fetchImpl,
     });
-    expect(posted).toMatchObject({ id: 35 });
-    expect(dismissals).toEqual([]);
+    expect(posted).toMatchObject({ id: 36 });
+    expect(dismissals).toEqual([
+      'https://api.github.com/repos/sergienko4/repo/pulls/886/reviews/7/dismissals',
+    ]);
   });
 
   it('does not dismiss a same-head block during duplicate cleanup', async () => {

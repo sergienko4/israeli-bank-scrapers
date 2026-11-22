@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { appendFile, readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { isReviewComplete } from './approval.mjs';
@@ -419,6 +420,15 @@ function isAppReview(review, appLogin) {
 }
 
 /**
+ * Whether a review is a failure notice rather than a real review.
+ * @param {Record<string, unknown>} review - Review.
+ * @returns {boolean} True when the body carries the failure heading.
+ */
+function isFailureReview(review) {
+  return String(review.body ?? '').includes('## Review failed');
+}
+
+/**
  * Whether the history already has a blocking review from this App on the head.
  * @param {Array<Record<string, unknown>>} reviews - Pull request reviews.
  * @param {string} appLogin - Agent login.
@@ -429,7 +439,7 @@ function hasSameHeadBlock(reviews, appLogin, headSha) {
   return reviews.some(
     review =>
       isAppReview(review, appLogin) &&
-      String(review.commit_id ?? '') === headSha &&
+      (String(review.commit_id ?? '') === headSha || String(review.commit_id ?? '') === '') &&
       reviewEvent(review) === 'REQUEST_CHANGES',
   );
 }
@@ -550,6 +560,7 @@ async function dismissEarlierBlocks(
       Number(review.id) !== newReviewId &&
       Number(review.id) < beforeId &&
       submittedBefore(review, cutoff, beforeId) &&
+      String(review.commit_id ?? '') !== '' &&
       String(review.commit_id ?? '') !== args.headSha &&
       String(review.state ?? '') === 'CHANGES_REQUESTED' &&
       reviewEvent(review) === 'REQUEST_CHANGES',
@@ -560,10 +571,11 @@ async function dismissEarlierBlocks(
 /**
  * Split omitted blockers into bounded, marked comments.
  * @param {Array<Record<string, unknown>>} findings - Omitted blockers.
- * @param {{ commentId?: string, headSha?: string }} args - Review identity.
- * @returns {Array<{ index: number, body: string }>} Marked comments.
+ * @param {Array<Record<string, unknown>>} findings - Omitted blockers.
+ * @param {number} reviewId - Posted review ID.
+ * @returns {Array<{ index: number, hash: string, body: string }>} Marked comments.
  */
-function followupComments(findings, args) {
+function followupComments(findings, reviewId) {
   const heading =
     '### Additional blocking findings\n\nThese findings did not fit in the review body.\n\n';
   const chunks = [];
@@ -577,12 +589,14 @@ function followupComments(findings, args) {
     current += block;
   }
   if (current.length > heading.length) chunks.push(current);
-  const commentId = String(args.commentId ?? '');
-  const headSha = String(args.headSha ?? '');
-  return chunks.map((body, index) => ({
-    index,
-    body: `${FOLLOWUP_MARKER} comment=${commentId} head=${headSha} chunk=${String(index)} -->\n\n${body}`,
-  }));
+  return chunks.map((body, index) => {
+    const hash = createHash('sha256').update(body).digest('hex').slice(0, 16);
+    return {
+      index,
+      hash,
+      body: `${FOLLOWUP_MARKER} review=${String(reviewId)} chunk=${String(index)} hash=${hash} -->\n\n${body}`,
+    };
+  });
 }
 
 /**
@@ -608,20 +622,18 @@ async function listIssueComments(args) {
 }
 
 /**
- * Read the chunk index from a follow-up comment marker.
+ * Read the review, chunk and content hash from a follow-up comment marker.
  * @param {unknown} body - Comment body.
- * @param {string} commentId - Triggering comment ID.
- * @param {string} headSha - Reviewed head.
- * @returns {number | undefined} Chunk index, or undefined for another comment.
+ * @returns {{ reviewId: number, index: number, hash: string } | undefined} Marker, or undefined.
  */
-function followupIndex(body, commentId, headSha) {
+function followupMarker(body) {
   const firstLine = String(body ?? '').split('\n', 1)[0];
   const match =
-    /^<!-- opencode-review-agent-followup comment=(\S*) head=(\S*) chunk=(\d+) -->$/u.exec(
+    /^<!-- opencode-review-agent-followup review=(\d+) chunk=(\d+) hash=([0-9a-f]+) -->$/u.exec(
       firstLine,
     );
-  if (match === null || match[1] !== commentId || match[2] !== headSha) return undefined;
-  return Number(match[3]);
+  if (match === null) return undefined;
+  return { reviewId: Number(match[1]), index: Number(match[2]), hash: match[3] };
 }
 
 /**
@@ -629,18 +641,21 @@ function followupIndex(body, commentId, headSha) {
  * Already posted chunks are skipped, so a retry can resume safely.
  * @param {object} args - Request arguments.
  * @param {Array<Record<string, unknown>>} findings - Omitted blockers.
+ * @param {number} reviewId - Posted review ID.
  * @returns {Promise<void>} Resolves when every comment is posted.
  */
-async function postOmittedFindings(args, findings) {
-  const chunks = followupComments(findings, args);
+async function postOmittedFindings(args, findings, reviewId) {
+  const chunks = followupComments(findings, reviewId);
   if (chunks.length === 0) return;
-  const commentId = String(args.commentId ?? '');
-  const headSha = String(args.headSha ?? '');
+  const expected = new Map(chunks.map(chunk => [chunk.index, chunk.hash]));
+  const appLogin = args.appLogin ?? LEGACY_APP_LOGIN;
   const existing = await listIssueComments(args);
   const posted = new Set();
   for (const comment of existing) {
-    const index = followupIndex(comment.body, commentId, headSha);
-    if (index !== undefined) posted.add(index);
+    if (String((comment.user ?? {}).login ?? '') !== appLogin) continue;
+    const marker = followupMarker(comment.body);
+    if (marker === undefined || marker.reviewId !== reviewId) continue;
+    if (expected.get(marker.index) === marker.hash) posted.add(marker.index);
   }
   for (const chunk of chunks) {
     if (posted.has(chunk.index)) continue;
@@ -749,6 +764,7 @@ export function buildReview(args) {
  */
 export async function postReview(args) {
   const event = args.event ?? DEFAULT_REVIEW_EVENT;
+  if (event === 'NONE') return { id: 0, htmlUrl: '', inline: 0 };
   if (event === 'APPROVE' && args.reviewComplete !== true) {
     throw new Error('approval requires a complete review');
   }
@@ -760,13 +776,23 @@ export async function postReview(args) {
     event !== 'COMMENT' || (args.dismissBlocking === true && args.reviewComplete === true);
   const reviews = await listReviews({ ...args, failClosed: needsCompleteHistory });
   if (commentId.length > 0) {
+    const failureRequest = String(args.summary ?? '').startsWith('## Review failed');
     const duplicate = reviews.find(
       review =>
         isAppReview(review, appLogin) &&
         reviewCommentId(review) === commentId &&
-        String(review.commit_id ?? '') === args.headSha,
+        String(review.commit_id ?? '') === args.headSha &&
+        reviewEvent(review) === event &&
+        reviewCompleteFromMarker(review) === (args.reviewComplete === true) &&
+        isFailureReview(review) === failureRequest,
     );
     if (duplicate !== undefined) {
+      if (event === 'APPROVE') {
+        await assertLiveHead(args);
+        if (hasSameHeadBlock(reviews, appLogin, args.headSha)) {
+          throw new Error('approval requires a new commit');
+        }
+      }
       const duplicateIsCleanComment =
         reviewEvent(duplicate) === 'COMMENT' &&
         String(duplicate.commit_id ?? '') === args.headSha &&
@@ -788,7 +814,7 @@ export async function postReview(args) {
         }
       }
       const duplicateRender = renderReview({ ...args, event, commentId });
-      await postOmittedFindings(args, duplicateRender.omitted);
+      await postOmittedFindings(args, duplicateRender.omitted, Number(duplicate.id));
       return { id: duplicate.id, htmlUrl: duplicate.html_url, inline: 0 };
     }
   }
@@ -810,7 +836,7 @@ export async function postReview(args) {
   if (!response.ok) throw new Error(`GitHub review POST answered ${response.status}`);
   await markCreated();
   const posted = /** @type {Record<string, unknown>} */ (await readResponseJson(response));
-  await postOmittedFindings(args, rendered.omitted);
+  await postOmittedFindings(args, rendered.omitted, Number(posted.id));
   if (args.dismissBlocking === true && args.reviewComplete === true && event === 'COMMENT') {
     if (await liveHeadMatches(args)) {
       await dismissEarlierBlocks(args, reviews, Number(posted.id));

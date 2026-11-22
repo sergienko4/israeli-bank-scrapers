@@ -250,6 +250,7 @@ describe('PR review extraction and posting', () => {
           {
             id: 7,
             state: 'CHANGES_REQUESTED',
+            commit_id: 'older',
             user: { login: 'review-agent[bot]' },
             body: '<!-- opencode-review-agent event=REQUEST_CHANGES comment=old -->',
             submitted_at: '2026-01-01T00:00:00Z',
@@ -440,6 +441,7 @@ describe('PR review extraction and posting', () => {
       event: 'COMMENT',
       appLogin: 'review-agent[bot]',
       commentId: '99',
+      reviewComplete: true,
       fetchImpl,
     });
     expect(posted).toMatchObject({ id: 30 });

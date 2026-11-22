@@ -47,7 +47,7 @@ export function hasBlockingReview(reviews, appLogin, headSha) {
   return reviews.some(
     review =>
       String((review.user ?? {}).login ?? '') === appLogin &&
-      String(review.commit_id ?? '') === headSha &&
+      (String(review.commit_id ?? '') === headSha || String(review.commit_id ?? '') === '') &&
       reviewEvent(review) === 'REQUEST_CHANGES',
   );
 }

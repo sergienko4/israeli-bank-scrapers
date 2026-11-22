@@ -6,6 +6,118 @@
 import { postReview } from '../../../../.github/scripts/pr-review/post-review.mjs';
 import { responseTo, urlOf } from './PrReviewAgentTestUtils.js';
 
+interface IBoundedReviewFixture {
+  readonly reviewBodies: Record<string, unknown>[];
+  readonly comments: { login: string; body: string }[];
+  runReview: () => Promise<Record<string, unknown>>;
+}
+
+/**
+ * Build a review with enough blockers to overflow the body and follow-ups.
+ * @returns Fake API state and a review runner.
+ */
+function createBoundedReviewFixture(): IBoundedReviewFixture {
+  const reviewBodies: Record<string, unknown>[] = [];
+  const comments: { login: string; body: string }[] = [];
+  const findings = Array.from({ length: 400 }, (_, index) => ({
+    severity: 'critical',
+    path: 'src/a.ts',
+    line: index + 1,
+    title: `Blocker ${String(index)}`,
+    body: 'x'.repeat(1200),
+    rule: index === 399 ? '&'.repeat(20000) : '',
+  }));
+  /**
+   * Serve the review list, including the posted duplicate on retry.
+   * @returns Fake response.
+   */
+  const reviewListResponse = (): Promise<Response> => {
+    if (reviewBodies.length === 0) return responseTo([]);
+    const firstBody = reviewBodies[0]?.body;
+    const body = typeof firstBody === 'string' ? firstBody : '';
+    return responseTo([
+      {
+        id: 70,
+        state: 'COMMENTED',
+        commit_id: 'head',
+        user: { login: 'review-agent[bot]' },
+        body,
+        submitted_at: '2026-01-02T00:00:00Z',
+      },
+    ]);
+  };
+  /**
+   * Serve a GET route.
+   * @param url - Request URL.
+   * @returns Fake response.
+   */
+  const getResponse = (url: string): Promise<Response> => {
+    if (url.includes('/reviews?')) return reviewListResponse();
+    if (url.includes('/issues/886/comments')) {
+      const existing = comments.map((comment, index) => ({
+        id: index + 1,
+        user: { login: comment.login },
+        body: comment.body,
+      }));
+      return responseTo(existing);
+    }
+    if (url.endsWith('/pulls/886')) {
+      return responseTo({ state: 'open', head: { sha: 'head' } });
+    }
+    return responseTo([]);
+  };
+  /**
+   * Serve a POST route.
+   * @param url - Request URL.
+   * @param raw - Request body.
+   * @returns Fake response.
+   */
+  const postResponse = (url: string, raw: string): Promise<Response> => {
+    if (url.endsWith('/reviews')) {
+      reviewBodies.push(JSON.parse(raw) as Record<string, unknown>);
+      return responseTo({ id: 70, html_url: 'https://example.test/review' });
+    }
+    if (url.endsWith('/issues/886/comments')) {
+      const payload = JSON.parse(raw) as Record<string, unknown>;
+      const body = typeof payload.body === 'string' ? payload.body : '';
+      comments.push({ login: 'review-agent[bot]', body });
+      return responseTo({ id: 71 });
+    }
+    return responseTo([]);
+  };
+  /**
+   * Route history, live-head and posting requests.
+   * @param input - Fetch input.
+   * @param init - Fetch options.
+   * @returns Fake response.
+   */
+  const fetchImpl: typeof fetch = (input, init) => {
+    const url = urlOf(input);
+    const raw = typeof init?.body === 'string' ? init.body : '{}';
+    if (init?.method === 'POST') return postResponse(url, raw);
+    return getResponse(url);
+  };
+  /**
+   * Run one review against the fake API.
+   * @returns Posted review.
+   */
+  const runReview = (): Promise<Record<string, unknown>> =>
+    postReview({
+      repo: 'sergienko4/repo',
+      pr: 886,
+      token: 'token',
+      headSha: 'head',
+      summary: 'blocking',
+      inline: [],
+      overflow: findings,
+      event: 'COMMENT',
+      appLogin: 'review-agent[bot]',
+      commentId: '99',
+      fetchImpl,
+    });
+  return { reviewBodies, comments, runReview };
+}
+
 describe('PR review history at posting', () => {
   it('posts even when the review history is unavailable', async () => {
     const posts: string[] = [];
@@ -473,119 +585,37 @@ describe('PR review history at posting', () => {
   });
 
   it('bounds the review body and posts omitted blockers as comments', async () => {
-    const reviewBodies: Record<string, unknown>[] = [];
-    const comments: string[] = [];
-    const findings = Array.from({ length: 400 }, (_, index) => ({
-      severity: 'critical',
-      path: 'src/a.ts',
-      line: index + 1,
-      title: `Blocker ${String(index)}`,
-      body: 'x'.repeat(1200),
-      rule: index === 399 ? '&'.repeat(20000) : '',
-    }));
-    /**
-     * Serve the review list, including the posted duplicate on retry.
-     * @returns Fake response.
-     */
-    const reviewListResponse = (): Promise<Response> => {
-      if (reviewBodies.length === 0) return responseTo([]);
-      const firstBody = reviewBodies[0]?.body;
-      const body = typeof firstBody === 'string' ? firstBody : '';
-      return responseTo([
-        {
-          id: 70,
-          state: 'COMMENTED',
-          commit_id: 'head',
-          user: { login: 'review-agent[bot]' },
-          body,
-          submitted_at: '2026-01-02T00:00:00Z',
-        },
-      ]);
-    };
-    /**
-     * Serve a GET route.
-     * @param url - Request URL.
-     * @returns Fake response.
-     */
-    const getResponse = (url: string): Promise<Response> => {
-      if (url.includes('/reviews?')) return reviewListResponse();
-      if (url.includes('/issues/886/comments')) {
-        const existing = comments.map((body, index) => ({ id: index + 1, body }));
-        return responseTo(existing);
-      }
-      if (url.endsWith('/pulls/886')) {
-        return responseTo({ state: 'open', head: { sha: 'head' } });
-      }
-      return responseTo([]);
-    };
-    /**
-     * Serve a POST route.
-     * @param url - Request URL.
-     * @param raw - Request body.
-     * @returns Fake response.
-     */
-    const postResponse = (url: string, raw: string): Promise<Response> => {
-      if (url.endsWith('/reviews')) {
-        reviewBodies.push(JSON.parse(raw) as Record<string, unknown>);
-        return responseTo({ id: 70, html_url: 'https://example.test/review' });
-      }
-      if (url.endsWith('/issues/886/comments')) {
-        const payload = JSON.parse(raw) as Record<string, unknown>;
-        const body = typeof payload.body === 'string' ? payload.body : '';
-        comments.push(body);
-        return responseTo({ id: 71 });
-      }
-      return responseTo([]);
-    };
-    /**
-     * Route history, live-head and posting requests.
-     * @param input - Fetch input.
-     * @param init - Fetch options.
-     * @returns Fake response.
-     */
-    const fetchImpl: typeof fetch = (input, init) => {
-      const url = urlOf(input);
-      const raw = typeof init?.body === 'string' ? init.body : '{}';
-      if (init?.method === 'POST') return postResponse(url, raw);
-      return getResponse(url);
-    };
-    const posted = await postReview({
-      repo: 'sergienko4/repo',
-      pr: 886,
-      token: 'token',
-      headSha: 'head',
-      summary: 'blocking',
-      inline: [],
-      overflow: findings,
-      event: 'COMMENT',
-      appLogin: 'review-agent[bot]',
-      commentId: '99',
-      fetchImpl,
-    });
+    const { reviewBodies, comments, runReview } = createBoundedReviewFixture();
+    const posted = await runReview();
     expect(posted).toMatchObject({ id: 70 });
     const firstBody = reviewBodies[0]?.body;
     const reviewBody = typeof firstBody === 'string' ? firstBody : '';
-    const allComments = comments.join('\n');
-    const isEveryCommentBounded = comments.every(body => body.length < 60000);
+    const commentBodies = comments.map(comment => comment.body);
+    const allComments = commentBodies.join('\n');
+    const isEveryCommentBounded = commentBodies.every(body => body.length < 60000);
+    const botChunkZero = comments.filter(
+      comment =>
+        comment.login === 'review-agent[bot]' && comment.body.includes('review=70 chunk=0 hash='),
+    ).length;
     expect(reviewBody.length).toBeLessThan(60000);
     expect(isEveryCommentBounded).toBe(true);
-    expect(comments.length).toBeGreaterThan(0);
+    expect(botChunkZero).toBe(1);
     expect(allComments).toContain('Blocker 399');
     const commentCount = comments.length;
-    const retried = await postReview({
-      repo: 'sergienko4/repo',
-      pr: 886,
-      token: 'token',
-      headSha: 'head',
-      summary: 'blocking',
-      inline: [],
-      overflow: findings,
-      event: 'COMMENT',
-      appLogin: 'review-agent[bot]',
-      commentId: '99',
-      fetchImpl,
-    });
+    const retried = await runReview();
     expect(retried).toMatchObject({ id: 70 });
     expect(comments).toHaveLength(commentCount);
+    const botComments = comments.filter(comment => comment.login === 'review-agent[bot]');
+    const botBodies = botComments.map(comment => comment.body);
+    comments.length = 0;
+    comments.push({ login: 'attacker', body: botBodies[0] ?? '' });
+    const forged = await runReview();
+    const botZeroAfterForge = comments.filter(
+      comment =>
+        comment.login === 'review-agent[bot]' && comment.body.includes('review=70 chunk=0 hash='),
+    ).length;
+    expect(forged).toMatchObject({ id: 70 });
+    expect(botZeroAfterForge).toBe(1);
+    expect(comments).toHaveLength(botBodies.length + 1);
   });
 });
