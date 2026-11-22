@@ -150,18 +150,39 @@ describe('PR reviewer tool policy', () => {
     }
 
     const sourceEffect = evaluate(rules, 'read', 'src/index.ts');
-    expect(sourceEffect).toBe('allow');
+    expect(sourceEffect).toBe('deny');
   });
 
-  it('keeps the broad read allow before the credential denies', async () => {
+  it('allows only the staged review context', async () => {
     const agent = await readFile('.opencode/agents/pr-reviewer.md', 'utf8');
     const rules = parsePermission(agent);
-    const allowIndex = rules.findIndex(
-      rule => rule.action === 'read' && rule.resource === '*' && rule.effect === 'allow',
+    for (const path of [
+      '.review/pr/metadata.json',
+      '.review/base/src/a.ts',
+      '.review-guidelines/manifest.json',
+      '.github/review-agent/overlays/israeli-bank-scrapers.md',
+    ]) {
+      const effect = evaluate(rules, 'read', path);
+      expect(effect).toBe('allow');
+    }
+  });
+
+  it('stages a symlink-free base context', async () => {
+    const workflow = await readFile('.github/workflows/pr-review-agent.yml', 'utf8');
+    expect(workflow).toContain('git archive HEAD');
+    expect(workflow).toContain('find .review/base .review-guidelines -type l -delete');
+  });
+
+  it('keeps every read allow before the credential denies', async () => {
+    const agent = await readFile('.opencode/agents/pr-reviewer.md', 'utf8');
+    const rules = parsePermission(agent);
+    const allowIndexes = rules.flatMap((rule, index) =>
+      rule.action === 'read' && rule.effect === 'allow' ? [index] : [],
     );
     const denyIndex = rules.findIndex(rule => rule.action === 'read' && rule.effect === 'deny');
-    expect(allowIndex).toBeGreaterThanOrEqual(0);
-    expect(denyIndex).toBeGreaterThan(allowIndex);
+    const lastAllowIndex = Math.max(...allowIndexes);
+    expect(lastAllowIndex).toBeGreaterThanOrEqual(0);
+    expect(denyIndex).toBeGreaterThan(lastAllowIndex);
   });
 
   it('allows only review skills and glob', async () => {

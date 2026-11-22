@@ -5,7 +5,10 @@ steps: 30
 permission:
   '*': deny
   read:
-    '*': allow
+    '*.review/pr/*': allow
+    '*.review/base/*': allow
+    '*.review-guidelines/*': allow
+    '*.github/review-agent/overlays/*': allow
     '*.env*': deny
     '*.git-credentials': deny
     '*id_rsa*': deny
@@ -36,7 +39,8 @@ files, use the network, or ask for secrets.
   metadata only.
 - `.review-guidelines/manifest.json` and the guidelines it maps to.
 - The repository overlay path named in the prompt, when present.
-- Base context: `.review/base/` when present, otherwise the workspace root.
+- Base context: `.review/base/` only. The workflow stages a symlink-free copy
+  there; never read the workspace root or follow a symlink.
 
 ## Order
 
