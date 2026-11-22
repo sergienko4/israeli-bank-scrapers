@@ -425,7 +425,13 @@ function isAppReview(review, appLogin) {
  * @returns {boolean} True when the body carries the failure heading.
  */
 function isFailureReview(review) {
-  return String(review.body ?? '').includes('## Review failed');
+  const body = String(review.body ?? '');
+  const markerEnd = body.indexOf('-->');
+  if (markerEnd < 0) return false;
+  return body
+    .slice(markerEnd + 3)
+    .trimStart()
+    .startsWith('## Review failed');
 }
 
 /**

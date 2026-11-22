@@ -419,7 +419,7 @@ describe('PR review extraction and posting', () => {
             id: 30,
             commit_id: 'head',
             user: { login: 'review-agent[bot]' },
-            body: '<!-- opencode-review-agent event=COMMENT comment=99 complete=true -->',
+            body: '<!-- opencode-review-agent event=COMMENT comment=99 complete=true -->\n\nNormal summary.\n\n## Review failed is discussed below.',
             submitted_at: '2026-01-01T00:00:00Z',
           },
         ]);
