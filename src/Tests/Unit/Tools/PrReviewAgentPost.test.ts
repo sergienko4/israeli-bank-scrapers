@@ -10,6 +10,7 @@ import { extractText } from '../../../../.github/scripts/pr-review/extract-revie
 import { truncateDiff } from '../../../../.github/scripts/pr-review/fetch-pr.mjs';
 import {
   buildReview,
+  isPostedComplete,
   mapFindings,
   markCreated,
   parseAddedLines,
@@ -159,6 +160,25 @@ describe('PR review extraction and posting', () => {
     });
     expect(complete.body).toContain('complete=true');
     expect(incomplete.body).toContain('complete=false');
+  });
+
+  it('requires metadata and the model to agree on completeness', () => {
+    const metadata = {
+      diffTruncated: false,
+      credentialContent: false,
+      skippedFiles: [],
+      sensitiveFiles: [],
+      changedFiles: 1,
+      files: [{ path: 'src/a.ts' }],
+    };
+    const config = { maxFiles: 300 };
+    const truncated = { ...metadata, diffTruncated: true };
+    const isComplete = isPostedComplete({ complete: true }, metadata, config);
+    const isIncompleteByMetadata = isPostedComplete({ complete: true }, truncated, config);
+    const isIncompleteByModel = isPostedComplete({ complete: false }, metadata, config);
+    expect(isComplete).toBe(true);
+    expect(isIncompleteByMetadata).toBe(false);
+    expect(isIncompleteByModel).toBe(false);
   });
 
   it('keeps blocker details beyond the presentation cap', () => {

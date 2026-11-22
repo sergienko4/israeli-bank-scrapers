@@ -1,5 +1,6 @@
 import { appendFile, readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
+import { isReviewComplete } from './approval.mjs';
 import { listReviews } from './review-history.mjs';
 import {
   githubGraphql,
@@ -105,6 +106,19 @@ export function validateReview(value, maxFindings, added) {
     .sort((left, right) => severityRank(left) - severityRank(right))
     .slice(0, maxFindings);
   return { summary, guidelines_read: guidelines, findings, complete: value.complete === true };
+}
+
+/**
+ * Whether a posted review may be recorded as complete.
+ * The model's claim is only trusted when the fetched PR data also covers
+ * every changed file.
+ * @param {{ complete: boolean }} review - Validated review.
+ * @param {Record<string, unknown>} metadata - PR metadata.
+ * @param {Record<string, unknown>} config - Review config.
+ * @returns {boolean} True when both sources agree the review is complete.
+ */
+export function isPostedComplete(review, metadata, config) {
+  return review.complete === true && isReviewComplete(metadata, config);
 }
 
 /**
@@ -670,6 +684,20 @@ function requestArgs(env, config) {
 }
 
 /**
+ * Read PR metadata, or return an empty object when it is missing or malformed.
+ * @param {string} path - Metadata file path.
+ * @returns {Promise<Record<string, unknown>>} Metadata.
+ */
+async function readMetadata(path) {
+  try {
+    const parsed = JSON.parse(await readFile(path, 'utf8'));
+    return isRecord(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
  * CLI entrypoint.
  * @returns {Promise<void>} Resolves when posted.
  */
@@ -716,6 +744,8 @@ async function main() {
     process.exitCode = 1;
     return;
   }
+  const metadata = await readMetadata(env.REVIEW_METADATA || '.review/pr/metadata.json');
+  const reviewComplete = isPostedComplete(review, metadata, config);
   const split = mapFindings(
     selectPresentationFindings(review.findings, config),
     added,
@@ -731,7 +761,7 @@ async function main() {
           overflow: split.overflow,
           event: env.REVIEW_EVENT || config.defaultReviewEvent || DEFAULT_REVIEW_EVENT,
           commentId: env.REVIEW_COMMENT_ID || '',
-          reviewComplete: review.complete,
+          reviewComplete,
         }),
         null,
         2,
@@ -744,7 +774,7 @@ async function main() {
     summary: review.summary,
     inline: split.inline,
     overflow: split.overflow,
-    reviewComplete: review.complete,
+    reviewComplete,
   });
   console.log(JSON.stringify(posted));
 }
