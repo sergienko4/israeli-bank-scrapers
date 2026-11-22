@@ -101,6 +101,7 @@ jobs:
 
       - name: Stage symlink-free review context
         run: |
+          set -euo pipefail
           mkdir -p .review/base .review/pr/base-rules
           base="${REVIEW_BASE_SHA:-HEAD}"
           if [ "$base" != "HEAD" ]; then

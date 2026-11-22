@@ -13,8 +13,10 @@ Load this first. Reviewing lines without intent produces confident noise.
 - `.review/pr/diff.patch` and the changed files under `.review/pr/files/`,
   located through `metadata.files[].dataFile`.
 - The repository overlay named in the prompt, when present.
-- The target's rules for the affected area, under `.review/base/` or the root:
-  `CLAUDE.md`, `.code-rules.md`, `CLEAN_CODE.md` and the relevant `docs/` page.
+- The target's rules for the affected area, under `.review/pr/base-rules/`:
+  `AGENTS.review.txt`, `CLAUDE.review.txt`, `code-rules.review.txt` and
+  `CLEAN_CODE.review.txt` when present. Read the relevant `docs/` page from
+  `.review/base/`.
 - The guidelines manifest entries mapped to `pr-review-context`.
 
 ## Answer

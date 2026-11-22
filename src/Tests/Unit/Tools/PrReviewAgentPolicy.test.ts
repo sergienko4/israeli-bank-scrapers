@@ -7,6 +7,8 @@
 
 import { readFile } from 'node:fs/promises';
 
+import { parse } from 'yaml';
+
 /** One ordered permission rule. */
 interface IPermissionRule {
   /** Tool action, or `*` for every tool. */
@@ -38,48 +40,39 @@ function wildcardMatch(input: string, pattern: string): boolean {
 }
 
 /**
- * Read the agent's singular permission mapping into ordered rules.
+ * Parse an agent's singular permission mapping from its frontmatter.
  * @param agent - Agent markdown.
  * @returns Ordered permission rules.
  */
 function parsePermission(agent: string): IPermissionRule[] {
-  const lines = agent.split('\n');
-  const start = lines.findIndex(line => line.trim() === 'permission:');
-  if (start < 0) {
+  const match = /^---\n([\s\S]*?)\n---/u.exec(agent);
+  if (match === null) {
     return [];
   }
+  const frontmatter = parse(match[1]) as {
+    permission?: Record<string, string | Record<string, string>>;
+  };
+  const permission = frontmatter.permission ?? {};
   const rules: IPermissionRule[] = [];
-  let tool = '';
-  for (const line of lines.slice(start + 1)) {
-    if (line.trim() === '---') {
-      break;
-    }
-    const trimmed = line.trim();
-    if (trimmed.length === 0) {
+  for (const [action, rule] of Object.entries(permission)) {
+    if (typeof rule === 'string') {
+      rules.push({ action, resource: '*', effect: rule });
       continue;
     }
-    const separator = trimmed.indexOf(':');
-    if (separator < 0) {
-      continue;
-    }
-    const key = trimmed
-      .slice(0, separator)
-      .replace(/^['"]|['"]$/gu, '')
-      .trim();
-    const value = trimmed.slice(separator + 1).trim();
-    if (!line.startsWith('    ')) {
-      tool = key;
-      if (value.length > 0) {
-        rules.push({ action: key, resource: '*', effect: value });
-        tool = '';
-      }
-      continue;
-    }
-    if (tool.length > 0) {
-      rules.push({ action: tool, resource: key, effect: value });
+    for (const [resource, effect] of Object.entries(rule)) {
+      rules.push({ action, resource, effect });
     }
   }
   return rules;
+}
+
+/**
+ * Read and parse the reviewer agent's permission rules.
+ * @returns Ordered permission rules.
+ */
+async function loadRules(): Promise<IPermissionRule[]> {
+  const agent = await readFile('.opencode/agents/pr-reviewer.md', 'utf8');
+  return parsePermission(agent);
 }
 
 /**
@@ -98,6 +91,38 @@ function evaluate(rules: IPermissionRule[], action: string, resource: string): s
   }
   return 'ask';
 }
+
+const CREDENTIAL_PATHS = [
+  '.env',
+  'nested/.env.local',
+  'service.key',
+  'certs/service.pem',
+  'id_rsa',
+  'nested/id_rsa.pub',
+  '.npmrc',
+  'config/.netrc',
+  '.git-credentials',
+  'nested/.git-credentials',
+  'store.p12',
+  'store.jks',
+];
+
+const STAGED_PATHS = [
+  '.review/pr/metadata.json',
+  '.review/pr/base-rules/AGENTS.review.txt',
+  '.review/base/src/a.ts',
+  '.review-guidelines/manifest.json',
+  '.github/review-agent/overlays/israeli-bank-scrapers.md',
+];
+
+const STAGED_CREDENTIAL_PATHS = [
+  '.review/base/.env',
+  '.review/base/nested/.env.local',
+  '.review/base/service.key',
+  '.review/base/certs/service.pem',
+  '.review/base/.git-credentials',
+  '.review/pr/base-rules/.env',
+];
 
 describe('PR reviewer tool policy', () => {
   it('uses the supported permission mapping and denies every other tool', async () => {
@@ -127,63 +152,69 @@ describe('PR reviewer tool policy', () => {
     expect(isStarMatch).toBe(true);
   });
 
-  it('denies root-level and nested credential paths', async () => {
-    const agent = await readFile('.opencode/agents/pr-reviewer.md', 'utf8');
-    const rules = parsePermission(agent);
-
-    for (const path of [
-      '.env',
-      'nested/.env.local',
-      'service.key',
-      'certs/service.pem',
-      'id_rsa',
-      'nested/id_rsa.pub',
-      '.npmrc',
-      'config/.netrc',
-      '.git-credentials',
-      'nested/.git-credentials',
-      'store.p12',
-      'store.jks',
-    ]) {
-      const effect = evaluate(rules, 'read', path);
-      expect(effect).toBe('deny');
-    }
-
-    const sourceEffect = evaluate(rules, 'read', 'src/index.ts');
-    expect(sourceEffect).toBe('deny');
+  it.each(CREDENTIAL_PATHS)('denies credential path %s', async path => {
+    const rules = await loadRules();
+    const effect = evaluate(rules, 'read', path);
+    expect(effect).toBe('deny');
   });
 
-  it('allows only the staged review context', async () => {
-    const agent = await readFile('.opencode/agents/pr-reviewer.md', 'utf8');
-    const rules = parsePermission(agent);
-    for (const path of [
-      '.review/pr/metadata.json',
-      '.review/pr/base-rules/AGENTS.review.txt',
-      '.review/base/src/a.ts',
-      '.review-guidelines/manifest.json',
-      '.github/review-agent/overlays/israeli-bank-scrapers.md',
-    ]) {
-      const effect = evaluate(rules, 'read', path);
-      expect(effect).toBe('allow');
-    }
+  it.each(STAGED_PATHS)('allows staged path %s', async path => {
+    const rules = await loadRules();
+    const effect = evaluate(rules, 'read', path);
+    expect(effect).toBe('allow');
   });
 
-  it('denies credentials inside allowed context directories', async () => {
+  it.each(STAGED_CREDENTIAL_PATHS)('denies staged credential path %s', async path => {
+    const rules = await loadRules();
+    const effect = evaluate(rules, 'read', path);
+    expect(effect).toBe('deny');
+  });
+
+  it('denies workspace-root source paths', async () => {
+    const rules = await loadRules();
+    const effect = evaluate(rules, 'read', 'src/index.ts');
+    expect(effect).toBe('deny');
+  });
+
+  it('keeps every read allow before the credential denies', async () => {
+    const rules = await loadRules();
+    const allowIndexes = rules.flatMap((rule, index) =>
+      rule.action === 'read' && rule.effect === 'allow' ? [index] : [],
+    );
+    const denyIndex = rules.findIndex(rule => rule.action === 'read' && rule.effect === 'deny');
+    const lastAllowIndex = Math.max(...allowIndexes);
+    expect(lastAllowIndex).toBeGreaterThanOrEqual(0);
+    expect(denyIndex).toBeGreaterThan(lastAllowIndex);
+  });
+
+  it('allows only review skills and glob', async () => {
+    const rules = await loadRules();
+    const allowedSkill = evaluate(rules, 'skill', 'pr-review-context');
+    const otherSkill = evaluate(rules, 'skill', 'other-skill');
+    const globbed = evaluate(rules, 'glob', '**/*.ts');
+    expect(allowedSkill).toBe('allow');
+    expect(otherSkill).toBe('deny');
+    expect(globbed).toBe('allow');
+  });
+
+  it('decodes quoted permission values as allows', () => {
+    const rules = parsePermission(`---
+permission:
+  websearch: 'allow'
+---`);
+    expect(rules).toEqual([{ action: 'websearch', resource: '*', effect: 'allow' }]);
+    const allowed = new Set(rules.filter(rule => rule.effect === 'allow').map(rule => rule.action));
+    const hasWebsearch = allowed.has('websearch');
+    expect(hasWebsearch).toBe(true);
+    expect(allowed).not.toEqual(new Set(['read', 'glob', 'skill']));
+  });
+
+  it('reads base context from .review/base and leaves the event to the poster', async () => {
     const agent = await readFile('.opencode/agents/pr-reviewer.md', 'utf8');
-    const rules = parsePermission(agent);
-    for (const path of [
-      '.review/base/.env',
-      '.review/base/nested/.env.local',
-      '.review/base/service.key',
-      '.review/base/certs/service.pem',
-      '.review/base/.git-credentials',
-      '.review/pr/base-rules/.env',
-    ]) {
-      const effect = evaluate(rules, 'read', path);
-      expect(effect).toBe('deny');
-    }
-    const sourceEffect = evaluate(rules, 'read', '.review/base/src/a.ts');
-    expect(sourceEffect).toBe('allow');
+    expect(agent).toContain('.review/base/');
+    expect(agent).toContain('submits a `COMMENT` review');
+    expect(agent).not.toContain('review event is always `COMMENT`');
+    expect(agent).not.toContain('Never approve, never request changes');
   });
 
   it('stages the PR base and data-only rules', async () => {
@@ -197,37 +228,6 @@ describe('PR reviewer tool policy', () => {
     expect(workflow).toContain('-name AGENTS.md');
     expect(workflow).toContain('-name CLAUDE.md');
     expect(workflow).toContain('.github/review-agent/overlays/israeli-bank-scrapers.md');
-  });
-
-  it('keeps every read allow before the credential denies', async () => {
-    const agent = await readFile('.opencode/agents/pr-reviewer.md', 'utf8');
-    const rules = parsePermission(agent);
-    const allowIndexes = rules.flatMap((rule, index) =>
-      rule.action === 'read' && rule.effect === 'allow' ? [index] : [],
-    );
-    const denyIndex = rules.findIndex(rule => rule.action === 'read' && rule.effect === 'deny');
-    const lastAllowIndex = Math.max(...allowIndexes);
-    expect(lastAllowIndex).toBeGreaterThanOrEqual(0);
-    expect(denyIndex).toBeGreaterThan(lastAllowIndex);
-  });
-
-  it('allows only review skills and glob', async () => {
-    const agent = await readFile('.opencode/agents/pr-reviewer.md', 'utf8');
-    const rules = parsePermission(agent);
-    const allowedSkill = evaluate(rules, 'skill', 'pr-review-context');
-    const otherSkill = evaluate(rules, 'skill', 'other-skill');
-    const globbed = evaluate(rules, 'glob', '**/*.ts');
-    expect(allowedSkill).toBe('allow');
-    expect(otherSkill).toBe('deny');
-    expect(globbed).toBe('allow');
-  });
-
-  it('reads base context from .review/base and leaves the event to the poster', async () => {
-    const agent = await readFile('.opencode/agents/pr-reviewer.md', 'utf8');
-    expect(agent).toContain('.review/base/');
-    expect(agent).toContain('posting script maps the validated');
-    expect(agent).not.toContain('review event is always `COMMENT`');
-    expect(agent).not.toContain('Never approve, never request changes');
   });
 });
 
