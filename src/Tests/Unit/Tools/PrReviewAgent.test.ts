@@ -465,7 +465,6 @@ describe('PR review sensitive data', () => {
     `sk-${'b'.repeat(24)}`,
     `sk-proj-${'c'.repeat(24)}`,
     'https://user:password@example.test/repo.git',
-    'https://user:password@example.test/repo.git',
     'https://:password@example.test/repo.git',
     'https://deploy-token@example.test/repo.git',
     'https://deploy-token:@example.test/repo.git',
