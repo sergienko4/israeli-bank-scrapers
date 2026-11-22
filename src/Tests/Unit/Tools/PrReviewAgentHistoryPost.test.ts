@@ -73,6 +73,7 @@ describe('PR review history at posting', () => {
       inline: [],
       overflow: [],
       event: 'APPROVE',
+      reviewComplete: true,
       appLogin: 'review-agent[bot]',
       commentId: '99',
       fetchImpl,
@@ -193,6 +194,7 @@ describe('PR review history at posting', () => {
       inline: [],
       overflow: [],
       event: 'APPROVE',
+      reviewComplete: true,
       appLogin: 'review-agent[bot]',
       commentId: '99',
       fetchImpl,
@@ -355,6 +357,37 @@ describe('PR review history at posting', () => {
     expect(dismissals).toEqual([]);
   });
 
+  it('refuses to approve an incomplete review', async () => {
+    const posts: string[] = [];
+    /**
+     * Capture any review post.
+     * @param input - Fetch input.
+     * @param init - Fetch options.
+     * @returns Fake response.
+     */
+    const fetchImpl: typeof fetch = (input, init) => {
+      const url = urlOf(input);
+      if (init?.method === 'POST') posts.push(url);
+      return responseTo([]);
+    };
+    const pending = postReview({
+      repo: 'sergienko4/repo',
+      pr: 886,
+      token: 'token',
+      headSha: 'head',
+      summary: 'ok',
+      inline: [],
+      overflow: [],
+      event: 'APPROVE',
+      appLogin: 'review-agent[bot]',
+      commentId: '99',
+      reviewComplete: false,
+      fetchImpl,
+    });
+    await expect(pending).rejects.toThrow('approval requires a complete review');
+    expect(posts).toHaveLength(0);
+  });
+
   it('refuses to approve a draft pull request', async () => {
     const posts: string[] = [];
     /**
@@ -387,6 +420,7 @@ describe('PR review history at posting', () => {
       inline: [],
       overflow: [],
       event: 'APPROVE',
+      reviewComplete: true,
       appLogin: 'review-agent[bot]',
       commentId: '99',
       recheckHead: true,

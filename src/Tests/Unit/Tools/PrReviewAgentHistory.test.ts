@@ -472,6 +472,7 @@ describe('PR review history and duplicate triggers', () => {
       inline: [],
       overflow: [],
       event: 'APPROVE',
+      reviewComplete: true,
       appLogin: 'review-agent[bot]',
       commentId: '99',
       fetchImpl,

@@ -540,6 +540,9 @@ export function buildReview(args) {
  */
 export async function postReview(args) {
   const event = args.event ?? DEFAULT_REVIEW_EVENT;
+  if (event === 'APPROVE' && args.reviewComplete !== true) {
+    throw new Error('approval requires a complete review');
+  }
   const appLogin = args.appLogin ?? LEGACY_APP_LOGIN;
   const commentId = String(args.commentId ?? '');
   // Approvals, blocking reviews and dismissal cleanup need the complete

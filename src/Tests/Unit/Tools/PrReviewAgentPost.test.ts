@@ -439,6 +439,7 @@ describe('PR review extraction and posting', () => {
       appLogin: 'review-agent[bot]',
       commentId: '99',
       recheckHead: true,
+      reviewComplete: true,
       fetchImpl,
     });
     await expect(pending).rejects.toThrow('pull request changed before posting');
