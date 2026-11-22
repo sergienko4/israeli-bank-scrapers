@@ -34,8 +34,9 @@ const CREDENTIAL_CONTENT_RE = new RegExp(
     '\\bxox[abprs]-[A-Za-z0-9-]{10,}\\b',
     '\\bsk-[A-Za-z0-9_-]{20,}\\b',
     '\\beyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\b',
+    '\\b[a-z][a-z0-9+.-]*://[^/\\s@?#]+@',
   ].join('|'),
-  'u',
+  'iu',
 );
 
 /**
@@ -75,7 +76,8 @@ async function fetchDiff(args) {
  */
 async function listFiles(args) {
   const files = [];
-  for (let page = 1; files.length < MAX_FILES; page += 1) {
+  const maxFiles = Number(args.maxFiles ?? MAX_FILES);
+  for (let page = 1; files.length < maxFiles; page += 1) {
     const response = await githubRequest({
       token: args.token,
       path: `/repos/${args.repo}/pulls/${args.pr}/files?per_page=${FILES_PER_PAGE}&page=${page}`,
@@ -85,7 +87,7 @@ async function listFiles(args) {
     files.push(...batch);
     if (batch.length < FILES_PER_PAGE) break;
   }
-  return files.slice(0, MAX_FILES);
+  return files.slice(0, maxFiles);
 }
 
 /**
@@ -264,6 +266,7 @@ export function filterDiff(diff) {
  * @param {string} [args.outDir] - Data directory.
  * @param {number} args.maxDiffChars - Diff cap.
  * @param {number} args.maxFileChars - File cap.
+ * @param {number} [args.maxFiles] - Changed-file cap.
  * @param {string} [args.expectedHeadSha] - SHA resolved before the fetch.
  * @param {string} [args.expectedBaseSha] - Base SHA resolved before the fetch.
  * @param {typeof fetch} [args.fetchImpl] - Test double.
@@ -379,11 +382,12 @@ async function main() {
     await readFile(new URL('../../review-agent/config.json', import.meta.url), 'utf8'),
   );
   const summary = await fetchPrData({
-    repo: env.GITHUB_REPOSITORY ?? '',
+    repo: env.REVIEW_REPO || env.GITHUB_REPOSITORY || '',
     pr: Number(env.PR_NUMBER),
-    token: env.GITHUB_TOKEN ?? '',
+    token: env.REVIEW_TOKEN || env.GITHUB_TOKEN || '',
     maxDiffChars: Number(config.maxDiffChars),
     maxFileChars: Number(config.maxFileChars),
+    maxFiles: Number(config.maxFiles),
     expectedHeadSha: env.REVIEW_HEAD_SHA ?? '',
     expectedBaseSha: env.REVIEW_BASE_SHA ?? '',
   });

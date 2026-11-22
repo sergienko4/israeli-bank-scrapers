@@ -182,6 +182,31 @@ describe('PR review trigger', () => {
     ).toThrow('not a pull request');
   });
 
+  it('accepts /review approve', () => {
+    const request = parseRequest('issue_comment', {
+      ...REVIEW_EVENT,
+      comment: { ...REVIEW_EVENT.comment, body: '/review approve' },
+    });
+    expect(request).toMatchObject({ pr: 886, command: 'approve' });
+  });
+
+  it('accepts /review approve with a model', () => {
+    const request = parseRequest('issue_comment', {
+      ...REVIEW_EVENT,
+      comment: { ...REVIEW_EVENT.comment, body: '/review approve model=deepseek-v4-pro#high' },
+    });
+    expect(request).toMatchObject({
+      pr: 886,
+      command: 'approve',
+      modelInput: 'deepseek-v4-pro#high',
+    });
+  });
+
+  it('keeps plain /review as a review command', () => {
+    const request = parseRequest('issue_comment', REVIEW_EVENT);
+    expect(request).toMatchObject({ pr: 886, command: 'review' });
+  });
+
   it('ignores a comment that is not exactly /review', () => {
     expect(() =>
       parseRequest('issue_comment', {
@@ -191,9 +216,15 @@ describe('PR review trigger', () => {
     ).toThrow('not a review request');
   });
 
-  it('reads a manual dispatch PR number', () => {
-    const request = parseRequest('workflow_dispatch', { inputs: { pr: '886' } });
-    expect(request).toMatchObject({ pr: 886, source: 'workflow_dispatch' });
+  it('keeps manual dispatch review-only', () => {
+    const request = parseRequest('workflow_dispatch', {
+      inputs: { pr: '886', command: 'approve' },
+    });
+    expect(request).toMatchObject({
+      pr: 886,
+      command: 'review',
+      source: 'workflow_dispatch',
+    });
   });
 });
 
@@ -333,13 +364,17 @@ describe('PR review data consistency', () => {
 });
 
 describe('PR review sensitive data', () => {
-  it.each(['.env', 'nested/.env.local', 'certs/service.pem', 'id_rsa', '.npmrc'])(
-    'marks %s as sensitive',
-    path => {
-      const isSensitive = isSensitivePath(path);
-      expect(isSensitive).toBe(true);
-    },
-  );
+  it.each([
+    '.env',
+    'nested/.env.local',
+    'certs/service.pem',
+    'id_rsa',
+    '.npmrc',
+    '.git-credentials',
+  ])('marks %s as sensitive', path => {
+    const isSensitive = isSensitivePath(path);
+    expect(isSensitive).toBe(true);
+  });
 
   it('marks a renamed file when its previous path was sensitive', () => {
     const file = { filename: 'src/a.ts', previous_filename: '.env' };
@@ -429,9 +464,24 @@ describe('PR review sensitive data', () => {
     `ghp_${'a'.repeat(36)}`,
     `sk-${'b'.repeat(24)}`,
     `sk-proj-${'c'.repeat(24)}`,
+    'https://user:password@example.test/repo.git',
+    'https://user:password@example.test/repo.git',
+    'https://:password@example.test/repo.git',
+    'https://deploy-token@example.test/repo.git',
+    'https://deploy-token:@example.test/repo.git',
+    'HTTPS://user:password@example.test/repo.git',
   ])('detects credential content %s', text => {
     const isCredential = hasCredentialContent(text);
     expect(isCredential).toBe(true);
+  });
+
+  it('does not treat query or fragment text as credentials', () => {
+    const hasQueryCredential = hasCredentialContent('https://example.test?label=a:b@public.test');
+    const hasFragmentCredential = hasCredentialContent(
+      'https://example.test#label=a:b@public.test',
+    );
+    expect(hasQueryCredential).toBe(false);
+    expect(hasFragmentCredential).toBe(false);
   });
 
   it('drops a normal-named file block that contains a credential', () => {
@@ -445,6 +495,24 @@ describe('PR review sensitive data', () => {
     ].join('\n');
     const filtered = filterDiff(diff);
     expect(filtered).not.toContain('AKIA');
+  });
+
+  it.each([
+    'HTTPS://user:password@example.test/repo.git',
+    'https://:password@example.test/repo.git',
+    'https://deploy-token@example.test/repo.git',
+    'https://deploy-token:@example.test/repo.git',
+  ])('drops a file block with a credential URL %s', url => {
+    const diff = [
+      'diff --git a/src/remote.ts b/src/remote.ts',
+      '--- a/src/remote.ts',
+      '+++ b/src/remote.ts',
+      '@@ -1 +1 @@',
+      '-old',
+      `+const remote = "${url}";`,
+    ].join('\n');
+    const filtered = filterDiff(diff);
+    expect(filtered).not.toContain('password');
   });
 
   it('drops a copy whose destination is sensitive', () => {

@@ -7,6 +7,7 @@ export function parseRequest(
   actor: string;
   association: string;
   source: string;
+  command: string;
 };
 
 export function catalogModels(
