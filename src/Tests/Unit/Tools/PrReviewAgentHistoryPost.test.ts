@@ -584,6 +584,45 @@ describe('PR review history at posting', () => {
     expect(posts).toHaveLength(0);
   });
 
+  it('posts a COMMENT review on an unchanged draft pull request', async () => {
+    const posts: string[] = [];
+    /**
+     * Serve an empty history and a draft live pull request.
+     * @param input - Fetch input.
+     * @param init - Fetch options.
+     * @returns Fake response.
+     */
+    const fetchImpl: typeof fetch = (input, init) => {
+      const url = urlOf(input);
+      const method = init?.method ?? 'GET';
+      if (url.includes('/reviews?') && method === 'GET') return responseTo([]);
+      if (url.endsWith('/pulls/886') && method === 'GET') {
+        return responseTo({ state: 'open', draft: true, head: { sha: 'head' } });
+      }
+      if (url.endsWith('/reviews') && method === 'POST') {
+        posts.push(url);
+        return responseTo({ id: 73, html_url: 'https://example.test/review' });
+      }
+      return responseTo([]);
+    };
+    const posted = await postReview({
+      repo: 'sergienko4/repo',
+      pr: 886,
+      token: 'token',
+      headSha: 'head',
+      summary: 'ok',
+      inline: [],
+      overflow: [],
+      event: 'COMMENT',
+      appLogin: 'review-agent[bot]',
+      commentId: '99',
+      recheckHead: true,
+      fetchImpl,
+    });
+    expect(posted).toMatchObject({ id: 73 });
+    expect(posts).toHaveLength(1);
+  });
+
   it('bounds the review body and posts omitted blockers as comments', async () => {
     const { reviewBodies, comments, runReview } = createBoundedReviewFixture();
     const posted = await runReview();

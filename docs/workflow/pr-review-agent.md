@@ -5,56 +5,49 @@
 > reviews the diff, the changed files and the repository rules; it never
 > executes pull-request code.
 
-The agent is an OpenCode session with a read-only reviewer profile and six
-review skills. Its output is one severity-ranked `COMMENT` review with a
-summary and, where a finding maps to an added line, an inline comment.
+The reviewer is an OpenCode session with a read-only reviewer profile, six
+review skills and a per-repository overlay. The App submits a normal review:
+`COMMENT`, `REQUEST_CHANGES` or `APPROVE`. It does not change repository
+settings.
 
 ## Request a review
 
-The workflow has two entry points:
+| Command                              | Result                                                              |
+| ------------------------------------ | ------------------------------------------------------------------- |
+| `/review`                            | `COMMENT` for clean/suggestions, `REQUEST_CHANGES` for blocking     |
+| `/review model=deepseek-v4-pro#high` | Same, with a chosen DeepSeek model                                  |
+| `/review approve`                    | Fresh full review; `APPROVE` only when the review is clean/complete |
+| `/review approve model=...`          | Same, with a chosen model                                           |
 
-- **PR comment** — a maintainer comments `/review` on the pull request.
-  `/review model=deepseek-v4-pro` selects the alternate model.
-- **Manual dispatch** — run **On-demand PR review** from the Actions tab with a
-  PR number and an optional model.
+A maintainer with write/admin permission can ask. The PR author may ask by
+default because the App is the approving identity. In App mode, a model or API
+failure posts nothing on the PR; the legacy fallback posts a failure notice so
+maintainers can see why the review did not run.
 
-Automatic `pull_request` reviews are deliberately not enabled. The comment
-path is gated to `OWNER`, `MEMBER` and `COLLABORATOR`, re-checks the actor's
-repository permission through the API, and accepts same-repository PRs only.
-
-## Models
-
-Only DeepSeek models on OpenCode Go are allowed. The workflow discovers the
-current catalog from `https://opencode.ai/inference/go/v1/models` and keeps
-every model whose ID starts with `deepseek`. It reads each model's supported
-reasoning efforts from the catalog, so a new DeepSeek release works without
-editing the repository:
+## Architecture
 
 ```text
-/review model=deepseek-v5-flash
-/review model=deepseek-v5-flash#max
-/review model=deepseek-v4-pro#high
+PR comment
+  -> GitHub App webhook
+  -> Cloudflare Worker (verify, dedupe, dispatch)
+  -> private review-runner workflow (OIDC token exchange)
+  -> target base checkout + PR diff fetch
+  -> OpenCode reviewer
+  -> COMMENT / REQUEST_CHANGES / APPROVE
+  -> informational check run
 ```
 
-With no selector, the workflow picks the newest DeepSeek release and its
-preferred effort (`high`, then `max`, then `low`). A pinned fallback list in
-[`.github/review-agent/config.json`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/.github/review-agent/config.json)
-keeps reviews working if the catalog is unreachable. The agent file does not
-pin a model.
+The Worker and runner live in the private `sergienko4/review-runner` repository.
+The runner never receives the App private key. The target token is scoped to one
+repository and expires with the job.
 
-## Setup
-
-Add these repository settings once:
-
-| Kind     | Name                      | Value                                                                   |
-| -------- | ------------------------- | ----------------------------------------------------------------------- |
-| Secret   | `OPENCODE_API_KEY`        | OpenCode Go API key; no GitHub App setup                                |
-| Secret   | `REVIEW_GUIDELINES_TOKEN` | Fine-grained PAT, Contents: Read-only on `sergienko4/review-guidelines` |
-| Variable | `REVIEW_GUIDELINES_REPO`  | `sergienko4/review-guidelines`                                          |
-
-`GITHUB_TOKEN` is built in; the workflow grants it `contents: read` and
-`pull-requests: write` and posts as `github-actions[bot]`. No service account or
-OpenCode GitHub App is needed.
+The legacy `.github/workflows/pr-review-agent.yml` in this repository remains a
+fallback until cutover. It uses the same scripts with `GITHUB_TOKEN` and is
+same-repository only. It accepts plain `/review` and `/review model=...` from a
+PR comment, or a manual **On-demand PR review** dispatch with a PR number;
+`/review approve` requires the App runner. The fallback sets
+`REVIEW_RECHECK_HEAD=true`, so it refuses to post when the head moved during the
+model run; approvals additionally require an unchanged, non-draft PR.
 
 ## What the agent reviews
 
@@ -65,59 +58,67 @@ OpenCode GitHub App is needed.
 | `pr-review-architecture` | Boundaries, contracts, compatibility and rollout                   |
 | `pr-review-security`     | STRIDE threat model, secrets, auth, input, PII and CI supply chain |
 | `pr-review-quality`      | Observability, performance, readability and comments               |
-| `pr-review-orchestrator` | Order, severity rubric, caps and the JSON contract                 |
+| `pr-review-orchestrator` | Order, severity rubric, output contract and stop rule              |
 
 The private `sergienko4/review-guidelines` repository supplies the guideline
-text and a `manifest.json` that maps each file to a skill. The workflow checks
-it out read-only beside the base branch. The PR working tree is never checked
-out, and the agent gets no shell, edit, web or subagent tools. Credential-shaped
-files (`.env*`, private keys, certificates, `.npmrc`, `.netrc`) and content
-matching known credential formats (private-key blocks, cloud, GitHub, Slack and
-API tokens) are excluded from changed-file copies, diff hunks and PR metadata
-before the reviewer reads them.
-Changed files are stored under neutral names mapped by `metadata.files[].dataFile`,
-so a PR-supplied `AGENTS.md` cannot become reviewer instructions.
+text and a `manifest.json` that maps each file to a skill. The runner checks it
+out read-only. The PR working tree is never checked out, and the agent has no
+shell, edit, web or subagent tools.
 
-## Output
+Credential-shaped files (`.env*`, private keys, certificates, `.npmrc`,
+`.netrc`, `.git-credentials`) and content matching the supported credential
+patterns are excluded from the changed-file copies, diff hunks and PR metadata
+before the reviewer reads them. Changed files are stored under neutral names
+mapped by `metadata.files[].dataFile`.
 
-The agent returns one JSON object:
+This is a pattern filter, not a full secret scanner. An ordinary source file
+with a password assignment or an unsupported token format can still reach the
+reviewer. Do not rely on this filter as the only protection for secrets.
 
-```json
-{
-  "summary": "Markdown summary",
-  "guidelines_read": ["review-guidelines/pr-review-guidelines.md"],
-  "findings": [
-    {
-      "severity": "important",
-      "path": "src/example.ts",
-      "line": 42,
-      "title": "Keep the retry inside the timeout",
-      "body": "The retry can outlive the request deadline. Reuse the deadline.",
-      "rule": "pr-review-guidelines §11"
-    }
-  ]
-}
-```
+## Approval and existing policy
 
-The posting step keeps the highest-signal findings inline, up to 10, and moves
-the rest into the summary. The review event is always `COMMENT`; the agent
-never approves and never requests changes. Every summary states that no tests,
-builds or pull-request code were executed.
+The App submits `APPROVE` only after a fresh full review of the current head
+with:
+
+- no `critical` or `important` findings;
+- a complete review (no truncated diff, skipped/sensitive file or file-cap hit);
+- no earlier App `REQUEST_CHANGES` on the same head SHA (a human block is
+  governed by the repository's own policy);
+- a live head that still matches the reviewed SHA.
+
+The existing repository ruleset and branch protection are unchanged. The App
+cannot satisfy a code-owner review; a human code owner may still be required. If
+GitHub does not count the App approval, it is advisory. No bypass is added.
+
+## Setup
+
+The full setup and runbook are in the runner repository. Maintainers with
+access can read its `README.md` and `docs/runbook.md`.
+
+Manual gates:
+
+1. Create the `Review Agent` GitHub App and install it on selected repos.
+2. Create the Cloudflare KV namespace and deploy the Worker.
+3. Create the dispatch PAT and Worker secrets.
+4. Add the runner secrets/variables and deploy the workflow.
+
+The runner repo is private. GitHub Free blocks rulesets on private repos, so
+`main` is unprotected until the repo is public or the account is Pro.
 
 ## Security model
 
-| Risk                                | Control                                                                      |
-| ----------------------------------- | ---------------------------------------------------------------------------- |
-| Prompt injection in PR text or code | PR content is data; no shell/edit/web tools; schema-validated output         |
-| Secret exfiltration                 | No PR code execution; keys stay in workflow env; logs masked                 |
-| PR edits the reviewer or workflow   | Base branch is the working tree; PR content only under `.review/pr/`         |
-| Comment-trigger abuse               | PR-only, exact `/review`, association allow-list, API permission re-check    |
-| Cost or runaway run                 | Per-PR concurrency, 20-minute timeout, diff and comment caps, 30 model steps |
-| Token scope                         | `contents: read`, `pull-requests: write`; no `id-token`                      |
-| Guidelines repo compromise          | Fine-grained read-only token for that one repository                         |
+| Risk                                | Control                                                                       |
+| ----------------------------------- | ----------------------------------------------------------------------------- |
+| Prompt injection in PR text or code | PR content is data; no shell/edit/web tools; schema-validated output          |
+| Secret exfiltration                 | No PR code execution; credential files/content withheld; keys stay in secrets |
+| PR edits the reviewer or workflow   | Runner and guidelines are checked out separately; PR content is data only     |
+| Comment-trigger abuse               | PR-only, exact command, association allow-list, API permission re-check       |
+| Webhook spoofing/replay             | HMAC, 10-minute age guard, signed comment ID dedupe                           |
+| Token scope                         | Target-scoped installation token; App key only in the Worker                  |
+| Cost or runaway run                 | Per-PR concurrency, 20-minute timeout, diff/comment caps, 30 model steps      |
 
-Fork PRs are out of scope for the first version. A fork trigger would need a
-separate no-secret workflow and its own threat model.
+Fork reviews are disabled in this version. The repository's `no-fork-prs.yml`
+policy stays in place.
 
 ## Local run
 
@@ -130,21 +131,31 @@ opencode run --agent pr-reviewer \
   "Review .review/pr and return the review JSON."
 ```
 
-Local runs are read-only and use the same skills. They are useful for
-troubleshooting the prompt; they are not a substitute for the workflow's
-permission checks.
+Local runs are read-only and use the same skills. They are not a substitute for
+the workflow's permission checks.
 
 ## Troubleshooting
 
 | Symptom                       | Check                                                                  |
 | ----------------------------- | ---------------------------------------------------------------------- |
-| No review comment             | The actor must be a maintainer and the PR must be same-repo and open   |
+| No review comment             | The App is installed; the PR is open; the actor is a maintainer        |
 | `model not allowed`           | Use a model and variant from `.github/review-agent/config.json`        |
 | `guidelines manifest missing` | The private checkout or `REVIEW_GUIDELINES_TOKEN` is misconfigured     |
 | Review is summary-only        | The model response was invalid, or findings did not map to added lines |
-| Review did not run            | Automatic reviews are off by design; use `/review` or dispatch         |
+| Check run is stuck            | The finish step recovers and completes the run; rerun if still stuck   |
+| Review did not run            | Check the Worker delivery and the runner Actions run                   |
 
 ## Disable
 
-Remove or disable the workflow entry point. The agent and skills are inert
-without a caller, and the configuration file has no runtime effect on its own.
+1. Disable `.github/workflows/pr-review-agent.yml` in this repository. The
+   legacy workflow accepts `/review` comments independently, so uninstalling
+   the App or disabling the Worker does not stop reviews while it is active.
+2. Uninstall the App or disable the Worker route. The runner and skills are
+   inert without a caller.
+
+The legacy workflow is the rollback path only when a maintainer explicitly
+re-enables it. Do not re-enable it while the App is installed, or one `/review`
+comment can produce two reviews. Re-enabling it also requires the target
+repository's `OPENCODE_API_KEY` and `REVIEW_GUIDELINES_TOKEN` secrets and the
+`REVIEW_GUIDELINES_REPO` variable; configuring only the runner secrets is not
+enough.
