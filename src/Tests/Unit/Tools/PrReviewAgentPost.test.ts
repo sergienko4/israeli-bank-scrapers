@@ -14,6 +14,7 @@ import {
   markCreated,
   parseAddedLines,
   parseReview,
+  postFailure,
   postReview,
   validateReview,
 } from '../../../../.github/scripts/pr-review/post-review.mjs';
@@ -118,6 +119,437 @@ describe('PR review extraction and posting', () => {
     });
   });
 
+  it('builds a REQUEST_CHANGES review when findings are blocking', () => {
+    const payload = buildReview({
+      headSha: 'head',
+      summary: 'blocking',
+      inline: [],
+      overflow: [],
+      event: 'REQUEST_CHANGES',
+    });
+    expect(payload.event).toBe('REQUEST_CHANGES');
+  });
+
+  it('builds an APPROVE review only when explicitly requested', () => {
+    const payload = buildReview({
+      headSha: 'head',
+      summary: 'clean',
+      inline: [],
+      overflow: [],
+      event: 'APPROVE',
+    });
+    expect(payload.event).toBe('APPROVE');
+  });
+
+  it('rejects an unknown review event', () => {
+    expect(() =>
+      buildReview({
+        headSha: 'head',
+        summary: 'clean',
+        inline: [],
+        overflow: [],
+        event: 'MERGE',
+      }),
+    ).toThrow('invalid review event');
+  });
+
+  it('dismisses the App earlier REQUEST_CHANGES before a COMMENT', async () => {
+    const calls: { url: string; method: string; body: string }[] = [];
+    /**
+     * Serve a GET route.
+     * @param url - Request URL.
+     * @returns Fake response.
+     */
+    const getResponse = (url: string): Promise<Response> => {
+      if (url.includes('/reviews?')) {
+        return responseTo([
+          {
+            id: 7,
+            state: 'CHANGES_REQUESTED',
+            user: { login: 'review-agent[bot]' },
+            body: '<!-- opencode-review-agent event=REQUEST_CHANGES comment=old -->',
+            submitted_at: '2026-01-01T00:00:00Z',
+          },
+        ]);
+      }
+      if (url.includes('/dismissals')) return responseTo({});
+      if (url.endsWith('/pulls/886')) {
+        return responseTo({ state: 'open', head: { sha: 'head' } });
+      }
+      return responseTo([]);
+    };
+    /**
+     * Serve a POST route.
+     * @param url - Request URL.
+     * @returns Fake response.
+     */
+    const postResponse = (url: string): Promise<Response> => {
+      if (url.endsWith('/reviews')) {
+        return responseTo({ id: 8, html_url: 'https://example.test/review' });
+      }
+      return responseTo([]);
+    };
+    /**
+     * Record calls and route the request.
+     * @param input - Fetch input.
+     * @param init - Fetch options.
+     * @returns Fake response.
+     */
+    const fetchImpl: typeof fetch = (input, init) => {
+      const url = urlOf(input);
+      const method = init?.method ?? 'GET';
+      const rawBody = init?.body;
+      const body = typeof rawBody === 'string' ? rawBody : '';
+      calls.push({ url, method, body });
+      return method === 'POST' ? postResponse(url) : getResponse(url);
+    };
+    await postReview({
+      repo: 'sergienko4/repo',
+      pr: 886,
+      token: 'token',
+      headSha: 'head',
+      summary: 'ok',
+      inline: [],
+      overflow: [],
+      event: 'COMMENT',
+      appLogin: 'review-agent[bot]',
+      commentId: '99',
+      dismissBlocking: true,
+      fetchImpl,
+    });
+    const dismissal = calls.find(call => call.url.includes('/reviews/7/dismissals'));
+    const hasGraphqlCall = calls.some(call => call.url.endsWith('/graphql'));
+    expect(dismissal).toMatchObject({ method: 'PUT' });
+    expect(dismissal?.body).toContain('Superseded by a newer review');
+    expect(hasGraphqlCall).toBe(false);
+  });
+
+  it('relies on the latest review instead of dismissing on REQUEST_CHANGES', async () => {
+    const dismissals: string[] = [];
+    /**
+     * Serve one earlier approval and capture any dismissal.
+     * @param input - Fetch input.
+     * @param init - Fetch options.
+     * @returns Fake response.
+     */
+    const fetchImpl: typeof fetch = (input, init) => {
+      const url = urlOf(input);
+      const method = init?.method ?? 'GET';
+      if (url.includes('/reviews?') && method === 'GET') {
+        return responseTo([
+          {
+            id: 9,
+            state: 'APPROVED',
+            user: { login: 'review-agent[bot]' },
+            body: '<!-- opencode-review-agent event=APPROVE comment=old -->',
+            submitted_at: '2026-01-01T00:00:00Z',
+          },
+        ]);
+      }
+      if (url.includes('/dismissals')) {
+        dismissals.push(url);
+        return responseTo({});
+      }
+      if (url.endsWith('/reviews') && method === 'POST') {
+        return responseTo({ id: 10, html_url: 'https://example.test/review' });
+      }
+      return responseTo([]);
+    };
+    await postReview({
+      repo: 'sergienko4/repo',
+      pr: 886,
+      token: 'token',
+      headSha: 'head',
+      summary: 'blocking',
+      inline: [],
+      overflow: [],
+      event: 'REQUEST_CHANGES',
+      appLogin: 'review-agent[bot]',
+      commentId: '99',
+      fetchImpl,
+    });
+    expect(dismissals).toEqual([]);
+  });
+
+  it('keeps minimizing for the legacy github-actions identity', async () => {
+    const calls: string[] = [];
+    /**
+     * Serve one earlier legacy review and capture the GraphQL call.
+     * @param input - Fetch input.
+     * @param init - Fetch options.
+     * @returns Fake response.
+     */
+    const fetchImpl: typeof fetch = (input, init) => {
+      const url = urlOf(input);
+      calls.push(url);
+      if (url.includes('/reviews?') && (init?.method ?? 'GET') === 'GET') {
+        return responseTo([
+          {
+            id: 11,
+            node_id: 'review-node',
+            state: 'COMMENTED',
+            user: { login: 'github-actions[bot]' },
+            body: '<!-- opencode-review-agent -->',
+            submitted_at: '2026-01-01T00:00:00Z',
+          },
+        ]);
+      }
+      if (url.endsWith('/graphql')) return responseTo({ data: {} });
+      if (url.endsWith('/reviews') && init?.method === 'POST') {
+        return responseTo({ id: 12, html_url: 'https://example.test/review' });
+      }
+      return responseTo([]);
+    };
+    await postReview({
+      repo: 'sergienko4/repo',
+      pr: 886,
+      token: 'token',
+      headSha: 'head',
+      summary: 'ok',
+      inline: [],
+      overflow: [],
+      event: 'COMMENT',
+      fetchImpl,
+    });
+    const hasGraphqlCall = calls.some(url => url.endsWith('/graphql'));
+    const hasDismissalCall = calls.some(url => url.includes('/dismissals'));
+    expect(hasGraphqlCall).toBe(true);
+    expect(hasDismissalCall).toBe(false);
+  });
+
+  it('does not post a second review for the same trigger comment', async () => {
+    const posts: string[] = [];
+    /**
+     * Serve an existing review with the same trigger comment and capture posts.
+     * @param input - Fetch input.
+     * @param init - Fetch options.
+     * @returns Fake response.
+     */
+    const fetchImpl: typeof fetch = (input, init) => {
+      const url = urlOf(input);
+      if (url.includes('/reviews?') && (init?.method ?? 'GET') === 'GET') {
+        return responseTo([
+          {
+            id: 30,
+            commit_id: 'head',
+            user: { login: 'review-agent[bot]' },
+            body: '<!-- opencode-review-agent event=COMMENT comment=99 -->',
+            submitted_at: '2026-01-01T00:00:00Z',
+          },
+        ]);
+      }
+      if (url.endsWith('/reviews') && init?.method === 'POST') {
+        posts.push(url);
+        return responseTo({ id: 31, html_url: 'https://example.test/review' });
+      }
+      return responseTo([]);
+    };
+    const posted = await postReview({
+      repo: 'sergienko4/repo',
+      pr: 886,
+      token: 'token',
+      headSha: 'head',
+      summary: 'ok',
+      inline: [],
+      overflow: [],
+      event: 'COMMENT',
+      appLogin: 'review-agent[bot]',
+      commentId: '99',
+      fetchImpl,
+    });
+    expect(posted).toMatchObject({ id: 30 });
+    expect(posts).toHaveLength(0);
+  });
+
+  it('refuses to post when the live head changed', async () => {
+    const posts: string[] = [];
+    /**
+     * Serve the review list, the changed live head and capture any post.
+     * @param input - Fetch input.
+     * @param init - Fetch options.
+     * @returns Fake response.
+     */
+    const fetchImpl: typeof fetch = (input, init) => {
+      const url = urlOf(input);
+      const method = init?.method ?? 'GET';
+      const isReviewList = url.includes('/reviews?') && method === 'GET';
+      const isPullRequest = url.endsWith('/pulls/886') && method === 'GET';
+      if (isReviewList) return responseTo([]);
+      if (isPullRequest) return responseTo({ state: 'open', head: { sha: 'new-head' } });
+      if (url.endsWith('/reviews') && init?.method === 'POST') {
+        posts.push(url);
+        return responseTo({ id: 32, html_url: 'https://example.test/review' });
+      }
+      return responseTo([]);
+    };
+    const pending = postReview({
+      repo: 'sergienko4/repo',
+      pr: 886,
+      token: 'token',
+      headSha: 'old-head',
+      summary: 'ok',
+      inline: [],
+      overflow: [],
+      event: 'APPROVE',
+      appLogin: 'review-agent[bot]',
+      commentId: '99',
+      recheckHead: true,
+      fetchImpl,
+    });
+    await expect(pending).rejects.toThrow('pull request changed before posting');
+    expect(posts).toHaveLength(0);
+  });
+
+  it('forces a failure review to COMMENT when the caller asks to approve', async () => {
+    const bodies: Record<string, unknown>[] = [];
+    /**
+     * Serve no earlier reviews and capture the failure post.
+     * @param input - Fetch input.
+     * @param init - Fetch options.
+     * @returns Fake response.
+     */
+    const fetchImpl: typeof fetch = (input, init) => {
+      const url = urlOf(input);
+      if (url.includes('/reviews?') && (init?.method ?? 'GET') === 'GET') {
+        return responseTo([]);
+      }
+      if (url.endsWith('/reviews') && init?.method === 'POST') {
+        const rawBody = init.body;
+        const text = typeof rawBody === 'string' ? rawBody : '';
+        const payload = JSON.parse(text) as Record<string, unknown>;
+        bodies.push(payload);
+        return responseTo({ id: 50, html_url: 'https://example.test/review' });
+      }
+      return responseTo([]);
+    };
+    await postFailure({
+      repo: 'sergienko4/repo',
+      pr: 886,
+      token: 'token',
+      headSha: 'head',
+      message: 'The review run did not finish.',
+      event: 'APPROVE',
+      appLogin: 'review-agent[bot]',
+      fetchImpl,
+    });
+    expect(bodies).toHaveLength(1);
+    expect(bodies[0]?.event).toBe('COMMENT');
+    const bodyValue = bodies[0]?.body;
+    const body = typeof bodyValue === 'string' ? bodyValue : '';
+    expect(body).toContain('Review failed');
+  });
+
+  it('posts even when the review history is unavailable', async () => {
+    const posts: string[] = [];
+    /**
+     * Fail the history read and accept the new review.
+     * @param input - Fetch input.
+     * @param init - Fetch options.
+     * @returns Fake response.
+     */
+    const fetchImpl: typeof fetch = (input, init) => {
+      const url = urlOf(input);
+      const method = init?.method ?? 'GET';
+      if (url.includes('/reviews?') && method === 'GET') {
+        return Promise.resolve(new Response('', { status: 500 }));
+      }
+      if (url.endsWith('/reviews') && method === 'POST') {
+        posts.push(url);
+        return responseTo({ id: 60, html_url: 'https://example.test/review' });
+      }
+      return responseTo([]);
+    };
+    const posted = await postReview({
+      repo: 'sergienko4/repo',
+      pr: 886,
+      token: 'token',
+      headSha: 'head',
+      summary: 'ok',
+      inline: [],
+      overflow: [],
+      event: 'COMMENT',
+      appLogin: 'review-agent[bot]',
+      commentId: '99',
+      fetchImpl,
+    });
+    expect(posted).toMatchObject({ id: 60 });
+    expect(posts).toHaveLength(1);
+  });
+
+  it('refuses an approval when the review history is unavailable', async () => {
+    const posts: string[] = [];
+    /**
+     * Fail the history read and capture any review post.
+     * @param input - Fetch input.
+     * @param init - Fetch options.
+     * @returns Fake response.
+     */
+    const fetchImpl: typeof fetch = (input, init) => {
+      const url = urlOf(input);
+      const method = init?.method ?? 'GET';
+      if (url.includes('/reviews?') && method === 'GET') {
+        return Promise.resolve(new Response('', { status: 500 }));
+      }
+      if (url.endsWith('/reviews') && method === 'POST') {
+        posts.push(url);
+        return responseTo({ id: 61, html_url: 'https://example.test/review' });
+      }
+      return responseTo([]);
+    };
+    const pending = postReview({
+      repo: 'sergienko4/repo',
+      pr: 886,
+      token: 'token',
+      headSha: 'head',
+      summary: 'ok',
+      inline: [],
+      overflow: [],
+      event: 'APPROVE',
+      appLogin: 'review-agent[bot]',
+      commentId: '99',
+      fetchImpl,
+    });
+    await expect(pending).rejects.toThrow('GitHub reviews answered 500');
+    expect(posts).toHaveLength(0);
+  });
+
+  it('posts a comment when the review-history request rejects', async () => {
+    const posts: string[] = [];
+    /**
+     * Reject the history read and accept the new comment.
+     * @param input - Fetch input.
+     * @param init - Fetch options.
+     * @returns Fake response.
+     */
+    const fetchImpl: typeof fetch = (input, init) => {
+      const url = urlOf(input);
+      const method = init?.method ?? 'GET';
+      if (url.includes('/reviews?') && method === 'GET') {
+        return Promise.reject(new Error('network down'));
+      }
+      if (url.endsWith('/reviews') && method === 'POST') {
+        posts.push(url);
+        return responseTo({ id: 62, html_url: 'https://example.test/review' });
+      }
+      return responseTo([]);
+    };
+    const posted = await postReview({
+      repo: 'sergienko4/repo',
+      pr: 886,
+      token: 'token',
+      headSha: 'head',
+      summary: 'ok',
+      inline: [],
+      overflow: [],
+      event: 'COMMENT',
+      appLogin: 'review-agent[bot]',
+      commentId: '99',
+      fetchImpl,
+    });
+    expect(posted).toMatchObject({ id: 62 });
+    expect(posts).toHaveLength(1);
+  });
+
   it('posts the review exactly once', async () => {
     const bodies: Record<string, unknown>[] = [];
     /**
@@ -197,9 +629,16 @@ describe('PR review extraction and posting', () => {
 
 describe('PR review schema and sanitization', () => {
   it('strips a JSON fence and validates findings', () => {
-    const parsed = parseReview('```json\n{"summary":"ok","guidelines_read":[],"findings":[]}\n```');
+    const parsed = parseReview(
+      '```json\n{"summary":"ok","guidelines_read":[],"findings":[],"complete":true}\n```',
+    );
     const review = validateReview(parsed, 10);
-    expect(review).toEqual({ summary: 'ok', guidelines_read: [], findings: [] });
+    expect(review).toEqual({
+      summary: 'ok',
+      guidelines_read: [],
+      findings: [],
+      complete: true,
+    });
   });
 
   it.each([

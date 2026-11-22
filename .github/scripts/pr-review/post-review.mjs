@@ -1,5 +1,6 @@
 import { appendFile, readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
+import { listReviews } from './review-history.mjs';
 import {
   githubGraphql,
   githubRequest,
@@ -24,11 +25,17 @@ const MAX_SUMMARY_CHARS = 20000;
 /** Maximum title characters accepted from the model. */
 const MAX_TITLE_CHARS = 80;
 
-/** Review event used for every post. */
-const REVIEW_EVENT = 'COMMENT';
+/** Default review event when the caller does not choose one. */
+const DEFAULT_REVIEW_EVENT = 'COMMENT';
 
-/** Marker that identifies this agent's review. */
-const MARKER = '<!-- opencode-review-agent -->';
+/** Review events the posting script may submit. */
+const REVIEW_EVENTS = new Set(['COMMENT', 'APPROVE', 'REQUEST_CHANGES']);
+
+/** Legacy workflow identity that uses minimization instead of dismissal. */
+const LEGACY_APP_LOGIN = 'github-actions[bot]';
+
+/** Prefix that identifies this agent's review. */
+const MARKER = '<!-- opencode-review-agent';
 
 /** Invalid model output. */
 class ReviewFormatError extends Error {
@@ -74,9 +81,11 @@ export function parseReview(text) {
  * Validate and normalize the model review.
  * @param {Record<string, unknown>} value - Parsed review.
  * @param {number} maxFindings - Finding cap.
- * @returns {{ summary: string, guidelines_read: string[], findings: Array<Record<string, unknown>> }} Review.
+ * @param {Map<string, Set<number>>} [added] - Added lines by path; when given,
+ *   every finding must anchor before the cap is applied.
+ * @returns {{ summary: string, guidelines_read: string[], findings: Array<Record<string, unknown>>, complete: boolean }} Review.
  */
-export function validateReview(value, maxFindings) {
+export function validateReview(value, maxFindings, added) {
   const summary = String(value.summary ?? '');
   if (summary.length === 0 || summary.length > MAX_SUMMARY_CHARS) {
     throw new ReviewFormatError('summary length');
@@ -85,11 +94,17 @@ export function validateReview(value, maxFindings) {
     ? value.guidelines_read.filter(item => typeof item === 'string').slice(0, 100)
     : [];
   if (!Array.isArray(value.findings)) throw new ReviewFormatError('findings is not an array');
-  const findings = value.findings
-    .map(validateFinding)
+  const validated = value.findings.map(validateFinding);
+  if (added !== undefined) {
+    const hasOffDiffFinding = validated.some(
+      finding => added.get(String(finding.path))?.has(Number(finding.line)) !== true,
+    );
+    if (hasOffDiffFinding) throw new ReviewFormatError('finding outside the reviewed diff');
+  }
+  const findings = validated
     .sort((left, right) => severityRank(left) - severityRank(right))
     .slice(0, maxFindings);
-  return { summary, guidelines_read: guidelines, findings };
+  return { summary, guidelines_read: guidelines, findings, complete: value.complete === true };
 }
 
 /**
@@ -255,7 +270,8 @@ function commentBody(finding) {
 function summaryBody(args) {
   const overflow = overflowBlock(args.overflow);
   const extra = overflow.length > 0 ? `\n\n### Findings not attached inline\n\n${overflow}\n` : '';
-  return `${MARKER}\n\n${sanitizeText(args.summary)}${extra}`;
+  const marker = `${MARKER} event=${args.event ?? 'COMMENT'} comment=${args.commentId ?? ''} -->`;
+  return `${marker}\n\n${sanitizeText(args.summary)}${extra}`;
 }
 
 /**
@@ -279,35 +295,54 @@ function overflowBlock(findings) {
 }
 
 /**
- * Minimize an earlier review from this agent, if one exists.
- * @param {object} args - Request arguments.
- * @returns {Promise<void>} Resolves when done.
+ * Whether one review belongs to this agent.
+ * @param {Record<string, unknown>} review - Review.
+ * @param {string} appLogin - Agent login.
+ * @returns {boolean} True when the review is ours.
  */
-async function latestEarlier(args) {
-  const reviews = [];
-  for (let page = 1; page <= 5; page += 1) {
-    const response = await githubRequest({
-      token: args.token,
-      path: `/repos/${args.repo}/pulls/${args.pr}/reviews?per_page=100&page=${page}`,
-      fetchImpl: args.fetchImpl,
-    });
-    if (!response.ok) break;
-    const batch = /** @type {Array<Record<string, unknown>>} */ (await readResponseJson(response));
-    reviews.push(...batch);
-    if (batch.length < 100) break;
-  }
-  const earlier = reviews
-    .filter(
-      review =>
-        String((review.user ?? {}).login ?? '') === 'github-actions[bot]' &&
-        String(review.body ?? '').includes(MARKER),
-    )
+function isAppReview(review, appLogin) {
+  return (
+    String((review.user ?? {}).login ?? '') === appLogin &&
+    String(review.body ?? '').includes(MARKER)
+  );
+}
+
+/**
+ * Read the exact trigger comment ID from a review marker.
+ * @param {Record<string, unknown>} review - Review.
+ * @returns {string} Comment ID, or ''.
+ */
+function reviewCommentId(review) {
+  const firstLine = String(review.body ?? '').split('\n', 1)[0];
+  const match = /comment=([^ ]*) -->$/u.exec(firstLine);
+  return match?.[1] ?? '';
+}
+
+/**
+ * Read the exact review event from a review marker.
+ * @param {Record<string, unknown>} review - Review.
+ * @returns {string} Event name, or ''.
+ */
+export function reviewEvent(review) {
+  const firstLine = String(review.body ?? '').split('\n', 1)[0];
+  const match = /event=([A-Z_]+)/u.exec(firstLine);
+  return match?.[1] ?? '';
+}
+
+/**
+ * Pick the latest earlier review from this agent.
+ * @param {Array<Record<string, unknown>>} reviews - Pull request reviews.
+ * @param {string} appLogin - Agent login.
+ * @returns {Record<string, unknown> | undefined} Latest earlier review.
+ */
+function latestEarlier(reviews, appLogin) {
+  return reviews
+    .filter(review => isAppReview(review, appLogin))
     .sort(
       (left, right) =>
         Date.parse(String(left.submitted_at ?? '')) - Date.parse(String(right.submitted_at ?? '')),
     )
     .at(-1);
-  return earlier;
 }
 
 /**
@@ -329,19 +364,93 @@ async function minimizeReview(args, review) {
 }
 
 /**
- * Post one COMMENT review.
+ * Dismiss one earlier review so its state cannot block the new review.
+ * @param {object} args - Request arguments.
+ * @param {Record<string, unknown>} review - Earlier review.
+ * @returns {Promise<void>} Resolves when dismissed.
+ */
+async function dismissReview(args, review) {
+  const id = Number(review.id);
+  if (!Number.isInteger(id) || id <= 0) return;
+  const response = await githubRequest({
+    token: args.token,
+    path: `/repos/${args.repo}/pulls/${args.pr}/reviews/${id}/dismissals`,
+    method: 'PUT',
+    body: { message: 'Superseded by a newer review from the review agent.' },
+    fetchImpl: args.fetchImpl,
+  });
+  if (!response.ok) throw new Error(`GitHub review dismissal answered ${response.status}`);
+}
+
+/**
+ * Dismiss earlier blocking reviews after a clean COMMENT.
+ * The marker records the event even after GitHub erases the review state.
+ * @param {object} args - Request arguments.
+ * @param {Array<Record<string, unknown>>} reviews - Pull request reviews.
+ * @param {number} newReviewId - Review just posted.
+ * @param {number} [beforeId] - Only dismiss reviews older than this ID.
+ * @returns {Promise<void>} Resolves when all earlier blocks are dismissed.
+ */
+async function dismissEarlierBlocks(
+  args,
+  reviews,
+  newReviewId,
+  beforeId = Number.POSITIVE_INFINITY,
+) {
+  const appLogin = args.appLogin ?? LEGACY_APP_LOGIN;
+  if (appLogin === LEGACY_APP_LOGIN) return;
+  const conflicts = reviews.filter(
+    review =>
+      isAppReview(review, appLogin) &&
+      Number(review.id) !== newReviewId &&
+      Number(review.id) < beforeId &&
+      String(review.state ?? '') === 'CHANGES_REQUESTED' &&
+      reviewEvent(review) === 'REQUEST_CHANGES',
+  );
+  for (const review of conflicts) await dismissReview(args, review);
+}
+
+/**
+ * Read whether the live PR is still open at the reviewed head.
+ * @param {object} args - Request arguments.
+ * @returns {Promise<boolean>} True when the head is still current.
+ */
+async function liveHeadMatches(args) {
+  const response = await githubRequest({
+    token: args.token,
+    path: `/repos/${args.repo}/pulls/${args.pr}`,
+    fetchImpl: args.fetchImpl,
+  });
+  const pr = /** @type {Record<string, unknown>} */ (await readResponseJson(response));
+  const head = /** @type {Record<string, unknown>} */ (pr.head ?? {});
+  return pr.state === 'open' && String(head.sha ?? '') === args.headSha;
+}
+
+/**
+ * Refuse to post when the live PR no longer matches the reviewed snapshot.
+ * @param {object} args - Request arguments.
+ * @returns {Promise<void>} Resolves when the head still matches.
+ */
+async function assertLiveHead(args) {
+  if (!(await liveHeadMatches(args))) {
+    throw new Error('pull request changed before posting');
+  }
+}
+
+/**
+ * Build one review payload.
  * @param {object} args - Review arguments.
- * @param {string} args.repo - `owner/name`.
- * @param {number} args.pr - Pull request number.
- * @param {string} args.token - GitHub token.
  * @param {string} args.headSha - Head commit.
  * @param {string} args.summary - Model summary.
  * @param {Array<Record<string, unknown>>} args.inline - Inline findings.
  * @param {Array<Record<string, unknown>>} args.overflow - Summary findings.
- * @param {typeof fetch} [args.fetchImpl] - Test double.
- * @returns {Promise<Record<string, unknown>>} Posted review.
+ * @param {string} [args.event] - Review event.
+ * @param {string} [args.commentId] - Triggering comment ID.
+ * @returns {Record<string, unknown>} Review payload.
  */
 export function buildReview(args) {
+  const event = args.event ?? DEFAULT_REVIEW_EVENT;
+  if (!REVIEW_EVENTS.has(event)) throw new ReviewFormatError('invalid review event');
   const comments = args.inline.map(finding => ({
     path: String(finding.path),
     line: Number(finding.line),
@@ -350,16 +459,65 @@ export function buildReview(args) {
   }));
   const payload = {
     commit_id: args.headSha,
-    body: summaryBody({ summary: args.summary, overflow: args.overflow }),
-    event: REVIEW_EVENT,
+    body: summaryBody({
+      summary: args.summary,
+      overflow: args.overflow,
+      event,
+      commentId: args.commentId,
+    }),
+    event,
   };
   if (comments.length > 0) payload.comments = comments;
   return payload;
 }
 
+/**
+ * Post one review, once per triggering comment.
+ * @param {object} args - Review arguments.
+ * @param {string} args.repo - `owner/name`.
+ * @param {number} args.pr - Pull request number.
+ * @param {string} args.token - GitHub token.
+ * @param {string} args.headSha - Reviewed head commit.
+ * @param {string} args.summary - Model summary.
+ * @param {Array<Record<string, unknown>>} args.inline - Inline findings.
+ * @param {Array<Record<string, unknown>>} args.overflow - Summary findings.
+ * @param {string} [args.event] - Review event.
+ * @param {string} [args.appLogin] - App identity.
+ * @param {string} [args.commentId] - Triggering comment ID.
+ * @param {boolean} [args.dismissBlocking] - Dismiss earlier blocks after a clean COMMENT.
+ * @param {boolean} [args.recheckHead] - Re-fetch the PR before posting.
+ * @param {typeof fetch} [args.fetchImpl] - Test double.
+ * @returns {Promise<Record<string, unknown>>} Posted review.
+ */
 export async function postReview(args) {
-  const earlier = await latestEarlier(args);
-  const payload = buildReview(args);
+  const event = args.event ?? DEFAULT_REVIEW_EVENT;
+  const appLogin = args.appLogin ?? LEGACY_APP_LOGIN;
+  const commentId = String(args.commentId ?? '');
+  // Approvals, blocking reviews and dismissal cleanup need the complete
+  // history. A plain informational COMMENT can post without it.
+  const needsCompleteHistory = event !== 'COMMENT' || args.dismissBlocking === true;
+  const reviews = await listReviews({ ...args, failClosed: needsCompleteHistory });
+  if (commentId.length > 0) {
+    const duplicate = reviews.find(
+      review =>
+        isAppReview(review, appLogin) &&
+        reviewCommentId(review) === commentId &&
+        String(review.commit_id ?? '') === args.headSha,
+    );
+    if (duplicate !== undefined) {
+      const duplicateIsCleanComment =
+        reviewEvent(duplicate) === 'COMMENT' && String(duplicate.commit_id ?? '') === args.headSha;
+      if (args.dismissBlocking === true && event === 'COMMENT' && duplicateIsCleanComment) {
+        if (await liveHeadMatches(args)) {
+          await dismissEarlierBlocks(args, reviews, Number(duplicate.id), Number(duplicate.id));
+        }
+      }
+      return { id: duplicate.id, htmlUrl: duplicate.html_url, inline: 0 };
+    }
+  }
+  if (args.recheckHead === true) await assertLiveHead(args);
+  const earlier = latestEarlier(reviews, appLogin);
+  const payload = buildReview({ ...args, event, commentId });
   // A request that rejects before a response has an unknown outcome; leave
   // `created` unset so the failure notice still runs.
   const response = await githubRequest({
@@ -372,7 +530,14 @@ export async function postReview(args) {
   if (!response.ok) throw new Error(`GitHub review POST answered ${response.status}`);
   await markCreated();
   const review = /** @type {Record<string, unknown>} */ (await readResponseJson(response));
-  if (earlier !== undefined) await minimizeReview(args, earlier);
+  if (args.dismissBlocking === true && event === 'COMMENT') {
+    if (await liveHeadMatches(args)) {
+      await dismissEarlierBlocks(args, reviews, Number(review.id));
+    }
+  }
+  if (appLogin === LEGACY_APP_LOGIN && earlier !== undefined) {
+    await minimizeReview(args, earlier);
+  }
   return { id: review.id, htmlUrl: review.html_url, inline: payload.comments?.length ?? 0 };
 }
 
@@ -389,7 +554,14 @@ export async function postReview(args) {
  */
 export async function postFailure(args) {
   const summary = `## Review failed\n\nThe review agent could not produce a valid review. ${args.message}`;
-  return postReview({ ...args, summary, inline: [], overflow: [] });
+  return postReview({
+    ...args,
+    event: 'COMMENT',
+    summary,
+    inline: [],
+    overflow: [],
+    dismissBlocking: false,
+  });
 }
 
 /**
@@ -406,11 +578,31 @@ export async function markCreated() {
  * Read and validate the agent result.
  * @param {string} path - Result file.
  * @param {number} maxFindings - Finding cap.
+ * @param {Map<string, Set<number>>} added - Added lines by path.
  * @returns {Promise<ReturnType<typeof validateReview>>} Review.
  */
-async function readReview(path, maxFindings) {
+async function readReview(path, maxFindings, added) {
   const text = await readFile(path, 'utf8');
-  return validateReview(parseReview(text), maxFindings);
+  return validateReview(parseReview(text), maxFindings, added);
+}
+
+/**
+ * Build the request arguments shared by the failure and success paths.
+ * @param {NodeJS.ProcessEnv} env - Process environment.
+ * @returns {Record<string, unknown>} Request arguments.
+ */
+function requestArgs(env, config) {
+  return {
+    repo: env.REVIEW_REPO || env.GITHUB_REPOSITORY || '',
+    pr: Number(env.PR_NUMBER),
+    token: env.REVIEW_TOKEN || env.GITHUB_TOKEN || '',
+    headSha: env.REVIEW_HEAD_SHA || '',
+    appLogin: env.REVIEW_APP_LOGIN || undefined,
+    event: env.REVIEW_EVENT || config.defaultReviewEvent || DEFAULT_REVIEW_EVENT,
+    commentId: env.REVIEW_COMMENT_ID || '',
+    dismissBlocking: env.REVIEW_DISMISS_BLOCKING === 'true',
+    recheckHead: env.REVIEW_RECHECK_HEAD === 'true',
+  };
 }
 
 /**
@@ -422,13 +614,17 @@ async function main() {
   const config = JSON.parse(
     await readFile(new URL('../../review-agent/config.json', import.meta.url), 'utf8'),
   );
+  const appMode = Boolean(env.REVIEW_APP_LOGIN);
   if (process.argv.includes('--failure')) {
     if (process.argv.includes('--dry-run')) return;
+    if (appMode) {
+      console.error('review agent failed; App mode posts no failure review');
+      process.exitCode = 1;
+      return;
+    }
     await postFailure({
-      repo: env.GITHUB_REPOSITORY ?? '',
-      pr: Number(env.PR_NUMBER),
-      token: env.GITHUB_TOKEN ?? '',
-      headSha: env.REVIEW_HEAD_SHA ?? '',
+      ...requestArgs(env, config),
+      event: 'COMMENT',
       message: 'The review run did not finish. Check the workflow log.',
     });
     return;
@@ -437,18 +633,20 @@ async function main() {
   const added = parseAddedLines(diff);
   let review;
   try {
-    review = await readReview(env.REVIEW_RESULT || '.review/pr/result.json', config.maxFindings);
+    review = await readReview(
+      env.REVIEW_RESULT || '.review/pr/result.json',
+      config.maxFindings,
+      added,
+    );
   } catch (error) {
-    if (process.argv.includes('--dry-run')) {
+    if (process.argv.includes('--dry-run') || appMode) {
       console.error(safeError(error));
       process.exitCode = 1;
       return;
     }
     await postFailure({
-      repo: env.GITHUB_REPOSITORY ?? '',
-      pr: Number(env.PR_NUMBER),
-      token: env.GITHUB_TOKEN ?? '',
-      headSha: env.REVIEW_HEAD_SHA ?? '',
+      ...requestArgs(env, config),
+      event: 'COMMENT',
       message: safeError(error),
     });
     process.exitCode = 1;
@@ -463,6 +661,8 @@ async function main() {
           summary: review.summary,
           inline: split.inline,
           overflow: split.overflow,
+          event: env.REVIEW_EVENT || config.defaultReviewEvent || DEFAULT_REVIEW_EVENT,
+          commentId: env.REVIEW_COMMENT_ID || '',
         }),
         null,
         2,
@@ -471,10 +671,7 @@ async function main() {
     return;
   }
   const posted = await postReview({
-    repo: env.GITHUB_REPOSITORY ?? '',
-    pr: Number(env.PR_NUMBER),
-    token: env.GITHUB_TOKEN ?? '',
-    headSha: env.REVIEW_HEAD_SHA ?? '',
+    ...requestArgs(env, config),
     summary: review.summary,
     inline: split.inline,
     overflow: split.overflow,
