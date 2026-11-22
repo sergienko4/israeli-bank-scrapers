@@ -511,6 +511,7 @@ export function buildReview(args) {
       overflow: args.overflow,
       event,
       commentId: args.commentId,
+      reviewComplete: args.reviewComplete,
     }),
     event,
   };

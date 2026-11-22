@@ -142,6 +142,25 @@ describe('PR review extraction and posting', () => {
     expect(payload.event).toBe('APPROVE');
   });
 
+  it('records completeness in the review marker', () => {
+    const complete = buildReview({
+      headSha: 'head',
+      summary: 'clean',
+      inline: [],
+      overflow: [],
+      reviewComplete: true,
+    });
+    const incomplete = buildReview({
+      headSha: 'head',
+      summary: 'clean',
+      inline: [],
+      overflow: [],
+      reviewComplete: false,
+    });
+    expect(complete.body).toContain('complete=true');
+    expect(incomplete.body).toContain('complete=false');
+  });
+
   it('keeps blocker details beyond the presentation cap', () => {
     const findings = Array.from({ length: 30 }, (_, index) => ({
       severity: 'critical',
