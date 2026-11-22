@@ -1,7 +1,6 @@
 {
   "provider": "opencode-go",
   "modelPrefix": "deepseek",
-  "defaultModel": "auto",
   "defaultVariant": "high",
   "variantPriority": ["high", "max", "low"],
   "fallbackModels": [
@@ -14,13 +13,16 @@
       "variants": ["high", "max"]
     }
   ],
-  "reviewEvent": "COMMENT",
-  "marker": "<!-- opencode-review-agent -->",
+  "defaultReviewEvent": "COMMENT",
+  "blockingSeverities": ["critical", "important"],
   "maxInlineComments": 10,
   "maxFindings": 30,
+  "maxFiles": 300,
   "maxDiffChars": 120000,
   "maxFileChars": 60000,
-  "timeoutMinutes": 20,
-  "maxSteps": 30,
-  "summarySections": ["verdict", "context", "what-was-read", "not-executed", "guidelines-read"]
+  "approval": {
+    "enabled": true,
+    "allowAuthor": true
+  },
+  "appLogin": "review-agent[bot]"
 }

@@ -22,7 +22,7 @@ const MAX_FILES = 300;
 
 /** Credential-shaped paths never copied into review data. */
 const SENSITIVE_PATH_RE =
-  /(?:^|\/)(?:\.env(?:\..*)?|id_rsa[^/]*|[^/]+\.(?:pem|key|p12|pfx|crt|cer|jks|keystore)|\.npmrc|\.netrc)$/iu;
+  /(?:^|\/)(?:\.env(?:\..*)?|\.git-credentials|id_rsa[^/]*|[^/]+\.(?:pem|key|p12|pfx|crt|cer|jks|keystore)|\.npmrc|\.netrc)$/iu;
 
 /** Credential material that must never reach the model. */
 const CREDENTIAL_CONTENT_RE = new RegExp(

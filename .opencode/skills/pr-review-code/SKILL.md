@@ -23,10 +23,10 @@ Sources: `pr-review-guidelines.md` §4, 6, 9–11; `test-guidlines.md`,
 
 - A behaviour change has a test at the lowest level that captures it.
 - The test fails for the old behaviour, not just passes for the new one.
-- Negative, retry, timeout and cross-bank cases exist when the flow has them.
+- Negative, retry, timeout and per-variant cases exist when the flow has them.
 - Mocks are typed, shared and faithful to the contract; they do not duplicate
   production logic.
-- Fixtures are synthetic and contain no customer data.
+- Fixtures are synthetic; report a real-looking secret by path and type only.
 - The test does not assert an implementation detail that the change is free
   to alter.
 
@@ -34,17 +34,17 @@ Sources: `pr-review-guidelines.md` §4, 6, 9–11; `test-guidlines.md`,
 
 - Types are explicit at boundaries; no `any`, no suppressed error, no unused
   export.
-- Constants come from configuration, not inline literals.
+- Magic values follow the repository's constants rule, if any.
 - Names describe the domain, not the implementation.
 - The change follows the repository's function, file, complexity and parameter
-  caps in `CLEAN_CODE.md`.
+  caps in `CLEAN_CODE.md` when present, or its own caps.
 - No dead code, debug output, commented-out block or temporary file.
 - Imports and exports follow the layer and cycle rules.
 
 ## Simplification
 
 - Replace a branch chain with a map, strategy or configuration entry when the
-  variation is data.
+  variation is data and the repository already uses that seam.
 - Remove a temporary variable, duplicated call or wrapper that adds no meaning.
 - Keep a comment only when it explains WHY, a non-obvious constraint or a bug.
 - Do not ask for a rewrite that is larger than the problem.

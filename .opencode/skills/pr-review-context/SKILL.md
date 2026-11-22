@@ -5,25 +5,25 @@ description: Establish a pull request's intent, scope and affected flow before r
 
 # PR Review Context
 
-Load this first. Reviewing lines without the intent produces confident noise.
-The sources are `pr-review-guidelines.md` §1–3, `real-work-guidlines.md` and
-`plan-guidlines.md`.
+Load this first. Reviewing lines without intent produces confident noise.
 
 ## Read
 
 - `.review/pr/metadata.json` — title, body, author, base/head, changed paths.
-- `.review/pr/diff.patch` — the actual change.
-- The changed files and their tests under `.review/pr/files/`, located through
-  `metadata.files[].dataFile` and read by their neutral copy names.
-- The repository rules that name the affected area: `CLAUDE.md`,
-  `.code-rules.md`, `CLEAN_CODE.md` and the relevant `docs/` page.
+- `.review/pr/diff.patch` and the changed files under `.review/pr/files/`,
+  located through `metadata.files[].dataFile`.
+- The repository overlay named in the prompt, when present.
+- The target's rules for the affected area, under `.review/pr/base-rules/`:
+  `AGENTS.review.txt`, `CLAUDE.review.txt`, `code-rules.review.txt` and
+  `CLEAN_CODE.review.txt` when present. Read the relevant `docs/` page from
+  `.review/base/`.
 - The guidelines manifest entries mapped to `pr-review-context`.
 
 ## Answer
 
 1. What problem does the PR solve, and for whom?
 2. What is the expected behaviour before and after?
-3. Which component, phase, bank pipeline or public surface changes?
+3. Which component, flow or public surface changes?
 4. Is the change type clear: feature, fix, refactor, test, docs, CI or
    dependency?
 5. Does the diff match the stated scope? Name scope creep and missing pieces.
@@ -36,13 +36,13 @@ The sources are `pr-review-guidelines.md` §1–3, `real-work-guidlines.md` and
 - The diff includes an unrelated change or leaves the stated change partial.
 - A changed public behaviour has no docs or migration.
 - A risky change has no rollout, feature flag or rollback.
-- The PR body or commit messages are too vague to review safely.
+- The PR body is too vague to review safely (summary observation).
 
 Do not raise a finding for a missing nice-to-have that the repository does not
 require. Put open questions in the summary if they do not block the change.
 
 ## Handoff
 
-Write a short context paragraph for the summary and pass the changed-flow map
-to the code and architecture skills. If the diff is empty or the intent cannot
-be established, stop and return `NEEDS CONTEXT`.
+Write a short context paragraph for the summary and keep the changed-flow map
+for the later steps. If the orchestrator's `Needs context` rule applies, stop
+and return the object it defines.
