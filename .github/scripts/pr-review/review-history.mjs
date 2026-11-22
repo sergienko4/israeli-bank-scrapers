@@ -40,7 +40,13 @@ export async function listReviews({ repo, pr, token, fetchImpl = fetch, failClos
       if (!failClosed) return reviews;
       throw new Error(`GitHub reviews answered ${response.status}`);
     }
-    const batch = /** @type {Array<Record<string, unknown>>} */ (await readResponseJson(response));
+    let batch;
+    try {
+      batch = /** @type {Array<Record<string, unknown>>} */ (await readResponseJson(response));
+    } catch (error) {
+      if (!failClosed) return reviews;
+      throw error;
+    }
     reviews.push(...batch);
     if (batch.length < 100) break;
     if (page === MAX_REVIEW_PAGES) {

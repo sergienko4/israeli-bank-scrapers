@@ -64,7 +64,11 @@ export async function decideFromEnv(env, fetchImpl = fetch) {
   );
   const result = await readFile(env.REVIEW_RESULT || '.review/pr/result.json', 'utf8');
   const diff = await readFile(env.REVIEW_DIFF || '.review/pr/diff.patch', 'utf8');
-  const review = validateReview(parseReview(result), config.maxFindings, parseAddedLines(diff));
+  const review = validateReview(
+    parseReview(result),
+    Number.POSITIVE_INFINITY,
+    parseAddedLines(diff),
+  );
   const metadata = JSON.parse(
     await readFile(env.REVIEW_METADATA || '.review/pr/metadata.json', 'utf8'),
   );
@@ -72,34 +76,46 @@ export async function decideFromEnv(env, fetchImpl = fetch) {
   const head = /** @type {Record<string, unknown>} */ (pullRequest.head ?? {});
   const headRepo = /** @type {Record<string, unknown>} */ (head.repo ?? {});
   const appLogin = env.REVIEW_APP_LOGIN || config.appLogin || 'review-agent[bot]';
-  const reviews = await listReviews({
+  const headSha = env.REVIEW_HEAD_SHA || '';
+  const historyArgs = {
     repo: env.REVIEW_REPO || env.GITHUB_REPOSITORY || '',
     pr: Number(env.PR_NUMBER),
     token: env.REVIEW_TOKEN || env.GITHUB_TOKEN || '',
     fetchImpl,
-  });
-  const headSha = env.REVIEW_HEAD_SHA || '';
-  const findings = review.findings;
-  return decideReview({
-    command: env.REVIEW_COMMAND || 'review',
-    findings,
-    metadata,
-    pullRequest: {
-      state: pullRequest.state,
-      draft: pullRequest.draft === true,
-      isFork: String(headRepo.full_name ?? '') !== String(env.REVIEW_REPO || env.GITHUB_REPOSITORY),
-      authorLogin: String((pullRequest.user ?? {}).login ?? ''),
-      headSha: String(head.sha ?? ''),
-    },
-    actor: env.REVIEW_ACTOR || '',
-    actorPermission: env.REVIEW_ACTOR_PERMISSION || '',
-    headSha,
-    config,
-    reviewComplete: review.complete,
-    previousReview: hasBlockingReview(reviews, appLogin, headSha)
-      ? { blocking: true, headSha }
-      : undefined,
-  });
+  };
+  /**
+   * Decide from one review-history snapshot.
+   * @param {Array<Record<string, unknown>>} reviews - Reviews.
+   * @returns {{ event: string, reason: string, dismissBlocking: boolean }} Decision.
+   */
+  const decide = reviews =>
+    decideReview({
+      command: env.REVIEW_COMMAND || 'review',
+      findings: review.findings,
+      metadata,
+      pullRequest: {
+        state: pullRequest.state,
+        draft: pullRequest.draft === true,
+        isFork:
+          String(headRepo.full_name ?? '') !== String(env.REVIEW_REPO || env.GITHUB_REPOSITORY),
+        authorLogin: String((pullRequest.user ?? {}).login ?? ''),
+        headSha: String(head.sha ?? ''),
+      },
+      actor: env.REVIEW_ACTOR || '',
+      actorPermission: env.REVIEW_ACTOR_PERMISSION || '',
+      headSha,
+      config,
+      reviewComplete: review.complete,
+      previousReview: hasBlockingReview(reviews, appLogin, headSha)
+        ? { blocking: true, headSha }
+        : undefined,
+    });
+
+  const provisional = decide(await listReviews({ ...historyArgs, failClosed: false }));
+  if (provisional.event === 'COMMENT' && provisional.dismissBlocking === false) {
+    return provisional;
+  }
+  return decide(await listReviews(historyArgs));
 }
 
 /**

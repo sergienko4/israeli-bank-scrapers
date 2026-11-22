@@ -291,6 +291,24 @@ describe('diff anchoring', () => {
     const result = validateReview(findings, 1, added);
     expect(result.findings).toHaveLength(1);
   });
+  it('keeps a blocker beyond the presentation cap for the decision', () => {
+    const added = new Map([['src/a.ts', new Set([2])]]);
+    const findings: Record<string, unknown>[] = Array.from({ length: 30 }, (_, index) => ({
+      ...finding(2),
+      title: `Critical ${String(index)}`,
+    }));
+    findings.push({ ...finding(2), severity: 'important', title: 'Only blocker' });
+    const raw = review(findings);
+    const capped = validateReview(raw, 30, added);
+    const all = validateReview(raw, Number.POSITIVE_INFINITY, added);
+    const config = { ...CONFIG, blockingSeverities: ['important'] };
+    const cappedArgs = args({ command: 'review', findings: capped.findings, config });
+    const allArgs = args({ command: 'review', findings: all.findings, config });
+    const cappedDecision = decideReview(cappedArgs);
+    const allDecision = decideReview(allArgs);
+    expect(cappedDecision.event).toBe('COMMENT');
+    expect(allDecision.event).toBe('REQUEST_CHANGES');
+  });
 });
 
 describe('review marker event', () => {
@@ -336,6 +354,7 @@ describe('workflow environment decision', () => {
     readonly result: Record<string, unknown>;
     readonly metadata?: Record<string, unknown>;
     readonly diff?: string;
+    readonly command?: string;
   }
 
   /**
@@ -365,7 +384,7 @@ describe('workflow environment decision', () => {
         REVIEW_RESULT: resultPath,
         REVIEW_METADATA: metadataPath,
         REVIEW_DIFF: diffPath,
-        REVIEW_COMMAND: 'approve',
+        REVIEW_COMMAND: inputs.command ?? 'approve',
         REVIEW_ACTOR: 'maintainer',
         REVIEW_ACTOR_PERMISSION: 'write',
         REVIEW_HEAD_SHA: 'head-sha',
@@ -394,6 +413,50 @@ describe('workflow environment decision', () => {
       head: { sha: 'head-sha', repo: { full_name: 'sergienko4/repo' } },
     });
   };
+
+  /**
+   * Fails the review-history read and serves the live pull request.
+   * @param input - Fetch input.
+   * @returns Fake response.
+   */
+  const failingHistoryFetch: typeof fetch = input => {
+    const url = urlOf(input);
+    if (url.includes('/reviews')) {
+      return Promise.resolve(new Response('', { status: 500 }));
+    }
+    return responseTo({
+      state: 'open',
+      draft: false,
+      user: { login: 'author' },
+      head: { sha: 'head-sha', repo: { full_name: 'sergienko4/repo' } },
+    });
+  };
+
+  it('decides an informational comment with best-effort history', async () => {
+    const decision = await decideWith(
+      {
+        command: 'review',
+        result: { summary: 'ok', findings: [], complete: false },
+      },
+      failingHistoryFetch,
+    );
+    expect(decision).toEqual({
+      event: 'COMMENT',
+      reason: 'clean review',
+      dismissBlocking: false,
+    });
+  });
+
+  it('requires complete history for a dismissal', async () => {
+    const pending = decideWith(
+      {
+        command: 'review',
+        result: { summary: 'ok', findings: [], complete: true },
+      },
+      failingHistoryFetch,
+    );
+    await expect(pending).rejects.toThrow('GitHub reviews answered 500');
+  });
 
   it('maps a clean approval environment to APPROVE', async () => {
     const decision = await decideWith(
