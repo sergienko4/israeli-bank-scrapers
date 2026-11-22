@@ -186,15 +186,17 @@ describe('PR reviewer tool policy', () => {
     expect(sourceEffect).toBe('allow');
   });
 
-  it('stages symlink-free base context and data-only rules', async () => {
+  it('stages the PR base and data-only rules', async () => {
     const workflow = await readFile('.github/workflows/pr-review-agent.yml', 'utf8');
     expect(workflow).toContain('mkdir -p .review/base .review/pr/base-rules');
-    expect(workflow).toContain('git archive HEAD');
+    expect(workflow).toContain('REVIEW_BASE_SHA:-HEAD');
+    expect(workflow).toContain('git archive "$base"');
     expect(workflow).toContain('find .review/base .review-guidelines -type l -delete');
     expect(workflow).toContain('AGENTS.review.txt');
     expect(workflow).toContain('CLAUDE.review.txt');
     expect(workflow).toContain('-name AGENTS.md');
     expect(workflow).toContain('-name CLAUDE.md');
+    expect(workflow).toContain('.github/review-agent/overlays/israeli-bank-scrapers.md');
   });
 
   it('keeps every read allow before the credential denies', async () => {

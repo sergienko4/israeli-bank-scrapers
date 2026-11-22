@@ -102,7 +102,11 @@ jobs:
       - name: Stage symlink-free review context
         run: |
           mkdir -p .review/base .review/pr/base-rules
-          git archive HEAD | tar -x -C .review/base
+          base="${REVIEW_BASE_SHA:-HEAD}"
+          if [ "$base" != "HEAD" ]; then
+            git fetch --depth=1 origin "$base"
+          fi
+          git archive "$base" | tar -x -C .review/base
           find .review/base .review-guidelines -type l -delete
           if [ -f .review/base/AGENTS.md ]; then
             cp .review/base/AGENTS.md .review/pr/base-rules/AGENTS.review.txt
@@ -151,7 +155,7 @@ jobs:
             --agent pr-reviewer \
             --model "$REVIEW_MODEL" \
             --format json \
-            "Review pull request #$PR_NUMBER. Read .review/pr/metadata.json, .review/pr/diff.patch, .review/pr/files and .review-guidelines/manifest.json. Load pr-review-orchestrator and the review skills it names. Return only the review JSON object. Do not execute any command, test or pull-request code." \
+            "Review pull request #$PR_NUMBER. Read .review/pr/metadata.json, .review/pr/diff.patch, .review/pr/files, .review/pr/base-rules, .review-guidelines/manifest.json and the base context under .review/base/. The repository overlay is .github/review-agent/overlays/israeli-bank-scrapers.md. Load pr-review-orchestrator and the review skills it names. Return only the review JSON object. Do not execute any command, test or pull-request code." \
             > .review/pr/agent.jsonl
 
       - name: Extract the review JSON
