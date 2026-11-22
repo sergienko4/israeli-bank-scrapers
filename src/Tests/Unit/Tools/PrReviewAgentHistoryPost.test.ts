@@ -237,4 +237,117 @@ describe('PR review history at posting', () => {
     expect(posted).toMatchObject({ id: 65 });
     expect(posts).toHaveLength(1);
   });
+
+  it('does not dismiss a block for an incomplete comment', async () => {
+    const dismissals: string[] = [];
+    const posts: string[] = [];
+    /**
+     * Serve a GET route.
+     * @param url - Request URL.
+     * @returns Fake response.
+     */
+    const getResponse = (url: string): Promise<Response> => {
+      if (url.includes('/reviews?')) {
+        return responseTo([
+          {
+            id: 7,
+            state: 'CHANGES_REQUESTED',
+            commit_id: 'older',
+            user: { login: 'review-agent[bot]' },
+            body: '<!-- opencode-review-agent event=REQUEST_CHANGES comment=old -->',
+            submitted_at: '2026-01-01T00:00:00Z',
+          },
+        ]);
+      }
+      if (url.endsWith('/pulls/886')) {
+        return responseTo({ state: 'open', head: { sha: 'head' } });
+      }
+      return responseTo([]);
+    };
+    /**
+     * Serve a POST route.
+     * @param url - Request URL.
+     * @returns Fake response.
+     */
+    const postResponse = (url: string): Promise<Response> => {
+      if (url.endsWith('/reviews')) {
+        posts.push(url);
+        return responseTo({ id: 66, html_url: 'https://example.test/review' });
+      }
+      if (url.includes('/dismissals')) {
+        dismissals.push(url);
+        return responseTo({});
+      }
+      return responseTo([]);
+    };
+    /**
+     * Route the request by method.
+     * @param input - Fetch input.
+     * @param init - Fetch options.
+     * @returns Fake response.
+     */
+    const fetchImpl: typeof fetch = (input, init) => {
+      const url = urlOf(input);
+      return init?.method === 'POST' ? postResponse(url) : getResponse(url);
+    };
+    const posted = await postReview({
+      repo: 'sergienko4/repo',
+      pr: 886,
+      token: 'token',
+      headSha: 'head',
+      summary: 'ok',
+      inline: [],
+      overflow: [],
+      event: 'COMMENT',
+      appLogin: 'review-agent[bot]',
+      commentId: '99',
+      dismissBlocking: true,
+      reviewComplete: false,
+      fetchImpl,
+    });
+    expect(posted).toMatchObject({ id: 66 });
+    expect(posts).toHaveLength(1);
+    expect(dismissals).toEqual([]);
+  });
+
+  it('refuses to approve a draft pull request', async () => {
+    const posts: string[] = [];
+    /**
+     * Serve an empty history and a draft live pull request.
+     * @param input - Fetch input.
+     * @param init - Fetch options.
+     * @returns Fake response.
+     */
+    const fetchImpl: typeof fetch = (input, init) => {
+      const url = urlOf(input);
+      const method = init?.method ?? 'GET';
+      if (url.includes('/reviews?') && method === 'GET') {
+        return responseTo([]);
+      }
+      if (url.endsWith('/pulls/886') && method === 'GET') {
+        return responseTo({ state: 'open', draft: true, head: { sha: 'head' } });
+      }
+      if (url.endsWith('/reviews') && method === 'POST') {
+        posts.push(url);
+        return responseTo({ id: 67, html_url: 'https://example.test/review' });
+      }
+      return responseTo([]);
+    };
+    const pending = postReview({
+      repo: 'sergienko4/repo',
+      pr: 886,
+      token: 'token',
+      headSha: 'head',
+      summary: 'ok',
+      inline: [],
+      overflow: [],
+      event: 'APPROVE',
+      appLogin: 'review-agent[bot]',
+      commentId: '99',
+      recheckHead: true,
+      fetchImpl,
+    });
+    await expect(pending).rejects.toThrow('pull request changed before posting');
+    expect(posts).toHaveLength(0);
+  });
 });

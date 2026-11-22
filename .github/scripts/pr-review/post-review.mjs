@@ -440,7 +440,7 @@ async function liveHeadMatches(args) {
   });
   const pr = /** @type {Record<string, unknown>} */ (await readResponseJson(response));
   const head = /** @type {Record<string, unknown>} */ (pr.head ?? {});
-  return pr.state === 'open' && String(head.sha ?? '') === args.headSha;
+  return pr.state === 'open' && pr.draft !== true && String(head.sha ?? '') === args.headSha;
 }
 
 /**
@@ -502,6 +502,7 @@ export function buildReview(args) {
  * @param {string} [args.appLogin] - App identity.
  * @param {string} [args.commentId] - Triggering comment ID.
  * @param {boolean} [args.dismissBlocking] - Dismiss earlier blocks after a clean COMMENT.
+ * @param {boolean} [args.reviewComplete] - Whether the review covered every changed file.
  * @param {boolean} [args.recheckHead] - Re-fetch the PR before posting.
  * @param {typeof fetch} [args.fetchImpl] - Test double.
  * @returns {Promise<Record<string, unknown>>} Posted review.
@@ -524,7 +525,12 @@ export async function postReview(args) {
     if (duplicate !== undefined) {
       const duplicateIsCleanComment =
         reviewEvent(duplicate) === 'COMMENT' && String(duplicate.commit_id ?? '') === args.headSha;
-      if (args.dismissBlocking === true && event === 'COMMENT' && duplicateIsCleanComment) {
+      if (
+        args.dismissBlocking === true &&
+        args.reviewComplete === true &&
+        event === 'COMMENT' &&
+        duplicateIsCleanComment
+      ) {
         if (await liveHeadMatches(args)) {
           await dismissEarlierBlocks(args, reviews, Number(duplicate.id), Number(duplicate.id));
         }
@@ -550,7 +556,7 @@ export async function postReview(args) {
   if (!response.ok) throw new Error(`GitHub review POST answered ${response.status}`);
   await markCreated();
   const review = /** @type {Record<string, unknown>} */ (await readResponseJson(response));
-  if (args.dismissBlocking === true && event === 'COMMENT') {
+  if (args.dismissBlocking === true && args.reviewComplete === true && event === 'COMMENT') {
     if (await liveHeadMatches(args)) {
       await dismissEarlierBlocks(args, reviews, Number(review.id));
     }
@@ -695,6 +701,7 @@ async function main() {
     summary: review.summary,
     inline: split.inline,
     overflow: split.overflow,
+    reviewComplete: review.complete,
   });
   console.log(JSON.stringify(posted));
 }

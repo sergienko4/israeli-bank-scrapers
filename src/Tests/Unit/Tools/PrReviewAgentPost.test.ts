@@ -215,6 +215,7 @@ describe('PR review extraction and posting', () => {
       appLogin: 'review-agent[bot]',
       commentId: '99',
       dismissBlocking: true,
+      reviewComplete: true,
       fetchImpl,
     });
     const dismissal = calls.find(call => call.url.includes('/reviews/7/dismissals'));

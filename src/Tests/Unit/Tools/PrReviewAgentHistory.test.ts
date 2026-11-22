@@ -121,6 +121,7 @@ describe('PR review history and duplicate triggers', () => {
       appLogin: 'review-agent[bot]',
       commentId: '99',
       dismissBlocking: true,
+      reviewComplete: true,
       fetchImpl,
     });
     expect(posted).toMatchObject({ id: 35 });
@@ -177,6 +178,7 @@ describe('PR review history and duplicate triggers', () => {
       appLogin: 'review-agent[bot]',
       commentId: '99',
       dismissBlocking: true,
+      reviewComplete: true,
       fetchImpl,
     });
     expect(posted).toMatchObject({ id: 38 });
@@ -241,6 +243,7 @@ describe('PR review history and duplicate triggers', () => {
       appLogin: 'review-agent[bot]',
       commentId: '99',
       dismissBlocking: true,
+      reviewComplete: true,
       fetchImpl,
     });
     expect(posted).toMatchObject({ id: 35 });
@@ -300,6 +303,7 @@ describe('PR review history and duplicate triggers', () => {
       appLogin: 'review-agent[bot]',
       commentId: '99',
       dismissBlocking: true,
+      reviewComplete: true,
       recheckHead: true,
       fetchImpl,
     });
@@ -359,6 +363,7 @@ describe('PR review history and duplicate triggers', () => {
       appLogin: 'review-agent[bot]',
       commentId: '99',
       dismissBlocking: true,
+      reviewComplete: true,
       fetchImpl,
     });
     expect(posted).toMatchObject({ id: 35 });
