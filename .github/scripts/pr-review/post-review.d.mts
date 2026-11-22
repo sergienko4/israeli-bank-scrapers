@@ -22,6 +22,7 @@ export function isPostedComplete(
   review: { complete: boolean },
   metadata: Record<string, unknown>,
   config: Record<string, unknown>,
+  headSha: string,
 ): boolean;
 
 export function parseAddedLines(diff: string): Map<string, Set<number>>;

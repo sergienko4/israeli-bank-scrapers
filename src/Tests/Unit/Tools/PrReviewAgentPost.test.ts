@@ -164,6 +164,7 @@ describe('PR review extraction and posting', () => {
 
   it('requires metadata and the model to agree on completeness', () => {
     const metadata = {
+      headSha: 'head',
       diffTruncated: false,
       credentialContent: false,
       skippedFiles: [],
@@ -172,13 +173,13 @@ describe('PR review extraction and posting', () => {
       files: [{ path: 'src/a.ts' }],
     };
     const config = { maxFiles: 300 };
-    const truncated = { ...metadata, diffTruncated: true };
-    const isComplete = isPostedComplete({ complete: true }, metadata, config);
-    const isIncompleteByMetadata = isPostedComplete({ complete: true }, truncated, config);
-    const isIncompleteByModel = isPostedComplete({ complete: false }, metadata, config);
+    const staleHead = { ...metadata, headSha: 'older' };
+    const isComplete = isPostedComplete({ complete: true }, metadata, config, 'head');
+    const isIncompleteByModel = isPostedComplete({ complete: false }, metadata, config, 'head');
+    const isIncompleteByHead = isPostedComplete({ complete: true }, staleHead, config, 'head');
     expect(isComplete).toBe(true);
-    expect(isIncompleteByMetadata).toBe(false);
     expect(isIncompleteByModel).toBe(false);
+    expect(isIncompleteByHead).toBe(false);
   });
 
   it('keeps every blocker when the overflow budget is exhausted', () => {

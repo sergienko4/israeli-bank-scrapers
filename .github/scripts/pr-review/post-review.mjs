@@ -134,14 +134,19 @@ export function validateReview(value, maxFindings, added) {
 /**
  * Whether a posted review may be recorded as complete.
  * The model's claim is only trusted when the fetched PR data also covers
- * every changed file.
+ * every changed file and was fetched for the reviewed head.
  * @param {{ complete: boolean }} review - Validated review.
  * @param {Record<string, unknown>} metadata - PR metadata.
  * @param {Record<string, unknown>} config - Review config.
+ * @param {string} headSha - Reviewed head.
  * @returns {boolean} True when both sources agree the review is complete.
  */
-export function isPostedComplete(review, metadata, config) {
-  return review.complete === true && isReviewComplete(metadata, config);
+export function isPostedComplete(review, metadata, config, headSha) {
+  return (
+    String(metadata.headSha ?? '') === headSha &&
+    review.complete === true &&
+    isReviewComplete(metadata, config)
+  );
 }
 
 /**
@@ -1007,7 +1012,7 @@ async function main() {
     return;
   }
   const metadata = await readMetadata(env.REVIEW_METADATA || '.review/pr/metadata.json');
-  const reviewComplete = isPostedComplete(review, metadata, config);
+  const reviewComplete = isPostedComplete(review, metadata, config, env.REVIEW_HEAD_SHA || '');
   const event = env.REVIEW_EVENT || config.defaultReviewEvent || DEFAULT_REVIEW_EVENT;
   if (event === 'NONE') {
     console.log('No review event: NONE.');
