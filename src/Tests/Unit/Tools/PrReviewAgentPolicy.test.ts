@@ -158,7 +158,7 @@ describe('PR reviewer tool policy', () => {
     const rules = parsePermission(agent);
     for (const path of [
       '.review/pr/metadata.json',
-      '.review/pr/base-rules/CLAUDE.md',
+      '.review/pr/base-rules/AGENTS.review.txt',
       '.review/base/src/a.ts',
       '.review-guidelines/manifest.json',
       '.github/review-agent/overlays/israeli-bank-scrapers.md',
@@ -168,12 +168,33 @@ describe('PR reviewer tool policy', () => {
     }
   });
 
+  it('denies credentials inside allowed context directories', async () => {
+    const agent = await readFile('.opencode/agents/pr-reviewer.md', 'utf8');
+    const rules = parsePermission(agent);
+    for (const path of [
+      '.review/base/.env',
+      '.review/base/nested/.env.local',
+      '.review/base/service.key',
+      '.review/base/certs/service.pem',
+      '.review/base/.git-credentials',
+      '.review/pr/base-rules/.env',
+    ]) {
+      const effect = evaluate(rules, 'read', path);
+      expect(effect).toBe('deny');
+    }
+    const sourceEffect = evaluate(rules, 'read', '.review/base/src/a.ts');
+    expect(sourceEffect).toBe('allow');
+  });
+
   it('stages symlink-free base context and data-only rules', async () => {
     const workflow = await readFile('.github/workflows/pr-review-agent.yml', 'utf8');
     expect(workflow).toContain('mkdir -p .review/base .review/pr/base-rules');
     expect(workflow).toContain('git archive HEAD');
     expect(workflow).toContain('find .review/base .review-guidelines -type l -delete');
-    expect(workflow).toContain('rm -f .review/base/AGENTS.md .review/base/CLAUDE.md');
+    expect(workflow).toContain('AGENTS.review.txt');
+    expect(workflow).toContain('CLAUDE.review.txt');
+    expect(workflow).toContain('-name AGENTS.md');
+    expect(workflow).toContain('-name CLAUDE.md');
   });
 
   it('keeps every read allow before the credential denies', async () => {
