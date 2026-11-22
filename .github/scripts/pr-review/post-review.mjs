@@ -127,7 +127,8 @@ export function validateReview(value, maxFindings, added) {
   const findings = validated
     .sort((left, right) => severityRank(left) - severityRank(right))
     .slice(0, maxFindings);
-  return { summary, guidelines_read: guidelines, findings, complete: value.complete === true };
+  const complete = value.complete === true && guidelines.length > 0;
+  return { summary, guidelines_read: guidelines, findings, complete };
 }
 
 /**
@@ -330,16 +331,22 @@ function compactBlock(finding) {
  * @param {string} args.summary - Model summary.
  * @param {Array<Record<string, unknown>>} args.overflow - Findings not inline.
  * @param {Array<string>} [args.blockingSeverities] - Severities that must appear.
- * @returns {{ body: string, omitted: Array<Record<string, unknown>> }} Body and omitted blockers.
+ * @returns {{ body: string, omitted: Array<Record<string, unknown>>, digest: string }} Body, omitted blockers and payload digest.
  */
 function summaryBody(args) {
   const overflow = overflowBlock(args.overflow, args.blockingSeverities);
   const extra =
     overflow.text.length > 0 ? `\n\n### Findings not attached inline\n\n${overflow.text}\n` : '';
   const complete = args.reviewComplete === true ? 'true' : 'false';
-  const marker = `${MARKER} event=${args.event ?? 'COMMENT'} comment=${args.commentId ?? ''} complete=${complete} -->`;
   const summary = sanitizeText(args.summary).slice(0, MAX_SUMMARY_CHARS);
-  return { body: `${marker}\n\n${summary}${extra}`, omitted: overflow.omitted };
+  const content = `${args.event ?? 'COMMENT'}\n${complete}\n${summary}\n${overflow.text}\n${JSON.stringify(overflow.omitted)}`;
+  const digest = createHash('sha256').update(content).digest('hex').slice(0, 16);
+  const marker = `${MARKER} event=${args.event ?? 'COMMENT'} comment=${args.commentId ?? ''} complete=${complete} digest=${digest} -->`;
+  return {
+    body: `${marker}\n\n${summary}${extra}`,
+    omitted: overflow.omitted,
+    digest,
+  };
 }
 
 /**
@@ -385,6 +392,17 @@ function overflowBlock(findings, blockingSeverities = DEFAULT_BLOCKING_SEVERITIE
 function reviewCompleteFromMarker(review) {
   const firstLine = String(review.body ?? '').split('\n', 1)[0];
   return /complete=true/u.test(firstLine);
+}
+
+/**
+ * Read the payload digest recorded in a review marker.
+ * @param {Record<string, unknown>} review - Review.
+ * @returns {string} Digest, or '' for older reviews.
+ */
+function reviewDigest(review) {
+  const firstLine = String(review.body ?? '').split('\n', 1)[0];
+  const match = /digest=([0-9a-f]+)/u.exec(firstLine);
+  return match?.[1] ?? '';
 }
 
 /**
@@ -706,7 +724,7 @@ async function assertLiveHead(args) {
 /**
  * Build one review payload and report any blockers that did not fit.
  * @param {object} args - Review arguments.
- * @returns {{ payload: Record<string, unknown>, omitted: Array<Record<string, unknown>> }} Review and omitted blockers.
+ * @returns {{ payload: Record<string, unknown>, omitted: Array<Record<string, unknown>>, digest: string }} Review, omitted blockers and digest.
  */
 function renderReview(args) {
   const event = args.event ?? DEFAULT_REVIEW_EVENT;
@@ -731,7 +749,7 @@ function renderReview(args) {
     event,
   };
   if (comments.length > 0) payload.comments = comments;
-  return { payload, omitted: summary.omitted };
+  return { payload, omitted: summary.omitted, digest: summary.digest };
 }
 
 /**
@@ -776,22 +794,29 @@ export async function postReview(args) {
   }
   const appLogin = args.appLogin ?? LEGACY_APP_LOGIN;
   const commentId = String(args.commentId ?? '');
-  // Approvals, blocking reviews and dismissal cleanup need the complete
-  // history. A plain informational COMMENT can post without it.
+  const rendered = renderReview({ ...args, event, commentId });
+  // Approvals and dismissal cleanup need the complete history. Informational
+  // comments and blocking reviews can post from a best-effort read.
   const needsCompleteHistory =
-    event !== 'COMMENT' || (args.dismissBlocking === true && args.reviewComplete === true);
+    event === 'APPROVE' ||
+    (event === 'COMMENT' && args.dismissBlocking === true && args.reviewComplete === true);
   const reviews = await listReviews({ ...args, failClosed: needsCompleteHistory });
   if (commentId.length > 0) {
-    const failureRequest = String(args.summary ?? '').startsWith('## Review failed');
-    const duplicate = reviews.find(
-      review =>
+    const failureRequest = String(args.summary ?? '')
+      .trimStart()
+      .startsWith('## Review failed');
+    const duplicate = reviews.find(review => {
+      const digest = reviewDigest(review);
+      return (
         isAppReview(review, appLogin) &&
         reviewCommentId(review) === commentId &&
         String(review.commit_id ?? '') === args.headSha &&
         reviewEvent(review) === event &&
         reviewCompleteFromMarker(review) === (args.reviewComplete === true) &&
-        isFailureReview(review) === failureRequest,
-    );
+        isFailureReview(review) === failureRequest &&
+        (digest === '' || digest === rendered.digest)
+      );
+    });
     if (duplicate !== undefined) {
       if (event === 'APPROVE') {
         await assertLiveHead(args);
@@ -819,8 +844,7 @@ export async function postReview(args) {
           );
         }
       }
-      const duplicateRender = renderReview({ ...args, event, commentId });
-      await postOmittedFindings(args, duplicateRender.omitted, Number(duplicate.id));
+      await postOmittedFindings(args, rendered.omitted, Number(duplicate.id));
       return { id: duplicate.id, htmlUrl: duplicate.html_url, inline: 0 };
     }
   }
@@ -829,7 +853,6 @@ export async function postReview(args) {
     throw new Error('approval requires a new commit');
   }
   const earlier = latestEarlier(reviews, appLogin);
-  const rendered = renderReview({ ...args, event, commentId });
   // A request that rejects before a response has an unknown outcome; leave
   // `created` unset so the failure notice still runs.
   const response = await githubRequest({
@@ -986,6 +1009,11 @@ async function main() {
   }
   const metadata = await readMetadata(env.REVIEW_METADATA || '.review/pr/metadata.json');
   const reviewComplete = isPostedComplete(review, metadata, config);
+  const event = env.REVIEW_EVENT || config.defaultReviewEvent || DEFAULT_REVIEW_EVENT;
+  if (event === 'NONE') {
+    console.log('No review event: NONE.');
+    return;
+  }
   const split = mapFindings(
     selectPresentationFindings(review.findings, config),
     added,
@@ -999,7 +1027,7 @@ async function main() {
           summary: review.summary,
           inline: split.inline,
           overflow: split.overflow,
-          event: env.REVIEW_EVENT || config.defaultReviewEvent || DEFAULT_REVIEW_EVENT,
+          event,
           commentId: env.REVIEW_COMMENT_ID || '',
           reviewComplete,
           blockingSeverities: config.blockingSeverities,

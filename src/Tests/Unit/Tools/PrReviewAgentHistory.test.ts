@@ -21,8 +21,9 @@ describe('PR review history and duplicate triggers', () => {
         return responseTo([
           {
             id: 33,
+            commit_id: 'head',
             user: { login: 'review-agent[bot]' },
-            body: '<!-- opencode-review-agent event=COMMENT comment=999 complete=true -->',
+            body: '<!-- opencode-review-agent event=COMMENT comment=999 complete=false -->',
             submitted_at: '2026-01-01T00:00:00Z',
           },
         ]);

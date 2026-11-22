@@ -237,7 +237,7 @@ describe('PR review extraction and posting', () => {
     ).toThrow('invalid review event');
   });
 
-  it('dismisses the App earlier REQUEST_CHANGES before a COMMENT', async () => {
+  it('posts the replacement review before dismissing the earlier block', async () => {
     const calls: { url: string; method: string; body: string }[] = [];
     /**
      * Serve a GET route.
@@ -303,10 +303,16 @@ describe('PR review extraction and posting', () => {
       reviewComplete: true,
       fetchImpl,
     });
-    const dismissal = calls.find(call => call.url.includes('/reviews/7/dismissals'));
+    const dismissalIndex = calls.findIndex(call => call.url.includes('/reviews/7/dismissals'));
+    const reviewPostIndex = calls.findIndex(
+      call => call.method === 'POST' && call.url.endsWith('/reviews'),
+    );
+    const dismissal = calls[dismissalIndex];
     const hasGraphqlCall = calls.some(call => call.url.endsWith('/graphql'));
+    expect(reviewPostIndex).toBeGreaterThanOrEqual(0);
+    expect(dismissalIndex).toBeGreaterThan(reviewPostIndex);
     expect(dismissal).toMatchObject({ method: 'PUT' });
-    expect(dismissal?.body).toContain('Superseded by a newer review');
+    expect(dismissal.body).toContain('Superseded by a newer review');
     expect(hasGraphqlCall).toBe(false);
   });
 
@@ -609,12 +615,12 @@ describe('PR review extraction and posting', () => {
 describe('PR review schema and sanitization', () => {
   it('strips a JSON fence and validates findings', () => {
     const parsed = parseReview(
-      '```json\n{"summary":"ok","guidelines_read":[],"findings":[],"complete":true}\n```',
+      '```json\n{"summary":"ok","guidelines_read":["AGENTS.md"],"findings":[],"complete":true}\n```',
     );
     const review = validateReview(parsed, 10);
     expect(review).toEqual({
       summary: 'ok',
-      guidelines_read: [],
+      guidelines_read: ['AGENTS.md'],
       findings: [],
       complete: true,
     });

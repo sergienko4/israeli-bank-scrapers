@@ -11,6 +11,15 @@ import { githubRequest, readResponseJson } from './shared.mjs';
 const MAX_REVIEW_PAGES = 20;
 
 /**
+ * Whether a review-history entry is a JSON object.
+ * @param {unknown} value - Entry.
+ * @returns {boolean} True for a non-null, non-array object.
+ */
+function isReviewEntry(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/**
  * List every review on a pull request.
  * @param {object} args - Request arguments.
  * @param {string} args.repo - `owner/name`.
@@ -43,7 +52,9 @@ export async function listReviews({ repo, pr, token, fetchImpl = fetch, failClos
     let batch;
     try {
       const body = await readResponseJson(response);
-      if (!Array.isArray(body)) throw new Error('GitHub reviews response is not an array');
+      if (!Array.isArray(body) || !body.every(isReviewEntry)) {
+        throw new Error('GitHub reviews response is not a review list');
+      }
       batch = /** @type {Array<Record<string, unknown>>} */ (body);
     } catch (error) {
       if (!failClosed) return reviews;

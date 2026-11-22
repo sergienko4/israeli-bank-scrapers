@@ -83,6 +83,9 @@ export function approvalDenial(args) {
   }
   if (args.reviewComplete !== true) return 'the review is incomplete';
   if (!isReviewComplete(args.metadata, args.config)) return 'the review is incomplete';
+  if (String(args.metadata.headSha ?? '') !== args.headSha) {
+    return 'the review metadata is for another head';
+  }
   return '';
 }
 
@@ -102,6 +105,9 @@ export function approvalDenial(args) {
  */
 export function decideReview(args) {
   const blocking = hasBlockingFindings(args.findings, args.config);
+  if (blocking && !canApprove(args.actorPermission)) {
+    return { event: 'COMMENT', reason: 'actor cannot request changes', dismissBlocking: false };
+  }
   if (args.command !== 'approve') {
     const complete = args.reviewComplete === true && isReviewComplete(args.metadata, args.config);
     const sameHeadBlock =

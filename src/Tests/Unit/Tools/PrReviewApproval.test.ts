@@ -27,6 +27,7 @@ const CONFIG = {
 };
 
 const CLEAN_METADATA = {
+  headSha: 'head-sha',
   diffTruncated: false,
   credentialContent: false,
   skippedFiles: [],
@@ -169,6 +170,24 @@ describe('approval permission and PR state', () => {
     }
   });
 
+  it('refuses approval when the metadata belongs to another head', () => {
+    const options = args({ metadata: { ...CLEAN_METADATA, headSha: 'older-sha' } });
+    const decision = decideReview(options);
+    expect(decision.event).toBe('COMMENT');
+    expect(decision.reason).toBe('the review metadata is for another head');
+  });
+
+  it('refuses a blocking review from a read-only actor', () => {
+    const options = args({
+      command: 'review',
+      actorPermission: 'read',
+      findings: [{ severity: 'critical', path: 'src/a.ts', line: 1, title: 't', body: 'b' }],
+    });
+    const decision = decideReview(options);
+    expect(decision.event).toBe('COMMENT');
+    expect(decision.reason).toBe('actor cannot request changes');
+  });
+
   it('refuses approval when approval is disabled', () => {
     const options = args({
       config: { ...CONFIG, approval: { ...CONFIG.approval, enabled: false } },
@@ -186,7 +205,17 @@ describe('review completeness', () => {
     ['skipped file', { ...CLEAN_METADATA, skippedFiles: ['src/a.ts'] }],
     ['sensitive file', { ...CLEAN_METADATA, sensitiveFiles: ['.env'] }],
     ['file list mismatch', { ...CLEAN_METADATA, files: [] }],
-    ['file cap', { ...CLEAN_METADATA, changedFiles: 301 }],
+    [
+      'file cap',
+      {
+        ...CLEAN_METADATA,
+        changedFiles: 301,
+        files: Array.from({ length: 301 }, (_, index) => ({
+          path: `src/file-${String(index)}.ts`,
+          dataFile: `file-${String(index).padStart(3, '0')}.txt`,
+        })),
+      },
+    ],
     ['missing metadata', {}],
     [
       'missing coverage arrays',
@@ -261,6 +290,7 @@ describe('diff anchoring', () => {
    */
   const review = (findings: Record<string, unknown>[]): Record<string, unknown> => ({
     summary: 'ok',
+    guidelines_read: ['AGENTS.md'],
     findings,
     complete: true,
   });
@@ -447,11 +477,35 @@ describe('workflow environment decision', () => {
     });
   });
 
+  it('decides a blocking review with best-effort history', async () => {
+    const diff = [
+      'diff --git a/src/a.ts b/src/a.ts',
+      '--- a/src/a.ts',
+      '+++ b/src/a.ts',
+      '@@ -1,0 +2,1 @@',
+      '+blocking',
+    ].join('\n');
+    const decision = await decideWith(
+      {
+        command: 'review',
+        diff,
+        result: {
+          summary: 'blocking',
+          guidelines_read: ['AGENTS.md'],
+          complete: true,
+          findings: [{ severity: 'critical', path: 'src/a.ts', line: 2, title: 't', body: 'b' }],
+        },
+      },
+      failingHistoryFetch,
+    );
+    expect(decision.event).toBe('REQUEST_CHANGES');
+  });
+
   it('requires complete history for a dismissal', async () => {
     const pending = decideWith(
       {
         command: 'review',
-        result: { summary: 'ok', findings: [], complete: true },
+        result: { summary: 'ok', guidelines_read: ['AGENTS.md'], findings: [], complete: true },
       },
       failingHistoryFetch,
     );
@@ -460,7 +514,7 @@ describe('workflow environment decision', () => {
 
   it('maps a clean approval environment to APPROVE', async () => {
     const decision = await decideWith(
-      { result: { summary: 'ok', findings: [], complete: true } },
+      { result: { summary: 'ok', guidelines_read: ['AGENTS.md'], findings: [], complete: true } },
       cleanFetch,
     );
     expect(decision).toEqual({
@@ -494,7 +548,7 @@ describe('workflow environment decision', () => {
       });
     };
     const pending = decideWith(
-      { result: { summary: 'ok', findings: [], complete: true } },
+      { result: { summary: 'ok', guidelines_read: ['AGENTS.md'], findings: [], complete: true } },
       fetchImpl,
     );
     await expect(pending).rejects.toThrow('review history is incomplete');
@@ -503,6 +557,7 @@ describe('workflow environment decision', () => {
   it('rejects a result with an off-diff finding', async () => {
     const result = {
       summary: 'ok',
+      guidelines_read: ['AGENTS.md'],
       complete: true,
       findings: [
         {
