@@ -42,7 +42,9 @@ export async function listReviews({ repo, pr, token, fetchImpl = fetch, failClos
     }
     let batch;
     try {
-      batch = /** @type {Array<Record<string, unknown>>} */ (await readResponseJson(response));
+      const body = await readResponseJson(response);
+      if (!Array.isArray(body)) throw new Error('GitHub reviews response is not an array');
+      batch = /** @type {Array<Record<string, unknown>>} */ (body);
     } catch (error) {
       if (!failClosed) return reviews;
       throw error;

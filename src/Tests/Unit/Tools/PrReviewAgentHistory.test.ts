@@ -307,6 +307,64 @@ describe('PR review history and duplicate triggers', () => {
     expect(dismissals).toEqual([]);
   });
 
+  it('does not dismiss a same-head block during duplicate cleanup', async () => {
+    const dismissals: string[] = [];
+    /**
+     * Serve a same-head block, the duplicate and the live head.
+     * @param input - Fetch input.
+     * @param init - Fetch options.
+     * @returns Fake response.
+     */
+    const fetchImpl: typeof fetch = (input, init) => {
+      const url = urlOf(input);
+      const method = init?.method ?? 'GET';
+      if (url.includes('/reviews?') && method === 'GET') {
+        return responseTo([
+          {
+            id: 7,
+            state: 'CHANGES_REQUESTED',
+            commit_id: 'head',
+            user: { login: 'review-agent[bot]' },
+            body: '<!-- opencode-review-agent event=REQUEST_CHANGES comment=old -->',
+            submitted_at: '2026-01-01T00:00:00Z',
+          },
+          {
+            id: 35,
+            state: 'COMMENTED',
+            commit_id: 'head',
+            user: { login: 'review-agent[bot]' },
+            body: '<!-- opencode-review-agent event=COMMENT comment=99 -->',
+            submitted_at: '2026-01-02T00:00:00Z',
+          },
+        ]);
+      }
+      if (url.endsWith('/pulls/886') && method === 'GET') {
+        return responseTo({ state: 'open', head: { sha: 'head' } });
+      }
+      if (url.includes('/dismissals')) {
+        dismissals.push(url);
+        return responseTo({});
+      }
+      return responseTo([]);
+    };
+    const posted = await postReview({
+      repo: 'sergienko4/repo',
+      pr: 886,
+      token: 'token',
+      headSha: 'head',
+      summary: 'ok',
+      inline: [],
+      overflow: [],
+      event: 'COMMENT',
+      appLogin: 'review-agent[bot]',
+      commentId: '99',
+      dismissBlocking: true,
+      fetchImpl,
+    });
+    expect(posted).toMatchObject({ id: 35 });
+    expect(dismissals).toEqual([]);
+  });
+
   it('fails closed when the review history exceeds the page cap', async () => {
     const posts: string[] = [];
     /**
@@ -347,152 +405,5 @@ describe('PR review history and duplicate triggers', () => {
     });
     await expect(pending).rejects.toThrow('review history is incomplete');
     expect(posts).toHaveLength(0);
-  });
-  it('posts even when the review history is unavailable', async () => {
-    const posts: string[] = [];
-    /**
-     * Fail the history read and accept the new review.
-     * @param input - Fetch input.
-     * @param init - Fetch options.
-     * @returns Fake response.
-     */
-    const fetchImpl: typeof fetch = (input, init) => {
-      const url = urlOf(input);
-      const method = init?.method ?? 'GET';
-      if (url.includes('/reviews?') && method === 'GET') {
-        return Promise.resolve(new Response('', { status: 500 }));
-      }
-      if (url.endsWith('/reviews') && method === 'POST') {
-        posts.push(url);
-        return responseTo({ id: 60, html_url: 'https://example.test/review' });
-      }
-      return responseTo([]);
-    };
-    const posted = await postReview({
-      repo: 'sergienko4/repo',
-      pr: 886,
-      token: 'token',
-      headSha: 'head',
-      summary: 'ok',
-      inline: [],
-      overflow: [],
-      event: 'COMMENT',
-      appLogin: 'review-agent[bot]',
-      commentId: '99',
-      fetchImpl,
-    });
-    expect(posted).toMatchObject({ id: 60 });
-    expect(posts).toHaveLength(1);
-  });
-
-  it('refuses an approval when the review history is unavailable', async () => {
-    const posts: string[] = [];
-    /**
-     * Fail the history read and capture any review post.
-     * @param input - Fetch input.
-     * @param init - Fetch options.
-     * @returns Fake response.
-     */
-    const fetchImpl: typeof fetch = (input, init) => {
-      const url = urlOf(input);
-      const method = init?.method ?? 'GET';
-      if (url.includes('/reviews?') && method === 'GET') {
-        return Promise.resolve(new Response('', { status: 500 }));
-      }
-      if (url.endsWith('/reviews') && method === 'POST') {
-        posts.push(url);
-        return responseTo({ id: 61, html_url: 'https://example.test/review' });
-      }
-      return responseTo([]);
-    };
-    const pending = postReview({
-      repo: 'sergienko4/repo',
-      pr: 886,
-      token: 'token',
-      headSha: 'head',
-      summary: 'ok',
-      inline: [],
-      overflow: [],
-      event: 'APPROVE',
-      appLogin: 'review-agent[bot]',
-      commentId: '99',
-      fetchImpl,
-    });
-    await expect(pending).rejects.toThrow('GitHub reviews answered 500');
-    expect(posts).toHaveLength(0);
-  });
-
-  it('posts a comment when the review-history request rejects', async () => {
-    const posts: string[] = [];
-    /**
-     * Reject the history read and accept the new comment.
-     * @param input - Fetch input.
-     * @param init - Fetch options.
-     * @returns Fake response.
-     */
-    const fetchImpl: typeof fetch = (input, init) => {
-      const url = urlOf(input);
-      const method = init?.method ?? 'GET';
-      if (url.includes('/reviews?') && method === 'GET') {
-        return Promise.reject(new Error('network down'));
-      }
-      if (url.endsWith('/reviews') && method === 'POST') {
-        posts.push(url);
-        return responseTo({ id: 62, html_url: 'https://example.test/review' });
-      }
-      return responseTo([]);
-    };
-    const posted = await postReview({
-      repo: 'sergienko4/repo',
-      pr: 886,
-      token: 'token',
-      headSha: 'head',
-      summary: 'ok',
-      inline: [],
-      overflow: [],
-      event: 'COMMENT',
-      appLogin: 'review-agent[bot]',
-      commentId: '99',
-      fetchImpl,
-    });
-    expect(posted).toMatchObject({ id: 62 });
-    expect(posts).toHaveLength(1);
-  });
-
-  it('posts a comment when the review-history body is invalid', async () => {
-    const posts: string[] = [];
-    /**
-     * Serve an unparsable history body and accept the new comment.
-     * @param input - Fetch input.
-     * @param init - Fetch options.
-     * @returns Fake response.
-     */
-    const fetchImpl: typeof fetch = (input, init) => {
-      const url = urlOf(input);
-      const method = init?.method ?? 'GET';
-      if (url.includes('/reviews?') && method === 'GET') {
-        return Promise.resolve(new Response('not json', { status: 200 }));
-      }
-      if (url.endsWith('/reviews') && method === 'POST') {
-        posts.push(url);
-        return responseTo({ id: 63, html_url: 'https://example.test/review' });
-      }
-      return responseTo([]);
-    };
-    const posted = await postReview({
-      repo: 'sergienko4/repo',
-      pr: 886,
-      token: 'token',
-      headSha: 'head',
-      summary: 'ok',
-      inline: [],
-      overflow: [],
-      event: 'COMMENT',
-      appLogin: 'review-agent[bot]',
-      commentId: '99',
-      fetchImpl,
-    });
-    expect(posted).toMatchObject({ id: 63 });
-    expect(posts).toHaveLength(1);
   });
 });

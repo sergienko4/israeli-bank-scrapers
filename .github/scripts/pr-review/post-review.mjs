@@ -308,6 +308,22 @@ function isAppReview(review, appLogin) {
 }
 
 /**
+ * Whether the history already has a blocking review from this App on the head.
+ * @param {Array<Record<string, unknown>>} reviews - Pull request reviews.
+ * @param {string} appLogin - Agent login.
+ * @param {string} headSha - Reviewed head.
+ * @returns {boolean} True when a same-head block exists.
+ */
+function hasSameHeadBlock(reviews, appLogin, headSha) {
+  return reviews.some(
+    review =>
+      isAppReview(review, appLogin) &&
+      String(review.commit_id ?? '') === headSha &&
+      reviewEvent(review) === 'REQUEST_CHANGES',
+  );
+}
+
+/**
  * Read the exact trigger comment ID from a review marker.
  * @param {Record<string, unknown>} review - Review.
  * @returns {string} Comment ID, or ''.
@@ -404,6 +420,7 @@ async function dismissEarlierBlocks(
       isAppReview(review, appLogin) &&
       Number(review.id) !== newReviewId &&
       Number(review.id) < beforeId &&
+      String(review.commit_id ?? '') !== args.headSha &&
       String(review.state ?? '') === 'CHANGES_REQUESTED' &&
       reviewEvent(review) === 'REQUEST_CHANGES',
   );
@@ -516,6 +533,9 @@ export async function postReview(args) {
     }
   }
   if (args.recheckHead === true) await assertLiveHead(args);
+  if (event === 'APPROVE' && hasSameHeadBlock(reviews, appLogin, args.headSha)) {
+    throw new Error('approval requires a new commit');
+  }
   const earlier = latestEarlier(reviews, appLogin);
   const payload = buildReview({ ...args, event, commentId });
   // A request that rejects before a response has an unknown outcome; leave
