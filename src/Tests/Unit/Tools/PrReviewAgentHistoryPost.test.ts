@@ -471,4 +471,80 @@ describe('PR review history at posting', () => {
     await expect(pending).rejects.toThrow('pull request changed before posting');
     expect(posts).toHaveLength(0);
   });
+
+  it('bounds the review body and posts omitted blockers as comments', async () => {
+    const reviewBodies: Record<string, unknown>[] = [];
+    const comments: string[] = [];
+    const findings = Array.from({ length: 400 }, (_, index) => ({
+      severity: 'critical',
+      path: 'src/a.ts',
+      line: index + 1,
+      title: `Blocker ${String(index)}`,
+      body: 'x'.repeat(1200),
+      rule: '',
+    }));
+    /**
+     * Serve a GET route.
+     * @param url - Request URL.
+     * @returns Fake response.
+     */
+    const getResponse = (url: string): Promise<Response> => {
+      if (url.includes('/reviews?')) return responseTo([]);
+      if (url.endsWith('/pulls/886')) {
+        return responseTo({ state: 'open', head: { sha: 'head' } });
+      }
+      return responseTo([]);
+    };
+    /**
+     * Serve a POST route.
+     * @param url - Request URL.
+     * @param raw - Request body.
+     * @returns Fake response.
+     */
+    const postResponse = (url: string, raw: string): Promise<Response> => {
+      if (url.endsWith('/reviews')) {
+        reviewBodies.push(JSON.parse(raw) as Record<string, unknown>);
+        return responseTo({ id: 70, html_url: 'https://example.test/review' });
+      }
+      if (url.endsWith('/issues/886/comments')) {
+        const payload = JSON.parse(raw) as Record<string, unknown>;
+        const body = typeof payload.body === 'string' ? payload.body : '';
+        comments.push(body);
+        return responseTo({ id: 71 });
+      }
+      return responseTo([]);
+    };
+    /**
+     * Route history, live-head and posting requests.
+     * @param input - Fetch input.
+     * @param init - Fetch options.
+     * @returns Fake response.
+     */
+    const fetchImpl: typeof fetch = (input, init) => {
+      const url = urlOf(input);
+      const raw = typeof init?.body === 'string' ? init.body : '{}';
+      if (init?.method === 'POST') return postResponse(url, raw);
+      return getResponse(url);
+    };
+    const posted = await postReview({
+      repo: 'sergienko4/repo',
+      pr: 886,
+      token: 'token',
+      headSha: 'head',
+      summary: 'blocking',
+      inline: [],
+      overflow: findings,
+      event: 'COMMENT',
+      appLogin: 'review-agent[bot]',
+      commentId: '99',
+      fetchImpl,
+    });
+    expect(posted).toMatchObject({ id: 70 });
+    const firstBody = reviewBodies[0]?.body;
+    const reviewBody = typeof firstBody === 'string' ? firstBody : '';
+    const allComments = comments.join('\n');
+    expect(reviewBody.length).toBeLessThan(60000);
+    expect(comments.length).toBeGreaterThan(0);
+    expect(allComments).toContain('Blocker 399');
+  });
 });

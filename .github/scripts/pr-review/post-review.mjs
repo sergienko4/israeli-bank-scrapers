@@ -17,6 +17,12 @@ const SEVERITIES = ['critical', 'important', 'suggestion'];
 /** Largest expanded overflow section. */
 const MAX_OVERFLOW_CHARS = 12000;
 
+/** Budget for compact blocker lines in the review body. */
+const MAX_COMPACT_CHARS = 20000;
+
+/** Largest follow-up comment body. */
+const MAX_COMMENT_CHARS = 50000;
+
 /** Default severities that must never be dropped from the posted review. */
 const DEFAULT_BLOCKING_SEVERITIES = ['critical', 'important'];
 
@@ -278,38 +284,52 @@ function commentBody(finding) {
 }
 
 /**
+ * Render one finding as a full overflow block.
+ * @param {Record<string, unknown>} finding - Finding.
+ * @returns {string} Markdown block.
+ */
+function findingBlock(finding) {
+  const body = sanitizeText(finding.body).slice(0, MAX_OVERFLOW_BODY_CHARS);
+  const rule = String(finding.rule ?? '');
+  const ruleLine = rule.length > 0 ? `\n  Rule: ${sanitizeText(rule)}` : '';
+  return `- **${sanitizeText(finding.severity)}** \`${sanitizeText(finding.path)}:${finding.line}\` **${sanitizeText(finding.title)}**\n  ${body}${ruleLine}`;
+}
+
+/**
  * Build the review summary with overflow findings.
  * @param {object} args - Summary arguments.
  * @param {string} args.summary - Model summary.
  * @param {Array<Record<string, unknown>>} args.overflow - Findings not inline.
  * @param {Array<string>} [args.blockingSeverities] - Severities that must appear.
- * @returns {string} Review body.
+ * @returns {{ body: string, omitted: Array<Record<string, unknown>> }} Body and omitted blockers.
  */
 function summaryBody(args) {
   const overflow = overflowBlock(args.overflow, args.blockingSeverities);
-  const extra = overflow.length > 0 ? `\n\n### Findings not attached inline\n\n${overflow}\n` : '';
+  const extra =
+    overflow.text.length > 0 ? `\n\n### Findings not attached inline\n\n${overflow.text}\n` : '';
   const complete = args.reviewComplete === true ? 'true' : 'false';
   const marker = `${MARKER} event=${args.event ?? 'COMMENT'} comment=${args.commentId ?? ''} complete=${complete} -->`;
-  return `${marker}\n\n${sanitizeText(args.summary)}${extra}`;
+  const summary = sanitizeText(args.summary).slice(0, MAX_SUMMARY_CHARS);
+  return { body: `${marker}\n\n${summary}${extra}`, omitted: overflow.omitted };
 }
 
 /**
  * Render overflow findings with enough detail to act on, within a budget.
  * Full details stop at the budget, but every blocking finding still gets a
- * compact line so a long review cannot silently omit a blocker.
+ * compact line. Blockers beyond the compact budget are returned so the caller
+ * can post them separately.
  * @param {Array<Record<string, unknown>>} findings - Findings not inline.
  * @param {Array<string>} [blockingSeverities] - Severities that must be shown.
- * @returns {string} Markdown block, or ''.
+ * @returns {{ text: string, omitted: Array<Record<string, unknown>> }} Markdown and omitted findings.
  */
 function overflowBlock(findings, blockingSeverities = DEFAULT_BLOCKING_SEVERITIES) {
   const blocking = new Set(blockingSeverities.map(String));
   const blocks = [];
+  const omitted = [];
   let used = 0;
+  let compactUsed = 0;
   for (const finding of findings) {
-    const body = sanitizeText(finding.body).slice(0, MAX_OVERFLOW_BODY_CHARS);
-    const rule = String(finding.rule ?? '');
-    const ruleLine = rule.length > 0 ? `\n  Rule: ${sanitizeText(rule)}` : '';
-    const block = `- **${sanitizeText(finding.severity)}** \`${sanitizeText(finding.path)}:${finding.line}\` **${sanitizeText(finding.title)}**\n  ${body}${ruleLine}`;
+    const block = findingBlock(finding);
     if (used + block.length <= MAX_OVERFLOW_CHARS) {
       blocks.push(block);
       used += block.length;
@@ -317,10 +337,15 @@ function overflowBlock(findings, blockingSeverities = DEFAULT_BLOCKING_SEVERITIE
     }
     if (!blocking.has(String(finding.severity))) continue;
     const compact = `- **${sanitizeText(finding.severity)}** \`${sanitizeText(finding.path)}:${finding.line}\` **${sanitizeText(finding.title)}** (details omitted)`;
-    blocks.push(compact);
-    used += compact.length;
+    if (compactUsed + compact.length <= MAX_COMPACT_CHARS) {
+      blocks.push(compact);
+      used += compact.length;
+      compactUsed += compact.length;
+      continue;
+    }
+    omitted.push(finding);
   }
-  return blocks.join('\n');
+  return { text: blocks.join('\n'), omitted };
 }
 
 /**
@@ -467,14 +492,17 @@ async function dismissReview(args, review) {
  */
 /**
  * Whether a review was submitted before the cutoff.
+ * Equal timestamps fall back to the review ID as a submission-order tie-breaker.
  * @param {Record<string, unknown>} review - Review.
  * @param {number | undefined} cutoff - Cutoff time in milliseconds.
+ * @param {number} beforeId - ID of the review that cleanup must not dismiss.
  * @returns {boolean} True when the review predates the cutoff, or no cutoff is set.
  */
-function submittedBefore(review, cutoff) {
+function submittedBefore(review, cutoff, beforeId) {
   if (cutoff === undefined) return true;
   const at = Date.parse(String(review.submitted_at ?? ''));
-  return Number.isFinite(at) && at < cutoff;
+  if (!Number.isFinite(at)) return false;
+  return at < cutoff || (at === cutoff && Number(review.id) < beforeId);
 }
 
 async function dismissEarlierBlocks(
@@ -493,12 +521,45 @@ async function dismissEarlierBlocks(
       isAppReview(review, appLogin) &&
       Number(review.id) !== newReviewId &&
       Number(review.id) < beforeId &&
-      submittedBefore(review, cutoff) &&
+      submittedBefore(review, cutoff, beforeId) &&
       String(review.commit_id ?? '') !== args.headSha &&
       String(review.state ?? '') === 'CHANGES_REQUESTED' &&
       reviewEvent(review) === 'REQUEST_CHANGES',
   );
   for (const review of conflicts) await dismissReview(args, review);
+}
+
+/**
+ * Post blockers that did not fit in the review body as bounded comments.
+ * @param {object} args - Request arguments.
+ * @param {Array<Record<string, unknown>>} findings - Omitted blockers.
+ * @returns {Promise<void>} Resolves when every comment is posted.
+ */
+async function postOmittedFindings(args, findings) {
+  if (findings.length === 0) return;
+  const heading =
+    '### Additional blocking findings\n\nThese findings did not fit in the review body.\n\n';
+  const bodies = [];
+  let current = heading;
+  for (const finding of findings) {
+    const block = `${findingBlock(finding)}\n`;
+    if (current.length > heading.length && current.length + block.length > MAX_COMMENT_CHARS) {
+      bodies.push(current);
+      current = heading;
+    }
+    current += block;
+  }
+  if (current.length > heading.length) bodies.push(current);
+  for (const body of bodies) {
+    const response = await githubRequest({
+      token: args.token,
+      path: `/repos/${args.repo}/issues/${args.pr}/comments`,
+      method: 'POST',
+      body: { body },
+      fetchImpl: args.fetchImpl,
+    });
+    if (!response.ok) throw new Error(`GitHub comment POST answered ${response.status}`);
+  }
 }
 
 /**
@@ -529,6 +590,37 @@ async function assertLiveHead(args) {
 }
 
 /**
+ * Build one review payload and report any blockers that did not fit.
+ * @param {object} args - Review arguments.
+ * @returns {{ payload: Record<string, unknown>, omitted: Array<Record<string, unknown>> }} Review and omitted blockers.
+ */
+function renderReview(args) {
+  const event = args.event ?? DEFAULT_REVIEW_EVENT;
+  if (!REVIEW_EVENTS.has(event)) throw new ReviewFormatError('invalid review event');
+  const comments = args.inline.map(finding => ({
+    path: String(finding.path),
+    line: Number(finding.line),
+    side: 'RIGHT',
+    body: commentBody(finding),
+  }));
+  const summary = summaryBody({
+    summary: args.summary,
+    overflow: args.overflow,
+    event,
+    commentId: args.commentId,
+    reviewComplete: args.reviewComplete,
+    blockingSeverities: args.blockingSeverities,
+  });
+  const payload = {
+    commit_id: args.headSha,
+    body: summary.body,
+    event,
+  };
+  if (comments.length > 0) payload.comments = comments;
+  return { payload, omitted: summary.omitted };
+}
+
+/**
  * Build one review payload.
  * @param {object} args - Review arguments.
  * @param {string} args.headSha - Head commit.
@@ -540,28 +632,7 @@ async function assertLiveHead(args) {
  * @returns {Record<string, unknown>} Review payload.
  */
 export function buildReview(args) {
-  const event = args.event ?? DEFAULT_REVIEW_EVENT;
-  if (!REVIEW_EVENTS.has(event)) throw new ReviewFormatError('invalid review event');
-  const comments = args.inline.map(finding => ({
-    path: String(finding.path),
-    line: Number(finding.line),
-    side: 'RIGHT',
-    body: commentBody(finding),
-  }));
-  const payload = {
-    commit_id: args.headSha,
-    body: summaryBody({
-      summary: args.summary,
-      overflow: args.overflow,
-      event,
-      commentId: args.commentId,
-      reviewComplete: args.reviewComplete,
-      blockingSeverities: args.blockingSeverities,
-    }),
-    event,
-  };
-  if (comments.length > 0) payload.comments = comments;
-  return payload;
+  return renderReview(args).payload;
 }
 
 /**
@@ -631,28 +702,33 @@ export async function postReview(args) {
     throw new Error('approval requires a new commit');
   }
   const earlier = latestEarlier(reviews, appLogin);
-  const payload = buildReview({ ...args, event, commentId });
+  const rendered = renderReview({ ...args, event, commentId });
   // A request that rejects before a response has an unknown outcome; leave
   // `created` unset so the failure notice still runs.
   const response = await githubRequest({
     token: args.token,
     path: `/repos/${args.repo}/pulls/${args.pr}/reviews`,
     method: 'POST',
-    body: payload,
+    body: rendered.payload,
     fetchImpl: args.fetchImpl,
   });
   if (!response.ok) throw new Error(`GitHub review POST answered ${response.status}`);
   await markCreated();
-  const review = /** @type {Record<string, unknown>} */ (await readResponseJson(response));
+  const posted = /** @type {Record<string, unknown>} */ (await readResponseJson(response));
+  await postOmittedFindings(args, rendered.omitted);
   if (args.dismissBlocking === true && args.reviewComplete === true && event === 'COMMENT') {
     if (await liveHeadMatches(args)) {
-      await dismissEarlierBlocks(args, reviews, Number(review.id));
+      await dismissEarlierBlocks(args, reviews, Number(posted.id));
     }
   }
   if (appLogin === LEGACY_APP_LOGIN && earlier !== undefined) {
     await minimizeReview(args, earlier);
   }
-  return { id: review.id, htmlUrl: review.html_url, inline: payload.comments?.length ?? 0 };
+  return {
+    id: posted.id,
+    htmlUrl: posted.html_url,
+    inline: rendered.payload.comments?.length ?? 0,
+  };
 }
 
 /**

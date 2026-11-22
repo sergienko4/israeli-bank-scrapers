@@ -211,7 +211,7 @@ describe('PR review history and duplicate triggers', () => {
             state: 'CHANGES_REQUESTED',
             user: { login: 'review-agent[bot]' },
             body: '<!-- opencode-review-agent event=REQUEST_CHANGES comment=old -->',
-            submitted_at: '2026-01-01T00:00:00Z',
+            submitted_at: '2026-01-02T00:00:00Z',
           },
           {
             id: 35,
