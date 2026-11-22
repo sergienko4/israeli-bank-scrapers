@@ -179,6 +179,9 @@ describe('PR review history at posting', () => {
           },
         ]);
       }
+      if (url.endsWith('/pulls/886') && method === 'GET') {
+        return responseTo({ state: 'open', head: { sha: 'head' } });
+      }
       if (url.endsWith('/reviews') && method === 'POST') {
         posts.push(url);
         return responseTo({ id: 64, html_url: 'https://example.test/review' });
@@ -200,6 +203,45 @@ describe('PR review history at posting', () => {
       fetchImpl,
     });
     await expect(pending).rejects.toThrow('approval requires a new commit');
+    expect(posts).toHaveLength(0);
+  });
+
+  it('refuses to approve when the live head changed', async () => {
+    const posts: string[] = [];
+    /**
+     * Serve an empty history and a newer live head.
+     * @param input - Fetch input.
+     * @param init - Fetch options.
+     * @returns Fake response.
+     */
+    const fetchImpl: typeof fetch = (input, init) => {
+      const url = urlOf(input);
+      const method = init?.method ?? 'GET';
+      if (url.includes('/reviews?') && method === 'GET') return responseTo([]);
+      if (url.endsWith('/pulls/886') && method === 'GET') {
+        return responseTo({ state: 'open', head: { sha: 'newer' } });
+      }
+      if (url.endsWith('/reviews') && method === 'POST') {
+        posts.push(url);
+        return responseTo({ id: 69, html_url: 'https://example.test/review' });
+      }
+      return responseTo([]);
+    };
+    const pending = postReview({
+      repo: 'sergienko4/repo',
+      pr: 886,
+      token: 'token',
+      headSha: 'head',
+      summary: 'ok',
+      inline: [],
+      overflow: [],
+      event: 'APPROVE',
+      reviewComplete: true,
+      appLogin: 'review-agent[bot]',
+      commentId: '99',
+      fetchImpl,
+    });
+    await expect(pending).rejects.toThrow('pull request changed before posting');
     expect(posts).toHaveLength(0);
   });
 

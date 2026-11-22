@@ -575,7 +575,7 @@ export async function postReview(args) {
       return { id: duplicate.id, htmlUrl: duplicate.html_url, inline: 0 };
     }
   }
-  if (args.recheckHead === true) await assertLiveHead(args);
+  if (event === 'APPROVE' || args.recheckHead === true) await assertLiveHead(args);
   if (event === 'APPROVE' && hasSameHeadBlock(reviews, appLogin, args.headSha)) {
     throw new Error('approval requires a new commit');
   }
