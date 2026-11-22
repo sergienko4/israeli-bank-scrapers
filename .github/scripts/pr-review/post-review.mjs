@@ -270,7 +270,8 @@ function commentBody(finding) {
 function summaryBody(args) {
   const overflow = overflowBlock(args.overflow);
   const extra = overflow.length > 0 ? `\n\n### Findings not attached inline\n\n${overflow}\n` : '';
-  const marker = `${MARKER} event=${args.event ?? 'COMMENT'} comment=${args.commentId ?? ''} -->`;
+  const complete = args.reviewComplete === true ? 'true' : 'false';
+  const marker = `${MARKER} event=${args.event ?? 'COMMENT'} comment=${args.commentId ?? ''} complete=${complete} -->`;
   return `${marker}\n\n${sanitizeText(args.summary)}${extra}`;
 }
 
@@ -292,6 +293,35 @@ function overflowBlock(findings) {
     used += block.length;
   }
   return blocks.join('\n');
+}
+
+/**
+ * Read the recorded completeness from a review marker.
+ * @param {Record<string, unknown>} review - Review.
+ * @returns {boolean} True when the marker records a complete review.
+ */
+function reviewCompleteFromMarker(review) {
+  const firstLine = String(review.body ?? '').split('\n', 1)[0];
+  return /complete=true/u.test(firstLine);
+}
+
+/**
+ * Pick the findings to present, keeping every configured blocker.
+ * A blocker beyond the normal cap is still shown; suggestions fill the rest.
+ * @param {Array<Record<string, unknown>>} findings - Validated findings.
+ * @param {Record<string, unknown>} config - Review config.
+ * @returns {Array<Record<string, unknown>>} Presentation findings.
+ */
+export function selectPresentationFindings(findings, config) {
+  const cap = Number(config.maxFindings ?? 30);
+  const blocking = new Set(
+    Array.isArray(config.blockingSeverities)
+      ? config.blockingSeverities.map(String)
+      : ['critical', 'important'],
+  );
+  const blockers = findings.filter(finding => blocking.has(String(finding.severity)));
+  const others = findings.filter(finding => !blocking.has(String(finding.severity)));
+  return [...blockers, ...others].slice(0, Math.max(cap, blockers.length));
 }
 
 /**
@@ -330,7 +360,7 @@ function hasSameHeadBlock(reviews, appLogin, headSha) {
  */
 function reviewCommentId(review) {
   const firstLine = String(review.body ?? '').split('\n', 1)[0];
-  const match = /comment=([^ ]*) -->$/u.exec(firstLine);
+  const match = /comment=([^\s]+)/u.exec(firstLine);
   return match?.[1] ?? '';
 }
 
@@ -525,7 +555,9 @@ export async function postReview(args) {
     );
     if (duplicate !== undefined) {
       const duplicateIsCleanComment =
-        reviewEvent(duplicate) === 'COMMENT' && String(duplicate.commit_id ?? '') === args.headSha;
+        reviewEvent(duplicate) === 'COMMENT' &&
+        String(duplicate.commit_id ?? '') === args.headSha &&
+        reviewCompleteFromMarker(duplicate);
       if (
         args.dismissBlocking === true &&
         args.reviewComplete === true &&
@@ -662,7 +694,7 @@ async function main() {
   try {
     review = await readReview(
       env.REVIEW_RESULT || '.review/pr/result.json',
-      config.maxFindings,
+      Number.POSITIVE_INFINITY,
       added,
     );
   } catch (error) {
@@ -679,7 +711,11 @@ async function main() {
     process.exitCode = 1;
     return;
   }
-  const split = mapFindings(review.findings, added, config.maxInlineComments);
+  const split = mapFindings(
+    selectPresentationFindings(review.findings, config),
+    added,
+    config.maxInlineComments,
+  );
   if (process.argv.includes('--dry-run')) {
     console.log(
       JSON.stringify(

@@ -2,6 +2,11 @@ export function parseReview(text: string): Record<string, unknown>;
 
 export function reviewEvent(review: Record<string, unknown>): string;
 
+export function selectPresentationFindings(
+  findings: Record<string, unknown>[],
+  config: Record<string, unknown>,
+): Record<string, unknown>[];
+
 export function validateReview(
   value: Record<string, unknown>,
   maxFindings: number,

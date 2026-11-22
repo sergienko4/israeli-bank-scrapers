@@ -22,7 +22,7 @@ describe('PR review history and duplicate triggers', () => {
           {
             id: 33,
             user: { login: 'review-agent[bot]' },
-            body: '<!-- opencode-review-agent event=COMMENT comment=999 -->',
+            body: '<!-- opencode-review-agent event=COMMENT comment=999 complete=true -->',
             submitted_at: '2026-01-01T00:00:00Z',
           },
         ]);
@@ -73,7 +73,7 @@ describe('PR review history and duplicate triggers', () => {
             state: 'COMMENTED',
             commit_id: 'head',
             user: { login: 'review-agent[bot]' },
-            body: '<!-- opencode-review-agent event=COMMENT comment=99 -->',
+            body: '<!-- opencode-review-agent event=COMMENT comment=99 complete=true -->',
             submitted_at: '2026-01-02T00:00:00Z',
           },
         ]);
@@ -209,7 +209,7 @@ describe('PR review history and duplicate triggers', () => {
             state: 'COMMENTED',
             commit_id: 'head',
             user: { login: 'review-agent[bot]' },
-            body: '<!-- opencode-review-agent event=COMMENT comment=99 -->',
+            body: '<!-- opencode-review-agent event=COMMENT comment=99 complete=true -->',
             submitted_at: '2026-01-02T00:00:00Z',
           },
           {
@@ -277,7 +277,7 @@ describe('PR review history and duplicate triggers', () => {
             state: 'COMMENTED',
             commit_id: 'head',
             user: { login: 'review-agent[bot]' },
-            body: '<!-- opencode-review-agent event=COMMENT comment=99 -->',
+            body: '<!-- opencode-review-agent event=COMMENT comment=99 complete=true -->',
             submitted_at: '2026-01-02T00:00:00Z',
           },
         ]);
@@ -311,6 +311,65 @@ describe('PR review history and duplicate triggers', () => {
     expect(dismissals).toEqual([]);
   });
 
+  it('does not dismiss when the duplicate marker is incomplete', async () => {
+    const dismissals: string[] = [];
+    /**
+     * Serve an incomplete duplicate and an earlier block.
+     * @param input - Fetch input.
+     * @param init - Fetch options.
+     * @returns Fake response.
+     */
+    const fetchImpl: typeof fetch = (input, init) => {
+      const url = urlOf(input);
+      const method = init?.method ?? 'GET';
+      if (url.includes('/reviews?') && method === 'GET') {
+        return responseTo([
+          {
+            id: 7,
+            state: 'CHANGES_REQUESTED',
+            commit_id: 'older',
+            user: { login: 'review-agent[bot]' },
+            body: '<!-- opencode-review-agent event=REQUEST_CHANGES comment=old -->',
+            submitted_at: '2026-01-01T00:00:00Z',
+          },
+          {
+            id: 35,
+            state: 'COMMENTED',
+            commit_id: 'head',
+            user: { login: 'review-agent[bot]' },
+            body: '<!-- opencode-review-agent event=COMMENT comment=99 complete=false -->',
+            submitted_at: '2026-01-02T00:00:00Z',
+          },
+        ]);
+      }
+      if (url.endsWith('/pulls/886') && method === 'GET') {
+        return responseTo({ state: 'open', head: { sha: 'head' } });
+      }
+      if (url.includes('/dismissals')) {
+        dismissals.push(url);
+        return responseTo({});
+      }
+      return responseTo([]);
+    };
+    const posted = await postReview({
+      repo: 'sergienko4/repo',
+      pr: 886,
+      token: 'token',
+      headSha: 'head',
+      summary: 'ok',
+      inline: [],
+      overflow: [],
+      event: 'COMMENT',
+      appLogin: 'review-agent[bot]',
+      commentId: '99',
+      dismissBlocking: true,
+      reviewComplete: true,
+      fetchImpl,
+    });
+    expect(posted).toMatchObject({ id: 35 });
+    expect(dismissals).toEqual([]);
+  });
+
   it('does not dismiss a same-head block during duplicate cleanup', async () => {
     const dismissals: string[] = [];
     /**
@@ -337,7 +396,7 @@ describe('PR review history and duplicate triggers', () => {
             state: 'COMMENTED',
             commit_id: 'head',
             user: { login: 'review-agent[bot]' },
-            body: '<!-- opencode-review-agent event=COMMENT comment=99 -->',
+            body: '<!-- opencode-review-agent event=COMMENT comment=99 complete=true -->',
             submitted_at: '2026-01-02T00:00:00Z',
           },
         ]);

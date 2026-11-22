@@ -16,6 +16,7 @@ import {
   parseReview,
   postFailure,
   postReview,
+  selectPresentationFindings,
   validateReview,
 } from '../../../../.github/scripts/pr-review/post-review.mjs';
 import { sanitizeText } from '../../../../.github/scripts/pr-review/shared.mjs';
@@ -139,6 +140,30 @@ describe('PR review extraction and posting', () => {
       event: 'APPROVE',
     });
     expect(payload.event).toBe('APPROVE');
+  });
+
+  it('keeps blocker details beyond the presentation cap', () => {
+    const findings = Array.from({ length: 30 }, (_, index) => ({
+      severity: 'critical',
+      path: 'src/a.ts',
+      line: index + 1,
+      title: `Critical ${String(index)}`,
+      body: 'Body',
+    }));
+    findings.push({
+      severity: 'important',
+      path: 'src/a.ts',
+      line: 31,
+      title: 'Only blocker',
+      body: 'Body',
+    });
+    const selected = selectPresentationFindings(findings, {
+      maxFindings: 30,
+      blockingSeverities: ['important'],
+    });
+    const hasBlocker = selected.some(finding => finding.severity === 'important');
+    expect(hasBlocker).toBe(true);
+    expect(selected).toHaveLength(30);
   });
 
   it('rejects an unknown review event', () => {
@@ -334,7 +359,7 @@ describe('PR review extraction and posting', () => {
             id: 30,
             commit_id: 'head',
             user: { login: 'review-agent[bot]' },
-            body: '<!-- opencode-review-agent event=COMMENT comment=99 -->',
+            body: '<!-- opencode-review-agent event=COMMENT comment=99 complete=true -->',
             submitted_at: '2026-01-01T00:00:00Z',
           },
         ]);
