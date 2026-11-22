@@ -6,19 +6,19 @@ description: Review design boundaries, contracts, compatibility and rollout for 
 # PR Review Architecture
 
 Sources: `pr-review-guidelines.md` §3, 11–12; `general-rules-guidlines.md`,
-`coding-principle-guidlines.md`, `design-patterns-guidlines.md` and
-`CLEAN_CODE.md`.
+`coding-principle-guidlines.md`, `design-patterns-guidlines.md` and the
+repository overlay named in the prompt.
 
 ## Boundaries
 
 - Is the change in the layer that owns the behaviour?
-- Does it keep the dependency direction: Banks → Core → Phases → Mediator →
-  Strategy → Registry → Logging → Types?
-- Does it add a forbidden edge, a cycle or a bank-specific branch in a neutral
-  layer?
-- Is the shared abstraction owned by the neutral layer, with the bank value
+- Does it keep the dependency direction the overlay or repository rules define?
+  Skip this check when none is defined.
+- Does it add a forbidden edge, a cycle or a provider-specific branch in a
+  neutral layer?
+- Is a shared abstraction owned by the neutral layer, with the provider value
   injected as configuration?
-- Does the pipeline remain immutable, deterministic and injectable?
+- Does the flow remain immutable, deterministic and injectable?
 
 ## Contracts
 
