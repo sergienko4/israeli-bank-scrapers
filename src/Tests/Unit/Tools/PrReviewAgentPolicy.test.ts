@@ -9,6 +9,12 @@ import { readFile } from 'node:fs/promises';
 
 import { parse } from 'yaml';
 
+import {
+  filterDiff,
+  isSensitiveFile,
+  isSensitivePath,
+} from '../../../../.github/scripts/pr-review/fetch-pr.mjs';
+
 /** One ordered permission rule. */
 interface IPermissionRule {
   /** Tool action, or `*` for every tool. */
@@ -217,17 +223,61 @@ permission:
     expect(agent).not.toContain('Never approve, never request changes');
   });
 
-  it('stages the PR base and data-only rules', async () => {
-    const workflow = await readFile('.github/workflows/pr-review-agent.yml', 'utf8');
-    expect(workflow).toContain('mkdir -p .review/base .review/pr/base-rules');
-    expect(workflow).toContain('REVIEW_BASE_SHA:-HEAD');
-    expect(workflow).toContain('git archive "$base"');
-    expect(workflow).toContain('find .review/base .review-guidelines -type l -delete');
-    expect(workflow).toContain('AGENTS.review.txt');
-    expect(workflow).toContain('CLAUDE.review.txt');
-    expect(workflow).toContain('-name AGENTS.md');
-    expect(workflow).toContain('-name CLAUDE.md');
-    expect(workflow).toContain('.github/review-agent/overlays/israeli-bank-scrapers.md');
+  it('stages the PR base before the reviewer starts', async () => {
+    const text = await readFile('.github/workflows/pr-review-agent.yml', 'utf8');
+    const workflow = parse(text) as {
+      jobs: Record<string, { steps?: { name?: string; run?: string }[] }>;
+    };
+    const steps = workflow.jobs.review.steps ?? [];
+    const stagingIndex = steps.findIndex(step => step.name === 'Stage symlink-free review context');
+    const reviewerIndex = steps.findIndex(step => step.name === 'Run the read-only reviewer');
+    expect(stagingIndex).toBeGreaterThanOrEqual(0);
+    expect(reviewerIndex).toBeGreaterThan(stagingIndex);
+
+    const staging = steps[stagingIndex];
+    const run = staging.run ?? '';
+    expect(run).toContain('set -euo pipefail');
+    expect(run).toContain('mkdir -p .review/base .review/pr/base-rules');
+    expect(run).toContain('REVIEW_BASE_SHA:-HEAD');
+    expect(run).toContain('git archive "$base"');
+    expect(run).toContain('find .review/base .review-guidelines -type l -delete');
+    expect(run).toContain('AGENTS.review.txt');
+    expect(run).toContain('CLAUDE.review.txt');
+    expect(run).toContain('-name AGENTS.md');
+    expect(run).toContain('-name CLAUDE.md');
+    expect(run).not.toContain('opencode run');
+
+    const reviewer = steps[reviewerIndex];
+    expect(reviewer.run).toContain('opencode run');
+    expect(reviewer.run).toContain('.github/review-agent/overlays/israeli-bank-scrapers.md');
+  });
+});
+
+describe('PR review producer credential filtering', () => {
+  it.each(['.git-credentials', 'nested/.git-credentials'])('classifies %s as sensitive', path => {
+    const isSensitive = isSensitivePath(path);
+    expect(isSensitive).toBe(true);
+  });
+
+  it('classifies a renamed .git-credentials path', () => {
+    const isSensitive = isSensitiveFile({
+      filename: 'src/a.ts',
+      previous_filename: '.git-credentials',
+    });
+    expect(isSensitive).toBe(true);
+  });
+
+  it('drops a .git-credentials block without relying on its content', () => {
+    const diff = [
+      'diff --git a/.git-credentials b/.git-credentials',
+      '--- a/.git-credentials',
+      '+++ b/.git-credentials',
+      '@@ -1 +1 @@',
+      '-old',
+      '+SECRET_TOKEN',
+    ].join('\n');
+    const filtered = filterDiff(diff);
+    expect(filtered).not.toContain('SECRET_TOKEN');
   });
 });
 
