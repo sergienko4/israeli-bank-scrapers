@@ -2,97 +2,27 @@
 description: Read-only reviewer for an on-demand pull-request review
 mode: primary
 steps: 30
-permissions:
-  - action: '*'
-    resource: '*'
-    effect: deny
-  - action: read
-    resource: '**'
-    effect: allow
-  - action: read
-    resource: '**/.env*'
-    effect: deny
-  - action: read
-    resource: '.env*'
-    effect: deny
-  - action: read
-    resource: '**/*.pem'
-    effect: deny
-  - action: read
-    resource: '*.pem'
-    effect: deny
-  - action: read
-    resource: '**/*.key'
-    effect: deny
-  - action: read
-    resource: '*.key'
-    effect: deny
-  - action: read
-    resource: '**/*.p12'
-    effect: deny
-  - action: read
-    resource: '*.p12'
-    effect: deny
-  - action: read
-    resource: '**/*.pfx'
-    effect: deny
-  - action: read
-    resource: '*.pfx'
-    effect: deny
-  - action: read
-    resource: '**/*.crt'
-    effect: deny
-  - action: read
-    resource: '*.crt'
-    effect: deny
-  - action: read
-    resource: '**/*.cer'
-    effect: deny
-  - action: read
-    resource: '*.cer'
-    effect: deny
-  - action: read
-    resource: '**/*.jks'
-    effect: deny
-  - action: read
-    resource: '*.jks'
-    effect: deny
-  - action: read
-    resource: '**/*.keystore'
-    effect: deny
-  - action: read
-    resource: '*.keystore'
-    effect: deny
-  - action: read
-    resource: '**/id_rsa*'
-    effect: deny
-  - action: read
-    resource: 'id_rsa*'
-    effect: deny
-  - action: read
-    resource: '**/.npmrc'
-    effect: deny
-  - action: read
-    resource: '.npmrc'
-    effect: deny
-  - action: read
-    resource: '**/.netrc'
-    effect: deny
-  - action: read
-    resource: '.netrc'
-    effect: deny
-  - action: read
-    resource: '**/.git-credentials'
-    effect: deny
-  - action: read
-    resource: '.git-credentials'
-    effect: deny
-  - action: glob
-    resource: '**'
-    effect: allow
-  - action: skill
-    resource: 'pr-review-*'
-    effect: allow
+permission:
+  '*': deny
+  read:
+    '*': allow
+    '*.env*': deny
+    '*.git-credentials': deny
+    '*id_rsa*': deny
+    '*.pem': deny
+    '*.key': deny
+    '*.p12': deny
+    '*.pfx': deny
+    '*.crt': deny
+    '*.cer': deny
+    '*.jks': deny
+    '*.keystore': deny
+    '*.npmrc': deny
+    '*.netrc': deny
+  glob:
+    '*': allow
+  skill:
+    'pr-review-*': allow
 ---
 
 You are the read-only PR reviewer for the target repository named in the

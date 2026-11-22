@@ -1,69 +1,139 @@
 /**
- * Policy smoke tests for the read-only reviewer. They pin the tool deny-list,
- * the base-checkout path and the config defaults that the workflow relies on.
- * The live CLI sandbox test remains a Phase 4 check.
+ * Policy smoke tests for the read-only reviewer. They pin the supported
+ * permission mapping, the effective tool and path rules, the base-checkout
+ * path and the config defaults that the workflow relies on. The live CLI
+ * sandbox test remains a Phase 4 check.
  */
 
 import { readFile } from 'node:fs/promises';
 
+/** One ordered permission rule. */
+interface IPermissionRule {
+  /** Tool action, or `*` for every tool. */
+  readonly action: string;
+  /** Resource pattern, or `*` for every resource. */
+  readonly resource: string;
+  /** `allow`, `deny` or `ask`. */
+  readonly effect: string;
+}
+
 /**
- * Match one path with OpenCode's workspace-relative wildcard rules.
- * Double-star crosses directories; a double-star slash needs a real slash;
- * single-star and question mark do not cross one.
- * @param pattern - Permission resource glob.
- * @param path - Workspace-relative path.
- * @returns True when the path matches.
+ * Match one value with OpenCode v2.2.5's wildcard matcher.
+ * `*` and `?` cross directory separators; there is no separate `**` token.
+ * @param input - Value to match.
+ * @param pattern - Wildcard pattern.
+ * @returns True when the pattern matches.
  */
-function matchesGlob(pattern: string, path: string): boolean {
-  let source = '^';
-  for (let index = 0; index < pattern.length; index += 1) {
-    const char = pattern[index] ?? '';
-    if (char === '*') {
-      if (pattern[index + 1] === '*') {
-        source += '.*';
-        index += 1;
-      } else {
-        source += '[^/]*';
+function wildcardMatch(input: string, pattern: string): boolean {
+  const normalized = input.replaceAll('\\', '/');
+  let escaped = pattern
+    .replaceAll('\\', '/')
+    .replace(/[.+^${}()|[\]\\]/gu, '\\$&')
+    .replace(/\*/gu, '.*')
+    .replace(/\?/gu, '.');
+  if (escaped.endsWith(' .*')) {
+    escaped = `${escaped.slice(0, -3)}( .*)?`;
+  }
+  return new RegExp(`^${escaped}$`, 'su').test(normalized);
+}
+
+/**
+ * Read the agent's singular permission mapping into ordered rules.
+ * @param agent - Agent markdown.
+ * @returns Ordered permission rules.
+ */
+function parsePermission(agent: string): IPermissionRule[] {
+  const lines = agent.split('\n');
+  const start = lines.findIndex(line => line.trim() === 'permission:');
+  if (start < 0) {
+    return [];
+  }
+  const rules: IPermissionRule[] = [];
+  let tool = '';
+  for (const line of lines.slice(start + 1)) {
+    if (line.trim() === '---') {
+      break;
+    }
+    const trimmed = line.trim();
+    if (trimmed.length === 0) {
+      continue;
+    }
+    const separator = trimmed.indexOf(':');
+    if (separator < 0) {
+      continue;
+    }
+    const key = trimmed
+      .slice(0, separator)
+      .replace(/^['"]|['"]$/gu, '')
+      .trim();
+    const value = trimmed.slice(separator + 1).trim();
+    if (!line.startsWith('    ')) {
+      tool = key;
+      if (value.length > 0) {
+        rules.push({ action: key, resource: '*', effect: value });
+        tool = '';
       }
-    } else if (char === '?') {
-      source += '[^/]';
-    } else {
-      source += char.replace(/[\\^$.*+?()[\]{}|]/gu, '\\$&');
+      continue;
+    }
+    if (tool.length > 0) {
+      rules.push({ action: tool, resource: key, effect: value });
     }
   }
-  return new RegExp(`${source}$`, 'u').test(path);
+  return rules;
+}
+
+/**
+ * Evaluate a request with OpenCode's last-match-wins rule.
+ * @param rules - Ordered permission rules.
+ * @param action - Tool action.
+ * @param resource - Tool resource.
+ * @returns The effective effect.
+ */
+function evaluate(rules: IPermissionRule[], action: string, resource: string): string {
+  for (let index = rules.length - 1; index >= 0; index -= 1) {
+    const rule = rules[index];
+    if (wildcardMatch(action, rule.action) && wildcardMatch(resource, rule.resource)) {
+      return rule.effect;
+    }
+  }
+  return 'ask';
 }
 
 describe('PR reviewer tool policy', () => {
-  it('denies every tool and allows only read, glob and the review skills', async () => {
+  it('uses the supported permission mapping and denies every other tool', async () => {
     const agent = await readFile('.opencode/agents/pr-reviewer.md', 'utf8');
-    const rules = agent
-      .split('- action: ')
-      .slice(1)
-      .flatMap(chunk => {
-        const action = /^'?([A-Za-z*]+)'?/u.exec(chunk)?.[1];
-        const resource = /resource: '([^']+)'/u.exec(chunk)?.[1];
-        const effect = /effect: ([a-z]+)/u.exec(chunk)?.[1];
-        return action === undefined || resource === undefined || effect === undefined
-          ? []
-          : [{ action, resource, effect }];
-      });
-    expect(rules).toContainEqual({ action: '*', resource: '*', effect: 'deny' });
-    const allowedActions = rules.filter(rule => rule.effect === 'allow').map(rule => rule.action);
-    expect(new Set(allowedActions)).toEqual(new Set(['read', 'glob', 'skill']));
-    const hasForbiddenAction = rules.some(rule =>
-      /^(?:bash|edit|write|webfetch)$/u.test(rule.action),
-    );
-    expect(hasForbiddenAction).toBe(false);
+    const rules = parsePermission(agent);
+    expect(agent).toContain('\npermission:\n');
+    expect(agent).not.toContain('\npermissions:\n');
+    expect(rules[0]).toEqual({ action: '*', resource: '*', effect: 'deny' });
+
+    const allowedRules = rules.filter(rule => rule.effect === 'allow');
+    const allowedActions = allowedRules.map(rule => rule.action);
+    const allowed = new Set(allowedActions);
+    expect(allowed).toEqual(new Set(['read', 'glob', 'skill']));
+
+    for (const action of ['bash', 'edit', 'write', 'webfetch']) {
+      const effect = evaluate(rules, action, 'anything');
+      expect(effect).toBe('deny');
+    }
+  });
+
+  it('uses the CLI wildcard semantics across directories', () => {
+    const isSourceMatch = wildcardMatch('src/index.ts', '*.ts');
+    const isQuestionMatch = wildcardMatch('src/a.ts', 'src/?.ts');
+    const isStarMatch = wildcardMatch('src/a.ts', 'src/*.ts');
+    expect(isSourceMatch).toBe(true);
+    expect(isQuestionMatch).toBe(true);
+    expect(isStarMatch).toBe(true);
   });
 
   it('denies root-level and nested credential paths', async () => {
     const agent = await readFile('.opencode/agents/pr-reviewer.md', 'utf8');
-    const denies = [...agent.matchAll(/- action: read\s+resource: '([^']+)'\s+effect: deny/gu)].map(
-      match => match[1],
-    );
-    expect(denies.length).toBeGreaterThan(0);
+    const rules = parsePermission(agent);
+
     for (const path of [
+      '.env',
+      'nested/.env.local',
       'service.key',
       'certs/service.pem',
       'id_rsa',
@@ -74,14 +144,35 @@ describe('PR reviewer tool policy', () => {
       'nested/.git-credentials',
       'store.p12',
       'store.jks',
-      '.env',
-      'nested/.env.local',
     ]) {
-      const isDenied = denies.some(pattern => matchesGlob(pattern, path));
-      expect(isDenied).toBe(true);
+      const effect = evaluate(rules, 'read', path);
+      expect(effect).toBe('deny');
     }
-    const isNormalSourceDenied = denies.some(pattern => matchesGlob(pattern, 'src/index.ts'));
-    expect(isNormalSourceDenied).toBe(false);
+
+    const sourceEffect = evaluate(rules, 'read', 'src/index.ts');
+    expect(sourceEffect).toBe('allow');
+  });
+
+  it('keeps the broad read allow before the credential denies', async () => {
+    const agent = await readFile('.opencode/agents/pr-reviewer.md', 'utf8');
+    const rules = parsePermission(agent);
+    const allowIndex = rules.findIndex(
+      rule => rule.action === 'read' && rule.resource === '*' && rule.effect === 'allow',
+    );
+    const denyIndex = rules.findIndex(rule => rule.action === 'read' && rule.effect === 'deny');
+    expect(allowIndex).toBeGreaterThanOrEqual(0);
+    expect(denyIndex).toBeGreaterThan(allowIndex);
+  });
+
+  it('allows only review skills and glob', async () => {
+    const agent = await readFile('.opencode/agents/pr-reviewer.md', 'utf8');
+    const rules = parsePermission(agent);
+    const allowedSkill = evaluate(rules, 'skill', 'pr-review-context');
+    const otherSkill = evaluate(rules, 'skill', 'other-skill');
+    const globbed = evaluate(rules, 'glob', '**/*.ts');
+    expect(allowedSkill).toBe('allow');
+    expect(otherSkill).toBe('deny');
+    expect(globbed).toBe('allow');
   });
 
   it('reads base context from .review/base and leaves the event to the poster', async () => {
