@@ -481,15 +481,38 @@ describe('PR review history at posting', () => {
       line: index + 1,
       title: `Blocker ${String(index)}`,
       body: 'x'.repeat(1200),
-      rule: '',
+      rule: index === 399 ? '&'.repeat(20000) : '',
     }));
+    /**
+     * Serve the review list, including the posted duplicate on retry.
+     * @returns Fake response.
+     */
+    const reviewListResponse = (): Promise<Response> => {
+      if (reviewBodies.length === 0) return responseTo([]);
+      const firstBody = reviewBodies[0]?.body;
+      const body = typeof firstBody === 'string' ? firstBody : '';
+      return responseTo([
+        {
+          id: 70,
+          state: 'COMMENTED',
+          commit_id: 'head',
+          user: { login: 'review-agent[bot]' },
+          body,
+          submitted_at: '2026-01-02T00:00:00Z',
+        },
+      ]);
+    };
     /**
      * Serve a GET route.
      * @param url - Request URL.
      * @returns Fake response.
      */
     const getResponse = (url: string): Promise<Response> => {
-      if (url.includes('/reviews?')) return responseTo([]);
+      if (url.includes('/reviews?')) return reviewListResponse();
+      if (url.includes('/issues/886/comments')) {
+        const existing = comments.map((body, index) => ({ id: index + 1, body }));
+        return responseTo(existing);
+      }
       if (url.endsWith('/pulls/886')) {
         return responseTo({ state: 'open', head: { sha: 'head' } });
       }
@@ -543,8 +566,26 @@ describe('PR review history at posting', () => {
     const firstBody = reviewBodies[0]?.body;
     const reviewBody = typeof firstBody === 'string' ? firstBody : '';
     const allComments = comments.join('\n');
+    const isEveryCommentBounded = comments.every(body => body.length < 60000);
     expect(reviewBody.length).toBeLessThan(60000);
+    expect(isEveryCommentBounded).toBe(true);
     expect(comments.length).toBeGreaterThan(0);
     expect(allComments).toContain('Blocker 399');
+    const commentCount = comments.length;
+    const retried = await postReview({
+      repo: 'sergienko4/repo',
+      pr: 886,
+      token: 'token',
+      headSha: 'head',
+      summary: 'blocking',
+      inline: [],
+      overflow: findings,
+      event: 'COMMENT',
+      appLogin: 'review-agent[bot]',
+      commentId: '99',
+      fetchImpl,
+    });
+    expect(retried).toMatchObject({ id: 70 });
+    expect(comments).toHaveLength(commentCount);
   });
 });

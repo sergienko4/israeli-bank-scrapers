@@ -29,6 +29,18 @@ const DEFAULT_BLOCKING_SEVERITIES = ['critical', 'important'];
 /** Longest one overflow body before it is clipped. */
 const MAX_OVERFLOW_BODY_CHARS = 1200;
 
+/** Longest rule text shown with a finding. */
+const MAX_RULE_CHARS = 500;
+
+/** Longest path shown with a finding. */
+const MAX_PATH_CHARS = 300;
+
+/** Prefix that identifies a follow-up blocker comment. */
+const FOLLOWUP_MARKER = '<!-- opencode-review-agent-followup';
+
+/** Maximum comment-history pages read while resuming follow-ups. */
+const MAX_COMMENT_PAGES = 20;
+
 /** Maximum summary characters accepted from the model. */
 const MAX_SUMMARY_CHARS = 20000;
 
@@ -278,9 +290,10 @@ export function mapFindings(findings, added, maxInline) {
  * @returns {string} Safe comment body.
  */
 function commentBody(finding) {
-  const rule = String(finding.rule ?? '');
-  const suffix = rule.length > 0 ? `\n\nRule: ${sanitizeText(rule)}` : '';
-  return `**${sanitizeText(finding.title)}**\n\n${sanitizeText(finding.body)}${suffix}`;
+  const rule = sanitizeText(finding.rule).slice(0, MAX_RULE_CHARS);
+  const suffix = rule.length > 0 ? `\n\nRule: ${rule}` : '';
+  const title = sanitizeText(finding.title).slice(0, MAX_TITLE_CHARS);
+  return `**${title}**\n\n${sanitizeText(finding.body)}${suffix}`;
 }
 
 /**
@@ -290,9 +303,24 @@ function commentBody(finding) {
  */
 function findingBlock(finding) {
   const body = sanitizeText(finding.body).slice(0, MAX_OVERFLOW_BODY_CHARS);
-  const rule = String(finding.rule ?? '');
-  const ruleLine = rule.length > 0 ? `\n  Rule: ${sanitizeText(rule)}` : '';
-  return `- **${sanitizeText(finding.severity)}** \`${sanitizeText(finding.path)}:${finding.line}\` **${sanitizeText(finding.title)}**\n  ${body}${ruleLine}`;
+  const rule = sanitizeText(finding.rule).slice(0, MAX_RULE_CHARS);
+  const ruleLine = rule.length > 0 ? `\n  Rule: ${rule}` : '';
+  const severity = sanitizeText(finding.severity).slice(0, 20);
+  const path = sanitizeText(finding.path).slice(0, MAX_PATH_CHARS);
+  const title = sanitizeText(finding.title).slice(0, MAX_TITLE_CHARS);
+  return `- **${severity}** \`${path}:${finding.line}\` **${title}**\n  ${body}${ruleLine}`;
+}
+
+/**
+ * Render one finding as a compact one-line block.
+ * @param {Record<string, unknown>} finding - Finding.
+ * @returns {string} Markdown line.
+ */
+function compactBlock(finding) {
+  const severity = sanitizeText(finding.severity).slice(0, 20);
+  const path = sanitizeText(finding.path).slice(0, MAX_PATH_CHARS);
+  const title = sanitizeText(finding.title).slice(0, MAX_TITLE_CHARS);
+  return `- **${severity}** \`${path}:${finding.line}\` **${title}** (details omitted)`;
 }
 
 /**
@@ -336,7 +364,7 @@ function overflowBlock(findings, blockingSeverities = DEFAULT_BLOCKING_SEVERITIE
       continue;
     }
     if (!blocking.has(String(finding.severity))) continue;
-    const compact = `- **${sanitizeText(finding.severity)}** \`${sanitizeText(finding.path)}:${finding.line}\` **${sanitizeText(finding.title)}** (details omitted)`;
+    const compact = compactBlock(finding);
     if (compactUsed + compact.length <= MAX_COMPACT_CHARS) {
       blocks.push(compact);
       used += compact.length;
@@ -530,32 +558,97 @@ async function dismissEarlierBlocks(
 }
 
 /**
+ * Split omitted blockers into bounded, marked comments.
+ * @param {Array<Record<string, unknown>>} findings - Omitted blockers.
+ * @param {{ commentId?: string, headSha?: string }} args - Review identity.
+ * @returns {Array<{ index: number, body: string }>} Marked comments.
+ */
+function followupComments(findings, args) {
+  const heading =
+    '### Additional blocking findings\n\nThese findings did not fit in the review body.\n\n';
+  const chunks = [];
+  let current = heading;
+  for (const finding of findings) {
+    const block = `${findingBlock(finding)}\n`;
+    if (current.length > heading.length && current.length + block.length > MAX_COMMENT_CHARS) {
+      chunks.push(current);
+      current = heading;
+    }
+    current += block;
+  }
+  if (current.length > heading.length) chunks.push(current);
+  const commentId = String(args.commentId ?? '');
+  const headSha = String(args.headSha ?? '');
+  return chunks.map((body, index) => ({
+    index,
+    body: `${FOLLOWUP_MARKER} comment=${commentId} head=${headSha} chunk=${String(index)} -->\n\n${body}`,
+  }));
+}
+
+/**
+ * List every issue comment on the pull request.
+ * @param {object} args - Request arguments.
+ * @returns {Promise<Array<Record<string, unknown>>>} Comments.
+ */
+async function listIssueComments(args) {
+  const comments = [];
+  for (let page = 1; page <= MAX_COMMENT_PAGES; page += 1) {
+    const response = await githubRequest({
+      token: args.token,
+      path: `/repos/${args.repo}/issues/${args.pr}/comments?per_page=100&page=${page}`,
+      fetchImpl: args.fetchImpl,
+    });
+    if (!response.ok) throw new Error(`GitHub comments answered ${response.status}`);
+    const batch = await readResponseJson(response);
+    if (!Array.isArray(batch)) throw new Error('GitHub comments response is not an array');
+    comments.push(...batch);
+    if (batch.length < 100) return comments;
+  }
+  throw new Error('review comment history is incomplete');
+}
+
+/**
+ * Read the chunk index from a follow-up comment marker.
+ * @param {unknown} body - Comment body.
+ * @param {string} commentId - Triggering comment ID.
+ * @param {string} headSha - Reviewed head.
+ * @returns {number | undefined} Chunk index, or undefined for another comment.
+ */
+function followupIndex(body, commentId, headSha) {
+  const firstLine = String(body ?? '').split('\n', 1)[0];
+  const match =
+    /^<!-- opencode-review-agent-followup comment=(\S*) head=(\S*) chunk=(\d+) -->$/u.exec(
+      firstLine,
+    );
+  if (match === null || match[1] !== commentId || match[2] !== headSha) return undefined;
+  return Number(match[3]);
+}
+
+/**
  * Post blockers that did not fit in the review body as bounded comments.
+ * Already posted chunks are skipped, so a retry can resume safely.
  * @param {object} args - Request arguments.
  * @param {Array<Record<string, unknown>>} findings - Omitted blockers.
  * @returns {Promise<void>} Resolves when every comment is posted.
  */
 async function postOmittedFindings(args, findings) {
-  if (findings.length === 0) return;
-  const heading =
-    '### Additional blocking findings\n\nThese findings did not fit in the review body.\n\n';
-  const bodies = [];
-  let current = heading;
-  for (const finding of findings) {
-    const block = `${findingBlock(finding)}\n`;
-    if (current.length > heading.length && current.length + block.length > MAX_COMMENT_CHARS) {
-      bodies.push(current);
-      current = heading;
-    }
-    current += block;
+  const chunks = followupComments(findings, args);
+  if (chunks.length === 0) return;
+  const commentId = String(args.commentId ?? '');
+  const headSha = String(args.headSha ?? '');
+  const existing = await listIssueComments(args);
+  const posted = new Set();
+  for (const comment of existing) {
+    const index = followupIndex(comment.body, commentId, headSha);
+    if (index !== undefined) posted.add(index);
   }
-  if (current.length > heading.length) bodies.push(current);
-  for (const body of bodies) {
+  for (const chunk of chunks) {
+    if (posted.has(chunk.index)) continue;
     const response = await githubRequest({
       token: args.token,
       path: `/repos/${args.repo}/issues/${args.pr}/comments`,
       method: 'POST',
-      body: { body },
+      body: { body: chunk.body },
       fetchImpl: args.fetchImpl,
     });
     if (!response.ok) throw new Error(`GitHub comment POST answered ${response.status}`);
@@ -694,6 +787,8 @@ export async function postReview(args) {
           );
         }
       }
+      const duplicateRender = renderReview({ ...args, event, commentId });
+      await postOmittedFindings(args, duplicateRender.omitted);
       return { id: duplicate.id, htmlUrl: duplicate.html_url, inline: 0 };
     }
   }
