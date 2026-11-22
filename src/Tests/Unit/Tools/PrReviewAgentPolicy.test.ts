@@ -158,6 +158,7 @@ describe('PR reviewer tool policy', () => {
     const rules = parsePermission(agent);
     for (const path of [
       '.review/pr/metadata.json',
+      '.review/pr/base-rules/CLAUDE.md',
       '.review/base/src/a.ts',
       '.review-guidelines/manifest.json',
       '.github/review-agent/overlays/israeli-bank-scrapers.md',
@@ -167,10 +168,12 @@ describe('PR reviewer tool policy', () => {
     }
   });
 
-  it('stages a symlink-free base context', async () => {
+  it('stages symlink-free base context and data-only rules', async () => {
     const workflow = await readFile('.github/workflows/pr-review-agent.yml', 'utf8');
+    expect(workflow).toContain('mkdir -p .review/base .review/pr/base-rules');
     expect(workflow).toContain('git archive HEAD');
     expect(workflow).toContain('find .review/base .review-guidelines -type l -delete');
+    expect(workflow).toContain('rm -f .review/base/AGENTS.md .review/base/CLAUDE.md');
   });
 
   it('keeps every read allow before the credential denies', async () => {

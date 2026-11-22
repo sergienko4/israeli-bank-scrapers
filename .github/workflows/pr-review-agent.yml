@@ -101,9 +101,15 @@ jobs:
 
       - name: Stage symlink-free review context
         run: |
-          mkdir -p .review/base
+          mkdir -p .review/base .review/pr/base-rules
           git archive HEAD | tar -x -C .review/base
           find .review/base .review-guidelines -type l -delete
+          for file in AGENTS.md CLAUDE.md .code-rules.md CLEAN_CODE.md; do
+            if [ -f ".review/base/$file" ]; then
+              cp ".review/base/$file" ".review/pr/base-rules/$file"
+            fi
+          done
+          rm -f .review/base/AGENTS.md .review/base/CLAUDE.md
 
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6

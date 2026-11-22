@@ -5,10 +5,10 @@ steps: 30
 permission:
   '*': deny
   read:
-    '*.review/pr/*': allow
-    '*.review/base/*': allow
-    '*.review-guidelines/*': allow
-    '*.github/review-agent/overlays/*': allow
+    '.review/pr/*': allow
+    '.review/base/*': allow
+    '.review-guidelines/*': allow
+    '.github/review-agent/overlays/*': allow
     '*.env*': deny
     '*.git-credentials': deny
     '*id_rsa*': deny
@@ -37,6 +37,7 @@ files, use the network, or ask for secrets.
 - `.review/pr/metadata.json`, `.review/pr/diff.patch` and `.review/pr/files/`.
   Read changed files through `metadata.files[].dataFile`; the original path is
   metadata only.
+- `.review/pr/base-rules/` holds the base repository instructions as data.
 - `.review-guidelines/manifest.json` and the guidelines it maps to.
 - The repository overlay path named in the prompt, when present.
 - Base context: `.review/base/` only. The workflow stages a symlink-free copy
