@@ -513,7 +513,8 @@ export async function postReview(args) {
   const commentId = String(args.commentId ?? '');
   // Approvals, blocking reviews and dismissal cleanup need the complete
   // history. A plain informational COMMENT can post without it.
-  const needsCompleteHistory = event !== 'COMMENT' || args.dismissBlocking === true;
+  const needsCompleteHistory =
+    event !== 'COMMENT' || (args.dismissBlocking === true && args.reviewComplete === true);
   const reviews = await listReviews({ ...args, failClosed: needsCompleteHistory });
   if (commentId.length > 0) {
     const duplicate = reviews.find(

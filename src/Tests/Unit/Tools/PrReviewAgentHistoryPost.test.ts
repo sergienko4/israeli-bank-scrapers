@@ -288,7 +288,7 @@ describe('PR review history at posting', () => {
      */
     const fetchImpl: typeof fetch = (input, init) => {
       const url = urlOf(input);
-      return init?.method === 'POST' ? postResponse(url) : getResponse(url);
+      return init?.method === 'GET' ? getResponse(url) : postResponse(url);
     };
     const posted = await postReview({
       repo: 'sergienko4/repo',
@@ -306,6 +306,51 @@ describe('PR review history at posting', () => {
       fetchImpl,
     });
     expect(posted).toMatchObject({ id: 66 });
+    expect(posts).toHaveLength(1);
+    expect(dismissals).toEqual([]);
+  });
+
+  it('posts an incomplete comment without history when it cannot dismiss', async () => {
+    const dismissals: string[] = [];
+    const posts: string[] = [];
+    /**
+     * Fail the history read and accept the incomplete comment.
+     * @param input - Fetch input.
+     * @param init - Fetch options.
+     * @returns Fake response.
+     */
+    const fetchImpl: typeof fetch = (input, init) => {
+      const url = urlOf(input);
+      const method = init?.method ?? 'GET';
+      if (url.includes('/reviews?') && method === 'GET') {
+        return Promise.resolve(new Response('', { status: 500 }));
+      }
+      if (url.endsWith('/reviews') && method === 'POST') {
+        posts.push(url);
+        return responseTo({ id: 68, html_url: 'https://example.test/review' });
+      }
+      if (url.includes('/dismissals')) {
+        dismissals.push(url);
+        return responseTo({});
+      }
+      return responseTo([]);
+    };
+    const posted = await postReview({
+      repo: 'sergienko4/repo',
+      pr: 886,
+      token: 'token',
+      headSha: 'head',
+      summary: 'ok',
+      inline: [],
+      overflow: [],
+      event: 'COMMENT',
+      appLogin: 'review-agent[bot]',
+      commentId: '99',
+      dismissBlocking: true,
+      reviewComplete: false,
+      fetchImpl,
+    });
+    expect(posted).toMatchObject({ id: 68 });
     expect(posts).toHaveLength(1);
     expect(dismissals).toEqual([]);
   });
