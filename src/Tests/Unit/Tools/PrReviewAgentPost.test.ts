@@ -181,6 +181,26 @@ describe('PR review extraction and posting', () => {
     expect(isIncompleteByModel).toBe(false);
   });
 
+  it('keeps every blocker when the overflow budget is exhausted', () => {
+    const findings = Array.from({ length: 15 }, (_, index) => ({
+      severity: 'critical',
+      path: 'src/a.ts',
+      line: index + 1,
+      title: `Blocker ${String(index)}`,
+      body: 'x'.repeat(1500),
+      rule: '',
+    }));
+    const payload = buildReview({
+      headSha: 'head',
+      summary: 'blocking',
+      inline: [],
+      overflow: findings,
+      blockingSeverities: ['critical'],
+    });
+    const body = String(payload.body);
+    expect(body).toContain('Blocker 14');
+  });
+
   it('keeps blocker details beyond the presentation cap', () => {
     const findings = Array.from({ length: 30 }, (_, index) => ({
       severity: 'critical',

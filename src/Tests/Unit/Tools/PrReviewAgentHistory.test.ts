@@ -222,9 +222,9 @@ describe('PR review history and duplicate triggers', () => {
             submitted_at: '2026-01-02T00:00:00Z',
           },
           {
-            id: 40,
+            id: 30,
             state: 'CHANGES_REQUESTED',
-            commit_id: 'head',
+            commit_id: 'newer-commit',
             user: { login: 'review-agent[bot]' },
             body: '<!-- opencode-review-agent event=REQUEST_CHANGES comment=newer -->',
             submitted_at: '2026-01-03T00:00:00Z',

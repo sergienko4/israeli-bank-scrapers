@@ -17,6 +17,9 @@ const SEVERITIES = ['critical', 'important', 'suggestion'];
 /** Largest expanded overflow section. */
 const MAX_OVERFLOW_CHARS = 12000;
 
+/** Default severities that must never be dropped from the posted review. */
+const DEFAULT_BLOCKING_SEVERITIES = ['critical', 'important'];
+
 /** Longest one overflow body before it is clipped. */
 const MAX_OVERFLOW_BODY_CHARS = 1200;
 
@@ -279,10 +282,11 @@ function commentBody(finding) {
  * @param {object} args - Summary arguments.
  * @param {string} args.summary - Model summary.
  * @param {Array<Record<string, unknown>>} args.overflow - Findings not inline.
+ * @param {Array<string>} [args.blockingSeverities] - Severities that must appear.
  * @returns {string} Review body.
  */
 function summaryBody(args) {
-  const overflow = overflowBlock(args.overflow);
+  const overflow = overflowBlock(args.overflow, args.blockingSeverities);
   const extra = overflow.length > 0 ? `\n\n### Findings not attached inline\n\n${overflow}\n` : '';
   const complete = args.reviewComplete === true ? 'true' : 'false';
   const marker = `${MARKER} event=${args.event ?? 'COMMENT'} comment=${args.commentId ?? ''} complete=${complete} -->`;
@@ -291,10 +295,14 @@ function summaryBody(args) {
 
 /**
  * Render overflow findings with enough detail to act on, within a budget.
+ * Full details stop at the budget, but every blocking finding still gets a
+ * compact line so a long review cannot silently omit a blocker.
  * @param {Array<Record<string, unknown>>} findings - Findings not inline.
+ * @param {Array<string>} [blockingSeverities] - Severities that must be shown.
  * @returns {string} Markdown block, or ''.
  */
-function overflowBlock(findings) {
+function overflowBlock(findings, blockingSeverities = DEFAULT_BLOCKING_SEVERITIES) {
+  const blocking = new Set(blockingSeverities.map(String));
   const blocks = [];
   let used = 0;
   for (const finding of findings) {
@@ -302,9 +310,15 @@ function overflowBlock(findings) {
     const rule = String(finding.rule ?? '');
     const ruleLine = rule.length > 0 ? `\n  Rule: ${sanitizeText(rule)}` : '';
     const block = `- **${sanitizeText(finding.severity)}** \`${sanitizeText(finding.path)}:${finding.line}\` **${sanitizeText(finding.title)}**\n  ${body}${ruleLine}`;
-    if (used + block.length > MAX_OVERFLOW_CHARS) break;
-    blocks.push(block);
-    used += block.length;
+    if (used + block.length <= MAX_OVERFLOW_CHARS) {
+      blocks.push(block);
+      used += block.length;
+      continue;
+    }
+    if (!blocking.has(String(finding.severity))) continue;
+    const compact = `- **${sanitizeText(finding.severity)}** \`${sanitizeText(finding.path)}:${finding.line}\` **${sanitizeText(finding.title)}** (details omitted)`;
+    blocks.push(compact);
+    used += compact.length;
   }
   return blocks.join('\n');
 }
@@ -451,19 +465,35 @@ async function dismissReview(args, review) {
  * @param {number} [beforeId] - Only dismiss reviews older than this ID.
  * @returns {Promise<void>} Resolves when all earlier blocks are dismissed.
  */
+/**
+ * Whether a review was submitted before the cutoff.
+ * @param {Record<string, unknown>} review - Review.
+ * @param {number | undefined} cutoff - Cutoff time in milliseconds.
+ * @returns {boolean} True when the review predates the cutoff, or no cutoff is set.
+ */
+function submittedBefore(review, cutoff) {
+  if (cutoff === undefined) return true;
+  const at = Date.parse(String(review.submitted_at ?? ''));
+  return Number.isFinite(at) && at < cutoff;
+}
+
 async function dismissEarlierBlocks(
   args,
   reviews,
   newReviewId,
   beforeId = Number.POSITIVE_INFINITY,
+  beforeSubmittedAt,
 ) {
   const appLogin = args.appLogin ?? LEGACY_APP_LOGIN;
   if (appLogin === LEGACY_APP_LOGIN) return;
+  const cutoff = beforeSubmittedAt === undefined ? undefined : Date.parse(beforeSubmittedAt);
+  if (cutoff !== undefined && !Number.isFinite(cutoff)) return;
   const conflicts = reviews.filter(
     review =>
       isAppReview(review, appLogin) &&
       Number(review.id) !== newReviewId &&
       Number(review.id) < beforeId &&
+      submittedBefore(review, cutoff) &&
       String(review.commit_id ?? '') !== args.headSha &&
       String(review.state ?? '') === 'CHANGES_REQUESTED' &&
       reviewEvent(review) === 'REQUEST_CHANGES',
@@ -526,6 +556,7 @@ export function buildReview(args) {
       event,
       commentId: args.commentId,
       reviewComplete: args.reviewComplete,
+      blockingSeverities: args.blockingSeverities,
     }),
     event,
   };
@@ -583,7 +614,13 @@ export async function postReview(args) {
         duplicateIsCleanComment
       ) {
         if (await liveHeadMatches(args)) {
-          await dismissEarlierBlocks(args, reviews, Number(duplicate.id), Number(duplicate.id));
+          await dismissEarlierBlocks(
+            args,
+            reviews,
+            Number(duplicate.id),
+            Number(duplicate.id),
+            String(duplicate.submitted_at ?? ''),
+          );
         }
       }
       return { id: duplicate.id, htmlUrl: duplicate.html_url, inline: 0 };
@@ -762,6 +799,7 @@ async function main() {
           event: env.REVIEW_EVENT || config.defaultReviewEvent || DEFAULT_REVIEW_EVENT,
           commentId: env.REVIEW_COMMENT_ID || '',
           reviewComplete,
+          blockingSeverities: config.blockingSeverities,
         }),
         null,
         2,
@@ -775,6 +813,7 @@ async function main() {
     inline: split.inline,
     overflow: split.overflow,
     reviewComplete,
+    blockingSeverities: config.blockingSeverities,
   });
   console.log(JSON.stringify(posted));
 }
