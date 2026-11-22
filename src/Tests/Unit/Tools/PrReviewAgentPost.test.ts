@@ -475,6 +475,7 @@ describe('PR review extraction and posting', () => {
       message: 'The review run did not finish.',
       event: 'APPROVE',
       appLogin: 'review-agent[bot]',
+      reviewComplete: true,
       fetchImpl,
     });
     expect(bodies).toHaveLength(1);
@@ -482,6 +483,7 @@ describe('PR review extraction and posting', () => {
     const bodyValue = bodies[0]?.body;
     const body = typeof bodyValue === 'string' ? bodyValue : '';
     expect(body).toContain('Review failed');
+    expect(body).toContain('complete=false');
   });
 
   it('posts the review exactly once', async () => {

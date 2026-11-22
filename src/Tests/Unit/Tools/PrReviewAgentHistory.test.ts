@@ -3,7 +3,7 @@
  * No network is used; the GitHub API is a local fake.
  */
 
-import { postReview } from '../../../../.github/scripts/pr-review/post-review.mjs';
+import { buildReview, postReview } from '../../../../.github/scripts/pr-review/post-review.mjs';
 import { responseTo, urlOf } from './PrReviewAgentTestUtils.js';
 
 describe('PR review history and duplicate triggers', () => {
@@ -53,6 +53,15 @@ describe('PR review history and duplicate triggers', () => {
   it('resumes a pending dismissal when the trigger is a duplicate', async () => {
     const dismissals: string[] = [];
     const posts: string[] = [];
+    const duplicateBody = buildReview({
+      headSha: 'head',
+      summary: 'ok',
+      inline: [],
+      overflow: [],
+      event: 'COMMENT',
+      commentId: '99',
+      reviewComplete: true,
+    }).body;
     /**
      * Serve a GET route.
      * @param url - Request URL.
@@ -73,7 +82,7 @@ describe('PR review history and duplicate triggers', () => {
             state: 'COMMENTED',
             commit_id: 'head',
             user: { login: 'review-agent[bot]' },
-            body: '<!-- opencode-review-agent event=COMMENT comment=99 complete=true -->',
+            body: duplicateBody,
             submitted_at: '2026-01-02T00:00:00Z',
           },
         ]);

@@ -621,6 +621,7 @@ export async function postFailure(args) {
     inline: [],
     overflow: [],
     dismissBlocking: false,
+    reviewComplete: false,
   });
 }
 
