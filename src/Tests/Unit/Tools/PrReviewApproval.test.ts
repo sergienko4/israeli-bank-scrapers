@@ -477,7 +477,7 @@ describe('workflow environment decision', () => {
     });
   });
 
-  it('decides a blocking review with best-effort history', async () => {
+  it('requires complete history for a blocking review', async () => {
     const diff = [
       'diff --git a/src/a.ts b/src/a.ts',
       '--- a/src/a.ts',
@@ -485,7 +485,7 @@ describe('workflow environment decision', () => {
       '@@ -1,0 +2,1 @@',
       '+blocking',
     ].join('\n');
-    const decision = await decideWith(
+    const pending = decideWith(
       {
         command: 'review',
         diff,
@@ -498,7 +498,7 @@ describe('workflow environment decision', () => {
       },
       failingHistoryFetch,
     );
-    expect(decision.event).toBe('REQUEST_CHANGES');
+    await expect(pending).rejects.toThrow('GitHub reviews answered 500');
   });
 
   it('requires complete history for a dismissal', async () => {

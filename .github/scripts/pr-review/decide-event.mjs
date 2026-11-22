@@ -112,10 +112,7 @@ export async function decideFromEnv(env, fetchImpl = fetch) {
     });
 
   const provisional = decide(await listReviews({ ...historyArgs, failClosed: false }));
-  if (
-    provisional.event === 'REQUEST_CHANGES' ||
-    (provisional.event === 'COMMENT' && provisional.dismissBlocking === false)
-  ) {
+  if (provisional.event === 'COMMENT' && provisional.dismissBlocking === false) {
     return provisional;
   }
   return decide(await listReviews(historyArgs));

@@ -795,11 +795,10 @@ export async function postReview(args) {
   const appLogin = args.appLogin ?? LEGACY_APP_LOGIN;
   const commentId = String(args.commentId ?? '');
   const rendered = renderReview({ ...args, event, commentId });
-  // Approvals and dismissal cleanup need the complete history. Informational
-  // comments and blocking reviews can post from a best-effort read.
+  // Approvals, blocking reviews and dismissal cleanup need the complete
+  // history. A plain informational COMMENT can post without it.
   const needsCompleteHistory =
-    event === 'APPROVE' ||
-    (event === 'COMMENT' && args.dismissBlocking === true && args.reviewComplete === true);
+    event !== 'COMMENT' || (args.dismissBlocking === true && args.reviewComplete === true);
   const reviews = await listReviews({ ...args, failClosed: needsCompleteHistory });
   if (commentId.length > 0) {
     const failureRequest = String(args.summary ?? '')
