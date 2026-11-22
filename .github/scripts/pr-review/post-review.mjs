@@ -731,6 +731,7 @@ async function main() {
           overflow: split.overflow,
           event: env.REVIEW_EVENT || config.defaultReviewEvent || DEFAULT_REVIEW_EVENT,
           commentId: env.REVIEW_COMMENT_ID || '',
+          reviewComplete: review.complete,
         }),
         null,
         2,
