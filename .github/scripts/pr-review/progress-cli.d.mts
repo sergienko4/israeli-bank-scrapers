@@ -8,3 +8,8 @@ export function stageIds(
 export function recoverProgressIds(
   args: Record<string, unknown>,
 ): Promise<{ commentId: number; checkRunId: number }>;
+
+export function writeOutputs(
+  values: Record<string, unknown>,
+  env: NodeJS.ProcessEnv,
+): Promise<void>;

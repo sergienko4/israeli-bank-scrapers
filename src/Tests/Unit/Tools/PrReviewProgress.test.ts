@@ -4,6 +4,10 @@
  * No network is used.
  */
 
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import {
   findCheckRun,
   findProgressComment,
@@ -15,6 +19,7 @@ import {
   argsFromEnv,
   recoverProgressIds,
   stageIds,
+  writeOutputs,
 } from '../../../../.github/scripts/pr-review/progress-cli.mjs';
 import { responseTo, urlOf } from './PrReviewAgentTestUtils.js';
 
@@ -107,6 +112,22 @@ describe('progress CLI environment', () => {
       fetchImpl,
     });
     expect(ids).toEqual({ commentId: 10, checkRunId: 20 });
+  });
+
+  it('writes the exact output keys read by the workflow', async () => {
+    const tempRoot = tmpdir();
+    const prefix = join(tempRoot, 'progress-output-');
+    const dir = await mkdtemp(prefix);
+    const output = join(dir, 'output');
+    const env = { GITHUB_OUTPUT: output } as NodeJS.ProcessEnv;
+    try {
+      await writeOutputs({ commentId: 10, checkRunId: 20 }, env);
+      await writeOutputs({ done: true }, env);
+      const text = await readFile(output, 'utf8');
+      expect(text).toBe('commentId=10\ncheckRunId=20\ndone=true\n');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });
 

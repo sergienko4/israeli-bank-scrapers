@@ -46,16 +46,18 @@ export async function recoverProgressIds(args) {
     try {
       const check = await findCheckRun(args);
       checkRunId = Number(check?.id ?? 0);
-    } catch {
-      console.warn('progress check-run recovery failed');
+    } catch (error) {
+      const name = error instanceof Error ? error.name : 'UnknownError';
+      console.warn(`progress check-run recovery failed: ${name}`);
     }
   }
   if (!(commentId > 0)) {
     try {
       const comment = await findProgressComment(args);
       commentId = Number(comment?.id ?? 0);
-    } catch {
-      console.warn('progress comment recovery failed');
+    } catch (error) {
+      const name = error instanceof Error ? error.name : 'UnknownError';
+      console.warn(`progress comment recovery failed: ${name}`);
     }
   }
   return { commentId, checkRunId };
@@ -67,7 +69,7 @@ export async function recoverProgressIds(args) {
  * @param {NodeJS.ProcessEnv} env - Process environment.
  * @returns {Promise<void>} Resolves when written.
  */
-async function writeOutputs(values, env) {
+export async function writeOutputs(values, env) {
   if (!env.GITHUB_OUTPUT) {
     console.log(JSON.stringify(values));
     return;

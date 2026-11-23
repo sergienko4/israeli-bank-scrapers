@@ -226,10 +226,11 @@ export async function startProgress(args) {
     const comment = await upsertProgressComment({ ...args, stage }, existingComment);
     const updatedId = Number(comment.id);
     if (Number.isInteger(updatedId) && updatedId > 0) commentId = updatedId;
-  } catch {
+  } catch (error) {
     // The check run is the durable signal; the comment is best effort. A
     // failed update still leaves the existing comment removable by its id.
-    console.warn('progress comment update failed');
+    const name = error instanceof Error ? error.name : 'UnknownError';
+    console.warn(`progress comment update failed: ${name}`);
   }
   const checkRunId = Number(checkRun.id);
   if (!Number.isInteger(checkRunId) || checkRunId <= 0) {
@@ -263,7 +264,7 @@ export async function finishProgress(args) {
           status: 'completed',
           conclusion: args.conclusion,
           output: {
-            title: 'OpenCode review',
+            title: args.checkName ?? DEFAULT_CHECK_NAME,
             summary: finishSummary(args.conclusion, args.findings, args.failed),
           },
         },
@@ -285,9 +286,10 @@ export async function finishProgress(args) {
         if (!response.ok && response.status !== 404) {
           throw new Error(`GitHub progress comment DELETE answered ${response.status}`);
         }
-      } catch {
+      } catch (error) {
         // Cleanup is best effort; a completed check run is the durable signal.
-        console.warn('progress comment cleanup failed');
+        const name = error instanceof Error ? error.name : 'UnknownError';
+        console.warn(`progress comment cleanup failed: ${name}`);
       }
     }
   }
