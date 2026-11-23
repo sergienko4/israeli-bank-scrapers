@@ -87,11 +87,9 @@ function isAuthorityBoundary(char) {
     char === '?' ||
     char === '#' ||
     char === '"' ||
-    char === "'" ||
     char === '`' ||
     char === '<' ||
-    char === '>' ||
-    char === ','
+    char === '>'
   );
 }
 
@@ -110,7 +108,11 @@ function hasUrlUserinfo(text) {
       start -= 1;
       length += 1;
     }
-    const scheme = text.slice(start, marker);
+    const schemeText = text.slice(start, marker);
+    let scheme = schemeText;
+    while (scheme.length > 0 && (scheme[0] === '+' || scheme[0] === '-')) {
+      scheme = scheme.slice(1);
+    }
     const first = scheme[0] ?? '';
     const hasScheme =
       scheme.length > 0 && ((first >= 'a' && first <= 'z') || (first >= 'A' && first <= 'Z'));

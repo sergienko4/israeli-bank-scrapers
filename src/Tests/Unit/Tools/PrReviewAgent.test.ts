@@ -506,6 +506,10 @@ describe('PR review sensitive data', () => {
     'https://deploy-token@example.test/repo.git',
     'https://deploy-token:@example.test/repo.git',
     'HTTPS://user:password@example.test/repo.git',
+    'https://user,pass@example.test/repo.git',
+    "https://user'pass@example.test/repo.git",
+    '+https://user:password@example.test/repo.git',
+    '-https://user:password@example.test/repo.git',
   ])('detects credential content %s', text => {
     const isCredential = hasCredentialContent(text);
     expect(isCredential).toBe(true);
@@ -543,6 +547,18 @@ describe('PR review sensitive data', () => {
     ].join('\n');
     const filtered = filterDiff(diff);
     expect(filtered).not.toContain('AKIA');
+  });
+
+  it.each(['+', '-'])('drops a block with a credential URL at a %s line start', prefix => {
+    const diff = [
+      'diff --git a/src/remote.ts b/src/remote.ts',
+      '--- a/src/remote.ts',
+      '+++ b/src/remote.ts',
+      '@@ -1 +1 @@',
+      `${prefix}const remote = "https://user:password@example.test/repo.git";`,
+    ].join('\n');
+    const filtered = filterDiff(diff);
+    expect(filtered).not.toContain('example.test');
   });
 
   it.each([
