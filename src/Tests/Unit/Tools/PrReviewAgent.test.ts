@@ -540,7 +540,7 @@ describe('PR review sensitive data', () => {
       `+const remote = "${url}";`,
     ].join('\n');
     const filtered = filterDiff(diff);
-    expect(filtered).not.toContain('password');
+    expect(filtered).not.toContain(url);
   });
 
   it('drops a copy whose destination is sensitive', () => {
