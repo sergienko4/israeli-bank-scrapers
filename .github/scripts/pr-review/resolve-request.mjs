@@ -2,8 +2,9 @@ import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { canRequest, githubRequest, isTrustedAssociation, readResponseJson } from './shared.mjs';
 
-/** Exact PR comment trigger, with an optional model selector. */
-const REVIEW_COMMAND = /^\/review(?:\s+model=(?<model>[A-Za-z0-9./#_-]+))?\s*$/u;
+/** Exact PR comment trigger, with an optional approve command and model. */
+const REVIEW_COMMAND =
+  /^\/review(?<approve>[ \t]+approve)?(?:[ \t]+model=(?<model>[A-Za-z0-9./#_-]+))?[ \t]*\r?\n?$/u;
 
 /** Effort order used when a model has no configured default. */
 const VARIANT_PRIORITY = ['high', 'max', 'low'];
@@ -28,7 +29,7 @@ async function readEvent(env) {
  * Parse the trigger into a PR number and optional model text.
  * @param {string} eventName - GitHub event name.
  * @param {Record<string, unknown>} event - Event payload.
- * @returns {{ pr: number, modelInput: string, actor: string, association: string, source: string }} Request.
+ * @returns {{ pr: number, modelInput: string, actor: string, association: string, source: string, command: string }} Request.
  */
 export function parseRequest(eventName, event) {
   if (eventName === 'workflow_dispatch') {
@@ -40,6 +41,7 @@ export function parseRequest(eventName, event) {
       actor: '',
       association: 'OWNER',
       source: 'workflow_dispatch',
+      command: 'review',
     };
   }
   if (eventName !== 'issue_comment') throw new Error('unsupported event');
@@ -56,6 +58,7 @@ export function parseRequest(eventName, event) {
     actor: String(user.login ?? ''),
     association: String(comment.author_association ?? ''),
     source: 'issue_comment',
+    command: match.groups?.approve === undefined ? 'review' : 'approve',
   };
 }
 
@@ -183,7 +186,7 @@ export function normalizeModel(input, config, models) {
  * @param {typeof fetch} [args.fetchImpl] - Test double.
  * @returns {Promise<string>} Permission name, or ''.
  */
-async function actorPermission(args) {
+export async function actorPermission(args) {
   const response = await githubRequest({
     token: args.token,
     path: `/repos/${args.repo}/collaborators/${encodeURIComponent(args.actor)}/permission`,
@@ -203,7 +206,7 @@ async function actorPermission(args) {
  * @param {typeof fetch} [args.fetchImpl] - Test double.
  * @returns {Promise<Record<string, unknown>>} Pull request payload.
  */
-async function openSameRepoPr(args) {
+export async function openSameRepoPr(args) {
   const response = await githubRequest({
     token: args.token,
     path: `/repos/${args.repo}/pulls/${args.pr}`,
@@ -263,6 +266,7 @@ export async function resolveRequest(args) {
       headSha: String(head.sha ?? ''),
       headRef: String(head.ref ?? ''),
       source: request.source,
+      command: request.command,
     };
   } catch (error) {
     return denied(error.message);
@@ -275,7 +279,7 @@ export async function resolveRequest(args) {
  * @param {NodeJS.ProcessEnv} env - Process environment.
  * @returns {Promise<void>} Resolves when written.
  */
-async function writeOutputs(resolution, env) {
+export async function writeOutputs(resolution, env) {
   if (!env.GITHUB_OUTPUT) {
     console.log(JSON.stringify(resolution));
     return;

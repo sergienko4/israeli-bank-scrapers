@@ -920,6 +920,16 @@ export async function markCreated() {
 }
 
 /**
+ * Record the posted finding count for the progress check.
+ * @param {number} count - Presented finding count.
+ * @returns {Promise<void>} Resolves when the output is written.
+ */
+export async function markFindings(count) {
+  if (!process.env.GITHUB_OUTPUT) return;
+  await appendFile(process.env.GITHUB_OUTPUT, `findings=${String(count)}\n`);
+}
+
+/**
  * Read and validate the agent result.
  * @param {string} path - Result file.
  * @param {number} maxFindings - Finding cap.
@@ -1050,6 +1060,7 @@ async function main() {
     reviewComplete,
     blockingSeverities: config.blockingSeverities,
   });
+  await markFindings(split.inline.length + split.overflow.length);
   console.log(JSON.stringify(posted));
 }
 
