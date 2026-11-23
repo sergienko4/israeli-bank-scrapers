@@ -563,4 +563,70 @@ describe('progress lifecycle', () => {
     });
     expect(calls).toHaveLength(0);
   });
+
+  it('ignores a failed progress comment deletion', async () => {
+    const calls: ICall[] = [];
+    /**
+     * Complete the check and fail the comment deletion.
+     * @param input - Fetch input.
+     * @param init - Fetch options.
+     * @returns Fake response.
+     */
+    const fetchImpl: typeof fetch = (input, init) => {
+      const call = record(calls, input, init);
+      if (call.url.endsWith('/issues/comments/10') && call.method === 'DELETE') {
+        return responseTo({}, 500);
+      }
+      return responseTo({});
+    };
+    const pending = finishProgress({
+      repo: REPO,
+      token: TOKEN,
+      checkRunId: 20,
+      commentId: 10,
+      conclusion: 'success',
+      fetchImpl,
+    });
+    await expect(pending).resolves.toBeUndefined();
+    const hasDeleteCall = calls.some(call => call.method === 'DELETE');
+    expect(hasDeleteCall).toBe(true);
+  });
+
+  it('skips comment creation when lookup reaches the page cap', async () => {
+    const calls: ICall[] = [];
+    /**
+     * Serve an empty check-run list and full comment pages.
+     * @param input - Fetch input.
+     * @param init - Fetch options.
+     * @returns Fake response.
+     */
+    const fetchImpl: typeof fetch = (input, init) => {
+      const call = record(calls, input, init);
+      if (call.url.includes('/check-runs?')) return responseTo({ check_runs: [] });
+      if (call.url.endsWith('/check-runs')) return responseTo({ id: 20 });
+      if (call.method === 'GET' && call.url.includes('/issues/886/comments?')) {
+        const page = Array.from({ length: 100 }, (_, index) => ({
+          id: index + 1,
+          user: { login: 'someone' },
+          body: 'other comment',
+        }));
+        return responseTo(page);
+      }
+      return responseTo([]);
+    };
+    const ids = await startProgress({
+      repo: REPO,
+      pr: 886,
+      token: TOKEN,
+      headSha: HEAD,
+      externalId: COMMENT_ID,
+      appLogin: APP,
+      fetchImpl,
+    });
+    const hasCommentCreate = calls.some(
+      call => call.method === 'POST' && call.url.endsWith('/issues/886/comments'),
+    );
+    expect(ids).toEqual({ commentId: 0, checkRunId: 20 });
+    expect(hasCommentCreate).toBe(false);
+  });
 });

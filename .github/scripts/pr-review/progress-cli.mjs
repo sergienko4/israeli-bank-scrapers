@@ -8,12 +8,12 @@ import { finishProgress, startProgress } from './progress.mjs';
  */
 function argsFromEnv(env) {
   return {
-    repo: env.REVIEW_REPO || '',
+    repo: env.REVIEW_REPO || env.GITHUB_REPOSITORY || '',
     pr: Number(env.PR_NUMBER),
-    token: env.REVIEW_TOKEN || '',
+    token: env.REVIEW_TOKEN || env.GITHUB_TOKEN || '',
     headSha: env.REVIEW_HEAD_SHA || '',
     externalId: env.REVIEW_COMMENT_ID || '',
-    appLogin: env.REVIEW_APP_LOGIN || 'review-agent[bot]',
+    appLogin: env.REVIEW_APP_LOGIN || 'github-actions[bot]',
     checkName: env.REVIEW_CHECK_NAME || undefined,
     marker: env.REVIEW_PROGRESS_MARKER || undefined,
   };
@@ -41,6 +41,13 @@ async function writeOutputs(values, env) {
 async function main() {
   const env = process.env;
   const args = argsFromEnv(env);
+  const stageIndex = process.argv.indexOf('--stage');
+  if (stageIndex >= 0) {
+    const stage = process.argv[stageIndex + 1] || 'start';
+    const ids = await startProgress({ ...args, stage });
+    await writeOutputs(ids, env);
+    return;
+  }
   if (process.argv.includes('--start')) {
     const ids = await startProgress(args);
     await writeOutputs(ids, env);

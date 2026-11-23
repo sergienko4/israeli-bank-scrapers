@@ -75,11 +75,15 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+      checks: write
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
       REVIEW_GUIDELINES_REPO: ${{ vars.REVIEW_GUIDELINES_REPO }}
       REVIEW_GUIDELINES_TOKEN: ${{ secrets.REVIEW_GUIDELINES_TOKEN }}
+      REVIEW_REPO: ${{ github.repository }}
+      REVIEW_COMMENT_ID: ${{ github.event.comment.id }}
+      REVIEW_APP_LOGIN: github-actions[bot]
       PR_NUMBER: ${{ needs.resolve.outputs.pr }}
       REVIEW_MODEL: ${{ needs.resolve.outputs.model }}
       REVIEW_HEAD_SHA: ${{ needs.resolve.outputs.headSha }}
@@ -129,6 +133,11 @@ jobs:
           node-version: 24.22.0
           check-latest: false
 
+      - name: Start review progress
+        id: progress
+        continue-on-error: true
+        run: node .github/scripts/pr-review/progress-cli.mjs --start
+
       - name: Install the pinned OpenCode CLI
         env:
           OPENCODE_VERSION: 2.2.5
@@ -148,6 +157,10 @@ jobs:
         id: fetch
         run: node .github/scripts/pr-review/fetch-pr.mjs
 
+      - name: Mark diff fetched
+        continue-on-error: true
+        run: node .github/scripts/pr-review/progress-cli.mjs --stage fetch
+
       - name: Run the read-only reviewer
         id: agent
         run: |
@@ -159,9 +172,17 @@ jobs:
             "Review pull request #$PR_NUMBER. Read .review/pr/metadata.json, .review/pr/diff.patch, .review/pr/files, .review/pr/base-rules, .review-guidelines/manifest.json and the base context under .review/base/. The repository overlay is .github/review-agent/overlays/israeli-bank-scrapers.md. Load pr-review-orchestrator and the review skills it names. Return only the review JSON object. Do not execute any command, test or pull-request code." \
             > .review/pr/agent.jsonl
 
+      - name: Mark review running
+        continue-on-error: true
+        run: node .github/scripts/pr-review/progress-cli.mjs --stage review
+
       - name: Extract the review JSON
         id: extract
         run: node .github/scripts/pr-review/extract-review.mjs
+
+      - name: Mark review posting
+        continue-on-error: true
+        run: node .github/scripts/pr-review/progress-cli.mjs --stage post
 
       - name: Post the review
         id: post
@@ -170,3 +191,13 @@ jobs:
       - name: Post a failure notice
         if: failure() && steps.post.outputs.created != 'true'
         run: node .github/scripts/pr-review/post-review.mjs --failure
+
+      - name: Finish review progress
+        if: always()
+        continue-on-error: true
+        env:
+          REVIEW_CHECK_ID: ${{ steps.progress.outputs.checkRunId }}
+          REVIEW_PROGRESS_COMMENT_ID: ${{ steps.progress.outputs.commentId }}
+          REVIEW_CONCLUSION: ${{ job.status == 'cancelled' && 'cancelled' || (job.status == 'success' && 'success' || 'failure') }}
+          REVIEW_FAILED: ${{ job.status == 'failure' && 'true' || 'false' }}
+        run: node .github/scripts/pr-review/progress-cli.mjs --finish

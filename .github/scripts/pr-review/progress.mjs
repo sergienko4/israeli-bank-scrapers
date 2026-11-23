@@ -95,7 +95,7 @@ export async function findProgressComment(args) {
     if (found !== undefined) return found;
     if (batch.length < 100) return undefined;
   }
-  return undefined;
+  throw new Error('progress comment lookup is incomplete');
 }
 
 /**
@@ -196,13 +196,32 @@ export async function createCheckRun(args) {
  * @returns {Promise<{ commentId: number, checkRunId: number }>} Created IDs.
  */
 export async function startProgress(args) {
+  const stage = args.stage ?? 'start';
   const existingCheck = await findCheckRun(args);
-  const checkRun = existingCheck ?? (await createCheckRun({ ...args, stage: 'start' }));
+  let checkRun = existingCheck;
+  if (existingCheck === undefined) {
+    checkRun = await createCheckRun({ ...args, stage });
+  } else {
+    const response = await githubRequest({
+      token: args.token,
+      path: `/repos/${args.repo}/check-runs/${String(existingCheck.id)}`,
+      method: 'PATCH',
+      body: {
+        status: 'in_progress',
+        output: {
+          title: STAGE_TITLE[stage] ?? STAGE_TITLE.start,
+          summary: progressBody(stage, ''),
+        },
+      },
+      fetchImpl: args.fetchImpl,
+    });
+    if (!response.ok) throw new Error(`GitHub check-run PATCH answered ${response.status}`);
+  }
   let commentId = 0;
   try {
     const existingComment = await findProgressComment(args);
     commentId = Number(existingComment?.id ?? 0);
-    const comment = await upsertProgressComment({ ...args, stage: 'start' }, existingComment);
+    const comment = await upsertProgressComment({ ...args, stage }, existingComment);
     commentId = Number(comment.id);
   } catch {
     // The check run is the durable signal; the comment is best effort. A
@@ -260,8 +279,8 @@ export async function finishProgress(args) {
         if (!response.ok && response.status !== 404) {
           throw new Error(`GitHub progress comment DELETE answered ${response.status}`);
         }
-      } catch (error) {
-        failure ??= error;
+      } catch {
+        // Cleanup is best effort; a completed check run is the durable signal.
       }
     }
   }
