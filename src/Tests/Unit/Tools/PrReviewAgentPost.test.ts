@@ -13,6 +13,7 @@ import {
   isPostedComplete,
   mapFindings,
   markCreated,
+  markFindings,
   parseAddedLines,
   parseReview,
   postFailure,
@@ -670,7 +671,7 @@ describe('PR review schema and sanitization', () => {
     expect(capped.text).toBe('a\nb\n\n[... diff truncated ...]\n');
   });
 
-  it('records that a review was created for the workflow', async () => {
+  it('records creation and finding count for the workflow', async () => {
     await mkdir('.review', { recursive: true });
     const tempPrefix = join('.review', 'pr-review-output-');
     const dir = await mkdtemp(tempPrefix);
@@ -679,7 +680,8 @@ describe('PR review schema and sanitization', () => {
     process.env.GITHUB_OUTPUT = output;
     try {
       await markCreated();
-      expect(await readFile(output, 'utf8')).toBe('created=true\n');
+      await markFindings(3);
+      expect(await readFile(output, 'utf8')).toBe('created=true\nfindings=3\n');
     } finally {
       delete process.env.GITHUB_OUTPUT;
       if (previous !== undefined) process.env.GITHUB_OUTPUT = previous;
