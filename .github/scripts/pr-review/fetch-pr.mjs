@@ -20,6 +20,23 @@ const FILES_PER_PAGE = 100;
 /** Most changed files copied as review data. */
 const MAX_FILES = 300;
 
+/** Default diff character cap. */
+const DEFAULT_MAX_DIFF_CHARS = 120000;
+
+/** Default per-file character cap. */
+const DEFAULT_MAX_FILE_CHARS = 60000;
+
+/**
+ * Use a positive finite configuration limit, or the default.
+ * @param {unknown} value - Configuration value.
+ * @param {number} fallback - Default limit.
+ * @returns {number} Effective limit.
+ */
+function configLimit(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : fallback;
+}
+
 /** Credential-shaped paths never copied into review data. */
 const SENSITIVE_PATH_RE =
   /(?:^|\/)(?:\.env(?:\..*)?|\.git-credentials|id_rsa[^/]*|[^/]+\.(?:pem|key|p12|pfx|crt|cer|jks|keystore)|\.npmrc|\.netrc)$/iu;
@@ -35,8 +52,139 @@ const CREDENTIAL_CONTENT_RE = new RegExp(
     '\\bsk-[A-Za-z0-9_-]{20,}\\b',
     '\\beyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\b',
   ].join('|'),
-  'u',
+  'iu',
 );
+
+/** Longest accepted URL scheme prefix. */
+const MAX_URL_SCHEME_CHARS = 32;
+
+/**
+ * Whether a character can appear in a URL scheme.
+ * @param {string} char - One character.
+ * @returns {boolean} True for a scheme character.
+ */
+function isSchemeChar(char) {
+  return (
+    (char >= 'a' && char <= 'z') ||
+    (char >= 'A' && char <= 'Z') ||
+    (char >= '0' && char <= '9') ||
+    char === '+' ||
+    char === '.' ||
+    char === '-'
+  );
+}
+
+/**
+ * Whether a character ends a single URL authority token.
+ * @param {string} char - One character.
+ * @returns {boolean} True at whitespace or a delimiter.
+ */
+function isAuthorityBoundary(char) {
+  const code = char.codePointAt(0) ?? 0;
+  return (
+    code <= 0x20 ||
+    char === '/' ||
+    char === '?' ||
+    char === '#' ||
+    char === '"' ||
+    char === '`' ||
+    char === '<' ||
+    char === '>'
+  );
+}
+
+/**
+ * Whether a character is escaped by an odd number of backslashes.
+ * @param {string} text - Whole text.
+ * @param {number} index - Character index.
+ * @returns {boolean} True when the character is escaped.
+ */
+function isEscaped(text, index) {
+  let backslashes = 0;
+  for (let cursor = index - 1; cursor >= 0 && text[cursor] === '\\'; cursor -= 1) {
+    backslashes += 1;
+  }
+  return backslashes % 2 === 1;
+}
+
+/**
+ * Whether text has a URL with userinfo in one authority token.
+ * Scans each `://` once instead of letting the regex engine rescan suffixes.
+ * @param {string} text - Text.
+ * @returns {boolean} True for a credential-bearing URL.
+ */
+/**
+ * Whether an apostrophe is part of a word such as a contraction.
+ * @param {string} text - Whole text.
+ * @param {number} index - Apostrophe index.
+ * @returns {boolean} True when both neighbours are letters.
+ */
+function isContraction(text, index) {
+  const previous = text[index - 1] ?? '';
+  const next = text[index + 1] ?? '';
+  const isLetter = char => (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z');
+  return isLetter(previous) && isLetter(next);
+}
+
+function hasUrlUserinfo(text) {
+  let quote = '';
+  let index = 0;
+  while (index < text.length) {
+    const char = text[index];
+    if (char === '\n' || char === '\r') {
+      quote = '';
+      index += 1;
+      continue;
+    }
+    if (quote.length > 0) {
+      if (char === '\\') {
+        index += 2;
+        continue;
+      }
+      if (char === quote) {
+        quote = '';
+        index += 1;
+        continue;
+      }
+    } else if (char === '"' || (char === "'" && !isContraction(text, index))) {
+      quote = char;
+      index += 1;
+      continue;
+    }
+    if (char !== ':' || text[index + 1] !== '/' || text[index + 2] !== '/') {
+      index += 1;
+      continue;
+    }
+    let start = index;
+    let length = 0;
+    while (start > 0 && length < MAX_URL_SCHEME_CHARS && isSchemeChar(text[start - 1])) {
+      start -= 1;
+      length += 1;
+    }
+    let scheme = text.slice(start, index);
+    while (scheme.length > 0 && (scheme[0] === '+' || scheme[0] === '-')) {
+      scheme = scheme.slice(1);
+    }
+    const first = scheme[0] ?? '';
+    const hasScheme =
+      scheme.length > 0 && ((first >= 'a' && first <= 'z') || (first >= 'A' && first <= 'Z'));
+    if (!hasScheme) {
+      index += 1;
+      continue;
+    }
+    let end = index + 3;
+    while (end < text.length) {
+      const next = text[end];
+      if (quote.length > 0 && next === quote && !isEscaped(text, end)) break;
+      if (isAuthorityBoundary(next)) break;
+      end += 1;
+    }
+    const authority = text.slice(index + 3, end);
+    if (authority.lastIndexOf('@') > 0) return true;
+    index = end;
+  }
+  return false;
+}
 
 /**
  * Fetch the pull request metadata.
@@ -75,7 +223,8 @@ async function fetchDiff(args) {
  */
 async function listFiles(args) {
   const files = [];
-  for (let page = 1; files.length < MAX_FILES; page += 1) {
+  const maxFiles = configLimit(args.maxFiles, MAX_FILES);
+  for (let page = 1; files.length < maxFiles; page += 1) {
     const response = await githubRequest({
       token: args.token,
       path: `/repos/${args.repo}/pulls/${args.pr}/files?per_page=${FILES_PER_PAGE}&page=${page}`,
@@ -85,7 +234,7 @@ async function listFiles(args) {
     files.push(...batch);
     if (batch.length < FILES_PER_PAGE) break;
   }
-  return files.slice(0, MAX_FILES);
+  return files.slice(0, maxFiles);
 }
 
 /**
@@ -140,7 +289,7 @@ export function isSensitivePath(path) {
  * @returns {boolean} True when the text must not reach the model.
  */
 export function hasCredentialContent(text) {
-  return CREDENTIAL_CONTENT_RE.test(text);
+  return CREDENTIAL_CONTENT_RE.test(text) || hasUrlUserinfo(text);
 }
 
 /**
@@ -264,6 +413,7 @@ export function filterDiff(diff) {
  * @param {string} [args.outDir] - Data directory.
  * @param {number} args.maxDiffChars - Diff cap.
  * @param {number} args.maxFileChars - File cap.
+ * @param {number} [args.maxFiles] - Changed-file cap.
  * @param {string} [args.expectedHeadSha] - SHA resolved before the fetch.
  * @param {string} [args.expectedBaseSha] - Base SHA resolved before the fetch.
  * @param {typeof fetch} [args.fetchImpl] - Test double.
@@ -271,6 +421,8 @@ export function filterDiff(diff) {
  */
 export async function fetchPrData(args) {
   const outDir = args.outDir ?? '.review/pr';
+  const maxDiffChars = configLimit(args.maxDiffChars, DEFAULT_MAX_DIFF_CHARS);
+  const maxFileChars = configLimit(args.maxFileChars, DEFAULT_MAX_FILE_CHARS);
   const metadata = await fetchMetadata(args);
   const base = /** @type {Record<string, unknown>} */ (metadata.base ?? {});
   const head = /** @type {Record<string, unknown>} */ (metadata.head ?? {});
@@ -279,7 +431,7 @@ export async function fetchPrData(args) {
   const filteredDiff = filterDiff(rawDiff);
   const changed = await listFiles(args);
   const sensitive = changed.filter(isSensitiveFile).map(file => String(file.filename ?? ''));
-  const capped = truncateDiff(filteredDiff, args.maxDiffChars);
+  const capped = truncateDiff(filteredDiff, maxDiffChars);
   await writeTextFile(`${outDir}/diff.patch`, capped.text);
   const skipped = [];
   const dataFiles = new Map();
@@ -298,7 +450,7 @@ export async function fetchPrData(args) {
       repo: args.repo,
       token: args.token,
       blobSha,
-      maxChars: args.maxFileChars,
+      maxChars: maxFileChars,
       fetchImpl: args.fetchImpl,
     });
     if (text === false) {
@@ -379,11 +531,12 @@ async function main() {
     await readFile(new URL('../../review-agent/config.json', import.meta.url), 'utf8'),
   );
   const summary = await fetchPrData({
-    repo: env.GITHUB_REPOSITORY ?? '',
+    repo: env.REVIEW_REPO || env.GITHUB_REPOSITORY || '',
     pr: Number(env.PR_NUMBER),
-    token: env.GITHUB_TOKEN ?? '',
-    maxDiffChars: Number(config.maxDiffChars),
-    maxFileChars: Number(config.maxFileChars),
+    token: env.REVIEW_TOKEN || env.GITHUB_TOKEN || '',
+    maxDiffChars: configLimit(config.maxDiffChars, DEFAULT_MAX_DIFF_CHARS),
+    maxFileChars: configLimit(config.maxFileChars, DEFAULT_MAX_FILE_CHARS),
+    maxFiles: configLimit(config.maxFiles, MAX_FILES),
     expectedHeadSha: env.REVIEW_HEAD_SHA ?? '',
     expectedBaseSha: env.REVIEW_BASE_SHA ?? '',
   });

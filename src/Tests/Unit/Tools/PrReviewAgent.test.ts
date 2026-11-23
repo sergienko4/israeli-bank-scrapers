@@ -173,6 +173,14 @@ describe('PR review trigger', () => {
     });
   });
 
+  it('accepts /review with a trailing newline', () => {
+    const request = parseRequest('issue_comment', {
+      ...REVIEW_EVENT,
+      comment: { ...REVIEW_EVENT.comment, body: '/review\n' },
+    });
+    expect(request).toMatchObject({ pr: 886, command: 'review' });
+  });
+
   it('ignores a comment on an issue', () => {
     expect(() =>
       parseRequest('issue_comment', {
@@ -180,6 +188,31 @@ describe('PR review trigger', () => {
         comment: { body: '/review' },
       }),
     ).toThrow('not a pull request');
+  });
+
+  it('accepts /review approve', () => {
+    const request = parseRequest('issue_comment', {
+      ...REVIEW_EVENT,
+      comment: { ...REVIEW_EVENT.comment, body: '/review approve' },
+    });
+    expect(request).toMatchObject({ pr: 886, command: 'approve' });
+  });
+
+  it('accepts /review approve with a model', () => {
+    const request = parseRequest('issue_comment', {
+      ...REVIEW_EVENT,
+      comment: { ...REVIEW_EVENT.comment, body: '/review approve model=deepseek-v4-pro#high' },
+    });
+    expect(request).toMatchObject({
+      pr: 886,
+      command: 'approve',
+      modelInput: 'deepseek-v4-pro#high',
+    });
+  });
+
+  it('keeps plain /review as a review command', () => {
+    const request = parseRequest('issue_comment', REVIEW_EVENT);
+    expect(request).toMatchObject({ pr: 886, command: 'review' });
   });
 
   it('ignores a comment that is not exactly /review', () => {
@@ -191,9 +224,15 @@ describe('PR review trigger', () => {
     ).toThrow('not a review request');
   });
 
-  it('reads a manual dispatch PR number', () => {
-    const request = parseRequest('workflow_dispatch', { inputs: { pr: '886' } });
-    expect(request).toMatchObject({ pr: 886, source: 'workflow_dispatch' });
+  it('keeps manual dispatch review-only', () => {
+    const request = parseRequest('workflow_dispatch', {
+      inputs: { pr: '886', command: 'approve' },
+    });
+    expect(request).toMatchObject({
+      pr: 886,
+      command: 'review',
+      source: 'workflow_dispatch',
+    });
   });
 });
 
@@ -314,6 +353,35 @@ describe('PR review data fetch', () => {
       await rm(dir, { recursive: true, force: true });
     }
   });
+
+  it('uses default limits when configuration values are not finite', async () => {
+    const reviewRoot = '.review';
+    await mkdir(reviewRoot, { recursive: true });
+    const tempPath = join(reviewRoot, 'pr-review-');
+    const dir = await mkdtemp(tempPath);
+    try {
+      const summary = await fetchPrData({
+        repo: 'sergienko4/repo',
+        pr: 886,
+        token: 'token',
+        outDir: dir,
+        maxDiffChars: Number.NaN,
+        maxFileChars: Number.NaN,
+        maxFiles: Number.NaN,
+        expectedHeadSha: 'head-sha',
+        fetchImpl: fakeGitHub(),
+      });
+      expect(summary).toEqual({ files: 1, skipped: 0, diffTruncated: false });
+      const diffPath = join(dir, 'diff.patch');
+      const changedFilePath = join(dir, 'files/file-000.txt');
+      const diff = await readFile(diffPath, 'utf8');
+      const changedFile = await readFile(changedFilePath, 'utf8');
+      expect(diff).toContain('diff --git');
+      expect(changedFile).toBe('changed');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('PR review data consistency', () => {
@@ -333,13 +401,17 @@ describe('PR review data consistency', () => {
 });
 
 describe('PR review sensitive data', () => {
-  it.each(['.env', 'nested/.env.local', 'certs/service.pem', 'id_rsa', '.npmrc'])(
-    'marks %s as sensitive',
-    path => {
-      const isSensitive = isSensitivePath(path);
-      expect(isSensitive).toBe(true);
-    },
-  );
+  it.each([
+    '.env',
+    'nested/.env.local',
+    'certs/service.pem',
+    'id_rsa',
+    '.npmrc',
+    '.git-credentials',
+  ])('marks %s as sensitive', path => {
+    const isSensitive = isSensitivePath(path);
+    expect(isSensitive).toBe(true);
+  });
 
   it('marks a renamed file when its previous path was sensitive', () => {
     const file = { filename: 'src/a.ts', previous_filename: '.env' };
@@ -429,9 +501,62 @@ describe('PR review sensitive data', () => {
     `ghp_${'a'.repeat(36)}`,
     `sk-${'b'.repeat(24)}`,
     `sk-proj-${'c'.repeat(24)}`,
+    'https://user:password@example.test/repo.git',
+    'https://:password@example.test/repo.git',
+    'https://deploy-token@example.test/repo.git',
+    'https://deploy-token:@example.test/repo.git',
+    'HTTPS://user:password@example.test/repo.git',
+    'https://user,pass@example.test/repo.git',
+    "https://user'pass@example.test/repo.git",
+    'https://@user:password@example.test/repo.git',
+    '+https://user:password@example.test/repo.git',
+    '-https://user:password@example.test/repo.git',
   ])('detects credential content %s', text => {
     const isCredential = hasCredentialContent(text);
     expect(isCredential).toBe(true);
+  });
+
+  it('does not treat query or fragment text as credentials', () => {
+    const hasQueryCredential = hasCredentialContent('https://example.test?label=a:b@public.test');
+    const hasFragmentCredential = hasCredentialContent(
+      'https://example.test#label=a:b@public.test',
+    );
+    expect(hasQueryCredential).toBe(false);
+    expect(hasFragmentCredential).toBe(false);
+  });
+
+  it.each([
+    [
+      'adjacent URL and email',
+      '{"homepage":"https://example.test","email":"maintainer@example.test"}',
+      false,
+    ],
+    [
+      'text before a quoted URL',
+      "const settings={homepage:'Visit https://example.test',email:'maintainer@example.test'};",
+      false,
+    ],
+    [
+      'quoted credential URL after text',
+      "const settings={homepage:'Visit https://user:pass@example.test'};",
+      true,
+    ],
+    [
+      'contraction before a quoted credential URL',
+      '// Don\'t change this remote\nconst remote = "https://user\'pass@example.test/repo.git";',
+      true,
+    ],
+    ['credential URL inside single quotes', "'https://user:pass@example.test/repo.git'", true],
+    ['escaped apostrophe', "'https://user\\'pass@example.test/repo.git'", true],
+  ])('handles a URL boundary: %s', (_name, text, expected) => {
+    const isCredential = hasCredentialContent(text);
+    expect(isCredential).toBe(expected);
+  });
+
+  it('scans a long dotted non-URL string without matching', () => {
+    const text = 'a.'.repeat(32000);
+    const isCredential = hasCredentialContent(text);
+    expect(isCredential).toBe(false);
   });
 
   it('drops a normal-named file block that contains a credential', () => {
@@ -445,6 +570,48 @@ describe('PR review sensitive data', () => {
     ].join('\n');
     const filtered = filterDiff(diff);
     expect(filtered).not.toContain('AKIA');
+  });
+
+  it.each(['+', '-'])('drops a block with a credential URL at a %s line start', prefix => {
+    const diff = [
+      'diff --git a/src/remote.ts b/src/remote.ts',
+      '--- a/src/remote.ts',
+      '+++ b/src/remote.ts',
+      '@@ -1 +1 @@',
+      `${prefix}const remote = "https://user:password@example.test/repo.git";`,
+    ].join('\n');
+    const filtered = filterDiff(diff);
+    expect(filtered).not.toContain('example.test');
+  });
+
+  it('drops a block whose credential URL starts with an @ authority', () => {
+    const diff = [
+      'diff --git a/src/remote.ts b/src/remote.ts',
+      '--- a/src/remote.ts',
+      '+++ b/src/remote.ts',
+      '@@ -1 +1 @@',
+      '+const remote = "https://@user:password@example.test/repo.git";',
+    ].join('\n');
+    const filtered = filterDiff(diff);
+    expect(filtered).not.toContain('example.test');
+  });
+
+  it.each([
+    'HTTPS://user:password@example.test/repo.git',
+    'https://:password@example.test/repo.git',
+    'https://deploy-token@example.test/repo.git',
+    'https://deploy-token:@example.test/repo.git',
+  ])('drops a file block with a credential URL %s', url => {
+    const diff = [
+      'diff --git a/src/remote.ts b/src/remote.ts',
+      '--- a/src/remote.ts',
+      '+++ b/src/remote.ts',
+      '@@ -1 +1 @@',
+      '-old',
+      `+const remote = "${url}";`,
+    ].join('\n');
+    const filtered = filterDiff(diff);
+    expect(filtered).not.toContain(url);
   });
 
   it('drops a copy whose destination is sensitive', () => {
