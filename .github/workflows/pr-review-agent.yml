@@ -83,7 +83,6 @@ jobs:
       REVIEW_GUIDELINES_TOKEN: ${{ secrets.REVIEW_GUIDELINES_TOKEN }}
       REVIEW_REPO: ${{ github.repository }}
       REVIEW_COMMENT_ID: ${{ github.event.comment.id }}
-      REVIEW_APP_LOGIN: github-actions[bot]
       PR_NUMBER: ${{ needs.resolve.outputs.pr }}
       REVIEW_MODEL: ${{ needs.resolve.outputs.model }}
       REVIEW_HEAD_SHA: ${{ needs.resolve.outputs.headSha }}

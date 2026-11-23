@@ -11,6 +11,7 @@ import {
   progressBody,
   startProgress,
 } from '../../../../.github/scripts/pr-review/progress.mjs';
+import { argsFromEnv, stageIds } from '../../../../.github/scripts/pr-review/progress-cli.mjs';
 import { responseTo, urlOf } from './PrReviewAgentTestUtils.js';
 
 const MARKER = '<!-- opencode-review-progress -->';
@@ -45,6 +46,33 @@ function record(calls: ICall[], input: RequestInfo | URL, init?: RequestInit): I
   calls.push(call);
   return call;
 }
+
+describe('progress CLI environment', () => {
+  it('keys a manual run by PR and run id', () => {
+    const env = { PR_NUMBER: '886', GITHUB_RUN_ID: '4514' } as NodeJS.ProcessEnv;
+    const args = argsFromEnv(env);
+    expect(args.externalId).toBe('manual-886-4514');
+  });
+
+  it('uses the trigger comment id when present', () => {
+    const env = {
+      PR_NUMBER: '886',
+      GITHUB_RUN_ID: '4514',
+      REVIEW_COMMENT_ID: '99',
+    } as NodeJS.ProcessEnv;
+    const args = argsFromEnv(env);
+    expect(args.externalId).toBe('99');
+  });
+
+  it('preserves known stage ids when the update returns none', () => {
+    const env = {
+      REVIEW_CHECK_ID: '20',
+      REVIEW_PROGRESS_COMMENT_ID: '10',
+    } as NodeJS.ProcessEnv;
+    const ids = stageIds({ commentId: 0, checkRunId: 0 }, env);
+    expect(ids).toEqual({ commentId: 10, checkRunId: 20 });
+  });
+});
 
 describe('progress body', () => {
   it('marks the accepted stage and keeps the remaining stages open', () => {
@@ -242,7 +270,8 @@ describe('progress lifecycle', () => {
     );
     const commentPayload = JSON.parse(commentPost?.body ?? '{}') as { body: string };
     const checkPayload = JSON.parse(checkPost?.body ?? '{}') as Record<string, unknown>;
-    expect(commentPayload.body).toContain(MARKER);
+    const markerLine = commentPayload.body.split('\n', 1)[0];
+    expect(markerLine).toBe(`${MARKER} ${COMMENT_ID}`);
     expect(checkPayload).toMatchObject({
       name: 'OpenCode review',
       head_sha: HEAD,

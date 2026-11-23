@@ -36,6 +36,7 @@ const STAGE_TITLE = {
  * Build the progress comment body.
  * @param {string} stage - Progress stage.
  * @param {string} [marker] - Comment marker.
+ * @param {string} [externalId] - Trigger key appended to the marker.
  * @returns {string} Markdown body.
  */
 export function progressBody(stage, marker = DEFAULT_MARKER, externalId = '') {
@@ -228,6 +229,7 @@ export async function startProgress(args) {
   } catch {
     // The check run is the durable signal; the comment is best effort. A
     // failed update still leaves the existing comment removable by its id.
+    console.warn('progress comment update failed');
   }
   const checkRunId = Number(checkRun.id);
   if (!Number.isInteger(checkRunId) || checkRunId <= 0) {
@@ -245,6 +247,7 @@ export async function startProgress(args) {
  * @param {number} args.commentId - Progress-comment ID.
  * @param {string} args.conclusion - `success`, `neutral`, `cancelled` or `timed_out`.
  * @param {number} [args.findings] - Finding count.
+ * @param {boolean} [args.failed] - Whether the review run failed before posting.
  * @param {typeof fetch} [args.fetchImpl] - Test double.
  * @returns {Promise<void>} Resolves when complete.
  */
@@ -284,6 +287,7 @@ export async function finishProgress(args) {
         }
       } catch {
         // Cleanup is best effort; a completed check run is the durable signal.
+        console.warn('progress comment cleanup failed');
       }
     }
   }

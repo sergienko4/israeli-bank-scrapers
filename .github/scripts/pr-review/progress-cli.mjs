@@ -1,4 +1,5 @@
 import { appendFile } from 'node:fs/promises';
+import { pathToFileURL } from 'node:url';
 import { finishProgress, startProgress } from './progress.mjs';
 
 /**
@@ -6,7 +7,7 @@ import { finishProgress, startProgress } from './progress.mjs';
  * @param {NodeJS.ProcessEnv} env - Process environment.
  * @returns {Record<string, unknown>} Progress arguments.
  */
-function argsFromEnv(env) {
+export function argsFromEnv(env) {
   const externalId =
     env.REVIEW_COMMENT_ID || `manual-${env.PR_NUMBER || '0'}-${env.GITHUB_RUN_ID || '0'}`;
   return {
@@ -19,6 +20,18 @@ function argsFromEnv(env) {
     checkName: env.REVIEW_CHECK_NAME || undefined,
     marker: env.REVIEW_PROGRESS_MARKER || undefined,
   };
+}
+
+/**
+ * Preserve known IDs when a stage update returns no replacements.
+ * @param {{ commentId: number, checkRunId: number }} ids - Stage IDs.
+ * @param {NodeJS.ProcessEnv} env - Process environment.
+ * @returns {{ commentId: number, checkRunId: number }} Effective IDs.
+ */
+export function stageIds(ids, env) {
+  const checkRunId = ids.checkRunId > 0 ? ids.checkRunId : Number(env.REVIEW_CHECK_ID || 0);
+  const commentId = ids.commentId > 0 ? ids.commentId : Number(env.REVIEW_PROGRESS_COMMENT_ID || 0);
+  return { commentId, checkRunId };
 }
 
 /**
@@ -47,10 +60,7 @@ async function main() {
   if (stageIndex >= 0) {
     const stage = process.argv[stageIndex + 1] || 'start';
     const ids = await startProgress({ ...args, stage });
-    const checkRunId = ids.checkRunId > 0 ? ids.checkRunId : Number(env.REVIEW_CHECK_ID || 0);
-    const commentId =
-      ids.commentId > 0 ? ids.commentId : Number(env.REVIEW_PROGRESS_COMMENT_ID || 0);
-    await writeOutputs({ commentId, checkRunId }, env);
+    await writeOutputs(stageIds(ids, env), env);
     return;
   }
   if (process.argv.includes('--start')) {
@@ -73,7 +83,9 @@ async function main() {
   throw new Error('use --start or --finish');
 }
 
-main().catch(error => {
-  console.error(`pr-review progress failed: ${error.name}`);
-  process.exitCode = 1;
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch(error => {
+    console.error(`pr-review progress failed: ${error.name}`);
+    process.exitCode = 1;
+  });
+}
