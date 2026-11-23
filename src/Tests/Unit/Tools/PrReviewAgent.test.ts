@@ -525,28 +525,18 @@ describe('PR review sensitive data', () => {
     expect(hasFragmentCredential).toBe(false);
   });
 
-  it('does not join an adjacent URL and email into one credential', () => {
-    const text = '{"homepage":"https://example.test","email":"maintainer@example.test"}';
+  it.each([
+    [
+      'adjacent URL and email',
+      '{"homepage":"https://example.test","email":"maintainer@example.test"}',
+      false,
+    ],
+    ['closing single quote', "'https://example.test','email':'maintainer@example.test'", false],
+    ['credential URL inside single quotes', "'https://user:pass@example.test/repo.git'", true],
+    ['escaped apostrophe', "'https://user\\'pass@example.test/repo.git'", true],
+  ])('handles a URL boundary: %s', (_name, text, expected) => {
     const isCredential = hasCredentialContent(text);
-    expect(isCredential).toBe(false);
-  });
-
-  it('does not cross a closing single quote into an adjacent email', () => {
-    const text = "'https://example.test','email':'maintainer@example.test'";
-    const isCredential = hasCredentialContent(text);
-    expect(isCredential).toBe(false);
-  });
-
-  it('detects a credential URL inside single quotes', () => {
-    const text = "'https://user:pass@example.test/repo.git'";
-    const isCredential = hasCredentialContent(text);
-    expect(isCredential).toBe(true);
-  });
-
-  it('detects a credential URL with an escaped apostrophe', () => {
-    const text = "'https://user\\'pass@example.test/repo.git'";
-    const isCredential = hasCredentialContent(text);
-    expect(isCredential).toBe(true);
+    expect(isCredential).toBe(expected);
   });
 
   it('scans a long dotted non-URL string without matching', () => {
