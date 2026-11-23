@@ -7,6 +7,7 @@ export function parseRequest(
   actor: string;
   association: string;
   source: string;
+  command: string;
 };
 
 export function catalogModels(
@@ -15,6 +16,15 @@ export function catalogModels(
 ): Array<Record<string, unknown>>;
 
 export function loadCatalog(args: Record<string, unknown>): Promise<Array<Record<string, unknown>>>;
+
+export function actorPermission(args: Record<string, unknown>): Promise<string>;
+
+export function openSameRepoPr(args: Record<string, unknown>): Promise<Record<string, unknown>>;
+
+export function writeOutputs(
+  resolution: Record<string, unknown>,
+  env: NodeJS.ProcessEnv,
+): Promise<void>;
 
 export function normalizeModel(
   input: string,

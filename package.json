@@ -129,7 +129,7 @@
     "eslint-plugin-regexp": "^3.3.3",
     "eslint-plugin-simple-import-sort": "^14.0.0",
     "eslint-plugin-sonarjs": "^4.0.3",
-    "eslint-plugin-unicorn": "^79.0.0",
+    "eslint-plugin-unicorn": "^80.0.0",
     "eslint-plugin-unused-imports": "^4.4.1",
     "glob": "^14.0.4",
     "globals": "^17.14.0",
