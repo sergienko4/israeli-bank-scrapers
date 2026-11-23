@@ -17,6 +17,15 @@ export function catalogModels(
 
 export function loadCatalog(args: Record<string, unknown>): Promise<Array<Record<string, unknown>>>;
 
+export function actorPermission(args: Record<string, unknown>): Promise<string>;
+
+export function openSameRepoPr(args: Record<string, unknown>): Promise<Record<string, unknown>>;
+
+export function writeOutputs(
+  resolution: Record<string, unknown>,
+  env: NodeJS.ProcessEnv,
+): Promise<void>;
+
 export function normalizeModel(
   input: string,
   config: Record<string, unknown>,

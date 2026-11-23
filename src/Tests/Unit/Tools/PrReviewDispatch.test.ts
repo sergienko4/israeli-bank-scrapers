@@ -196,6 +196,22 @@ describe('dispatched comment resolution', () => {
     expect(result).toMatchObject({ allowed: false, reason: 'actor is not a maintainer' });
   });
 
+  it('returns a denial when the permission lookup fails', async () => {
+    const baseFetch = fakeFetch();
+    /**
+     * Reject the permission request and serve the other endpoints.
+     * @param input - Fetch input.
+     * @returns Fake response.
+     */
+    const fetchImpl: typeof fetch = input => {
+      const url = urlOf(input);
+      if (url.includes('/collaborators/')) return Promise.reject(new Error('network down'));
+      return baseFetch(input);
+    };
+    const result = await resolve(fetchImpl);
+    expect(result).toMatchObject({ allowed: false, reason: 'network down' });
+  });
+
   it('refuses a fork pull request', async () => {
     const pullRequestPayload = pullRequest('other/repo');
     const pullRequestResponse = responseTo(pullRequestPayload);

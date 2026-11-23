@@ -4,7 +4,7 @@ import { canRequest, githubRequest, isTrustedAssociation, readResponseJson } fro
 
 /** Exact PR comment trigger, with an optional approve command and model. */
 const REVIEW_COMMAND =
-  /^\/review(?<approve>[ \t]+approve)?(?:[ \t]+model=(?<model>[A-Za-z0-9./#_-]+))?[ \t]*$/u;
+  /^\/review(?<approve>[ \t]+approve)?(?:[ \t]+model=(?<model>[A-Za-z0-9./#_-]+))?[ \t]*\r?\n?$/u;
 
 /** Effort order used when a model has no configured default. */
 const VARIANT_PRIORITY = ['high', 'max', 'low'];
@@ -186,7 +186,7 @@ export function normalizeModel(input, config, models) {
  * @param {typeof fetch} [args.fetchImpl] - Test double.
  * @returns {Promise<string>} Permission name, or ''.
  */
-async function actorPermission(args) {
+export async function actorPermission(args) {
   const response = await githubRequest({
     token: args.token,
     path: `/repos/${args.repo}/collaborators/${encodeURIComponent(args.actor)}/permission`,
@@ -206,7 +206,7 @@ async function actorPermission(args) {
  * @param {typeof fetch} [args.fetchImpl] - Test double.
  * @returns {Promise<Record<string, unknown>>} Pull request payload.
  */
-async function openSameRepoPr(args) {
+export async function openSameRepoPr(args) {
   const response = await githubRequest({
     token: args.token,
     path: `/repos/${args.repo}/pulls/${args.pr}`,
@@ -279,7 +279,7 @@ export async function resolveRequest(args) {
  * @param {NodeJS.ProcessEnv} env - Process environment.
  * @returns {Promise<void>} Resolves when written.
  */
-async function writeOutputs(resolution, env) {
+export async function writeOutputs(resolution, env) {
   if (!env.GITHUB_OUTPUT) {
     console.log(JSON.stringify(resolution));
     return;

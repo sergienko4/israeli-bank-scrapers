@@ -51,10 +51,79 @@ const CREDENTIAL_CONTENT_RE = new RegExp(
     '\\bxox[abprs]-[A-Za-z0-9-]{10,}\\b',
     '\\bsk-[A-Za-z0-9_-]{20,}\\b',
     '\\beyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\b',
-    '\\b[a-z][a-z0-9+.-]*://[^/\\s@?#]+@',
   ].join('|'),
   'iu',
 );
+
+/** Longest accepted URL scheme prefix. */
+const MAX_URL_SCHEME_CHARS = 32;
+
+/**
+ * Whether a character can appear in a URL scheme.
+ * @param {string} char - One character.
+ * @returns {boolean} True for a scheme character.
+ */
+function isSchemeChar(char) {
+  return (
+    (char >= 'a' && char <= 'z') ||
+    (char >= 'A' && char <= 'Z') ||
+    (char >= '0' && char <= '9') ||
+    char === '+' ||
+    char === '.' ||
+    char === '-'
+  );
+}
+
+/**
+ * Whether a character ends a single URL authority token.
+ * @param {string} char - One character.
+ * @returns {boolean} True at whitespace or a delimiter.
+ */
+function isAuthorityBoundary(char) {
+  const code = char.codePointAt(0) ?? 0;
+  return (
+    code <= 0x20 ||
+    char === '/' ||
+    char === '?' ||
+    char === '#' ||
+    char === '"' ||
+    char === "'" ||
+    char === '`' ||
+    char === '<' ||
+    char === '>' ||
+    char === ','
+  );
+}
+
+/**
+ * Whether text has a URL with userinfo in one authority token.
+ * Scans each `://` once instead of letting the regex engine rescan suffixes.
+ * @param {string} text - Text.
+ * @returns {boolean} True for a credential-bearing URL.
+ */
+function hasUrlUserinfo(text) {
+  let marker = text.indexOf('://');
+  while (marker !== -1) {
+    let start = marker;
+    let length = 0;
+    while (start > 0 && length < MAX_URL_SCHEME_CHARS && isSchemeChar(text[start - 1])) {
+      start -= 1;
+      length += 1;
+    }
+    const scheme = text.slice(start, marker);
+    const first = scheme[0] ?? '';
+    const hasScheme =
+      scheme.length > 0 && ((first >= 'a' && first <= 'z') || (first >= 'A' && first <= 'Z'));
+    if (hasScheme) {
+      let end = marker + 3;
+      while (end < text.length && !isAuthorityBoundary(text[end])) end += 1;
+      const authority = text.slice(marker + 3, end);
+      if (authority.indexOf('@') > 0) return true;
+    }
+    marker = text.indexOf('://', marker + 3);
+  }
+  return false;
+}
 
 /**
  * Fetch the pull request metadata.
@@ -159,7 +228,7 @@ export function isSensitivePath(path) {
  * @returns {boolean} True when the text must not reach the model.
  */
 export function hasCredentialContent(text) {
-  return CREDENTIAL_CONTENT_RE.test(text);
+  return CREDENTIAL_CONTENT_RE.test(text) || hasUrlUserinfo(text);
 }
 
 /**

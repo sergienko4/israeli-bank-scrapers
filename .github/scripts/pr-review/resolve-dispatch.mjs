@@ -1,7 +1,14 @@
 import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { canRequest, githubRequest, isTrustedAssociation, readResponseJson } from './shared.mjs';
-import { loadCatalog, normalizeModel, parseRequest } from './resolve-request.mjs';
+import {
+  actorPermission,
+  loadCatalog,
+  normalizeModel,
+  openSameRepoPr,
+  parseRequest,
+  writeOutputs,
+} from './resolve-request.mjs';
 
 /**
  * Fetch one issue comment by ID.
@@ -19,36 +26,6 @@ async function fetchComment(args) {
     fetchImpl: args.fetchImpl,
   });
   return /** @type {Record<string, unknown>} */ (await readResponseJson(response));
-}
-
-/**
- * Fetch one pull request.
- * @param {object} args - Lookup arguments.
- * @returns {Promise<Record<string, unknown>>} Pull request.
- */
-async function fetchPr(args) {
-  const response = await githubRequest({
-    token: args.token,
-    path: `/repos/${args.repo}/pulls/${args.pr}`,
-    fetchImpl: args.fetchImpl,
-  });
-  return /** @type {Record<string, unknown>} */ (await readResponseJson(response));
-}
-
-/**
- * Read the actor's repository permission.
- * @param {object} args - Lookup arguments.
- * @returns {Promise<string>} Permission, or ''.
- */
-async function actorPermission(args) {
-  const response = await githubRequest({
-    token: args.token,
-    path: `/repos/${args.repo}/collaborators/${encodeURIComponent(args.actor)}/permission`,
-    fetchImpl: args.fetchImpl,
-  });
-  if (!response.ok) return '';
-  const body = /** @type {Record<string, unknown>} */ (await readResponseJson(response));
-  return String(body.permission ?? '');
 }
 
 /**
@@ -98,16 +75,13 @@ export async function resolveDispatch(args) {
     return denied(error.message);
   }
   if (!isTrustedAssociation(request.association)) return denied('actor is not a maintainer');
-  const permission = await actorPermission({ ...args, actor: request.actor });
-  if (!canRequest(permission)) return denied('actor is not a maintainer');
   try {
-    const pr = await fetchPr(args);
-    const head = /** @type {Record<string, unknown>} */ (pr.head ?? {});
-    const headRepo = /** @type {Record<string, unknown>} */ (head.repo ?? {});
-    if (pr.state !== 'open') return denied('pull request is not open');
-    if (headRepo.full_name !== args.repo) return denied('fork pull request is not supported');
+    const permission = await actorPermission({ ...args, actor: request.actor });
+    if (!canRequest(permission)) return denied('actor is not a maintainer');
+    const pr = await openSameRepoPr(args);
     const model = normalizeModel(request.modelInput, args.config, await loadCatalog(args));
     const base = /** @type {Record<string, unknown>} */ (pr.base ?? {});
+    const head = /** @type {Record<string, unknown>} */ (pr.head ?? {});
     return {
       allowed: true,
       reason: '',
@@ -123,22 +97,6 @@ export async function resolveDispatch(args) {
   } catch (error) {
     return denied(error.message);
   }
-}
-
-/**
- * Write GitHub Actions outputs.
- * @param {Record<string, unknown>} resolution - Resolution.
- * @param {NodeJS.ProcessEnv} env - Process environment.
- * @returns {Promise<void>} Resolves when written.
- */
-async function writeOutputs(resolution, env) {
-  if (!env.GITHUB_OUTPUT) {
-    console.log(JSON.stringify(resolution));
-    return;
-  }
-  const lines = Object.entries(resolution).map(([key, value]) => `${key}=${String(value)}`);
-  const { appendFile } = await import('node:fs/promises');
-  await appendFile(env.GITHUB_OUTPUT, `${lines.join('\n')}\n`, 'utf8');
 }
 
 /**

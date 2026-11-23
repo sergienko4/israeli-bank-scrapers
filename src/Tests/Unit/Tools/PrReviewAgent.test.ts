@@ -173,6 +173,14 @@ describe('PR review trigger', () => {
     });
   });
 
+  it('accepts /review with a trailing newline', () => {
+    const request = parseRequest('issue_comment', {
+      ...REVIEW_EVENT,
+      comment: { ...REVIEW_EVENT.comment, body: '/review\n' },
+    });
+    expect(request).toMatchObject({ pr: 886, command: 'review' });
+  });
+
   it('ignores a comment on an issue', () => {
     expect(() =>
       parseRequest('issue_comment', {
@@ -510,6 +518,18 @@ describe('PR review sensitive data', () => {
     );
     expect(hasQueryCredential).toBe(false);
     expect(hasFragmentCredential).toBe(false);
+  });
+
+  it('does not join an adjacent URL and email into one credential', () => {
+    const text = '{"homepage":"https://example.test","email":"maintainer@example.test"}';
+    const isCredential = hasCredentialContent(text);
+    expect(isCredential).toBe(false);
+  });
+
+  it('scans a long dotted non-URL string without matching', () => {
+    const text = 'a.'.repeat(32000);
+    const isCredential = hasCredentialContent(text);
+    expect(isCredential).toBe(false);
   });
 
   it('drops a normal-named file block that contains a credential', () => {
