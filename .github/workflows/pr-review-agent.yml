@@ -158,30 +158,47 @@ jobs:
         run: node .github/scripts/pr-review/fetch-pr.mjs
 
       - name: Mark diff fetched
+        id: progress-fetch
         continue-on-error: true
+        env:
+          REVIEW_CHECK_ID: ${{ steps.progress.outputs.checkRunId }}
+          REVIEW_PROGRESS_COMMENT_ID: ${{ steps.progress.outputs.commentId }}
         run: node .github/scripts/pr-review/progress-cli.mjs --stage fetch
+
+      - name: Mark review running
+        id: progress-review
+        continue-on-error: true
+        env:
+          REVIEW_CHECK_ID: ${{ steps.progress-fetch.outputs.checkRunId }}
+          REVIEW_PROGRESS_COMMENT_ID: ${{ steps.progress-fetch.outputs.commentId }}
+        run: node .github/scripts/pr-review/progress-cli.mjs --stage review
 
       - name: Run the read-only reviewer
         id: agent
         run: |
-          set -euo pipefail
+          set +e
           timeout 15m opencode run \
             --agent pr-reviewer \
             --model "$REVIEW_MODEL" \
             --format json \
             "Review pull request #$PR_NUMBER. Read .review/pr/metadata.json, .review/pr/diff.patch, .review/pr/files, .review/pr/base-rules, .review-guidelines/manifest.json and the base context under .review/base/. The repository overlay is .github/review-agent/overlays/israeli-bank-scrapers.md. Load pr-review-orchestrator and the review skills it names. Return only the review JSON object. Do not execute any command, test or pull-request code." \
             > .review/pr/agent.jsonl
-
-      - name: Mark review running
-        continue-on-error: true
-        run: node .github/scripts/pr-review/progress-cli.mjs --stage review
+          status=$?
+          if [ "$status" -eq 124 ]; then
+            echo "timed_out=true" >> "$GITHUB_OUTPUT"
+          fi
+          exit "$status"
 
       - name: Extract the review JSON
         id: extract
         run: node .github/scripts/pr-review/extract-review.mjs
 
       - name: Mark review posting
+        id: progress-post
         continue-on-error: true
+        env:
+          REVIEW_CHECK_ID: ${{ steps.progress-review.outputs.checkRunId }}
+          REVIEW_PROGRESS_COMMENT_ID: ${{ steps.progress-review.outputs.commentId }}
         run: node .github/scripts/pr-review/progress-cli.mjs --stage post
 
       - name: Post the review
@@ -196,8 +213,8 @@ jobs:
         if: always()
         continue-on-error: true
         env:
-          REVIEW_CHECK_ID: ${{ steps.progress.outputs.checkRunId }}
-          REVIEW_PROGRESS_COMMENT_ID: ${{ steps.progress.outputs.commentId }}
-          REVIEW_CONCLUSION: ${{ job.status == 'cancelled' && 'cancelled' || (job.status == 'success' && 'success' || 'failure') }}
-          REVIEW_FAILED: ${{ job.status == 'failure' && 'true' || 'false' }}
+          REVIEW_CHECK_ID: ${{ steps.progress-post.outputs.checkRunId || steps.progress-review.outputs.checkRunId || steps.progress-fetch.outputs.checkRunId || steps.progress.outputs.checkRunId }}
+          REVIEW_PROGRESS_COMMENT_ID: ${{ steps.progress-post.outputs.commentId || steps.progress-review.outputs.commentId || steps.progress-fetch.outputs.commentId || steps.progress.outputs.commentId }}
+          REVIEW_CONCLUSION: ${{ steps.agent.outputs.timed_out == 'true' && 'timed_out' || (job.status == 'cancelled' && 'cancelled' || (job.status == 'success' && 'success' || 'neutral')) }}
+          REVIEW_FAILED: ${{ job.status == 'failure' && steps.agent.outputs.timed_out != 'true' && 'true' || 'false' }}
         run: node .github/scripts/pr-review/progress-cli.mjs --finish

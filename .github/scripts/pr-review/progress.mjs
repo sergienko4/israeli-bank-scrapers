@@ -86,7 +86,7 @@ export async function findProgressComment(args) {
       path: `/repos/${args.repo}/issues/${args.pr}/comments?per_page=100&page=${page}`,
       fetchImpl: args.fetchImpl,
     });
-    if (!response.ok) return undefined;
+    if (!response.ok) throw new Error(`GitHub progress comment lookup answered ${response.status}`);
     const batch = /** @type {Array<Record<string, unknown>>} */ (await readResponseJson(response));
     const found = batch.find(comment => {
       const firstLine = String(comment.body ?? '').split('\n', 1)[0];
@@ -140,7 +140,7 @@ export async function findCheckRun(args) {
       path: `/repos/${args.repo}/commits/${args.headSha}/check-runs?filter=all&per_page=100&check_name=${encodeURIComponent(checkName)}&page=${page}`,
       fetchImpl: args.fetchImpl,
     });
-    if (!response.ok) return undefined;
+    if (!response.ok) throw new Error(`GitHub check-run lookup answered ${response.status}`);
     const body = /** @type {Record<string, unknown>} */ (await readResponseJson(response));
     const runs = /** @type {Array<Record<string, unknown>>} */ (body.check_runs ?? []);
     const found = runs.find(
@@ -152,7 +152,7 @@ export async function findCheckRun(args) {
     if (found !== undefined) return found;
     if (runs.length < 100) return undefined;
   }
-  return undefined;
+  throw new Error('progress check-run lookup is incomplete');
 }
 
 /**
@@ -222,15 +222,17 @@ export async function startProgress(args) {
     const existingComment = await findProgressComment(args);
     commentId = Number(existingComment?.id ?? 0);
     const comment = await upsertProgressComment({ ...args, stage }, existingComment);
-    commentId = Number(comment.id);
+    const updatedId = Number(comment.id);
+    if (Number.isInteger(updatedId) && updatedId > 0) commentId = updatedId;
   } catch {
     // The check run is the durable signal; the comment is best effort. A
     // failed update still leaves the existing comment removable by its id.
   }
-  return {
-    commentId,
-    checkRunId: Number(checkRun.id),
-  };
+  const checkRunId = Number(checkRun.id);
+  if (!Number.isInteger(checkRunId) || checkRunId <= 0) {
+    throw new Error('GitHub check-run response has no id');
+  }
+  return { commentId, checkRunId };
 }
 
 /**

@@ -5,6 +5,7 @@
  */
 
 import {
+  findCheckRun,
   findProgressComment,
   finishProgress,
   progressBody,
@@ -101,9 +102,40 @@ describe('progress comment lookup', () => {
     });
     expect(found).toBeUndefined();
   });
+
+  it('rejects a failed comment lookup', async () => {
+    /**
+     * Fail the comment list.
+     * @returns Fake response.
+     */
+    const fetchImpl: typeof fetch = () => responseTo({}, 500);
+    const pending = findProgressComment({
+      repo: REPO,
+      pr: 886,
+      token: TOKEN,
+      appLogin: APP,
+      fetchImpl,
+    });
+    await expect(pending).rejects.toThrow('GitHub progress comment lookup answered 500');
+  });
 });
 
 describe('progress lifecycle', () => {
+  it('rejects a failed check-run lookup', async () => {
+    /**
+     * Fail the check-run list.
+     * @returns Fake response.
+     */
+    const fetchImpl: typeof fetch = () => responseTo({}, 500);
+    const pending = findCheckRun({
+      repo: REPO,
+      token: TOKEN,
+      headSha: HEAD,
+      externalId: COMMENT_ID,
+      fetchImpl,
+    });
+    await expect(pending).rejects.toThrow('GitHub check-run lookup answered 500');
+  });
   it('creates one comment and one in-progress check run', async () => {
     const calls: ICall[] = [];
     const routes: {

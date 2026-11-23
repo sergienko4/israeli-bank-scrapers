@@ -45,7 +45,10 @@ async function main() {
   if (stageIndex >= 0) {
     const stage = process.argv[stageIndex + 1] || 'start';
     const ids = await startProgress({ ...args, stage });
-    await writeOutputs(ids, env);
+    const checkRunId = ids.checkRunId > 0 ? ids.checkRunId : Number(env.REVIEW_CHECK_ID || 0);
+    const commentId =
+      ids.commentId > 0 ? ids.commentId : Number(env.REVIEW_PROGRESS_COMMENT_ID || 0);
+    await writeOutputs({ commentId, checkRunId }, env);
     return;
   }
   if (process.argv.includes('--start')) {
