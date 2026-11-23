@@ -77,11 +77,13 @@ function isSchemeChar(char) {
 /**
  * Whether a character ends a single URL authority token.
  * @param {string} char - One character.
- * @returns {boolean} True at whitespace or a delimiter.
+ * @param {string} [quote] - Opening quote around the URL, when present.
+ * @returns {boolean} True at whitespace, the closing quote or a delimiter.
  */
-function isAuthorityBoundary(char) {
+function isAuthorityBoundary(char, quote = '') {
   const code = char.codePointAt(0) ?? 0;
   return (
+    (quote.length > 0 && char === quote) ||
     code <= 0x20 ||
     char === '/' ||
     char === '?' ||
@@ -117,8 +119,10 @@ function hasUrlUserinfo(text) {
     const hasScheme =
       scheme.length > 0 && ((first >= 'a' && first <= 'z') || (first >= 'A' && first <= 'Z'));
     if (hasScheme) {
+      const quoteChar = start > 0 ? text[start - 1] : '';
+      const quote = quoteChar === '"' || quoteChar === "'" ? quoteChar : '';
       let end = marker + 3;
-      while (end < text.length && !isAuthorityBoundary(text[end])) end += 1;
+      while (end < text.length && !isAuthorityBoundary(text[end], quote)) end += 1;
       const authority = text.slice(marker + 3, end);
       if (authority.indexOf('@') > 0) return true;
     }

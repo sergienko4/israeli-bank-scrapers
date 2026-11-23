@@ -530,6 +530,18 @@ describe('PR review sensitive data', () => {
     expect(isCredential).toBe(false);
   });
 
+  it('does not cross a closing single quote into an adjacent email', () => {
+    const text = "'https://example.test','email':'maintainer@example.test'";
+    const isCredential = hasCredentialContent(text);
+    expect(isCredential).toBe(false);
+  });
+
+  it('detects a credential URL inside single quotes', () => {
+    const text = "'https://user:pass@example.test/repo.git'";
+    const isCredential = hasCredentialContent(text);
+    expect(isCredential).toBe(true);
+  });
+
   it('scans a long dotted non-URL string without matching', () => {
     const text = 'a.'.repeat(32000);
     const isCredential = hasCredentialContent(text);
