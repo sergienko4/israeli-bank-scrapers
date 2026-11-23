@@ -254,6 +254,32 @@ describe('progress lifecycle', () => {
   it('reuses an existing comment and check run for the same trigger', async () => {
     const calls: ICall[] = [];
     /**
+     * Serve a GET route.
+     * @param url - Request URL.
+     * @returns Fake response.
+     */
+    const getResponse = (url: string): Promise<Response> => {
+      if (url.includes('/issues/886/comments')) {
+        return responseTo([{ id: 10, user: { login: APP }, body: `${MARKER} ${COMMENT_ID}` }]);
+      }
+      if (url.includes('/check-runs?')) {
+        return responseTo({
+          check_runs: [{ id: 20, name: 'OpenCode review', external_id: COMMENT_ID }],
+        });
+      }
+      return responseTo({});
+    };
+    /**
+     * Serve a PATCH route.
+     * @param url - Request URL.
+     * @returns Fake response.
+     */
+    const patchResponse = (url: string): Promise<Response> => {
+      if (url.endsWith('/issues/comments/10')) return responseTo({ id: 10 });
+      if (url.endsWith('/check-runs/20')) return responseTo({ id: 20 });
+      return responseTo({});
+    };
+    /**
      * Record calls and serve the existing comment and check run.
      * @param input - Fetch input.
      * @param init - Fetch options.
@@ -261,18 +287,8 @@ describe('progress lifecycle', () => {
      */
     const fetchImpl: typeof fetch = (input, init) => {
       const call = record(calls, input, init);
-      if (call.url.includes('/issues/886/comments') && call.method === 'GET') {
-        return responseTo([{ id: 10, user: { login: APP }, body: `${MARKER} ${COMMENT_ID}` }]);
-      }
-      if (call.url.endsWith('/issues/comments/10') && call.method === 'PATCH') {
-        return responseTo({ id: 10 });
-      }
-      if (call.url.includes('/check-runs?') && call.method === 'GET') {
-        return responseTo({
-          check_runs: [{ id: 20, name: 'OpenCode review', external_id: COMMENT_ID }],
-        });
-      }
-      return responseTo({});
+      if (call.method === 'GET') return getResponse(call.url);
+      return patchResponse(call.url);
     };
     const ids = await startProgress({
       repo: REPO,
@@ -281,6 +297,7 @@ describe('progress lifecycle', () => {
       headSha: HEAD,
       externalId: COMMENT_ID,
       appLogin: APP,
+      stage: 'review',
       fetchImpl,
     });
     const hasCheckRunPost = calls.some(
@@ -289,9 +306,18 @@ describe('progress lifecycle', () => {
     const hasCommentPost = calls.some(
       call => call.method === 'POST' && call.url.endsWith('/issues/886/comments'),
     );
+    const checkPatch = calls.find(
+      call => call.method === 'PATCH' && call.url.endsWith('/check-runs/20'),
+    );
+    const patchPayload = JSON.parse(checkPatch?.body ?? '{}') as {
+      status: string;
+      output: { title: string };
+    };
     expect(ids).toEqual({ commentId: 10, checkRunId: 20 });
     expect(hasCheckRunPost).toBe(false);
     expect(hasCommentPost).toBe(false);
+    expect(patchPayload.status).toBe('in_progress');
+    expect(patchPayload.output.title).toBe('Reviewing the changes');
   });
 
   it('creates a fresh check when the previous attempt completed', async () => {
