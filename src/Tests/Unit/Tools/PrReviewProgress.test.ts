@@ -61,6 +61,12 @@ describe('progress body', () => {
     expect(body).toContain('- [x] Diff fetched');
     expect(body).toContain('- [ ] Review running');
   });
+
+  it('keeps the posted step open while posting', () => {
+    const body = progressBody('posting');
+    expect(body).toContain('- [x] Review running');
+    expect(body).toContain('- [ ] Review posted');
+  });
 });
 
 describe('progress comment lookup', () => {

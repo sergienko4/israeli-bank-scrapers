@@ -21,14 +21,15 @@ const MAX_COMMENT_PAGES = 5;
 const STAGES = ['Request accepted', 'Diff fetched', 'Review running', 'Review posted'];
 
 /** Completed stage count by progress stage. */
-const STAGE_DONE = { start: 1, fetch: 2, review: 3, post: 4 };
+const STAGE_DONE = { start: 1, fetch: 2, review: 3, posting: 3, post: 4 };
 
 /** Human title by progress stage. */
 const STAGE_TITLE = {
   start: 'Review queued',
   fetch: 'Fetching the pull request',
   review: 'Reviewing the changes',
-  post: 'Posting the review',
+  posting: 'Posting the review',
+  post: 'Review posted',
 };
 
 /**

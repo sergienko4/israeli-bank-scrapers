@@ -7,12 +7,14 @@ import { finishProgress, startProgress } from './progress.mjs';
  * @returns {Record<string, unknown>} Progress arguments.
  */
 function argsFromEnv(env) {
+  const externalId =
+    env.REVIEW_COMMENT_ID || `manual-${env.PR_NUMBER || '0'}-${env.GITHUB_RUN_ID || '0'}`;
   return {
     repo: env.REVIEW_REPO || env.GITHUB_REPOSITORY || '',
     pr: Number(env.PR_NUMBER),
     token: env.REVIEW_TOKEN || env.GITHUB_TOKEN || '',
     headSha: env.REVIEW_HEAD_SHA || '',
-    externalId: env.REVIEW_COMMENT_ID || '',
+    externalId,
     appLogin: env.REVIEW_APP_LOGIN || 'github-actions[bot]',
     checkName: env.REVIEW_CHECK_NAME || undefined,
     marker: env.REVIEW_PROGRESS_MARKER || undefined,
