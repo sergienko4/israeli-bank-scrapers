@@ -11,7 +11,11 @@ import {
   progressBody,
   startProgress,
 } from '../../../../.github/scripts/pr-review/progress.mjs';
-import { argsFromEnv, stageIds } from '../../../../.github/scripts/pr-review/progress-cli.mjs';
+import {
+  argsFromEnv,
+  recoverProgressIds,
+  stageIds,
+} from '../../../../.github/scripts/pr-review/progress-cli.mjs';
 import { responseTo, urlOf } from './PrReviewAgentTestUtils.js';
 
 const MARKER = '<!-- opencode-review-progress -->';
@@ -70,6 +74,38 @@ describe('progress CLI environment', () => {
       REVIEW_PROGRESS_COMMENT_ID: '10',
     } as NodeJS.ProcessEnv;
     const ids = stageIds({ commentId: 0, checkRunId: 0 }, env);
+    expect(ids).toEqual({ commentId: 10, checkRunId: 20 });
+  });
+
+  it('recovers unfinished ids when a prior step published none', async () => {
+    /**
+     * Serve the unfinished check and progress comment.
+     * @param input - Fetch input.
+     * @returns Fake response.
+     */
+    const fetchImpl: typeof fetch = input => {
+      const url = urlOf(input);
+      if (url.includes('/check-runs?')) {
+        return responseTo({
+          check_runs: [{ id: 20, name: 'OpenCode review', external_id: COMMENT_ID }],
+        });
+      }
+      if (url.includes('/issues/886/comments?')) {
+        return responseTo([{ id: 10, user: { login: APP }, body: `${MARKER} ${COMMENT_ID}` }]);
+      }
+      return responseTo({});
+    };
+    const ids = await recoverProgressIds({
+      repo: REPO,
+      pr: 886,
+      token: TOKEN,
+      headSha: HEAD,
+      externalId: COMMENT_ID,
+      appLogin: APP,
+      checkRunId: 0,
+      commentId: 0,
+      fetchImpl,
+    });
     expect(ids).toEqual({ commentId: 10, checkRunId: 20 });
   });
 });

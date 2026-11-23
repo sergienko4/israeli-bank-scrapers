@@ -1,6 +1,6 @@
 import { appendFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
-import { finishProgress, startProgress } from './progress.mjs';
+import { findCheckRun, findProgressComment, finishProgress, startProgress } from './progress.mjs';
 
 /**
  * Build progress arguments from the environment.
@@ -31,6 +31,33 @@ export function argsFromEnv(env) {
 export function stageIds(ids, env) {
   const checkRunId = ids.checkRunId > 0 ? ids.checkRunId : Number(env.REVIEW_CHECK_ID || 0);
   const commentId = ids.commentId > 0 ? ids.commentId : Number(env.REVIEW_PROGRESS_COMMENT_ID || 0);
+  return { commentId, checkRunId };
+}
+
+/**
+ * Recover unfinished signal IDs when a prior step did not publish them.
+ * @param {Record<string, unknown>} args - Progress arguments with known IDs.
+ * @returns {Promise<{ commentId: number, checkRunId: number }>} Recovered IDs.
+ */
+export async function recoverProgressIds(args) {
+  let checkRunId = Number(args.checkRunId ?? 0);
+  let commentId = Number(args.commentId ?? 0);
+  if (!(checkRunId > 0)) {
+    try {
+      const check = await findCheckRun(args);
+      checkRunId = Number(check?.id ?? 0);
+    } catch {
+      console.warn('progress check-run recovery failed');
+    }
+  }
+  if (!(commentId > 0)) {
+    try {
+      const comment = await findProgressComment(args);
+      commentId = Number(comment?.id ?? 0);
+    } catch {
+      console.warn('progress comment recovery failed');
+    }
+  }
   return { commentId, checkRunId };
 }
 
@@ -69,10 +96,14 @@ async function main() {
     return;
   }
   if (process.argv.includes('--finish')) {
-    await finishProgress({
+    const recovered = await recoverProgressIds({
       ...args,
       checkRunId: Number(env.REVIEW_CHECK_ID),
       commentId: Number(env.REVIEW_PROGRESS_COMMENT_ID),
+    });
+    await finishProgress({
+      ...args,
+      ...recovered,
       conclusion: env.REVIEW_CONCLUSION || 'neutral',
       findings: Number(env.REVIEW_FINDINGS || 0),
       failed: env.REVIEW_FAILED === 'true',
