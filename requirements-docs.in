@@ -7,5 +7,5 @@ Pygments==2.21.0
 pymdown-extensions==13.1
 PyYAML==6.0.3
 tomli==2.5.0
-zensical==0.1.1
+zensical==0.1.2
 zensical-ui==0.0.42
