@@ -113,11 +113,29 @@ function isEscaped(text, index) {
  * @param {string} text - Text.
  * @returns {boolean} True for a credential-bearing URL.
  */
+/**
+ * Whether an apostrophe is part of a word such as a contraction.
+ * @param {string} text - Whole text.
+ * @param {number} index - Apostrophe index.
+ * @returns {boolean} True when both neighbours are letters.
+ */
+function isContraction(text, index) {
+  const previous = text[index - 1] ?? '';
+  const next = text[index + 1] ?? '';
+  const isLetter = char => (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z');
+  return isLetter(previous) && isLetter(next);
+}
+
 function hasUrlUserinfo(text) {
   let quote = '';
   let index = 0;
   while (index < text.length) {
     const char = text[index];
+    if (char === '\n' || char === '\r') {
+      quote = '';
+      index += 1;
+      continue;
+    }
     if (quote.length > 0) {
       if (char === '\\') {
         index += 2;
@@ -128,7 +146,7 @@ function hasUrlUserinfo(text) {
         index += 1;
         continue;
       }
-    } else if (char === '"' || char === "'") {
+    } else if (char === '"' || (char === "'" && !isContraction(text, index))) {
       quote = char;
       index += 1;
       continue;

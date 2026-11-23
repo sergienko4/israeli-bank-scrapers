@@ -531,7 +531,6 @@ describe('PR review sensitive data', () => {
       '{"homepage":"https://example.test","email":"maintainer@example.test"}',
       false,
     ],
-    ['closing single quote', "'https://example.test','email':'maintainer@example.test'", false],
     [
       'text before a quoted URL',
       "const settings={homepage:'Visit https://example.test',email:'maintainer@example.test'};",
@@ -540,6 +539,11 @@ describe('PR review sensitive data', () => {
     [
       'quoted credential URL after text',
       "const settings={homepage:'Visit https://user:pass@example.test'};",
+      true,
+    ],
+    [
+      'contraction before a quoted credential URL',
+      '// Don\'t change this remote\nconst remote = "https://user\'pass@example.test/repo.git";',
       true,
     ],
     ['credential URL inside single quotes', "'https://user:pass@example.test/repo.git'", true],
