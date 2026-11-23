@@ -345,6 +345,35 @@ describe('PR review data fetch', () => {
       await rm(dir, { recursive: true, force: true });
     }
   });
+
+  it('uses default limits when configuration values are not finite', async () => {
+    const reviewRoot = '.review';
+    await mkdir(reviewRoot, { recursive: true });
+    const tempPath = join(reviewRoot, 'pr-review-');
+    const dir = await mkdtemp(tempPath);
+    try {
+      const summary = await fetchPrData({
+        repo: 'sergienko4/repo',
+        pr: 886,
+        token: 'token',
+        outDir: dir,
+        maxDiffChars: Number.NaN,
+        maxFileChars: Number.NaN,
+        maxFiles: Number.NaN,
+        expectedHeadSha: 'head-sha',
+        fetchImpl: fakeGitHub(),
+      });
+      expect(summary).toEqual({ files: 1, skipped: 0, diffTruncated: false });
+      const diffPath = join(dir, 'diff.patch');
+      const changedFilePath = join(dir, 'files/file-000.txt');
+      const diff = await readFile(diffPath, 'utf8');
+      const changedFile = await readFile(changedFilePath, 'utf8');
+      expect(diff).toContain('diff --git');
+      expect(changedFile).toBe('changed');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('PR review data consistency', () => {

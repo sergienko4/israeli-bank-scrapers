@@ -20,6 +20,23 @@ const FILES_PER_PAGE = 100;
 /** Most changed files copied as review data. */
 const MAX_FILES = 300;
 
+/** Default diff character cap. */
+const DEFAULT_MAX_DIFF_CHARS = 120000;
+
+/** Default per-file character cap. */
+const DEFAULT_MAX_FILE_CHARS = 60000;
+
+/**
+ * Use a positive finite configuration limit, or the default.
+ * @param {unknown} value - Configuration value.
+ * @param {number} fallback - Default limit.
+ * @returns {number} Effective limit.
+ */
+function configLimit(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : fallback;
+}
+
 /** Credential-shaped paths never copied into review data. */
 const SENSITIVE_PATH_RE =
   /(?:^|\/)(?:\.env(?:\..*)?|\.git-credentials|id_rsa[^/]*|[^/]+\.(?:pem|key|p12|pfx|crt|cer|jks|keystore)|\.npmrc|\.netrc)$/iu;
@@ -76,7 +93,7 @@ async function fetchDiff(args) {
  */
 async function listFiles(args) {
   const files = [];
-  const maxFiles = Number(args.maxFiles ?? MAX_FILES);
+  const maxFiles = configLimit(args.maxFiles, MAX_FILES);
   for (let page = 1; files.length < maxFiles; page += 1) {
     const response = await githubRequest({
       token: args.token,
@@ -274,6 +291,8 @@ export function filterDiff(diff) {
  */
 export async function fetchPrData(args) {
   const outDir = args.outDir ?? '.review/pr';
+  const maxDiffChars = configLimit(args.maxDiffChars, DEFAULT_MAX_DIFF_CHARS);
+  const maxFileChars = configLimit(args.maxFileChars, DEFAULT_MAX_FILE_CHARS);
   const metadata = await fetchMetadata(args);
   const base = /** @type {Record<string, unknown>} */ (metadata.base ?? {});
   const head = /** @type {Record<string, unknown>} */ (metadata.head ?? {});
@@ -282,7 +301,7 @@ export async function fetchPrData(args) {
   const filteredDiff = filterDiff(rawDiff);
   const changed = await listFiles(args);
   const sensitive = changed.filter(isSensitiveFile).map(file => String(file.filename ?? ''));
-  const capped = truncateDiff(filteredDiff, args.maxDiffChars);
+  const capped = truncateDiff(filteredDiff, maxDiffChars);
   await writeTextFile(`${outDir}/diff.patch`, capped.text);
   const skipped = [];
   const dataFiles = new Map();
@@ -301,7 +320,7 @@ export async function fetchPrData(args) {
       repo: args.repo,
       token: args.token,
       blobSha,
-      maxChars: args.maxFileChars,
+      maxChars: maxFileChars,
       fetchImpl: args.fetchImpl,
     });
     if (text === false) {
@@ -385,9 +404,9 @@ async function main() {
     repo: env.REVIEW_REPO || env.GITHUB_REPOSITORY || '',
     pr: Number(env.PR_NUMBER),
     token: env.REVIEW_TOKEN || env.GITHUB_TOKEN || '',
-    maxDiffChars: Number(config.maxDiffChars),
-    maxFileChars: Number(config.maxFileChars),
-    maxFiles: Number(config.maxFiles),
+    maxDiffChars: configLimit(config.maxDiffChars, DEFAULT_MAX_DIFF_CHARS),
+    maxFileChars: configLimit(config.maxFileChars, DEFAULT_MAX_FILE_CHARS),
+    maxFiles: configLimit(config.maxFiles, MAX_FILES),
     expectedHeadSha: env.REVIEW_HEAD_SHA ?? '',
     expectedBaseSha: env.REVIEW_BASE_SHA ?? '',
   });
