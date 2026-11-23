@@ -43,3 +43,5 @@ export function postReview(args: Record<string, unknown>): Promise<Record<string
 export function postFailure(args: Record<string, unknown>): Promise<Record<string, unknown>>;
 
 export function markCreated(): Promise<void>;
+
+export function markFindings(count: number): Promise<void>;

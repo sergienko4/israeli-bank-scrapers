@@ -135,6 +135,7 @@ jobs:
       - name: Start review progress
         id: progress
         continue-on-error: true
+        timeout-minutes: 1
         run: node .github/scripts/pr-review/progress-cli.mjs --start
 
       - name: Install the pinned OpenCode CLI
@@ -159,6 +160,7 @@ jobs:
       - name: Mark diff fetched
         id: progress-fetch
         continue-on-error: true
+        timeout-minutes: 1
         env:
           REVIEW_CHECK_ID: ${{ steps.progress.outputs.checkRunId }}
           REVIEW_PROGRESS_COMMENT_ID: ${{ steps.progress.outputs.commentId }}
@@ -167,6 +169,7 @@ jobs:
       - name: Mark review running
         id: progress-review
         continue-on-error: true
+        timeout-minutes: 1
         env:
           REVIEW_CHECK_ID: ${{ steps.progress-fetch.outputs.checkRunId }}
           REVIEW_PROGRESS_COMMENT_ID: ${{ steps.progress-fetch.outputs.commentId }}
@@ -195,6 +198,7 @@ jobs:
       - name: Mark review posting
         id: progress-posting
         continue-on-error: true
+        timeout-minutes: 1
         env:
           REVIEW_CHECK_ID: ${{ steps.progress-review.outputs.checkRunId }}
           REVIEW_PROGRESS_COMMENT_ID: ${{ steps.progress-review.outputs.commentId }}
@@ -207,6 +211,7 @@ jobs:
       - name: Mark review posted
         id: progress-post
         continue-on-error: true
+        timeout-minutes: 1
         env:
           REVIEW_CHECK_ID: ${{ steps.progress-posting.outputs.checkRunId }}
           REVIEW_PROGRESS_COMMENT_ID: ${{ steps.progress-posting.outputs.commentId }}
@@ -219,9 +224,11 @@ jobs:
       - name: Finish review progress
         if: always()
         continue-on-error: true
+        timeout-minutes: 1
         env:
           REVIEW_CHECK_ID: ${{ steps.progress-post.outputs.checkRunId || steps.progress-posting.outputs.checkRunId || steps.progress-review.outputs.checkRunId || steps.progress-fetch.outputs.checkRunId || steps.progress.outputs.checkRunId }}
           REVIEW_PROGRESS_COMMENT_ID: ${{ steps.progress-post.outputs.commentId || steps.progress-posting.outputs.commentId || steps.progress-review.outputs.commentId || steps.progress-fetch.outputs.commentId || steps.progress.outputs.commentId }}
-          REVIEW_CONCLUSION: ${{ steps.post.outputs.created == 'true' && 'success' || (steps.agent.outputs.timed_out == 'true' && 'timed_out' || (job.status == 'cancelled' && 'cancelled' || (job.status == 'success' && 'success' || 'neutral'))) }}
-          REVIEW_FAILED: ${{ steps.post.outputs.created != 'true' && job.status == 'failure' && steps.agent.outputs.timed_out != 'true' && 'true' || 'false' }}
+          REVIEW_CONCLUSION: ${{ steps.agent.outputs.timed_out == 'true' && 'timed_out' || (job.status == 'cancelled' && 'cancelled' || (steps.post.outcome == 'failure' && 'neutral' || (steps.post.outputs.created == 'true' && (steps.post.outputs.findings != '0' && steps.post.outputs.findings != '' && 'neutral' || 'success') || (job.status == 'success' && 'success' || 'neutral')))) }}
+          REVIEW_FAILED: ${{ steps.agent.outputs.timed_out != 'true' && (steps.post.outcome == 'failure' || job.status == 'failure') && 'true' || 'false' }}
+          REVIEW_FINDINGS: ${{ steps.post.outputs.findings || '0' }}
         run: node .github/scripts/pr-review/progress-cli.mjs --finish
