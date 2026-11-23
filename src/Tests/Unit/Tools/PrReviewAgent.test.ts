@@ -542,6 +542,12 @@ describe('PR review sensitive data', () => {
     expect(isCredential).toBe(true);
   });
 
+  it('detects a credential URL with an escaped apostrophe', () => {
+    const text = "'https://user\\'pass@example.test/repo.git'";
+    const isCredential = hasCredentialContent(text);
+    expect(isCredential).toBe(true);
+  });
+
   it('scans a long dotted non-URL string without matching', () => {
     const text = 'a.'.repeat(32000);
     const isCredential = hasCredentialContent(text);

@@ -77,13 +77,11 @@ function isSchemeChar(char) {
 /**
  * Whether a character ends a single URL authority token.
  * @param {string} char - One character.
- * @param {string} [quote] - Opening quote around the URL, when present.
- * @returns {boolean} True at whitespace, the closing quote or a delimiter.
+ * @returns {boolean} True at whitespace or a delimiter.
  */
-function isAuthorityBoundary(char, quote = '') {
+function isAuthorityBoundary(char) {
   const code = char.codePointAt(0) ?? 0;
   return (
-    (quote.length > 0 && char === quote) ||
     code <= 0x20 ||
     char === '/' ||
     char === '?' ||
@@ -93,6 +91,20 @@ function isAuthorityBoundary(char, quote = '') {
     char === '<' ||
     char === '>'
   );
+}
+
+/**
+ * Whether a character is escaped by an odd number of backslashes.
+ * @param {string} text - Whole text.
+ * @param {number} index - Character index.
+ * @returns {boolean} True when the character is escaped.
+ */
+function isEscaped(text, index) {
+  let backslashes = 0;
+  for (let cursor = index - 1; cursor >= 0 && text[cursor] === '\\'; cursor -= 1) {
+    backslashes += 1;
+  }
+  return backslashes % 2 === 1;
 }
 
 /**
@@ -122,7 +134,12 @@ function hasUrlUserinfo(text) {
       const quoteChar = start > 0 ? text[start - 1] : '';
       const quote = quoteChar === '"' || quoteChar === "'" ? quoteChar : '';
       let end = marker + 3;
-      while (end < text.length && !isAuthorityBoundary(text[end], quote)) end += 1;
+      while (end < text.length) {
+        const char = text[end];
+        if (quote.length > 0 && char === quote && !isEscaped(text, end)) break;
+        if (isAuthorityBoundary(char)) break;
+        end += 1;
+      }
       const authority = text.slice(marker + 3, end);
       if (authority.indexOf('@') > 0) return true;
     }
