@@ -141,7 +141,7 @@ function hasUrlUserinfo(text) {
         end += 1;
       }
       const authority = text.slice(marker + 3, end);
-      if (authority.indexOf('@') > 0) return true;
+      if (authority.lastIndexOf('@') > 0) return true;
     }
     marker = text.indexOf('://', marker + 3);
   }

@@ -508,6 +508,7 @@ describe('PR review sensitive data', () => {
     'HTTPS://user:password@example.test/repo.git',
     'https://user,pass@example.test/repo.git',
     "https://user'pass@example.test/repo.git",
+    'https://@user:password@example.test/repo.git',
     '+https://user:password@example.test/repo.git',
     '-https://user:password@example.test/repo.git',
   ])('detects credential content %s', text => {
@@ -574,6 +575,18 @@ describe('PR review sensitive data', () => {
       '+++ b/src/remote.ts',
       '@@ -1 +1 @@',
       `${prefix}const remote = "https://user:password@example.test/repo.git";`,
+    ].join('\n');
+    const filtered = filterDiff(diff);
+    expect(filtered).not.toContain('example.test');
+  });
+
+  it('drops a block whose credential URL starts with an @ authority', () => {
+    const diff = [
+      'diff --git a/src/remote.ts b/src/remote.ts',
+      '--- a/src/remote.ts',
+      '+++ b/src/remote.ts',
+      '@@ -1 +1 @@',
+      '+const remote = "https://@user:password@example.test/repo.git";',
     ].join('\n');
     const filtered = filterDiff(diff);
     expect(filtered).not.toContain('example.test');
