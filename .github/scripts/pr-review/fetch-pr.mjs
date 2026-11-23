@@ -114,36 +114,56 @@ function isEscaped(text, index) {
  * @returns {boolean} True for a credential-bearing URL.
  */
 function hasUrlUserinfo(text) {
-  let marker = text.indexOf('://');
-  while (marker !== -1) {
-    let start = marker;
+  let quote = '';
+  let index = 0;
+  while (index < text.length) {
+    const char = text[index];
+    if (quote.length > 0) {
+      if (char === '\\') {
+        index += 2;
+        continue;
+      }
+      if (char === quote) {
+        quote = '';
+        index += 1;
+        continue;
+      }
+    } else if (char === '"' || char === "'") {
+      quote = char;
+      index += 1;
+      continue;
+    }
+    if (char !== ':' || text[index + 1] !== '/' || text[index + 2] !== '/') {
+      index += 1;
+      continue;
+    }
+    let start = index;
     let length = 0;
     while (start > 0 && length < MAX_URL_SCHEME_CHARS && isSchemeChar(text[start - 1])) {
       start -= 1;
       length += 1;
     }
-    const schemeText = text.slice(start, marker);
-    let scheme = schemeText;
+    let scheme = text.slice(start, index);
     while (scheme.length > 0 && (scheme[0] === '+' || scheme[0] === '-')) {
       scheme = scheme.slice(1);
     }
     const first = scheme[0] ?? '';
     const hasScheme =
       scheme.length > 0 && ((first >= 'a' && first <= 'z') || (first >= 'A' && first <= 'Z'));
-    if (hasScheme) {
-      const quoteChar = start > 0 ? text[start - 1] : '';
-      const quote = quoteChar === '"' || quoteChar === "'" ? quoteChar : '';
-      let end = marker + 3;
-      while (end < text.length) {
-        const char = text[end];
-        if (quote.length > 0 && char === quote && !isEscaped(text, end)) break;
-        if (isAuthorityBoundary(char)) break;
-        end += 1;
-      }
-      const authority = text.slice(marker + 3, end);
-      if (authority.lastIndexOf('@') > 0) return true;
+    if (!hasScheme) {
+      index += 1;
+      continue;
     }
-    marker = text.indexOf('://', marker + 3);
+    let end = index + 3;
+    while (end < text.length) {
+      const next = text[end];
+      if (quote.length > 0 && next === quote && !isEscaped(text, end)) break;
+      if (isAuthorityBoundary(next)) break;
+      end += 1;
+    }
+    const authority = text.slice(index + 3, end);
+    if (authority.lastIndexOf('@') > 0) return true;
+    index = end;
   }
   return false;
 }

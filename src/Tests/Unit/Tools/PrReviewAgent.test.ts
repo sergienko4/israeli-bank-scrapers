@@ -532,6 +532,16 @@ describe('PR review sensitive data', () => {
       false,
     ],
     ['closing single quote', "'https://example.test','email':'maintainer@example.test'", false],
+    [
+      'text before a quoted URL',
+      "const settings={homepage:'Visit https://example.test',email:'maintainer@example.test'};",
+      false,
+    ],
+    [
+      'quoted credential URL after text',
+      "const settings={homepage:'Visit https://user:pass@example.test'};",
+      true,
+    ],
     ['credential URL inside single quotes', "'https://user:pass@example.test/repo.git'", true],
     ['escaped apostrophe', "'https://user\\'pass@example.test/repo.git'", true],
   ])('handles a URL boundary: %s', (_name, text, expected) => {
