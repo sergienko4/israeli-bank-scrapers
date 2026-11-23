@@ -1,13 +1,29 @@
 export function parseReview(text: string): Record<string, unknown>;
 
+export function reviewEvent(review: Record<string, unknown>): string;
+
+export function selectPresentationFindings(
+  findings: Record<string, unknown>[],
+  config: Record<string, unknown>,
+): Record<string, unknown>[];
+
 export function validateReview(
   value: Record<string, unknown>,
   maxFindings: number,
+  added?: Map<string, Set<number>>,
 ): {
   summary: string;
   guidelines_read: string[];
   findings: Array<Record<string, unknown>>;
+  complete: boolean;
 };
+
+export function isPostedComplete(
+  review: { complete: boolean },
+  metadata: Record<string, unknown>,
+  config: Record<string, unknown>,
+  headSha: string,
+): boolean;
 
 export function parseAddedLines(diff: string): Map<string, Set<number>>;
 

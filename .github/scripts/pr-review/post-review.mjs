@@ -1,5 +1,8 @@
+import { createHash } from 'node:crypto';
 import { appendFile, readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
+import { isReviewComplete } from './approval.mjs';
+import { listReviews } from './review-history.mjs';
 import {
   githubGraphql,
   githubRequest,
@@ -15,8 +18,29 @@ const SEVERITIES = ['critical', 'important', 'suggestion'];
 /** Largest expanded overflow section. */
 const MAX_OVERFLOW_CHARS = 12000;
 
+/** Budget for compact blocker lines in the review body. */
+const MAX_COMPACT_CHARS = 20000;
+
+/** Largest follow-up comment body. */
+const MAX_COMMENT_CHARS = 50000;
+
+/** Default severities that must never be dropped from the posted review. */
+const DEFAULT_BLOCKING_SEVERITIES = ['critical', 'important'];
+
 /** Longest one overflow body before it is clipped. */
 const MAX_OVERFLOW_BODY_CHARS = 1200;
+
+/** Longest rule text shown with a finding. */
+const MAX_RULE_CHARS = 500;
+
+/** Longest path shown with a finding. */
+const MAX_PATH_CHARS = 300;
+
+/** Prefix that identifies a follow-up blocker comment. */
+const FOLLOWUP_MARKER = '<!-- opencode-review-agent-followup';
+
+/** Maximum comment-history pages read while resuming follow-ups. */
+const MAX_COMMENT_PAGES = 20;
 
 /** Maximum summary characters accepted from the model. */
 const MAX_SUMMARY_CHARS = 20000;
@@ -24,11 +48,17 @@ const MAX_SUMMARY_CHARS = 20000;
 /** Maximum title characters accepted from the model. */
 const MAX_TITLE_CHARS = 80;
 
-/** Review event used for every post. */
-const REVIEW_EVENT = 'COMMENT';
+/** Default review event when the caller does not choose one. */
+const DEFAULT_REVIEW_EVENT = 'COMMENT';
 
-/** Marker that identifies this agent's review. */
-const MARKER = '<!-- opencode-review-agent -->';
+/** Review events the posting script may submit. */
+const REVIEW_EVENTS = new Set(['COMMENT', 'APPROVE', 'REQUEST_CHANGES']);
+
+/** Legacy workflow identity that uses minimization instead of dismissal. */
+const LEGACY_APP_LOGIN = 'github-actions[bot]';
+
+/** Prefix that identifies this agent's review. */
+const MARKER = '<!-- opencode-review-agent';
 
 /** Invalid model output. */
 class ReviewFormatError extends Error {
@@ -74,9 +104,11 @@ export function parseReview(text) {
  * Validate and normalize the model review.
  * @param {Record<string, unknown>} value - Parsed review.
  * @param {number} maxFindings - Finding cap.
- * @returns {{ summary: string, guidelines_read: string[], findings: Array<Record<string, unknown>> }} Review.
+ * @param {Map<string, Set<number>>} [added] - Added lines by path; when given,
+ *   every finding must anchor before the cap is applied.
+ * @returns {{ summary: string, guidelines_read: string[], findings: Array<Record<string, unknown>>, complete: boolean }} Review.
  */
-export function validateReview(value, maxFindings) {
+export function validateReview(value, maxFindings, added) {
   const summary = String(value.summary ?? '');
   if (summary.length === 0 || summary.length > MAX_SUMMARY_CHARS) {
     throw new ReviewFormatError('summary length');
@@ -85,11 +117,36 @@ export function validateReview(value, maxFindings) {
     ? value.guidelines_read.filter(item => typeof item === 'string').slice(0, 100)
     : [];
   if (!Array.isArray(value.findings)) throw new ReviewFormatError('findings is not an array');
-  const findings = value.findings
-    .map(validateFinding)
+  const validated = value.findings.map(validateFinding);
+  if (added !== undefined) {
+    const hasOffDiffFinding = validated.some(
+      finding => added.get(String(finding.path))?.has(Number(finding.line)) !== true,
+    );
+    if (hasOffDiffFinding) throw new ReviewFormatError('finding outside the reviewed diff');
+  }
+  const findings = validated
     .sort((left, right) => severityRank(left) - severityRank(right))
     .slice(0, maxFindings);
-  return { summary, guidelines_read: guidelines, findings };
+  const complete = value.complete === true && guidelines.length > 0;
+  return { summary, guidelines_read: guidelines, findings, complete };
+}
+
+/**
+ * Whether a posted review may be recorded as complete.
+ * The model's claim is only trusted when the fetched PR data also covers
+ * every changed file and was fetched for the reviewed head.
+ * @param {{ complete: boolean }} review - Validated review.
+ * @param {Record<string, unknown>} metadata - PR metadata.
+ * @param {Record<string, unknown>} config - Review config.
+ * @param {string} headSha - Reviewed head.
+ * @returns {boolean} True when both sources agree the review is complete.
+ */
+export function isPostedComplete(review, metadata, config, headSha) {
+  return (
+    String(metadata.headSha ?? '') === headSha &&
+    review.complete === true &&
+    isReviewComplete(metadata, config)
+  );
 }
 
 /**
@@ -240,9 +297,37 @@ export function mapFindings(findings, added, maxInline) {
  * @returns {string} Safe comment body.
  */
 function commentBody(finding) {
-  const rule = String(finding.rule ?? '');
-  const suffix = rule.length > 0 ? `\n\nRule: ${sanitizeText(rule)}` : '';
-  return `**${sanitizeText(finding.title)}**\n\n${sanitizeText(finding.body)}${suffix}`;
+  const rule = sanitizeText(finding.rule).slice(0, MAX_RULE_CHARS);
+  const suffix = rule.length > 0 ? `\n\nRule: ${rule}` : '';
+  const title = sanitizeText(finding.title).slice(0, MAX_TITLE_CHARS);
+  return `**${title}**\n\n${sanitizeText(finding.body)}${suffix}`;
+}
+
+/**
+ * Render one finding as a full overflow block.
+ * @param {Record<string, unknown>} finding - Finding.
+ * @returns {string} Markdown block.
+ */
+function findingBlock(finding) {
+  const body = sanitizeText(finding.body).slice(0, MAX_OVERFLOW_BODY_CHARS);
+  const rule = sanitizeText(finding.rule).slice(0, MAX_RULE_CHARS);
+  const ruleLine = rule.length > 0 ? `\n  Rule: ${rule}` : '';
+  const severity = sanitizeText(finding.severity).slice(0, 20);
+  const path = sanitizeText(finding.path).slice(0, MAX_PATH_CHARS);
+  const title = sanitizeText(finding.title).slice(0, MAX_TITLE_CHARS);
+  return `- **${severity}** \`${path}:${finding.line}\` **${title}**\n  ${body}${ruleLine}`;
+}
+
+/**
+ * Render one finding as a compact one-line block.
+ * @param {Record<string, unknown>} finding - Finding.
+ * @returns {string} Markdown line.
+ */
+function compactBlock(finding) {
+  const severity = sanitizeText(finding.severity).slice(0, 20);
+  const path = sanitizeText(finding.path).slice(0, MAX_PATH_CHARS);
+  const title = sanitizeText(finding.title).slice(0, MAX_TITLE_CHARS);
+  return `- **${severity}** \`${path}:${finding.line}\` **${title}** (details omitted)`;
 }
 
 /**
@@ -250,64 +335,180 @@ function commentBody(finding) {
  * @param {object} args - Summary arguments.
  * @param {string} args.summary - Model summary.
  * @param {Array<Record<string, unknown>>} args.overflow - Findings not inline.
- * @returns {string} Review body.
+ * @param {Array<string>} [args.blockingSeverities] - Severities that must appear.
+ * @returns {{ body: string, omitted: Array<Record<string, unknown>>, digest: string }} Body, omitted blockers and payload digest.
  */
 function summaryBody(args) {
-  const overflow = overflowBlock(args.overflow);
-  const extra = overflow.length > 0 ? `\n\n### Findings not attached inline\n\n${overflow}\n` : '';
-  return `${MARKER}\n\n${sanitizeText(args.summary)}${extra}`;
+  const overflow = overflowBlock(args.overflow, args.blockingSeverities);
+  const extra =
+    overflow.text.length > 0 ? `\n\n### Findings not attached inline\n\n${overflow.text}\n` : '';
+  const complete = args.reviewComplete === true ? 'true' : 'false';
+  const summary = sanitizeText(args.summary).slice(0, MAX_SUMMARY_CHARS);
+  const content = `${args.event ?? 'COMMENT'}\n${complete}\n${summary}\n${overflow.text}\n${JSON.stringify(overflow.omitted)}`;
+  const digest = createHash('sha256').update(content).digest('hex').slice(0, 16);
+  const marker = `${MARKER} event=${args.event ?? 'COMMENT'} comment=${args.commentId ?? ''} complete=${complete} digest=${digest} -->`;
+  return {
+    body: `${marker}\n\n${summary}${extra}`,
+    omitted: overflow.omitted,
+    digest,
+  };
 }
 
 /**
  * Render overflow findings with enough detail to act on, within a budget.
+ * Full details stop at the budget, but every blocking finding still gets a
+ * compact line. Blockers beyond the compact budget are returned so the caller
+ * can post them separately.
  * @param {Array<Record<string, unknown>>} findings - Findings not inline.
- * @returns {string} Markdown block, or ''.
+ * @param {Array<string>} [blockingSeverities] - Severities that must be shown.
+ * @returns {{ text: string, omitted: Array<Record<string, unknown>> }} Markdown and omitted findings.
  */
-function overflowBlock(findings) {
+function overflowBlock(findings, blockingSeverities = DEFAULT_BLOCKING_SEVERITIES) {
+  const blocking = new Set(blockingSeverities.map(String));
   const blocks = [];
+  const omitted = [];
   let used = 0;
+  let compactUsed = 0;
   for (const finding of findings) {
-    const body = sanitizeText(finding.body).slice(0, MAX_OVERFLOW_BODY_CHARS);
-    const rule = String(finding.rule ?? '');
-    const ruleLine = rule.length > 0 ? `\n  Rule: ${sanitizeText(rule)}` : '';
-    const block = `- **${sanitizeText(finding.severity)}** \`${sanitizeText(finding.path)}:${finding.line}\` **${sanitizeText(finding.title)}**\n  ${body}${ruleLine}`;
-    if (used + block.length > MAX_OVERFLOW_CHARS) break;
-    blocks.push(block);
-    used += block.length;
+    const block = findingBlock(finding);
+    if (used + block.length <= MAX_OVERFLOW_CHARS) {
+      blocks.push(block);
+      used += block.length;
+      continue;
+    }
+    if (!blocking.has(String(finding.severity))) continue;
+    const compact = compactBlock(finding);
+    if (compactUsed + compact.length <= MAX_COMPACT_CHARS) {
+      blocks.push(compact);
+      used += compact.length;
+      compactUsed += compact.length;
+      continue;
+    }
+    omitted.push(finding);
   }
-  return blocks.join('\n');
+  return { text: blocks.join('\n'), omitted };
 }
 
 /**
- * Minimize an earlier review from this agent, if one exists.
- * @param {object} args - Request arguments.
- * @returns {Promise<void>} Resolves when done.
+ * Read the recorded completeness from a review marker.
+ * @param {Record<string, unknown>} review - Review.
+ * @returns {boolean} True when the marker records a complete review.
  */
-async function latestEarlier(args) {
-  const reviews = [];
-  for (let page = 1; page <= 5; page += 1) {
-    const response = await githubRequest({
-      token: args.token,
-      path: `/repos/${args.repo}/pulls/${args.pr}/reviews?per_page=100&page=${page}`,
-      fetchImpl: args.fetchImpl,
-    });
-    if (!response.ok) break;
-    const batch = /** @type {Array<Record<string, unknown>>} */ (await readResponseJson(response));
-    reviews.push(...batch);
-    if (batch.length < 100) break;
-  }
-  const earlier = reviews
-    .filter(
-      review =>
-        String((review.user ?? {}).login ?? '') === 'github-actions[bot]' &&
-        String(review.body ?? '').includes(MARKER),
-    )
+function reviewCompleteFromMarker(review) {
+  const firstLine = String(review.body ?? '').split('\n', 1)[0];
+  return /complete=true/u.test(firstLine);
+}
+
+/**
+ * Read the payload digest recorded in a review marker.
+ * @param {Record<string, unknown>} review - Review.
+ * @returns {string} Digest, or '' for older reviews.
+ */
+function reviewDigest(review) {
+  const firstLine = String(review.body ?? '').split('\n', 1)[0];
+  const match = /digest=([0-9a-f]+)/u.exec(firstLine);
+  return match?.[1] ?? '';
+}
+
+/**
+ * Pick the findings to present, keeping every configured blocker.
+ * A blocker beyond the normal cap is still shown; suggestions fill the rest.
+ * @param {Array<Record<string, unknown>>} findings - Validated findings.
+ * @param {Record<string, unknown>} config - Review config.
+ * @returns {Array<Record<string, unknown>>} Presentation findings.
+ */
+export function selectPresentationFindings(findings, config) {
+  const cap = Number(config.maxFindings ?? 30);
+  const blocking = new Set(
+    Array.isArray(config.blockingSeverities)
+      ? config.blockingSeverities.map(String)
+      : ['critical', 'important'],
+  );
+  const blockers = findings.filter(finding => blocking.has(String(finding.severity)));
+  const others = findings.filter(finding => !blocking.has(String(finding.severity)));
+  return [...blockers, ...others].slice(0, Math.max(cap, blockers.length));
+}
+
+/**
+ * Whether one review belongs to this agent.
+ * @param {Record<string, unknown>} review - Review.
+ * @param {string} appLogin - Agent login.
+ * @returns {boolean} True when the review is ours.
+ */
+function isAppReview(review, appLogin) {
+  return (
+    String((review.user ?? {}).login ?? '') === appLogin &&
+    String(review.body ?? '').includes(MARKER)
+  );
+}
+
+/**
+ * Whether a review is a failure notice rather than a real review.
+ * @param {Record<string, unknown>} review - Review.
+ * @returns {boolean} True when the body carries the failure heading.
+ */
+function isFailureReview(review) {
+  const body = String(review.body ?? '');
+  const markerEnd = body.indexOf('-->');
+  if (markerEnd < 0) return false;
+  return body
+    .slice(markerEnd + 3)
+    .trimStart()
+    .startsWith('## Review failed');
+}
+
+/**
+ * Whether the history already has a blocking review from this App on the head.
+ * @param {Array<Record<string, unknown>>} reviews - Pull request reviews.
+ * @param {string} appLogin - Agent login.
+ * @param {string} headSha - Reviewed head.
+ * @returns {boolean} True when a same-head block exists.
+ */
+function hasSameHeadBlock(reviews, appLogin, headSha) {
+  return reviews.some(
+    review =>
+      isAppReview(review, appLogin) &&
+      (String(review.commit_id ?? '') === headSha || String(review.commit_id ?? '') === '') &&
+      reviewEvent(review) === 'REQUEST_CHANGES',
+  );
+}
+
+/**
+ * Read the exact trigger comment ID from a review marker.
+ * @param {Record<string, unknown>} review - Review.
+ * @returns {string} Comment ID, or ''.
+ */
+function reviewCommentId(review) {
+  const firstLine = String(review.body ?? '').split('\n', 1)[0];
+  const match = /comment=([^\s]+)/u.exec(firstLine);
+  return match?.[1] ?? '';
+}
+
+/**
+ * Read the exact review event from a review marker.
+ * @param {Record<string, unknown>} review - Review.
+ * @returns {string} Event name, or ''.
+ */
+export function reviewEvent(review) {
+  const firstLine = String(review.body ?? '').split('\n', 1)[0];
+  const match = /event=([A-Z_]+)/u.exec(firstLine);
+  return match?.[1] ?? '';
+}
+
+/**
+ * Pick the latest earlier review from this agent.
+ * @param {Array<Record<string, unknown>>} reviews - Pull request reviews.
+ * @param {string} appLogin - Agent login.
+ * @returns {Record<string, unknown> | undefined} Latest earlier review.
+ */
+function latestEarlier(reviews, appLogin) {
+  return reviews
+    .filter(review => isAppReview(review, appLogin))
     .sort(
       (left, right) =>
         Date.parse(String(left.submitted_at ?? '')) - Date.parse(String(right.submitted_at ?? '')),
     )
     .at(-1);
-  return earlier;
 }
 
 /**
@@ -329,51 +530,359 @@ async function minimizeReview(args, review) {
 }
 
 /**
- * Post one COMMENT review.
- * @param {object} args - Review arguments.
- * @param {string} args.repo - `owner/name`.
- * @param {number} args.pr - Pull request number.
- * @param {string} args.token - GitHub token.
- * @param {string} args.headSha - Head commit.
- * @param {string} args.summary - Model summary.
- * @param {Array<Record<string, unknown>>} args.inline - Inline findings.
- * @param {Array<Record<string, unknown>>} args.overflow - Summary findings.
- * @param {typeof fetch} [args.fetchImpl] - Test double.
- * @returns {Promise<Record<string, unknown>>} Posted review.
+ * Dismiss one earlier review so its state cannot block the new review.
+ * @param {object} args - Request arguments.
+ * @param {Record<string, unknown>} review - Earlier review.
+ * @returns {Promise<void>} Resolves when dismissed.
  */
-export function buildReview(args) {
+async function dismissReview(args, review) {
+  const id = Number(review.id);
+  if (!Number.isInteger(id) || id <= 0) return;
+  const response = await githubRequest({
+    token: args.token,
+    path: `/repos/${args.repo}/pulls/${args.pr}/reviews/${id}/dismissals`,
+    method: 'PUT',
+    body: { message: 'Superseded by a newer review from the review agent.' },
+    fetchImpl: args.fetchImpl,
+  });
+  if (!response.ok) throw new Error(`GitHub review dismissal answered ${response.status}`);
+}
+
+/**
+ * Dismiss earlier blocking reviews after a clean COMMENT.
+ * The marker records the event even after GitHub erases the review state.
+ * @param {object} args - Request arguments.
+ * @param {Array<Record<string, unknown>>} reviews - Pull request reviews.
+ * @param {number} newReviewId - Review just posted.
+ * @param {number} [beforeId] - Only dismiss reviews older than this ID.
+ * @returns {Promise<void>} Resolves when all earlier blocks are dismissed.
+ */
+/**
+ * Whether a review was submitted before the cutoff.
+ * Equal timestamps fall back to the review ID as a submission-order tie-breaker.
+ * @param {Record<string, unknown>} review - Review.
+ * @param {number | undefined} cutoff - Cutoff time in milliseconds.
+ * @param {number} beforeId - ID of the review that cleanup must not dismiss.
+ * @returns {boolean} True when the review predates the cutoff, or no cutoff is set.
+ */
+function submittedBefore(review, cutoff, beforeId) {
+  if (cutoff === undefined) return true;
+  const at = Date.parse(String(review.submitted_at ?? ''));
+  if (!Number.isFinite(at)) return false;
+  return at < cutoff || (at === cutoff && Number(review.id) < beforeId);
+}
+
+async function dismissEarlierBlocks(
+  args,
+  reviews,
+  newReviewId,
+  beforeId = Number.POSITIVE_INFINITY,
+  beforeSubmittedAt,
+) {
+  const appLogin = args.appLogin ?? LEGACY_APP_LOGIN;
+  if (appLogin === LEGACY_APP_LOGIN) return;
+  const cutoff = beforeSubmittedAt === undefined ? undefined : Date.parse(beforeSubmittedAt);
+  if (cutoff !== undefined && !Number.isFinite(cutoff)) return;
+  const conflicts = reviews.filter(
+    review =>
+      isAppReview(review, appLogin) &&
+      Number(review.id) !== newReviewId &&
+      Number(review.id) < beforeId &&
+      submittedBefore(review, cutoff, beforeId) &&
+      String(review.commit_id ?? '') !== '' &&
+      String(review.commit_id ?? '') !== args.headSha &&
+      String(review.state ?? '') === 'CHANGES_REQUESTED' &&
+      reviewEvent(review) === 'REQUEST_CHANGES',
+  );
+  for (const review of conflicts) await dismissReview(args, review);
+}
+
+/**
+ * Split omitted blockers into bounded, marked comments.
+ * @param {Array<Record<string, unknown>>} findings - Omitted blockers.
+ * @param {Array<Record<string, unknown>>} findings - Omitted blockers.
+ * @param {number} reviewId - Posted review ID.
+ * @returns {Array<{ index: number, hash: string, body: string }>} Marked comments.
+ */
+function followupComments(findings, reviewId) {
+  const heading =
+    '### Additional blocking findings\n\nThese findings did not fit in the review body.\n\n';
+  const chunks = [];
+  let current = heading;
+  for (const finding of findings) {
+    const block = `${findingBlock(finding)}\n`;
+    if (current.length > heading.length && current.length + block.length > MAX_COMMENT_CHARS) {
+      chunks.push(current);
+      current = heading;
+    }
+    current += block;
+  }
+  if (current.length > heading.length) chunks.push(current);
+  return chunks.map((body, index) => {
+    const hash = createHash('sha256').update(body).digest('hex').slice(0, 16);
+    return {
+      index,
+      hash,
+      body: `${FOLLOWUP_MARKER} review=${String(reviewId)} chunk=${String(index)} hash=${hash} -->\n\n${body}`,
+    };
+  });
+}
+
+/**
+ * List every issue comment on the pull request.
+ * @param {object} args - Request arguments.
+ * @returns {Promise<Array<Record<string, unknown>>>} Comments.
+ */
+async function listIssueComments(args) {
+  const comments = [];
+  for (let page = 1; page <= MAX_COMMENT_PAGES; page += 1) {
+    const response = await githubRequest({
+      token: args.token,
+      path: `/repos/${args.repo}/issues/${args.pr}/comments?per_page=100&page=${page}`,
+      fetchImpl: args.fetchImpl,
+    });
+    if (!response.ok) throw new Error(`GitHub comments answered ${response.status}`);
+    const batch = await readResponseJson(response);
+    if (!Array.isArray(batch)) throw new Error('GitHub comments response is not an array');
+    comments.push(...batch);
+    if (batch.length < 100) return comments;
+  }
+  throw new Error('review comment history is incomplete');
+}
+
+/**
+ * Read the review, chunk and content hash from a follow-up comment marker.
+ * @param {unknown} body - Comment body.
+ * @returns {{ reviewId: number, index: number, hash: string } | undefined} Marker, or undefined.
+ */
+function followupMarker(body) {
+  const firstLine = String(body ?? '').split('\n', 1)[0];
+  const match =
+    /^<!-- opencode-review-agent-followup review=(\d+) chunk=(\d+) hash=([0-9a-f]+) -->$/u.exec(
+      firstLine,
+    );
+  if (match === null) return undefined;
+  return { reviewId: Number(match[1]), index: Number(match[2]), hash: match[3] };
+}
+
+/**
+ * Post blockers that did not fit in the review body as bounded comments.
+ * Already posted chunks are skipped, so a retry can resume safely.
+ * @param {object} args - Request arguments.
+ * @param {Array<Record<string, unknown>>} findings - Omitted blockers.
+ * @param {number} reviewId - Posted review ID.
+ * @returns {Promise<void>} Resolves when every comment is posted.
+ */
+async function postOmittedFindings(args, findings, reviewId) {
+  const chunks = followupComments(findings, reviewId);
+  if (chunks.length === 0) return;
+  const expected = new Map(chunks.map(chunk => [chunk.index, chunk.hash]));
+  const appLogin = args.appLogin ?? LEGACY_APP_LOGIN;
+  const existing = await listIssueComments(args);
+  const posted = new Set();
+  for (const comment of existing) {
+    if (String((comment.user ?? {}).login ?? '') !== appLogin) continue;
+    const marker = followupMarker(comment.body);
+    if (marker === undefined || marker.reviewId !== reviewId) continue;
+    if (expected.get(marker.index) === marker.hash) posted.add(marker.index);
+  }
+  for (const chunk of chunks) {
+    if (posted.has(chunk.index)) continue;
+    const response = await githubRequest({
+      token: args.token,
+      path: `/repos/${args.repo}/issues/${args.pr}/comments`,
+      method: 'POST',
+      body: { body: chunk.body },
+      fetchImpl: args.fetchImpl,
+    });
+    if (!response.ok) throw new Error(`GitHub comment POST answered ${response.status}`);
+  }
+}
+
+/**
+ * Read whether the live PR is still open at the reviewed head.
+ * @param {object} args - Request arguments.
+ * @returns {Promise<boolean>} True when the head is still current.
+ */
+async function liveHeadMatches(args) {
+  const response = await githubRequest({
+    token: args.token,
+    path: `/repos/${args.repo}/pulls/${args.pr}`,
+    fetchImpl: args.fetchImpl,
+  });
+  const pr = /** @type {Record<string, unknown>} */ (await readResponseJson(response));
+  const head = /** @type {Record<string, unknown>} */ (pr.head ?? {});
+  return pr.state === 'open' && pr.draft !== true && String(head.sha ?? '') === args.headSha;
+}
+
+/**
+ * Refuse to post when the live PR no longer matches the reviewed snapshot.
+ * @param {object} args - Request arguments.
+ * @returns {Promise<void>} Resolves when the head still matches.
+ */
+async function assertLiveHead(args) {
+  if (!(await liveHeadMatches(args))) {
+    throw new Error('pull request changed before posting');
+  }
+}
+
+/**
+ * Build one review payload and report any blockers that did not fit.
+ * @param {object} args - Review arguments.
+ * @returns {{ payload: Record<string, unknown>, omitted: Array<Record<string, unknown>>, digest: string }} Review, omitted blockers and digest.
+ */
+function renderReview(args) {
+  const event = args.event ?? DEFAULT_REVIEW_EVENT;
+  if (!REVIEW_EVENTS.has(event)) throw new ReviewFormatError('invalid review event');
   const comments = args.inline.map(finding => ({
     path: String(finding.path),
     line: Number(finding.line),
     side: 'RIGHT',
     body: commentBody(finding),
   }));
+  const summary = summaryBody({
+    summary: args.summary,
+    overflow: args.overflow,
+    event,
+    commentId: args.commentId,
+    reviewComplete: args.reviewComplete,
+    blockingSeverities: args.blockingSeverities,
+  });
   const payload = {
     commit_id: args.headSha,
-    body: summaryBody({ summary: args.summary, overflow: args.overflow }),
-    event: REVIEW_EVENT,
+    body: summary.body,
+    event,
   };
   if (comments.length > 0) payload.comments = comments;
-  return payload;
+  return { payload, omitted: summary.omitted, digest: summary.digest };
 }
 
+/**
+ * Build one review payload.
+ * @param {object} args - Review arguments.
+ * @param {string} args.headSha - Head commit.
+ * @param {string} args.summary - Model summary.
+ * @param {Array<Record<string, unknown>>} args.inline - Inline findings.
+ * @param {Array<Record<string, unknown>>} args.overflow - Summary findings.
+ * @param {string} [args.event] - Review event.
+ * @param {string} [args.commentId] - Triggering comment ID.
+ * @returns {Record<string, unknown>} Review payload.
+ */
+export function buildReview(args) {
+  return renderReview(args).payload;
+}
+
+/**
+ * Post one review, once per triggering comment.
+ * @param {object} args - Review arguments.
+ * @param {string} args.repo - `owner/name`.
+ * @param {number} args.pr - Pull request number.
+ * @param {string} args.token - GitHub token.
+ * @param {string} args.headSha - Reviewed head commit.
+ * @param {string} args.summary - Model summary.
+ * @param {Array<Record<string, unknown>>} args.inline - Inline findings.
+ * @param {Array<Record<string, unknown>>} args.overflow - Summary findings.
+ * @param {string} [args.event] - Review event.
+ * @param {string} [args.appLogin] - App identity.
+ * @param {string} [args.commentId] - Triggering comment ID.
+ * @param {boolean} [args.dismissBlocking] - Dismiss earlier blocks after a clean COMMENT.
+ * @param {boolean} [args.reviewComplete] - Whether the review covered every changed file.
+ * @param {boolean} [args.recheckHead] - Re-fetch the PR before posting.
+ * @param {typeof fetch} [args.fetchImpl] - Test double.
+ * @returns {Promise<Record<string, unknown>>} Posted review.
+ */
 export async function postReview(args) {
-  const earlier = await latestEarlier(args);
-  const payload = buildReview(args);
+  const event = args.event ?? DEFAULT_REVIEW_EVENT;
+  if (event === 'NONE') return { id: 0, htmlUrl: '', inline: 0 };
+  if (event === 'APPROVE' && args.reviewComplete !== true) {
+    throw new Error('approval requires a complete review');
+  }
+  const appLogin = args.appLogin ?? LEGACY_APP_LOGIN;
+  const commentId = String(args.commentId ?? '');
+  const rendered = renderReview({ ...args, event, commentId });
+  // Approvals, blocking reviews and dismissal cleanup need the complete
+  // history. A plain informational COMMENT can post without it.
+  const needsCompleteHistory =
+    event !== 'COMMENT' || (args.dismissBlocking === true && args.reviewComplete === true);
+  const reviews = await listReviews({ ...args, failClosed: needsCompleteHistory });
+  if (commentId.length > 0) {
+    const failureRequest = String(args.summary ?? '')
+      .trimStart()
+      .startsWith('## Review failed');
+    const duplicate = reviews.find(review => {
+      const digest = reviewDigest(review);
+      return (
+        isAppReview(review, appLogin) &&
+        reviewCommentId(review) === commentId &&
+        String(review.commit_id ?? '') === args.headSha &&
+        reviewEvent(review) === event &&
+        reviewCompleteFromMarker(review) === (args.reviewComplete === true) &&
+        isFailureReview(review) === failureRequest &&
+        (digest === '' || digest === rendered.digest)
+      );
+    });
+    if (duplicate !== undefined) {
+      if (event === 'APPROVE') {
+        await assertLiveHead(args);
+        if (hasSameHeadBlock(reviews, appLogin, args.headSha)) {
+          throw new Error('approval requires a new commit');
+        }
+      }
+      const duplicateIsCleanComment =
+        reviewEvent(duplicate) === 'COMMENT' &&
+        String(duplicate.commit_id ?? '') === args.headSha &&
+        reviewCompleteFromMarker(duplicate);
+      if (
+        args.dismissBlocking === true &&
+        args.reviewComplete === true &&
+        event === 'COMMENT' &&
+        duplicateIsCleanComment
+      ) {
+        if (await liveHeadMatches(args)) {
+          await dismissEarlierBlocks(
+            args,
+            reviews,
+            Number(duplicate.id),
+            Number(duplicate.id),
+            String(duplicate.submitted_at ?? ''),
+          );
+        }
+      }
+      await postOmittedFindings(args, rendered.omitted, Number(duplicate.id));
+      return { id: duplicate.id, htmlUrl: duplicate.html_url, inline: 0 };
+    }
+  }
+  if (event === 'APPROVE' || args.recheckHead === true) await assertLiveHead(args);
+  if (event === 'APPROVE' && hasSameHeadBlock(reviews, appLogin, args.headSha)) {
+    throw new Error('approval requires a new commit');
+  }
+  const earlier = latestEarlier(reviews, appLogin);
   // A request that rejects before a response has an unknown outcome; leave
   // `created` unset so the failure notice still runs.
   const response = await githubRequest({
     token: args.token,
     path: `/repos/${args.repo}/pulls/${args.pr}/reviews`,
     method: 'POST',
-    body: payload,
+    body: rendered.payload,
     fetchImpl: args.fetchImpl,
   });
   if (!response.ok) throw new Error(`GitHub review POST answered ${response.status}`);
   await markCreated();
-  const review = /** @type {Record<string, unknown>} */ (await readResponseJson(response));
-  if (earlier !== undefined) await minimizeReview(args, earlier);
-  return { id: review.id, htmlUrl: review.html_url, inline: payload.comments?.length ?? 0 };
+  const posted = /** @type {Record<string, unknown>} */ (await readResponseJson(response));
+  await postOmittedFindings(args, rendered.omitted, Number(posted.id));
+  if (args.dismissBlocking === true && args.reviewComplete === true && event === 'COMMENT') {
+    if (await liveHeadMatches(args)) {
+      await dismissEarlierBlocks(args, reviews, Number(posted.id));
+    }
+  }
+  if (appLogin === LEGACY_APP_LOGIN && earlier !== undefined) {
+    await minimizeReview(args, earlier);
+  }
+  return {
+    id: posted.id,
+    htmlUrl: posted.html_url,
+    inline: rendered.payload.comments?.length ?? 0,
+  };
 }
 
 /**
@@ -389,7 +898,15 @@ export async function postReview(args) {
  */
 export async function postFailure(args) {
   const summary = `## Review failed\n\nThe review agent could not produce a valid review. ${args.message}`;
-  return postReview({ ...args, summary, inline: [], overflow: [] });
+  return postReview({
+    ...args,
+    event: 'COMMENT',
+    summary,
+    inline: [],
+    overflow: [],
+    dismissBlocking: false,
+    reviewComplete: false,
+  });
 }
 
 /**
@@ -406,11 +923,45 @@ export async function markCreated() {
  * Read and validate the agent result.
  * @param {string} path - Result file.
  * @param {number} maxFindings - Finding cap.
+ * @param {Map<string, Set<number>>} added - Added lines by path.
  * @returns {Promise<ReturnType<typeof validateReview>>} Review.
  */
-async function readReview(path, maxFindings) {
+async function readReview(path, maxFindings, added) {
   const text = await readFile(path, 'utf8');
-  return validateReview(parseReview(text), maxFindings);
+  return validateReview(parseReview(text), maxFindings, added);
+}
+
+/**
+ * Build the request arguments shared by the failure and success paths.
+ * @param {NodeJS.ProcessEnv} env - Process environment.
+ * @returns {Record<string, unknown>} Request arguments.
+ */
+function requestArgs(env, config) {
+  return {
+    repo: env.REVIEW_REPO || env.GITHUB_REPOSITORY || '',
+    pr: Number(env.PR_NUMBER),
+    token: env.REVIEW_TOKEN || env.GITHUB_TOKEN || '',
+    headSha: env.REVIEW_HEAD_SHA || '',
+    appLogin: env.REVIEW_APP_LOGIN || undefined,
+    event: env.REVIEW_EVENT || config.defaultReviewEvent || DEFAULT_REVIEW_EVENT,
+    commentId: env.REVIEW_COMMENT_ID || '',
+    dismissBlocking: env.REVIEW_DISMISS_BLOCKING === 'true',
+    recheckHead: env.REVIEW_RECHECK_HEAD === 'true',
+  };
+}
+
+/**
+ * Read PR metadata, or return an empty object when it is missing or malformed.
+ * @param {string} path - Metadata file path.
+ * @returns {Promise<Record<string, unknown>>} Metadata.
+ */
+async function readMetadata(path) {
+  try {
+    const parsed = JSON.parse(await readFile(path, 'utf8'));
+    return isRecord(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
 }
 
 /**
@@ -422,13 +973,17 @@ async function main() {
   const config = JSON.parse(
     await readFile(new URL('../../review-agent/config.json', import.meta.url), 'utf8'),
   );
+  const appMode = Boolean(env.REVIEW_APP_LOGIN);
   if (process.argv.includes('--failure')) {
     if (process.argv.includes('--dry-run')) return;
+    if (appMode) {
+      console.error('review agent failed; App mode posts no failure review');
+      process.exitCode = 1;
+      return;
+    }
     await postFailure({
-      repo: env.GITHUB_REPOSITORY ?? '',
-      pr: Number(env.PR_NUMBER),
-      token: env.GITHUB_TOKEN ?? '',
-      headSha: env.REVIEW_HEAD_SHA ?? '',
+      ...requestArgs(env, config),
+      event: 'COMMENT',
       message: 'The review run did not finish. Check the workflow log.',
     });
     return;
@@ -437,24 +992,37 @@ async function main() {
   const added = parseAddedLines(diff);
   let review;
   try {
-    review = await readReview(env.REVIEW_RESULT || '.review/pr/result.json', config.maxFindings);
+    review = await readReview(
+      env.REVIEW_RESULT || '.review/pr/result.json',
+      Number.POSITIVE_INFINITY,
+      added,
+    );
   } catch (error) {
-    if (process.argv.includes('--dry-run')) {
+    if (process.argv.includes('--dry-run') || appMode) {
       console.error(safeError(error));
       process.exitCode = 1;
       return;
     }
     await postFailure({
-      repo: env.GITHUB_REPOSITORY ?? '',
-      pr: Number(env.PR_NUMBER),
-      token: env.GITHUB_TOKEN ?? '',
-      headSha: env.REVIEW_HEAD_SHA ?? '',
+      ...requestArgs(env, config),
+      event: 'COMMENT',
       message: safeError(error),
     });
     process.exitCode = 1;
     return;
   }
-  const split = mapFindings(review.findings, added, config.maxInlineComments);
+  const metadata = await readMetadata(env.REVIEW_METADATA || '.review/pr/metadata.json');
+  const reviewComplete = isPostedComplete(review, metadata, config, env.REVIEW_HEAD_SHA || '');
+  const event = env.REVIEW_EVENT || config.defaultReviewEvent || DEFAULT_REVIEW_EVENT;
+  if (event === 'NONE') {
+    console.log('No review event: NONE.');
+    return;
+  }
+  const split = mapFindings(
+    selectPresentationFindings(review.findings, config),
+    added,
+    config.maxInlineComments,
+  );
   if (process.argv.includes('--dry-run')) {
     console.log(
       JSON.stringify(
@@ -463,6 +1031,10 @@ async function main() {
           summary: review.summary,
           inline: split.inline,
           overflow: split.overflow,
+          event,
+          commentId: env.REVIEW_COMMENT_ID || '',
+          reviewComplete,
+          blockingSeverities: config.blockingSeverities,
         }),
         null,
         2,
@@ -471,13 +1043,12 @@ async function main() {
     return;
   }
   const posted = await postReview({
-    repo: env.GITHUB_REPOSITORY ?? '',
-    pr: Number(env.PR_NUMBER),
-    token: env.GITHUB_TOKEN ?? '',
-    headSha: env.REVIEW_HEAD_SHA ?? '',
+    ...requestArgs(env, config),
     summary: review.summary,
     inline: split.inline,
     overflow: split.overflow,
+    reviewComplete,
+    blockingSeverities: config.blockingSeverities,
   });
   console.log(JSON.stringify(posted));
 }

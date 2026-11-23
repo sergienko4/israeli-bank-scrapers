@@ -10,11 +10,14 @@ import { extractText } from '../../../../.github/scripts/pr-review/extract-revie
 import { truncateDiff } from '../../../../.github/scripts/pr-review/fetch-pr.mjs';
 import {
   buildReview,
+  isPostedComplete,
   mapFindings,
   markCreated,
   parseAddedLines,
   parseReview,
+  postFailure,
   postReview,
+  selectPresentationFindings,
   validateReview,
 } from '../../../../.github/scripts/pr-review/post-review.mjs';
 import { sanitizeText } from '../../../../.github/scripts/pr-review/shared.mjs';
@@ -118,6 +121,421 @@ describe('PR review extraction and posting', () => {
     });
   });
 
+  it('builds a REQUEST_CHANGES review when findings are blocking', () => {
+    const payload = buildReview({
+      headSha: 'head',
+      summary: 'blocking',
+      inline: [],
+      overflow: [],
+      event: 'REQUEST_CHANGES',
+    });
+    expect(payload.event).toBe('REQUEST_CHANGES');
+  });
+
+  it('builds an APPROVE review only when explicitly requested', () => {
+    const payload = buildReview({
+      headSha: 'head',
+      summary: 'clean',
+      inline: [],
+      overflow: [],
+      event: 'APPROVE',
+    });
+    expect(payload.event).toBe('APPROVE');
+  });
+
+  it('records completeness in the review marker', () => {
+    const complete = buildReview({
+      headSha: 'head',
+      summary: 'clean',
+      inline: [],
+      overflow: [],
+      reviewComplete: true,
+    });
+    const incomplete = buildReview({
+      headSha: 'head',
+      summary: 'clean',
+      inline: [],
+      overflow: [],
+      reviewComplete: false,
+    });
+    expect(complete.body).toContain('complete=true');
+    expect(incomplete.body).toContain('complete=false');
+  });
+
+  it('requires metadata and the model to agree on completeness', () => {
+    const metadata = {
+      headSha: 'head',
+      diffTruncated: false,
+      credentialContent: false,
+      skippedFiles: [],
+      sensitiveFiles: [],
+      changedFiles: 1,
+      files: [{ path: 'src/a.ts' }],
+    };
+    const config = { maxFiles: 300 };
+    const staleHead = { ...metadata, headSha: 'older' };
+    const isComplete = isPostedComplete({ complete: true }, metadata, config, 'head');
+    const isIncompleteByModel = isPostedComplete({ complete: false }, metadata, config, 'head');
+    const isIncompleteByHead = isPostedComplete({ complete: true }, staleHead, config, 'head');
+    expect(isComplete).toBe(true);
+    expect(isIncompleteByModel).toBe(false);
+    expect(isIncompleteByHead).toBe(false);
+  });
+
+  it('keeps every blocker when the overflow budget is exhausted', () => {
+    const findings = Array.from({ length: 15 }, (_, index) => ({
+      severity: 'critical',
+      path: 'src/a.ts',
+      line: index + 1,
+      title: `Blocker ${String(index)}`,
+      body: 'x'.repeat(1500),
+      rule: '',
+    }));
+    const payload = buildReview({
+      headSha: 'head',
+      summary: 'blocking',
+      inline: [],
+      overflow: findings,
+      blockingSeverities: ['critical'],
+    });
+    const body = String(payload.body);
+    expect(body).toContain('Blocker 14');
+  });
+
+  it('keeps blocker details beyond the presentation cap', () => {
+    const findings = Array.from({ length: 30 }, (_, index) => ({
+      severity: 'critical',
+      path: 'src/a.ts',
+      line: index + 1,
+      title: `Critical ${String(index)}`,
+      body: 'Body',
+    }));
+    findings.push({
+      severity: 'important',
+      path: 'src/a.ts',
+      line: 31,
+      title: 'Only blocker',
+      body: 'Body',
+    });
+    const selected = selectPresentationFindings(findings, {
+      maxFindings: 30,
+      blockingSeverities: ['important'],
+    });
+    const hasBlocker = selected.some(finding => finding.severity === 'important');
+    expect(hasBlocker).toBe(true);
+    expect(selected).toHaveLength(30);
+  });
+
+  it('rejects an unknown review event', () => {
+    expect(() =>
+      buildReview({
+        headSha: 'head',
+        summary: 'clean',
+        inline: [],
+        overflow: [],
+        event: 'MERGE',
+      }),
+    ).toThrow('invalid review event');
+  });
+
+  it('posts the replacement review before dismissing the earlier block', async () => {
+    const calls: { url: string; method: string; body: string }[] = [];
+    /**
+     * Serve a GET route.
+     * @param url - Request URL.
+     * @returns Fake response.
+     */
+    const getResponse = (url: string): Promise<Response> => {
+      if (url.includes('/reviews?')) {
+        return responseTo([
+          {
+            id: 7,
+            state: 'CHANGES_REQUESTED',
+            commit_id: 'older',
+            user: { login: 'review-agent[bot]' },
+            body: '<!-- opencode-review-agent event=REQUEST_CHANGES comment=old -->',
+            submitted_at: '2026-01-01T00:00:00Z',
+          },
+        ]);
+      }
+      if (url.includes('/dismissals')) return responseTo({});
+      if (url.endsWith('/pulls/886')) {
+        return responseTo({ state: 'open', head: { sha: 'head' } });
+      }
+      return responseTo([]);
+    };
+    /**
+     * Serve a POST route.
+     * @param url - Request URL.
+     * @returns Fake response.
+     */
+    const postResponse = (url: string): Promise<Response> => {
+      if (url.endsWith('/reviews')) {
+        return responseTo({ id: 8, html_url: 'https://example.test/review' });
+      }
+      return responseTo([]);
+    };
+    /**
+     * Record calls and route the request.
+     * @param input - Fetch input.
+     * @param init - Fetch options.
+     * @returns Fake response.
+     */
+    const fetchImpl: typeof fetch = (input, init) => {
+      const url = urlOf(input);
+      const method = init?.method ?? 'GET';
+      const rawBody = init?.body;
+      const body = typeof rawBody === 'string' ? rawBody : '';
+      calls.push({ url, method, body });
+      return method === 'POST' ? postResponse(url) : getResponse(url);
+    };
+    await postReview({
+      repo: 'sergienko4/repo',
+      pr: 886,
+      token: 'token',
+      headSha: 'head',
+      summary: 'ok',
+      inline: [],
+      overflow: [],
+      event: 'COMMENT',
+      appLogin: 'review-agent[bot]',
+      commentId: '99',
+      dismissBlocking: true,
+      reviewComplete: true,
+      fetchImpl,
+    });
+    const dismissalIndex = calls.findIndex(call => call.url.includes('/reviews/7/dismissals'));
+    const reviewPostIndex = calls.findIndex(
+      call => call.method === 'POST' && call.url.endsWith('/reviews'),
+    );
+    const dismissal = calls[dismissalIndex];
+    const hasGraphqlCall = calls.some(call => call.url.endsWith('/graphql'));
+    expect(reviewPostIndex).toBeGreaterThanOrEqual(0);
+    expect(dismissalIndex).toBeGreaterThan(reviewPostIndex);
+    expect(dismissal).toMatchObject({ method: 'PUT' });
+    expect(dismissal.body).toContain('Superseded by a newer review');
+    expect(hasGraphqlCall).toBe(false);
+  });
+
+  it('relies on the latest review instead of dismissing on REQUEST_CHANGES', async () => {
+    const dismissals: string[] = [];
+    /**
+     * Serve one earlier approval and capture any dismissal.
+     * @param input - Fetch input.
+     * @param init - Fetch options.
+     * @returns Fake response.
+     */
+    const fetchImpl: typeof fetch = (input, init) => {
+      const url = urlOf(input);
+      const method = init?.method ?? 'GET';
+      if (url.includes('/reviews?') && method === 'GET') {
+        return responseTo([
+          {
+            id: 9,
+            state: 'APPROVED',
+            user: { login: 'review-agent[bot]' },
+            body: '<!-- opencode-review-agent event=APPROVE comment=old -->',
+            submitted_at: '2026-01-01T00:00:00Z',
+          },
+        ]);
+      }
+      if (url.includes('/dismissals')) {
+        dismissals.push(url);
+        return responseTo({});
+      }
+      if (url.endsWith('/reviews') && method === 'POST') {
+        return responseTo({ id: 10, html_url: 'https://example.test/review' });
+      }
+      return responseTo([]);
+    };
+    await postReview({
+      repo: 'sergienko4/repo',
+      pr: 886,
+      token: 'token',
+      headSha: 'head',
+      summary: 'blocking',
+      inline: [],
+      overflow: [],
+      event: 'REQUEST_CHANGES',
+      appLogin: 'review-agent[bot]',
+      commentId: '99',
+      fetchImpl,
+    });
+    expect(dismissals).toEqual([]);
+  });
+
+  it('keeps minimizing for the legacy github-actions identity', async () => {
+    const calls: string[] = [];
+    /**
+     * Serve one earlier legacy review and capture the GraphQL call.
+     * @param input - Fetch input.
+     * @param init - Fetch options.
+     * @returns Fake response.
+     */
+    const fetchImpl: typeof fetch = (input, init) => {
+      const url = urlOf(input);
+      calls.push(url);
+      if (url.includes('/reviews?') && (init?.method ?? 'GET') === 'GET') {
+        return responseTo([
+          {
+            id: 11,
+            node_id: 'review-node',
+            state: 'COMMENTED',
+            user: { login: 'github-actions[bot]' },
+            body: '<!-- opencode-review-agent -->',
+            submitted_at: '2026-01-01T00:00:00Z',
+          },
+        ]);
+      }
+      if (url.endsWith('/graphql')) return responseTo({ data: {} });
+      if (url.endsWith('/reviews') && init?.method === 'POST') {
+        return responseTo({ id: 12, html_url: 'https://example.test/review' });
+      }
+      return responseTo([]);
+    };
+    await postReview({
+      repo: 'sergienko4/repo',
+      pr: 886,
+      token: 'token',
+      headSha: 'head',
+      summary: 'ok',
+      inline: [],
+      overflow: [],
+      event: 'COMMENT',
+      fetchImpl,
+    });
+    const hasGraphqlCall = calls.some(url => url.endsWith('/graphql'));
+    const hasDismissalCall = calls.some(url => url.includes('/dismissals'));
+    expect(hasGraphqlCall).toBe(true);
+    expect(hasDismissalCall).toBe(false);
+  });
+
+  it('does not post a second review for the same trigger comment', async () => {
+    const posts: string[] = [];
+    /**
+     * Serve an existing review with the same trigger comment and capture posts.
+     * @param input - Fetch input.
+     * @param init - Fetch options.
+     * @returns Fake response.
+     */
+    const fetchImpl: typeof fetch = (input, init) => {
+      const url = urlOf(input);
+      if (url.includes('/reviews?') && (init?.method ?? 'GET') === 'GET') {
+        return responseTo([
+          {
+            id: 30,
+            commit_id: 'head',
+            user: { login: 'review-agent[bot]' },
+            body: '<!-- opencode-review-agent event=COMMENT comment=99 complete=true -->\n\nNormal summary.\n\n## Review failed is discussed below.',
+            submitted_at: '2026-01-01T00:00:00Z',
+          },
+        ]);
+      }
+      if (url.endsWith('/reviews') && init?.method === 'POST') {
+        posts.push(url);
+        return responseTo({ id: 31, html_url: 'https://example.test/review' });
+      }
+      return responseTo([]);
+    };
+    const posted = await postReview({
+      repo: 'sergienko4/repo',
+      pr: 886,
+      token: 'token',
+      headSha: 'head',
+      summary: 'ok',
+      inline: [],
+      overflow: [],
+      event: 'COMMENT',
+      appLogin: 'review-agent[bot]',
+      commentId: '99',
+      reviewComplete: true,
+      fetchImpl,
+    });
+    expect(posted).toMatchObject({ id: 30 });
+    expect(posts).toHaveLength(0);
+  });
+
+  it('refuses to post when the live head changed', async () => {
+    const posts: string[] = [];
+    /**
+     * Serve the review list, the changed live head and capture any post.
+     * @param input - Fetch input.
+     * @param init - Fetch options.
+     * @returns Fake response.
+     */
+    const fetchImpl: typeof fetch = (input, init) => {
+      const url = urlOf(input);
+      const method = init?.method ?? 'GET';
+      const isReviewList = url.includes('/reviews?') && method === 'GET';
+      const isPullRequest = url.endsWith('/pulls/886') && method === 'GET';
+      if (isReviewList) return responseTo([]);
+      if (isPullRequest) return responseTo({ state: 'open', head: { sha: 'new-head' } });
+      if (url.endsWith('/reviews') && init?.method === 'POST') {
+        posts.push(url);
+        return responseTo({ id: 32, html_url: 'https://example.test/review' });
+      }
+      return responseTo([]);
+    };
+    const pending = postReview({
+      repo: 'sergienko4/repo',
+      pr: 886,
+      token: 'token',
+      headSha: 'old-head',
+      summary: 'ok',
+      inline: [],
+      overflow: [],
+      event: 'APPROVE',
+      appLogin: 'review-agent[bot]',
+      commentId: '99',
+      recheckHead: true,
+      reviewComplete: true,
+      fetchImpl,
+    });
+    await expect(pending).rejects.toThrow('pull request changed before posting');
+    expect(posts).toHaveLength(0);
+  });
+
+  it('forces a failure review to COMMENT when the caller asks to approve', async () => {
+    const bodies: Record<string, unknown>[] = [];
+    /**
+     * Serve no earlier reviews and capture the failure post.
+     * @param input - Fetch input.
+     * @param init - Fetch options.
+     * @returns Fake response.
+     */
+    const fetchImpl: typeof fetch = (input, init) => {
+      const url = urlOf(input);
+      if (url.includes('/reviews?') && (init?.method ?? 'GET') === 'GET') {
+        return responseTo([]);
+      }
+      if (url.endsWith('/reviews') && init?.method === 'POST') {
+        const rawBody = init.body;
+        const text = typeof rawBody === 'string' ? rawBody : '';
+        const payload = JSON.parse(text) as Record<string, unknown>;
+        bodies.push(payload);
+        return responseTo({ id: 50, html_url: 'https://example.test/review' });
+      }
+      return responseTo([]);
+    };
+    await postFailure({
+      repo: 'sergienko4/repo',
+      pr: 886,
+      token: 'token',
+      headSha: 'head',
+      message: 'The review run did not finish.',
+      event: 'APPROVE',
+      appLogin: 'review-agent[bot]',
+      reviewComplete: true,
+      fetchImpl,
+    });
+    expect(bodies).toHaveLength(1);
+    expect(bodies[0]?.event).toBe('COMMENT');
+    const bodyValue = bodies[0]?.body;
+    const body = typeof bodyValue === 'string' ? bodyValue : '';
+    expect(body).toContain('Review failed');
+    expect(body).toContain('complete=false');
+  });
+
   it('posts the review exactly once', async () => {
     const bodies: Record<string, unknown>[] = [];
     /**
@@ -197,9 +615,16 @@ describe('PR review extraction and posting', () => {
 
 describe('PR review schema and sanitization', () => {
   it('strips a JSON fence and validates findings', () => {
-    const parsed = parseReview('```json\n{"summary":"ok","guidelines_read":[],"findings":[]}\n```');
+    const parsed = parseReview(
+      '```json\n{"summary":"ok","guidelines_read":["AGENTS.md"],"findings":[],"complete":true}\n```',
+    );
     const review = validateReview(parsed, 10);
-    expect(review).toEqual({ summary: 'ok', guidelines_read: [], findings: [] });
+    expect(review).toEqual({
+      summary: 'ok',
+      guidelines_read: ['AGENTS.md'],
+      findings: [],
+      complete: true,
+    });
   });
 
   it.each([
