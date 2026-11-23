@@ -223,6 +223,6 @@ jobs:
         env:
           REVIEW_CHECK_ID: ${{ steps.progress-post.outputs.checkRunId || steps.progress-posting.outputs.checkRunId || steps.progress-review.outputs.checkRunId || steps.progress-fetch.outputs.checkRunId || steps.progress.outputs.checkRunId }}
           REVIEW_PROGRESS_COMMENT_ID: ${{ steps.progress-post.outputs.commentId || steps.progress-posting.outputs.commentId || steps.progress-review.outputs.commentId || steps.progress-fetch.outputs.commentId || steps.progress.outputs.commentId }}
-          REVIEW_CONCLUSION: ${{ steps.agent.outputs.timed_out == 'true' && 'timed_out' || (job.status == 'cancelled' && 'cancelled' || (job.status == 'success' && 'success' || 'neutral')) }}
-          REVIEW_FAILED: ${{ job.status == 'failure' && steps.agent.outputs.timed_out != 'true' && 'true' || 'false' }}
+          REVIEW_CONCLUSION: ${{ steps.post.outputs.created == 'true' && 'success' || (steps.agent.outputs.timed_out == 'true' && 'timed_out' || (job.status == 'cancelled' && 'cancelled' || (job.status == 'success' && 'success' || 'neutral'))) }}
+          REVIEW_FAILED: ${{ steps.post.outputs.created != 'true' && job.status == 'failure' && steps.agent.outputs.timed_out != 'true' && 'true' || 'false' }}
         run: node .github/scripts/pr-review/progress-cli.mjs --finish
