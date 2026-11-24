@@ -114,17 +114,9 @@ policy stays in place.
 
 ## Local run
 
-The reviewer agent can be exercised locally from a checkout with the DeepSeek
-model configured in OpenCode:
-
-```bash
-opencode run --agent pr-reviewer \
-  --model opencode-go/deepseek-v4.1-flash#high \
-  "Review .review/pr and return the review JSON."
-```
-
-Local runs are read-only and use the same skills. They are not a substitute for
-the workflow's permission checks.
+Local runs are no longer supported from this repository. The reviewer profile
+and skills live only in the private `review-runner` repository, which requires
+access and a separate checkout. Use `/review` through the App instead.
 
 ## Troubleshooting
 
