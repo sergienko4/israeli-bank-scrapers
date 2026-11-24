@@ -702,9 +702,10 @@ async function postOmittedFindings(args, findings, reviewId) {
 /**
  * Read whether the live PR is still open at the reviewed head.
  * @param {object} args - Request arguments.
+ * @param {boolean} [allowDraft] - Accept an unchanged draft PR.
  * @returns {Promise<boolean>} True when the head is still current.
  */
-async function liveHeadMatches(args) {
+async function liveHeadMatches(args, allowDraft = false) {
   const response = await githubRequest({
     token: args.token,
     path: `/repos/${args.repo}/pulls/${args.pr}`,
@@ -712,16 +713,18 @@ async function liveHeadMatches(args) {
   });
   const pr = /** @type {Record<string, unknown>} */ (await readResponseJson(response));
   const head = /** @type {Record<string, unknown>} */ (pr.head ?? {});
-  return pr.state === 'open' && pr.draft !== true && String(head.sha ?? '') === args.headSha;
+  const draftOk = allowDraft || pr.draft !== true;
+  return pr.state === 'open' && draftOk && String(head.sha ?? '') === args.headSha;
 }
 
 /**
  * Refuse to post when the live PR no longer matches the reviewed snapshot.
  * @param {object} args - Request arguments.
+ * @param {boolean} [allowDraft] - Accept an unchanged draft PR.
  * @returns {Promise<void>} Resolves when the head still matches.
  */
-async function assertLiveHead(args) {
-  if (!(await liveHeadMatches(args))) {
+async function assertLiveHead(args, allowDraft = false) {
+  if (!(await liveHeadMatches(args, allowDraft))) {
     throw new Error('pull request changed before posting');
   }
 }
@@ -838,7 +841,7 @@ export async function postReview(args) {
         event === 'COMMENT' &&
         duplicateIsCleanComment
       ) {
-        if (await liveHeadMatches(args)) {
+        if (await liveHeadMatches(args, true)) {
           await dismissEarlierBlocks(
             args,
             reviews,
@@ -852,7 +855,8 @@ export async function postReview(args) {
       return { id: duplicate.id, htmlUrl: duplicate.html_url, inline: 0 };
     }
   }
-  if (event === 'APPROVE' || args.recheckHead === true) await assertLiveHead(args);
+  if (event === 'APPROVE') await assertLiveHead(args);
+  else if (args.recheckHead === true) await assertLiveHead(args, true);
   if (event === 'APPROVE' && hasSameHeadBlock(reviews, appLogin, args.headSha)) {
     throw new Error('approval requires a new commit');
   }
@@ -871,7 +875,7 @@ export async function postReview(args) {
   const posted = /** @type {Record<string, unknown>} */ (await readResponseJson(response));
   await postOmittedFindings(args, rendered.omitted, Number(posted.id));
   if (args.dismissBlocking === true && args.reviewComplete === true && event === 'COMMENT') {
-    if (await liveHeadMatches(args)) {
+    if (await liveHeadMatches(args, true)) {
       await dismissEarlierBlocks(args, reviews, Number(posted.id));
     }
   }
