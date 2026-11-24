@@ -12,16 +12,37 @@ settings.
 
 ## Request a review
 
-| Command                              | Result                                                              |
-| ------------------------------------ | ------------------------------------------------------------------- |
-| `/review`                            | `COMMENT` for clean/suggestions, `REQUEST_CHANGES` for blocking     |
-| `/review model=deepseek-v4-pro#high` | Same, with a chosen DeepSeek model                                  |
-| `/review approve`                    | Fresh full review; `APPROVE` only when the review is clean/complete |
-| `/review approve model=...`          | Same, with a chosen model                                           |
+| Command                           | Result                                                                                                              |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `/review`                         | First run full; later runs review only new commits. `COMMENT` for clean/suggestions, `REQUEST_CHANGES` for blocking |
+| `/review full`                    | Force a full base...head review                                                                                     |
+| `/review full model=...`          | Same, with a chosen DeepSeek model                                                                                  |
+| `/review model=...`               | Incremental when possible, with a chosen DeepSeek model                                                             |
+| `/review approve`                 | Always a full review; `APPROVE` only when clean and complete                                                        |
+| `/review approve model=...`       | Same, with a chosen model                                                                                           |
+| `@sergienko-review-agent review`  | App mention alias; same options as `/review`                                                                        |
+| `@sergienko-review-agent resolve` | Resolve only the App's outdated review threads; write/admin, no model                                               |
 
 A maintainer with write/admin permission can ask. The App may approve the PR
 author's own PR because the App is the approving identity. A model or API failure posts
 nothing on the PR; the check run ends `neutral`.
+
+## Incremental review
+
+The first `/review` on a PR reviews the full diff. Later `/review` commands
+compare the current head with the head recorded in the latest App review marker
+and review only the new commits. A force-push, rebase or failed compare falls
+back to the full diff. `/review approve` always reviews the full base...head
+diff, so approval never covers unseen commits. Use `/review full` to force a
+full re-review.
+
+## Resolve outdated threads
+
+`@sergienko-review-agent resolve` resolves only review threads that are
+unresolved, outdated, have no hidden comment page, and whose every comment was
+written by the App. Human threads and threads with human replies are untouched.
+It requires write/admin permission and never calls the model. The check run
+reports the number resolved.
 
 ## Architecture
 
@@ -89,7 +110,7 @@ access can read its `README.md` and `docs/runbook.md`.
 
 Manual gates:
 
-1. Create the `Review Agent` GitHub App and install it on selected repos.
+1. Create the `Sergienko Review Agent` App and install it on selected repos.
 2. Create the Cloudflare KV namespace and deploy the Worker.
 3. Create the dispatch PAT and Worker secrets.
 4. Add the runner secrets/variables and deploy the workflow.
@@ -117,6 +138,24 @@ policy stays in place.
 Local runs are no longer supported from this repository. The reviewer profile
 and skills live only in the private `review-runner` repository, which requires
 access and a separate checkout. Use `/review` through the App instead.
+
+## Parity checklist
+
+Shipped:
+
+- severity summary and inline findings, with overflow findings kept below the comment limit;
+- progress comment and informational check run;
+- `/review`, `/review full`, `/review approve`, `/review model=...`;
+- `@sergienko-review-agent review` and `@sergienko-review-agent resolve`;
+- incremental review with a full fallback and a full approval gate.
+
+Excluded:
+
+- merge queues;
+- automatic review on PR open or push;
+- bot-PR exemptions;
+- a reviewer dropdown (GitHub does not expose third-party Apps);
+- the check-run Re-run button; use `/review` to run again.
 
 ## Troubleshooting
 
