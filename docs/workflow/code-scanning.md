@@ -111,6 +111,16 @@ red — including the ones that live outside the `run:` block, like
 `continue-on-error`, which GitHub Actions accepts at job level as well as step
 level.
 
+## Scorecard action pin
+
+`ossf/scorecard-action` is pinned by full commit SHA. v2.6.0 (`23f22cd`)
+currently publishes an OCI index whose `linux/amd64` manifest
+(`sha256:7a62770a…`) is missing from `ghcr.io`. Every run therefore fails while
+pulling the image, and code scanning reports a configuration error. The workflow
+is temporarily on v2.5.0 (`fa7117d`), the last release whose image pulls.
+Re-bump after upstream republishes the amd64 manifest; the pin gate reads this
+value dynamically, so only the action line changes.
+
 ## Suppressing a zizmor finding
 
 Because the gate has no `--min-severity` floor, _every_ finding blocks. Silence
