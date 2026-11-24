@@ -202,7 +202,6 @@ describe('approval permission and PR state', () => {
 describe('review completeness', () => {
   it.each([
     ['truncated diff', { ...CLEAN_METADATA, diffTruncated: true }],
-    ['dropped diff block', { ...CLEAN_METADATA, diffDropped: true }],
     ['credential content', { ...CLEAN_METADATA, credentialContent: true }],
     ['skipped file', { ...CLEAN_METADATA, skippedFiles: ['src/a.ts'] }],
     ['sensitive file', { ...CLEAN_METADATA, sensitiveFiles: ['.env'] }],
@@ -230,6 +229,13 @@ describe('review completeness', () => {
     const decision = decideReview(options);
     expect(decision.event).toBe('COMMENT');
     expect(decision.reason).toBe('the review is incomplete');
+  });
+
+  it('names a dropped diff block when approval is refused', () => {
+    const options = args({ metadata: { ...CLEAN_METADATA, diffDropped: true } });
+    const decision = decideReview(options);
+    expect(decision.event).toBe('COMMENT');
+    expect(decision.reason).toBe('a diff block was dropped');
   });
 
   it('accepts a complete review at the file cap', () => {

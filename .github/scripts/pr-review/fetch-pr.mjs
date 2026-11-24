@@ -433,6 +433,22 @@ export function filterDiff(diff) {
 }
 
 /**
+ * Build the drop flag and reason counts from a filter report.
+ * @param {{ dropped: number, credential: number, sensitive: number, unparsable: number }} filtered - Filter report.
+ * @returns {{ diffDropped: boolean, diffDropReasons: { credential: number, sensitive: number, unparsable: number } }} Drop report.
+ */
+function dropReport(filtered) {
+  return {
+    diffDropped: filtered.dropped > 0,
+    diffDropReasons: {
+      credential: filtered.credential,
+      sensitive: filtered.sensitive,
+      unparsable: filtered.unparsable,
+    },
+  };
+}
+
+/**
  * Fetch PR metadata, diff and changed files into `.review/pr`.
  * @param {object} args - Fetch arguments.
  * @param {string} args.repo - `owner/name`.
@@ -458,6 +474,7 @@ export async function fetchPrData(args) {
   const rawDiff = await fetchDiff(args);
   const filtered = filterDiffWithReport(rawDiff);
   const filteredDiff = filtered.text;
+  const drop = dropReport(filtered);
   const changed = await listFiles(args);
   const sensitive = changed.filter(isSensitiveFile).map(file => String(file.filename ?? ''));
   const capped = truncateDiff(filteredDiff, maxDiffChars);
@@ -525,12 +542,7 @@ export async function fetchPrData(args) {
     })),
     skippedFiles: skipped.map(safeMetadata),
     sensitiveFiles: [...new Set(sensitive)].map(safeMetadata),
-    diffDropped: filtered.dropped > 0,
-    diffDropReasons: {
-      credential: filtered.credential,
-      sensitive: filtered.sensitive,
-      unparsable: filtered.unparsable,
-    },
+    ...drop,
     credentialContent:
       hasCredentialContent(rawDiff) ||
       hasCredentialContent(rawTitle) ||
@@ -541,12 +553,7 @@ export async function fetchPrData(args) {
     files: changed.length,
     skipped: skipped.length,
     diffTruncated: capped.truncated,
-    diffDropped: filtered.dropped > 0,
-    diffDropReasons: {
-      credential: filtered.credential,
-      sensitive: filtered.sensitive,
-      unparsable: filtered.unparsable,
-    },
+    ...drop,
   };
 }
 
