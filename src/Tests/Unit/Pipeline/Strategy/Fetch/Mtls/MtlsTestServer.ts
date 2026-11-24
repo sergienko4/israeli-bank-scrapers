@@ -13,7 +13,7 @@
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { Agent, createServer, type Server } from 'node:https';
-import type { TLSSocket } from 'node:tls';
+import { TLSSocket } from 'node:tls';
 
 import type { ICertBundle } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/OneZeroClientCert.js';
 import { CLOUDFLARE_CHALLENGE_HEADERS } from '../../../../../Helpers/EdgeBlockPages.js';
@@ -68,7 +68,9 @@ function testCertBundle(): ICertBundle {
  * @returns True when a non-empty peer certificate is present.
  */
 function hasClientCert(req: IncomingMessage): boolean {
-  const socket = req.socket as TLSSocket;
+  // HTTPS requests always carry a TLSSocket; the guard is type-safety only.
+  const socket = req.socket;
+  if (!(socket instanceof TLSSocket)) return false;
   const peer = socket.getPeerCertificate();
   const keys = Object.keys(peer);
   return keys.length > 0;
