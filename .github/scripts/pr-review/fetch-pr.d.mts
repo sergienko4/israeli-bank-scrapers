@@ -9,6 +9,8 @@ export function filterDiff(diff: string): string;
 export function filterDiffWithReport(diff: string): {
   text: string;
   dropped: number;
+  credential: number;
+  sensitive: number;
   unparsable: number;
 };
 

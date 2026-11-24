@@ -389,32 +389,38 @@ function blockPaths(block) {
  * Drop diff blocks whose source or destination is credential-shaped. A file
  * block with unparsable paths is dropped rather than trusted.
  * @param {string} diff - Unified diff.
- * @returns {{ text: string, dropped: number, unparsable: number }} Filtered diff, total drops and unparsable drops.
+ * @returns {{ text: string, dropped: number, credential: number, sensitive: number, unparsable: number }} Filtered diff and drop reasons.
  */
 export function filterDiffWithReport(diff) {
   const blocks = [];
-  let dropped = 0;
+  let credential = 0;
+  let sensitive = 0;
   let unparsable = 0;
   for (const block of diff.split(/(?=^diff --git )/mu)) {
     if (hasCredentialContent(block)) {
-      dropped += 1;
+      credential += 1;
       continue;
     }
     const paths = blockPaths(block);
     if (block.startsWith('diff --git ')) {
       if (paths.length === 0) {
-        dropped += 1;
         unparsable += 1;
         continue;
       }
       if (paths.some(isSensitivePath)) {
-        dropped += 1;
+        sensitive += 1;
         continue;
       }
     }
     blocks.push(block);
   }
-  return { text: blocks.join(''), dropped, unparsable };
+  return {
+    text: blocks.join(''),
+    dropped: credential + sensitive + unparsable,
+    credential,
+    sensitive,
+    unparsable,
+  };
 }
 
 /**
@@ -520,6 +526,11 @@ export async function fetchPrData(args) {
     skippedFiles: skipped.map(safeMetadata),
     sensitiveFiles: [...new Set(sensitive)].map(safeMetadata),
     diffDropped: filtered.dropped > 0,
+    diffDropReasons: {
+      credential: filtered.credential,
+      sensitive: filtered.sensitive,
+      unparsable: filtered.unparsable,
+    },
     credentialContent:
       hasCredentialContent(rawDiff) ||
       hasCredentialContent(rawTitle) ||
@@ -531,6 +542,11 @@ export async function fetchPrData(args) {
     skipped: skipped.length,
     diffTruncated: capped.truncated,
     diffDropped: filtered.dropped > 0,
+    diffDropReasons: {
+      credential: filtered.credential,
+      sensitive: filtered.sensitive,
+      unparsable: filtered.unparsable,
+    },
   };
 }
 

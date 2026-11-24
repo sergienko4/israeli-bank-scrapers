@@ -81,7 +81,8 @@ The App submits `APPROVE` only after a fresh full review of the current head
 with:
 
 - no `critical` or `important` findings;
-- a complete review (no truncated diff, skipped/sensitive file or file-cap hit);
+- a complete review (no truncated diff, dropped diff block, skipped/sensitive
+  file or file-cap hit);
 - no earlier App `REQUEST_CHANGES` on the same head SHA (a human block is
   governed by the repository's own policy);
 - a live head that still matches the reviewed SHA.
