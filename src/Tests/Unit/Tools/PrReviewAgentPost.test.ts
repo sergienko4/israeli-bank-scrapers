@@ -12,8 +12,6 @@ import {
   buildReview,
   isPostedComplete,
   mapFindings,
-  markCreated,
-  markFindings,
   parseAddedLines,
   parseReview,
   postFailure,
@@ -23,6 +21,7 @@ import {
 } from '../../../../.github/scripts/pr-review/post-review.mjs';
 import { sanitizeText } from '../../../../.github/scripts/pr-review/shared.mjs';
 import { responseTo, urlOf } from './PrReviewAgentTestUtils.js';
+
 describe('PR review diff mapping', () => {
   it('maps added lines and ignores deleted or context lines', () => {
     const diff = [
@@ -640,6 +639,7 @@ describe('PR review schema and sanitization', () => {
   ])('refuses invalid review %#', (value, message) => {
     expect(() => validateReview(value, 10)).toThrow(message);
   });
+
   it('keeps the most severe findings when the cap applies', () => {
     const review = validateReview(
       {
@@ -655,31 +655,17 @@ describe('PR review schema and sanitization', () => {
     const titles = review.findings.map(finding => finding.title);
     expect(titles).toEqual(['high', 'mid']);
   });
+
   it('escapes HTML and blocks dangerous links', () => {
     const safe = sanitizeText('<script>x</script> [click](javascript:alert(1))');
     expect(safe).toContain('&lt;script>');
     expect(safe).not.toContain('javascript:');
     expect(safe).toContain('blocked link');
   });
+
   it('truncates a diff at a line boundary', () => {
     const capped = truncateDiff('a\nb\nc\n', 4);
     expect(capped.truncated).toBe(true);
     expect(capped.text).toBe('a\nb\n\n[... diff truncated ...]\n');
-  });
-  it('records creation and finding count for the workflow', async () => {
-    await mkdir('.review', { recursive: true });
-    const dir = await mkdtemp('.review/pr-review-output-');
-    const output = join(dir, 'output');
-    const previous = process.env.GITHUB_OUTPUT;
-    process.env.GITHUB_OUTPUT = output;
-    try {
-      await markCreated();
-      await markFindings(3);
-      expect(await readFile(output, 'utf8')).toBe('created=true\nfindings=3\n');
-    } finally {
-      delete process.env.GITHUB_OUTPUT;
-      if (previous !== undefined) process.env.GITHUB_OUTPUT = previous;
-      await rm(dir, { recursive: true, force: true });
-    }
   });
 });

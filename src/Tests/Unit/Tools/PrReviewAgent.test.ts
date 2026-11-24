@@ -332,7 +332,7 @@ describe('PR review data fetch', () => {
         expectedHeadSha: 'head-sha',
         fetchImpl: fakeGitHub(),
       });
-      expect(summary).toEqual({ files: 1, skipped: 0, diffTruncated: false });
+      expect(summary).toEqual({ files: 1, skipped: 0, diffTruncated: false, diffDropped: false });
       const metadataPath = join(dir, 'metadata.json');
       const metadataText = await readFile(metadataPath, 'utf8');
       const metadata: unknown = JSON.parse(metadataText);
@@ -368,7 +368,7 @@ describe('PR review data fetch', () => {
         expectedHeadSha: 'head-sha',
         fetchImpl: fakeGitHub(),
       });
-      expect(summary).toEqual({ files: 1, skipped: 0, diffTruncated: false });
+      expect(summary).toEqual({ files: 1, skipped: 0, diffTruncated: false, diffDropped: false });
       const diffPath = join(dir, 'diff.patch');
       const changedFilePath = join(dir, 'files/file-000.txt');
       const diff = await readFile(diffPath, 'utf8');

@@ -389,11 +389,12 @@ function blockPaths(block) {
  * Drop diff blocks whose source or destination is credential-shaped. A file
  * block with unparsable paths is dropped rather than trusted.
  * @param {string} diff - Unified diff.
- * @returns {{ text: string, dropped: number }} Filtered diff and drop count.
+ * @returns {{ text: string, dropped: number, unparsable: number }} Filtered diff, total drops and unparsable drops.
  */
 export function filterDiffWithReport(diff) {
   const blocks = [];
   let dropped = 0;
+  let unparsable = 0;
   for (const block of diff.split(/(?=^diff --git )/mu)) {
     if (hasCredentialContent(block)) {
       dropped += 1;
@@ -401,14 +402,19 @@ export function filterDiffWithReport(diff) {
     }
     const paths = blockPaths(block);
     if (block.startsWith('diff --git ')) {
-      if (paths.length === 0 || paths.some(isSensitivePath)) {
+      if (paths.length === 0) {
+        dropped += 1;
+        unparsable += 1;
+        continue;
+      }
+      if (paths.some(isSensitivePath)) {
         dropped += 1;
         continue;
       }
     }
     blocks.push(block);
   }
-  return { text: blocks.join(''), dropped };
+  return { text: blocks.join(''), dropped, unparsable };
 }
 
 /**
@@ -513,14 +519,19 @@ export async function fetchPrData(args) {
     })),
     skippedFiles: skipped.map(safeMetadata),
     sensitiveFiles: [...new Set(sensitive)].map(safeMetadata),
-    diffDropped: filtered.dropped > 0,
+    diffDropped: filtered.unparsable > 0,
     credentialContent:
       hasCredentialContent(rawDiff) ||
       hasCredentialContent(rawTitle) ||
       hasCredentialContent(rawBody),
     diffTruncated: capped.truncated,
   });
-  return { files: changed.length, skipped: skipped.length, diffTruncated: capped.truncated };
+  return {
+    files: changed.length,
+    skipped: skipped.length,
+    diffTruncated: capped.truncated,
+    diffDropped: filtered.unparsable > 0,
+  };
 }
 
 /**

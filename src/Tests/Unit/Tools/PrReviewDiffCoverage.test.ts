@@ -22,5 +22,6 @@ describe('PR review diff coverage', () => {
     expect(report.text).not.toContain('NEW_SECRET');
     expect(report.text).toContain('src/a.ts');
     expect(report.dropped).toBe(1);
+    expect(report.unparsable).toBe(1);
   });
 });

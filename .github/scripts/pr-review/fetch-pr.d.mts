@@ -6,7 +6,11 @@ export function hasCredentialContent(text: string): boolean;
 
 export function filterDiff(diff: string): string;
 
-export function filterDiffWithReport(diff: string): { text: string; dropped: number };
+export function filterDiffWithReport(diff: string): {
+  text: string;
+  dropped: number;
+  unparsable: number;
+};
 
 export function truncateDiff(diff: string, maxChars: number): { text: string; truncated: boolean };
 
