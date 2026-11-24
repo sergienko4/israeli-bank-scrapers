@@ -24,4 +24,18 @@ describe('PR review diff coverage', () => {
     expect(report.dropped).toBe(1);
     expect(report.unparsable).toBe(1);
   });
+
+  it('counts a sensitive-path drop as incomplete coverage', () => {
+    const diff = [
+      'diff --git a/src/a b/.env b/z.ts b/src/a b/.env b/z.ts',
+      '--- a/src/a b/.env b/z.ts',
+      '+++ b/src/a b/.env b/z.ts',
+      '@@ -1 +1 @@',
+      '-old',
+      '+new',
+    ].join('\n');
+    const report = filterDiffWithReport(diff);
+    expect(report.dropped).toBe(1);
+    expect(report.unparsable).toBe(0);
+  });
 });

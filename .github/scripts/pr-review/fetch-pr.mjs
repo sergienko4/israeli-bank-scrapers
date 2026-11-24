@@ -519,7 +519,7 @@ export async function fetchPrData(args) {
     })),
     skippedFiles: skipped.map(safeMetadata),
     sensitiveFiles: [...new Set(sensitive)].map(safeMetadata),
-    diffDropped: filtered.unparsable > 0,
+    diffDropped: filtered.dropped > 0,
     credentialContent:
       hasCredentialContent(rawDiff) ||
       hasCredentialContent(rawTitle) ||
@@ -530,7 +530,7 @@ export async function fetchPrData(args) {
     files: changed.length,
     skipped: skipped.length,
     diffTruncated: capped.truncated,
-    diffDropped: filtered.unparsable > 0,
+    diffDropped: filtered.dropped > 0,
   };
 }
 
