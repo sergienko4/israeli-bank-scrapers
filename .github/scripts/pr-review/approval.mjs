@@ -28,13 +28,15 @@ export function hasBlockingFindings(findings, config) {
 }
 
 /**
- * Whether the fetched review data covers every changed file.
+ * Whether the fetched review data covers every changed file and kept every
+ * diff block.
  * @param {Record<string, unknown>} metadata - PR metadata.
  * @param {Record<string, unknown>} config - Review config.
  * @returns {boolean} True when approval may rely on the review.
  */
 export function isReviewComplete(metadata, config) {
   if (metadata.diffTruncated !== false) return false;
+  if (metadata.diffDropped !== false) return false;
   if (metadata.credentialContent !== false) return false;
   if (!Array.isArray(metadata.skippedFiles) || metadata.skippedFiles.length > 0) return false;
   if (!Array.isArray(metadata.sensitiveFiles) || metadata.sensitiveFiles.length > 0) return false;
@@ -82,6 +84,7 @@ export function approvalDenial(args) {
     return 'the pull request head changed during the review';
   }
   if (args.reviewComplete !== true) return 'the review is incomplete';
+  if (args.metadata.diffDropped === true) return 'a diff block was dropped';
   if (!isReviewComplete(args.metadata, args.config)) return 'the review is incomplete';
   if (String(args.metadata.headSha ?? '') !== args.headSha) {
     return 'the review metadata is for another head';

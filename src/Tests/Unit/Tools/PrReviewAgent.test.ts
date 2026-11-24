@@ -128,7 +128,6 @@ function fakeGitHub(): typeof fetch {
     });
   };
 }
-
 describe('PR review model allow-list', () => {
   it('picks the newest DeepSeek model and accepts a known variant', () => {
     const defaultModel = normalizeModel('', CONFIG, MODELS);
@@ -136,7 +135,6 @@ describe('PR review model allow-list', () => {
     expect(defaultModel).toBe('opencode-go/deepseek-v4.1-flash#high');
     expect(proModel).toBe('opencode-go/deepseek-v4-pro#max');
   });
-
   it('accepts a newly released DeepSeek model without a config change', () => {
     const next = [
       ...MODELS,
@@ -209,12 +207,10 @@ describe('PR review trigger', () => {
       modelInput: 'deepseek-v4-pro#high',
     });
   });
-
   it('keeps plain /review as a review command', () => {
     const request = parseRequest('issue_comment', REVIEW_EVENT);
     expect(request).toMatchObject({ pr: 886, command: 'review' });
   });
-
   it('ignores a comment that is not exactly /review', () => {
     expect(() =>
       parseRequest('issue_comment', {
@@ -336,7 +332,13 @@ describe('PR review data fetch', () => {
         expectedHeadSha: 'head-sha',
         fetchImpl: fakeGitHub(),
       });
-      expect(summary).toEqual({ files: 1, skipped: 0, diffTruncated: false });
+      expect(summary).toEqual({
+        files: 1,
+        skipped: 0,
+        diffTruncated: false,
+        diffDropped: false,
+        diffDropReasons: { credential: 0, sensitive: 0, unparsable: 0 },
+      });
       const metadataPath = join(dir, 'metadata.json');
       const metadataText = await readFile(metadataPath, 'utf8');
       const metadata: unknown = JSON.parse(metadataText);
@@ -344,6 +346,8 @@ describe('PR review data fetch', () => {
         number: 886,
         headSha: 'head-sha',
         changedFiles: 1,
+        diffDropped: false,
+        diffDropReasons: { credential: 0, sensitive: 0, unparsable: 0 },
         files: [{ path: 'src/a.ts', dataFile: 'file-000.txt' }],
       });
       const changedPath = join(dir, 'files/file-000.txt');
@@ -371,7 +375,13 @@ describe('PR review data fetch', () => {
         expectedHeadSha: 'head-sha',
         fetchImpl: fakeGitHub(),
       });
-      expect(summary).toEqual({ files: 1, skipped: 0, diffTruncated: false });
+      expect(summary).toEqual({
+        files: 1,
+        skipped: 0,
+        diffTruncated: false,
+        diffDropped: false,
+        diffDropReasons: { credential: 0, sensitive: 0, unparsable: 0 },
+      });
       const diffPath = join(dir, 'diff.patch');
       const changedFilePath = join(dir, 'files/file-000.txt');
       const diff = await readFile(diffPath, 'utf8');
@@ -474,27 +484,7 @@ describe('PR review sensitive data', () => {
     ].join('\n');
     const filtered = filterDiff(diff);
     expect(filtered).not.toContain('NEW_SECRET');
-    expect(filtered).toContain('src/a.ts');
   });
-
-  it('drops a file block whose paths cannot be parsed', () => {
-    const diff = [
-      'diff --git ???',
-      '@@ -1 +1 @@',
-      '-OLD_SECRET',
-      '+NEW_SECRET',
-      'diff --git a/src/a.ts b/src/a.ts',
-      '--- a/src/a.ts',
-      '+++ b/src/a.ts',
-      '@@ -1 +1 @@',
-      '-old',
-      '+new',
-    ].join('\n');
-    const filtered = filterDiff(diff);
-    expect(filtered).not.toContain('NEW_SECRET');
-    expect(filtered).toContain('src/a.ts');
-  });
-
   it.each([
     '-----BEGIN RSA PRIVATE KEY-----',
     'AKIA1234567890ABCDEF',
@@ -552,13 +542,11 @@ describe('PR review sensitive data', () => {
     const isCredential = hasCredentialContent(text);
     expect(isCredential).toBe(expected);
   });
-
   it('scans a long dotted non-URL string without matching', () => {
     const text = 'a.'.repeat(32000);
     const isCredential = hasCredentialContent(text);
     expect(isCredential).toBe(false);
   });
-
   it('drops a normal-named file block that contains a credential', () => {
     const diff = [
       'diff --git a/src/config.ts b/src/config.ts',

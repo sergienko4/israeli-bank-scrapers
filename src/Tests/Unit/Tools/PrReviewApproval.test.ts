@@ -29,6 +29,7 @@ const CONFIG = {
 const CLEAN_METADATA = {
   headSha: 'head-sha',
   diffTruncated: false,
+  diffDropped: false,
   credentialContent: false,
   skippedFiles: [],
   sensitiveFiles: [],
@@ -228,6 +229,13 @@ describe('review completeness', () => {
     const decision = decideReview(options);
     expect(decision.event).toBe('COMMENT');
     expect(decision.reason).toBe('the review is incomplete');
+  });
+
+  it('names a dropped diff block when approval is refused', () => {
+    const options = args({ metadata: { ...CLEAN_METADATA, diffDropped: true } });
+    const decision = decideReview(options);
+    expect(decision.event).toBe('COMMENT');
+    expect(decision.reason).toBe('a diff block was dropped');
   });
 
   it('accepts a complete review at the file cap', () => {
