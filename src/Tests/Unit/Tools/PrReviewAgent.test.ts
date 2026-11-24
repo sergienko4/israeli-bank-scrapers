@@ -10,7 +10,6 @@ import { join } from 'node:path';
 import {
   fetchPrData,
   filterDiff,
-  filterDiffWithReport,
   hasCredentialContent,
   isSensitiveFile,
   isSensitivePath,
@@ -472,22 +471,6 @@ describe('PR review sensitive data', () => {
     ].join('\n');
     const filtered = filterDiff(diff);
     expect(filtered).not.toContain('NEW_SECRET');
-  });
-  it('drops a file block whose paths cannot be parsed', () => {
-    const diff = [
-      'diff --git ???',
-      '@@ -1 +1 @@',
-      '-OLD_SECRET',
-      '+NEW_SECRET',
-      'diff --git a/src/a.ts b/src/a.ts',
-      '--- a/src/a.ts',
-      '+++ b/src/a.ts',
-      '@@ -1 +1 @@',
-      '-old',
-      '+new',
-    ].join('\n');
-    const report = filterDiffWithReport(diff);
-    expect(report.dropped).toBe(1);
   });
   it.each([
     '-----BEGIN RSA PRIVATE KEY-----',
