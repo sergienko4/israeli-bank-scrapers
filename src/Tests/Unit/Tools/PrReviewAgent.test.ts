@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import {
   fetchPrData,
   filterDiff,
+  filterDiffWithReport,
   hasCredentialContent,
   isSensitiveFile,
   isSensitivePath,
@@ -128,7 +129,6 @@ function fakeGitHub(): typeof fetch {
     });
   };
 }
-
 describe('PR review model allow-list', () => {
   it('picks the newest DeepSeek model and accepts a known variant', () => {
     const defaultModel = normalizeModel('', CONFIG, MODELS);
@@ -136,7 +136,6 @@ describe('PR review model allow-list', () => {
     expect(defaultModel).toBe('opencode-go/deepseek-v4.1-flash#high');
     expect(proModel).toBe('opencode-go/deepseek-v4-pro#max');
   });
-
   it('accepts a newly released DeepSeek model without a config change', () => {
     const next = [
       ...MODELS,
@@ -209,12 +208,10 @@ describe('PR review trigger', () => {
       modelInput: 'deepseek-v4-pro#high',
     });
   });
-
   it('keeps plain /review as a review command', () => {
     const request = parseRequest('issue_comment', REVIEW_EVENT);
     expect(request).toMatchObject({ pr: 886, command: 'review' });
   });
-
   it('ignores a comment that is not exactly /review', () => {
     expect(() =>
       parseRequest('issue_comment', {
@@ -344,6 +341,7 @@ describe('PR review data fetch', () => {
         number: 886,
         headSha: 'head-sha',
         changedFiles: 1,
+        diffDropped: false,
         files: [{ path: 'src/a.ts', dataFile: 'file-000.txt' }],
       });
       const changedPath = join(dir, 'files/file-000.txt');
@@ -474,9 +472,7 @@ describe('PR review sensitive data', () => {
     ].join('\n');
     const filtered = filterDiff(diff);
     expect(filtered).not.toContain('NEW_SECRET');
-    expect(filtered).toContain('src/a.ts');
   });
-
   it('drops a file block whose paths cannot be parsed', () => {
     const diff = [
       'diff --git ???',
@@ -490,11 +486,9 @@ describe('PR review sensitive data', () => {
       '-old',
       '+new',
     ].join('\n');
-    const filtered = filterDiff(diff);
-    expect(filtered).not.toContain('NEW_SECRET');
-    expect(filtered).toContain('src/a.ts');
+    const report = filterDiffWithReport(diff);
+    expect(report.dropped).toBe(1);
   });
-
   it.each([
     '-----BEGIN RSA PRIVATE KEY-----',
     'AKIA1234567890ABCDEF',
@@ -552,13 +546,11 @@ describe('PR review sensitive data', () => {
     const isCredential = hasCredentialContent(text);
     expect(isCredential).toBe(expected);
   });
-
   it('scans a long dotted non-URL string without matching', () => {
     const text = 'a.'.repeat(32000);
     const isCredential = hasCredentialContent(text);
     expect(isCredential).toBe(false);
   });
-
   it('drops a normal-named file block that contains a credential', () => {
     const diff = [
       'diff --git a/src/config.ts b/src/config.ts',

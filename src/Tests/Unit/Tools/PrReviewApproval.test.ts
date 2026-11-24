@@ -29,6 +29,7 @@ const CONFIG = {
 const CLEAN_METADATA = {
   headSha: 'head-sha',
   diffTruncated: false,
+  diffDropped: false,
   credentialContent: false,
   skippedFiles: [],
   sensitiveFiles: [],
@@ -201,6 +202,7 @@ describe('approval permission and PR state', () => {
 describe('review completeness', () => {
   it.each([
     ['truncated diff', { ...CLEAN_METADATA, diffTruncated: true }],
+    ['dropped diff block', { ...CLEAN_METADATA, diffDropped: true }],
     ['credential content', { ...CLEAN_METADATA, credentialContent: true }],
     ['skipped file', { ...CLEAN_METADATA, skippedFiles: ['src/a.ts'] }],
     ['sensitive file', { ...CLEAN_METADATA, sensitiveFiles: ['.env'] }],

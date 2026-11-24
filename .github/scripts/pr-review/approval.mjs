@@ -35,6 +35,7 @@ export function hasBlockingFindings(findings, config) {
  */
 export function isReviewComplete(metadata, config) {
   if (metadata.diffTruncated !== false) return false;
+  if (metadata.diffDropped !== false) return false;
   if (metadata.credentialContent !== false) return false;
   if (!Array.isArray(metadata.skippedFiles) || metadata.skippedFiles.length > 0) return false;
   if (!Array.isArray(metadata.sensitiveFiles) || metadata.sensitiveFiles.length > 0) return false;

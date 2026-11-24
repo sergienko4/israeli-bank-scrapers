@@ -23,7 +23,6 @@ import {
 } from '../../../../.github/scripts/pr-review/post-review.mjs';
 import { sanitizeText } from '../../../../.github/scripts/pr-review/shared.mjs';
 import { responseTo, urlOf } from './PrReviewAgentTestUtils.js';
-
 describe('PR review diff mapping', () => {
   it('maps added lines and ignores deleted or context lines', () => {
     const diff = [
@@ -162,11 +161,11 @@ describe('PR review extraction and posting', () => {
     expect(complete.body).toContain('complete=true');
     expect(incomplete.body).toContain('complete=false');
   });
-
   it('requires metadata and the model to agree on completeness', () => {
     const metadata = {
       headSha: 'head',
       diffTruncated: false,
+      diffDropped: false,
       credentialContent: false,
       skippedFiles: [],
       sensitiveFiles: [],
@@ -641,7 +640,6 @@ describe('PR review schema and sanitization', () => {
   ])('refuses invalid review %#', (value, message) => {
     expect(() => validateReview(value, 10)).toThrow(message);
   });
-
   it('keeps the most severe findings when the cap applies', () => {
     const review = validateReview(
       {
@@ -657,24 +655,20 @@ describe('PR review schema and sanitization', () => {
     const titles = review.findings.map(finding => finding.title);
     expect(titles).toEqual(['high', 'mid']);
   });
-
   it('escapes HTML and blocks dangerous links', () => {
     const safe = sanitizeText('<script>x</script> [click](javascript:alert(1))');
     expect(safe).toContain('&lt;script>');
     expect(safe).not.toContain('javascript:');
     expect(safe).toContain('blocked link');
   });
-
   it('truncates a diff at a line boundary', () => {
     const capped = truncateDiff('a\nb\nc\n', 4);
     expect(capped.truncated).toBe(true);
     expect(capped.text).toBe('a\nb\n\n[... diff truncated ...]\n');
   });
-
   it('records creation and finding count for the workflow', async () => {
     await mkdir('.review', { recursive: true });
-    const tempPrefix = join('.review', 'pr-review-output-');
-    const dir = await mkdtemp(tempPrefix);
+    const dir = await mkdtemp('.review/pr-review-output-');
     const output = join(dir, 'output');
     const previous = process.env.GITHUB_OUTPUT;
     process.env.GITHUB_OUTPUT = output;

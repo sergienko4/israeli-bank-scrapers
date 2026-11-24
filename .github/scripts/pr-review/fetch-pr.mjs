@@ -389,19 +389,35 @@ function blockPaths(block) {
  * Drop diff blocks whose source or destination is credential-shaped. A file
  * block with unparsable paths is dropped rather than trusted.
  * @param {string} diff - Unified diff.
+ * @returns {{ text: string, dropped: number }} Filtered diff and drop count.
+ */
+export function filterDiffWithReport(diff) {
+  const blocks = [];
+  let dropped = 0;
+  for (const block of diff.split(/(?=^diff --git )/mu)) {
+    if (hasCredentialContent(block)) {
+      dropped += 1;
+      continue;
+    }
+    const paths = blockPaths(block);
+    if (block.startsWith('diff --git ')) {
+      if (paths.length === 0 || paths.some(isSensitivePath)) {
+        dropped += 1;
+        continue;
+      }
+    }
+    blocks.push(block);
+  }
+  return { text: blocks.join(''), dropped };
+}
+
+/**
+ * Drop sensitive diff blocks.
+ * @param {string} diff - Unified diff.
  * @returns {string} Diff without sensitive blocks.
  */
 export function filterDiff(diff) {
-  return diff
-    .split(/(?=^diff --git )/mu)
-    .filter(block => {
-      if (hasCredentialContent(block)) return false;
-      const paths = blockPaths(block);
-      if (!block.startsWith('diff --git ')) return true;
-      if (paths.length === 0) return false;
-      return !paths.some(isSensitivePath);
-    })
-    .join('');
+  return filterDiffWithReport(diff).text;
 }
 
 /**
@@ -428,7 +444,8 @@ export async function fetchPrData(args) {
   const head = /** @type {Record<string, unknown>} */ (metadata.head ?? {});
   assertSnapshot(base, head, args);
   const rawDiff = await fetchDiff(args);
-  const filteredDiff = filterDiff(rawDiff);
+  const filtered = filterDiffWithReport(rawDiff);
+  const filteredDiff = filtered.text;
   const changed = await listFiles(args);
   const sensitive = changed.filter(isSensitiveFile).map(file => String(file.filename ?? ''));
   const capped = truncateDiff(filteredDiff, maxDiffChars);
@@ -496,6 +513,7 @@ export async function fetchPrData(args) {
     })),
     skippedFiles: skipped.map(safeMetadata),
     sensitiveFiles: [...new Set(sensitive)].map(safeMetadata),
+    diffDropped: filtered.dropped > 0,
     credentialContent:
       hasCredentialContent(rawDiff) ||
       hasCredentialContent(rawTitle) ||
