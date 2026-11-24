@@ -19,10 +19,9 @@ settings.
 | `/review approve`                    | Fresh full review; `APPROVE` only when the review is clean/complete |
 | `/review approve model=...`          | Same, with a chosen model                                           |
 
-A maintainer with write/admin permission can ask. The PR author may ask by
-default because the App is the approving identity. In App mode, a model or API
-failure posts nothing on the PR; the legacy fallback posts a failure notice so
-maintainers can see why the review did not run.
+A maintainer with write/admin permission can ask. The App may approve the PR
+author's own PR because the App is the approving identity. A model or API failure posts
+nothing on the PR; the check run ends `neutral`.
 
 ## Architecture
 
@@ -40,14 +39,6 @@ PR comment
 The Worker and runner live in the private `sergienko4/review-runner` repository.
 The runner never receives the App private key. The target token is scoped to one
 repository and expires with the job.
-
-The legacy `.github/workflows/pr-review-agent.yml` in this repository remains a
-fallback until cutover. It uses the same scripts with `GITHUB_TOKEN` and is
-same-repository only. It accepts plain `/review` and `/review model=...` from a
-PR comment, or a manual **On-demand PR review** dispatch with a PR number;
-`/review approve` requires the App runner. The fallback sets
-`REVIEW_RECHECK_HEAD=true`, so it refuses to post when the head moved during the
-model run; approvals additionally require an unchanged, non-draft PR.
 
 ## What the agent reviews
 
@@ -140,7 +131,7 @@ the workflow's permission checks.
 | Symptom                       | Check                                                                  |
 | ----------------------------- | ---------------------------------------------------------------------- |
 | No review comment             | The App is installed; the PR is open; the actor is a maintainer        |
-| `model not allowed`           | Use a model and variant from `.github/review-agent/config.json`        |
+| `model not allowed`           | Use a model and variant from the runner's review-agent config          |
 | `guidelines manifest missing` | The private checkout or `REVIEW_GUIDELINES_TOKEN` is misconfigured     |
 | Review is summary-only        | The model response was invalid, or findings did not map to added lines |
 | Check run is stuck            | The finish step recovers and completes the run; rerun if still stuck   |
@@ -148,15 +139,5 @@ the workflow's permission checks.
 
 ## Disable
 
-1. Disable `.github/workflows/pr-review-agent.yml` in this repository. The
-   legacy workflow accepts `/review` comments independently, so uninstalling
-   the App or disabling the Worker does not stop reviews while it is active.
-2. Uninstall the App or disable the Worker route. The runner and skills are
-   inert without a caller.
-
-The legacy workflow is the rollback path only when a maintainer explicitly
-re-enables it. Do not re-enable it while the App is installed, or one `/review`
-comment can produce two reviews. Re-enabling it also requires the target
-repository's `OPENCODE_API_KEY` and `REVIEW_GUIDELINES_TOKEN` secrets and the
-`REVIEW_GUIDELINES_REPO` variable; configuring only the runner secrets is not
-enough.
+Uninstall the App or disable the Worker route. The runner and skills are inert
+without a caller. There is no in-repo review workflow to disable.

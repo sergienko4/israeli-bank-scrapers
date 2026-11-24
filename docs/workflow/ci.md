@@ -126,12 +126,9 @@ matrix leg or a PR-triggered workflow has to update it.
   factory, E2E mocked and Dependency Review. `SonarCloud Scan` waits for all 3 Unit
   tests legs, so it never adds to the peak.
 - **Other workflows.** A push also starts CodeQL, Validate PR Title, PR Body
-  Compliance and the Workflow Security Scan, one runner each. CodeQL's main
-  and review-agent analyses run serially, so they share one runner slot. The
-  review-agent analysis uses `.github/codeql/codeql-review-agent.yml` to
-  exclude its two deliberate file/HTTP taint queries without weakening the
-  banking pipeline. GitHub adds 2 runs of its own: Copilot Code Review and
-  GitHub Advanced Security's Code scanning AI findings. 8 + 4 + 2 = 14.
+  Compliance and the Workflow Security Scan, one runner each. CodeQL runs one
+  analysis job. GitHub adds 2 runs of its own: Copilot Code Review and GitHub
+  Advanced Security's Code scanning AI findings. 8 + 4 + 2 = 14.
 - **Open events.** Dependabot Auto-Merge (`opened`) or Block Fork PRs
   (`opened`, `reopened`) adds 1 job; Dependabot's PRs never come from a
   fork, so both never run on one PR. `cache-cleanup.yml` runs only on
