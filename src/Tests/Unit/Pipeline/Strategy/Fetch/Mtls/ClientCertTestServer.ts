@@ -13,7 +13,7 @@
 import { createHash } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { Agent, createServer, type Server } from 'node:https';
-import type { TLSSocket } from 'node:tls';
+import { TLSSocket } from 'node:tls';
 
 import type { IPresentedCert } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsAgentSource.js';
 import type { ICertBundle } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/OneZeroClientCert.js';
@@ -48,7 +48,9 @@ interface IPeerEcho {
  * @returns Hex digest, or `''` when no certificate was presented.
  */
 function presentedSha256(req: IncomingMessage): string {
-  const socket = req.socket as TLSSocket;
+  // HTTPS requests always carry a TLSSocket; the guard is type-safety only.
+  const socket = req.socket;
+  if (!(socket instanceof TLSSocket)) return '';
   const peer = socket.getPeerCertificate();
   if (Object.keys(peer).length === 0) return '';
   return createHash('sha256').update(peer.raw).digest('hex');

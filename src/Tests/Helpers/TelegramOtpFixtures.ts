@@ -13,10 +13,18 @@
  * exercises the poll loop and the other must fall straight out of it.
  */
 
+import { EventEmitter } from 'node:events';
+
 import { jest } from '@jest/globals';
 
-/** Minimal pino-shaped logger for tests. */
-export interface ITestLogger {
+/**
+ * Minimal pino-shaped logger for tests.
+ *
+ * <p>Extends `EventEmitter` because pino's `Logger` does. The fetcher expects
+ * a `Logger`, so `makeStubLogger()` must return an EventEmitter instance for
+ * `@typescript-eslint/no-unsafe-class-instance-assignment`.
+ */
+export interface ITestLogger extends EventEmitter {
   readonly trace: jest.Mock;
   readonly debug: jest.Mock;
   readonly info: jest.Mock;
@@ -25,17 +33,17 @@ export interface ITestLogger {
 }
 
 /**
- * Build a fresh stub logger.
+ * Build a fresh EventEmitter-backed stub logger.
  * @returns Logger with every method as `jest.fn()`.
  */
 export function makeStubLogger(): ITestLogger {
-  return {
+  return Object.assign(new EventEmitter(), {
     trace: jest.fn(),
     debug: jest.fn(),
     info: jest.fn(),
     warn: jest.fn(),
     error: jest.fn(),
-  };
+  });
 }
 
 /** HTTP-level rejection knobs for a stubbed `sendMessage`. */

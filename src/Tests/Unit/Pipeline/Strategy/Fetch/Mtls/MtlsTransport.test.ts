@@ -8,9 +8,9 @@
  * chunked) and an answer over MTLS_MAX_RESPONSE_BYTES fails `response too large`.
  */
 
-import { EventEmitter } from 'node:events';
-import type { IncomingMessage } from 'node:http';
+import { IncomingMessage } from 'node:http';
 import { Agent } from 'node:https';
+import { Socket } from 'node:net';
 
 import { jest } from '@jest/globals';
 
@@ -502,13 +502,19 @@ describe('MtlsTransport.invoke — framing and response cap', () => {
 });
 
 /**
- * Build a minimal IncomingMessage stand-in (EventEmitter + readableEnded).
- * @returns An EventEmitter typed as IncomingMessage with readableEnded=false.
+ * Build a real IncomingMessage over a detached socket with a writable
+ * `readableEnded` flag.
+ * @returns An IncomingMessage whose `readableEnded` starts false.
  */
 function fakeMessage(): IncomingMessage & { readableEnded: boolean } {
-  const emitter = new EventEmitter() as IncomingMessage & { readableEnded: boolean };
-  emitter.readableEnded = false;
-  return emitter;
+  const message = new IncomingMessage(new Socket());
+  // The real getter is read-only; shadow it so tests can flip the flag.
+  Object.defineProperty(message, 'readableEnded', {
+    value: false,
+    writable: true,
+    configurable: true,
+  });
+  return message;
 }
 
 describe('MtlsTransport.collectBody — stream failure branches', () => {
