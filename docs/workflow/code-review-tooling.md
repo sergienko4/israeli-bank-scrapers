@@ -137,6 +137,13 @@ The current `.coderabbit.yaml` is tuned for the OSS plan with the following deli
 
 **Workflow implication (today, below 10 stars):** nothing reviews itself. Post `@coderabbitai review` once per batch of fixes, and still batch those fixes into **1-3 commits per cycle** so each trigger covers meaningful ground and stays inside the 1-10/hour cap. At 10+ stars the `auto_review` keys above take over and the same batching keeps a push burst from exhausting the cap — which is exactly what PR #281 did.
 
+## On-demand Review Agent
+
+The central `Sergienko Review Agent` App is separate from CodeRabbit and
+SonarCloud. A maintainer can comment `/review` on a PR for a diff-only second
+review; `/review approve` asks for a fresh review and an approval only when the
+change is clean. See [On-demand PR review agent](pr-review-agent.md).
+
 ---
 
 ## Disposition trace
