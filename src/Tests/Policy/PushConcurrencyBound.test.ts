@@ -98,7 +98,7 @@ const SIBLINGS = {
   'cache-cleanup.yml': { types: ['closed'], runners: { cleanup: 1 } },
   'codeql.yml': {
     types: DEFAULT_TYPES,
-    runners: { analyze: 1, 'analyze-review-agent': 1 },
+    runners: { analyze: 1 },
   },
   'dependabot-auto-merge.yml': { types: ['opened'], runners: { 'auto-merge': 1 } },
   'no-fork-prs.yml': { types: ['opened', 'reopened'], runners: { 'close-fork-pr': 1 } },
@@ -170,12 +170,6 @@ const ENDS_BEFORE_VALIDATE = [
 
 /** Push runs that may still hold a runner when the E2E-real legs start. */
 const RUNS_BESIDE_LEGS = { 'pr.yml#sonarcloud': 1, 'codeql.yml#analyze': 1 };
-
-/**
- * Sibling jobs that run after another job in the same workflow. They reuse
- * that job's runner slot instead of adding one to the push peak.
- */
-const SERIAL_SIBLING_JOBS = ['codeql.yml#analyze-review-agent'];
 
 interface IJob {
   readonly needs?: string | readonly string[];
@@ -615,12 +609,9 @@ function pushSiblingRuns(): readonly (readonly [string, number])[] {
   const table = siblings();
   const all = Object.entries(table);
   const onPush = all.filter(([, { types }]) => types.includes(PUSH_TYPE));
-  return onPush.flatMap(([file, { runners }]) => {
-    const jobs = Object.entries(runners).filter(
-      ([job]) => !SERIAL_SIBLING_JOBS.includes(`${file}#${job}`),
-    );
-    return jobs.map(([job, count]) => [`${file}#${job}`, count] as const);
-  });
+  return onPush.flatMap(([file, { runners }]) =>
+    Object.entries(runners).map(([job, count]) => [`${file}#${job}`, count] as const),
+  );
 }
 
 /**
@@ -664,12 +655,7 @@ describe('PushConcurrencyBound', () => {
     const table = siblings();
     const all = Object.entries(table);
     const onPush = all.filter(([, { types }]) => types.includes(PUSH_TYPE));
-    const siblingTotal = onPush.reduce((sum, [file, { runners }]) => {
-      const concurrent = Object.entries(runners)
-        .filter(([job]) => !SERIAL_SIBLING_JOBS.includes(`${file}#${job}`))
-        .reduce((count, [, runnersForJob]) => count + runnersForJob, 0);
-      return sum + concurrent;
-    }, 0);
+    const siblingTotal = onPush.reduce((sum, [, { runners }]) => sum + total(runners), 0);
     const pushPeak = level1 + siblingTotal + DYNAMIC_RUNS;
     const openTotals = openOnlySiblings().map(([, { runners }]) => total(runners));
     const openExtra = Math.max(0, ...openTotals);
@@ -696,16 +682,6 @@ describe('PushConcurrencyBound', () => {
     const exempt = uncancelled.map(([file]) => file);
     expect(restarting.length).toBeGreaterThan(CANCEL_EXEMPT.length);
     expect(exempt).toStrictEqual(CANCEL_EXEMPT);
-  });
-
-  it('[PCB-8] only serializes sibling jobs that wait for another job', () => {
-    const rows = SERIAL_SIBLING_JOBS.map(key => {
-      const [file, jobKey] = key.split('#');
-      const doc = load(file);
-      return [key, needsOf(doc.jobs?.[jobKey] ?? {}).length > 0] as const;
-    });
-    const expected = SERIAL_SIBLING_JOBS.map(key => [key, true] as const);
-    expect(rows).toStrictEqual(expected);
   });
 
   it('[PCB-7] needs at most 18 runners once the E2E-real legs start', () => {

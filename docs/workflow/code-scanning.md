@@ -331,6 +331,14 @@ until it is [deleted by hand][stale-config]. For the same reason,
 `workflow_call` runs do not register a second
 `.github/workflows/main-pipeline.yml:<job>` configuration.
 
+### Retired review-agent analysis
+
+The legacy in-repo reviewer had a scoped CodeQL analysis with the category
+`.github/workflows/codeql.yml:analyze-review-agent`. The cleanup removed the
+job and its config and deleted the 116 historical analyses, so `main` no longer
+advertises the stale configuration. The required `CodeQL Security Scan` remains
+the main `analyze` job; no ruleset references the retired category.
+
 The wiring and the surgical scope are pinned by tests in
 `WorkflowSecurityGate.test.ts`. `SCF-*` assert the filter runs in
 `analysis` after the download and before the upload, and that `scorecard`
