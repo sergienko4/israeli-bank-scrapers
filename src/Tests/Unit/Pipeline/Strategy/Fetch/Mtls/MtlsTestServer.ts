@@ -374,6 +374,9 @@ function startGateServer(): Promise<IGateServer> {
     // Accept a certless handshake so the handler can return the app-layer 403
     // that is the behaviour under test (mirrors Cloudflare). This does NOT
     // relax server-cert validation — clients still verify via `ca` below.
+    // Test-only gate: client-cert presence is asserted manually; no production
+    // path. CodeQL js/disabling-certificate-validation is dismissed for this
+    // fixture; the current scan configuration does not process suppressions.
     rejectUnauthorized: false,
   };
   const partial = makePartialBarrier();
