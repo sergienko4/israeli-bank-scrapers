@@ -1,5 +1,12 @@
 # Changelog
 
+## [10.1.2](https://github.com/sergienko4/israeli-bank-scrapers/compare/v10.1.1...v10.1.2) (2026-11-24)
+
+
+### Bug Fixes
+
+* Treat dropped diff blocks as incomplete coverage ([#897](https://github.com/sergienko4/israeli-bank-scrapers/issues/897)) ([b25ca2c](https://github.com/sergienko4/israeli-bank-scrapers/commit/b25ca2c232cc88349ed2cc44824a1a8c0bb2e793))
+
 ## [10.1.1](https://github.com/sergienko4/israeli-bank-scrapers/compare/v10.1.0...v10.1.1) (2026-11-21)
 
 
